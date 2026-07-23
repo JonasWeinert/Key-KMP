@@ -47,7 +47,6 @@ pub(crate) struct AcademicPaperViewTheme {
     pub text: Hsla,
     pub secondary_text: Hsla,
     pub accent: Hsla,
-    pub divider: Hsla,
 }
 
 pub(crate) fn render_academic_paper_view(
@@ -69,10 +68,7 @@ pub(crate) fn render_academic_paper_view(
     let base = div().id(id).min_w_0().flex().flex_col();
     match variant {
         AcademicPaperViewVariant::InfoPanel => base
-            .mt_2()
-            .pt_2()
-            .border_t_1()
-            .border_color(theme.divider)
+            .pt_3()
             .child(
                 div()
                     .text_xs()
@@ -83,7 +79,10 @@ pub(crate) fn render_academic_paper_view(
             .child(
                 div()
                     .mt_1()
+                    .max_h(px(46.0))
+                    .overflow_hidden()
                     .text_sm()
+                    .line_height(px(21.0))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .text_color(theme.text)
                     .child(paper.title.clone()),
@@ -92,7 +91,10 @@ pub(crate) fn render_academic_paper_view(
                 view.child(
                     div()
                         .mt_1()
+                        .max_h(px(34.0))
+                        .overflow_hidden()
                         .text_xs()
+                        .line_height(px(17.0))
                         .text_color(theme.secondary_text)
                         .child(citation),
                 )
@@ -110,7 +112,7 @@ pub(crate) fn render_academic_paper_view(
                 view.child(
                     div()
                         .mt_2()
-                        .max_h(px(88.0))
+                        .max_h(px(51.0))
                         .overflow_hidden()
                         .text_xs()
                         .line_height(px(17.0))

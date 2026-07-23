@@ -2086,7 +2086,6 @@ impl PdfReader {
                                     text: palette.text,
                                     secondary_text: palette.text_secondary,
                                     accent: identity_color,
-                                    divider: palette.separator,
                                 },
                             ))
                             .child(

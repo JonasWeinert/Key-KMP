@@ -24,6 +24,11 @@ use key_workspace_core::{
 };
 use std::time::Instant;
 
+/// The academic card can include a title, citation, DOI, and abstract. Give
+/// its expandable surface a dedicated height rather than constraining it to
+/// the former three-line document-metadata panel.
+const ACADEMIC_DETAILS_AUXILIARY_HEIGHT: f32 = 264.0;
+
 enum ControlBarProvider {
     Pdf(Entity<PdfReader>),
     Settings(WorkspaceViewDescriptor),
@@ -53,7 +58,7 @@ impl ViewControlBar {
         let metrics = ThemeTokens::from_app(cx).components.control_bar;
         metrics.primary_height
             + (metrics.auxiliary_height * self.search_reveal.value())
-                .max(metrics.title_auxiliary_height * self.title_reveal.value())
+                .max(ACADEMIC_DETAILS_AUXILIARY_HEIGHT * self.title_reveal.value())
     }
 
     #[cfg(debug_assertions)]
@@ -627,7 +632,7 @@ impl ViewControlBar {
                     .child(
                         div()
                             .design_typography(TypographyRole::Heading, &tokens)
-                            .child("PDF details"),
+                            .child("Academic paper details"),
                     )
                     .child(
                         div()
@@ -656,43 +661,26 @@ impl ViewControlBar {
                     ),
             )
             .when_some(metadata, |panel, metadata| {
-                panel
-                    .child(
+                panel.when_some(metadata.academic_details, |panel, details| match details {
+                    AcademicDetailsDisplay::Loading => panel.child(
                         div()
-                            .design_typography(TypographyRole::Heading, &tokens)
-                            .child(metadata.title),
-                    )
-                    .child(
-                        div()
-                            .overflow_hidden()
-                            .text_ellipsis()
-                            .whitespace_nowrap()
-                            .design_typography(TypographyRole::Body, &tokens)
-                            .text_color(tokens.content.secondary)
-                            .child(metadata.path),
-                    )
-                    .child(
-                        div()
+                            .flex_1()
                             .flex()
-                            .gap_4()
-                            .design_typography(TypographyRole::Body, &tokens)
+                            .items_center()
+                            .px_4()
+                            .design_typography(TypographyRole::Caption, &tokens)
                             .text_color(tokens.content.secondary)
-                            .child(format!(
-                                "Page {} of {}",
-                                metadata.current_page, metadata.page_count
-                            ))
-                            .child(format!("{}% zoom", metadata.zoom_percent)),
-                    )
-                    .when_some(metadata.academic_details, |panel, details| match details {
-                        AcademicDetailsDisplay::Loading => panel.child(
-                            div()
-                                .mt_2()
-                                .design_typography(TypographyRole::Caption, &tokens)
-                                .text_color(tokens.content.secondary)
-                                .child("Finding academic paper details…"),
-                        ),
-                        AcademicDetailsDisplay::Ready(paper) => {
-                            panel.child(render_academic_paper_view(
+                            .child("Finding academic paper details…"),
+                    ),
+                    AcademicDetailsDisplay::Ready(paper) => panel.child(
+                        div()
+                            .id("control-academic-paper-scroll")
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scroll()
+                            .px_4()
+                            .pb_3()
+                            .child(render_academic_paper_view(
                                 "control-academic-paper",
                                 &paper,
                                 AcademicPaperViewVariant::InfoPanel,
@@ -700,11 +688,10 @@ impl ViewControlBar {
                                     text: tokens.content.primary,
                                     secondary_text: tokens.content.secondary,
                                     accent: tokens.action.accent,
-                                    divider: tokens.materials.surface.border,
                                 },
-                            ))
-                        }
-                    })
+                            )),
+                    ),
+                })
             })
             .into_any_element()
     }
@@ -836,7 +823,7 @@ impl Render for ViewControlBar {
         }
         let title_reveal = self.title_reveal.value();
         let auxiliary_height = (tokens.components.control_bar.auxiliary_height * search_reveal)
-            .max(tokens.components.control_bar.title_auxiliary_height * title_reveal);
+            .max(ACADEMIC_DETAILS_AUXILIARY_HEIGHT * title_reveal);
         let auxiliary = if self.search_expanded {
             self.snapshot
                 .auxiliary
