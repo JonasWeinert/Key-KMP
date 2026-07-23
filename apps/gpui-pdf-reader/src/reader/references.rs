@@ -1,4 +1,7 @@
 use super::*;
+use crate::academic_paper_view::{
+    AcademicPaperInfo, AcademicPaperViewTheme, AcademicPaperViewVariant, render_academic_paper_view,
+};
 
 pub(super) fn link_section_title(
     entries: &[TocEntry],
@@ -1818,20 +1821,8 @@ impl PdfReader {
             .journal
             .clone()
             .unwrap_or_else(|| "Journal unavailable".to_owned());
-        let source_line = format!(
-            "{} · {}",
-            metadata.source.label(),
-            metadata
-                .certainty
-                .map(|certainty| certainty.label())
-                .unwrap_or("DOI match")
-        );
         let summary_height = (self.viewport_height * 0.30).clamp(150.0, 300.0);
-        let title_size = if metadata.title.chars().count() > 120 {
-            17.0
-        } else {
-            19.0
-        };
+        let paper = AcademicPaperInfo::from(metadata.as_ref());
         let doi_url = metadata
             .doi
             .as_ref()
@@ -1903,14 +1894,6 @@ impl PdfReader {
                 cx,
             ));
         }
-        let hero_title = self.selectable_reference_text(
-            "reference-hero-title-text",
-            &metadata.title,
-            window,
-            cx,
-        );
-        let source_text =
-            self.selectable_reference_text("reference-source-text", &source_line, window, cx);
         let citation = self.render_reference_citation(
             &metadata,
             &authors,
@@ -2095,24 +2078,17 @@ impl PdfReader {
                             .top(px(20.0))
                             .bottom(px(16.0))
                             .min_w_0()
-                            .child(
-                                div()
-                                    .pr(px(70.0))
-                                    .text_xs()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(identity_color)
-                                    .child(source_text),
-                            )
-                            .child(
-                                div()
-                                    .mt_2()
-                                    .pr(px(70.0))
-                                    .text_size(px(title_size))
-                                    .line_height(px(title_size + 6.0))
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(palette.text)
-                                    .child(hero_title),
-                            )
+                            .child(render_academic_paper_view(
+                                "reference-academic-paper",
+                                &paper,
+                                AcademicPaperViewVariant::ReferenceHero,
+                                AcademicPaperViewTheme {
+                                    text: palette.text,
+                                    secondary_text: palette.text_secondary,
+                                    accent: identity_color,
+                                    divider: palette.separator,
+                                },
+                            ))
                             .child(
                                 div()
                                     .mt_2()

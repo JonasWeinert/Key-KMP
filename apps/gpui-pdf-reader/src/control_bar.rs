@@ -1,5 +1,8 @@
 //! Host-rendered projection of the command-active workspace view.
 
+use crate::academic_paper_view::{
+    AcademicPaperViewTheme, AcademicPaperViewVariant, render_academic_paper_view,
+};
 use crate::reader::control_bar::PdfControlBarSignature;
 use crate::reader::document_academic_details::AcademicDetailsDisplay;
 use crate::reader::{PdfReader, PdfReaderEvent};
@@ -689,54 +692,17 @@ impl ViewControlBar {
                                 .child("Finding academic paper details…"),
                         ),
                         AcademicDetailsDisplay::Ready(paper) => {
-                            let citation = [
-                                (!paper.authors.is_empty()).then(|| paper.authors.join(", ")),
-                                paper.journal.clone(),
-                                paper.year.map(|year| year.to_string()),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>()
-                            .join(" · ");
-                            panel
-                                .child(
-                                    div()
-                                        .mt_2()
-                                        .design_typography(TypographyRole::Label, &tokens)
-                                        .text_color(tokens.content.secondary)
-                                        .child(format!("Academic paper · {}", paper.source)),
-                                )
-                                .child(
-                                    div()
-                                        .design_typography(TypographyRole::Body, &tokens)
-                                        .child(paper.title),
-                                )
-                                .when(!citation.is_empty(), |panel| {
-                                    panel.child(
-                                        div()
-                                            .design_typography(TypographyRole::Caption, &tokens)
-                                            .text_color(tokens.content.secondary)
-                                            .child(citation),
-                                    )
-                                })
-                                .when_some(paper.doi, |panel, doi| {
-                                    panel.child(
-                                        div()
-                                            .design_typography(TypographyRole::Caption, &tokens)
-                                            .text_color(tokens.content.secondary)
-                                            .child(format!("DOI: {doi}")),
-                                    )
-                                })
-                                .when_some(paper.abstract_text, |panel, abstract_text| {
-                                    panel.child(
-                                        div()
-                                            .max_h(px(88.0))
-                                            .overflow_hidden()
-                                            .design_typography(TypographyRole::Caption, &tokens)
-                                            .text_color(tokens.content.secondary)
-                                            .child(abstract_text),
-                                    )
-                                })
+                            panel.child(render_academic_paper_view(
+                                "control-academic-paper",
+                                &paper,
+                                AcademicPaperViewVariant::InfoPanel,
+                                AcademicPaperViewTheme {
+                                    text: tokens.content.primary,
+                                    secondary_text: tokens.content.secondary,
+                                    accent: tokens.action.accent,
+                                    divider: tokens.materials.surface.border,
+                                },
+                            ))
                         }
                     })
             })

@@ -5,22 +5,12 @@
 //! resulting provider state for any reader information surface.
 
 use super::*;
+use crate::academic_paper_view::AcademicPaperInfo;
 
 #[derive(Clone, Debug)]
 pub(crate) enum AcademicDetailsDisplay {
     Loading,
     Ready(AcademicPaperInfo),
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct AcademicPaperInfo {
-    pub title: String,
-    pub authors: Vec<String>,
-    pub year: Option<u32>,
-    pub journal: Option<String>,
-    pub doi: Option<String>,
-    pub abstract_text: Option<String>,
-    pub source: &'static str,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -99,18 +89,9 @@ impl DocumentAcademicDetails {
                 else {
                     return None;
                 };
-                Some(AcademicDetailsDisplay::Ready(AcademicPaperInfo {
-                    title: metadata.title.clone(),
-                    authors: metadata.authors.clone(),
-                    year: metadata.year,
-                    journal: metadata
-                        .journal_short
-                        .clone()
-                        .or_else(|| metadata.journal.clone()),
-                    doi: metadata.doi.clone(),
-                    abstract_text: metadata.abstract_text.clone(),
-                    source: metadata.source.label(),
-                }))
+                Some(AcademicDetailsDisplay::Ready(AcademicPaperInfo::from(
+                    metadata.as_ref(),
+                )))
             }
             AcademicLookupState::None | AcademicLookupState::Failed => None,
         }
