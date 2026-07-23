@@ -487,6 +487,7 @@ fn accept_supervisor_event(
                     generation,
                     path,
                     title: descriptor.title().map(str::to_owned),
+                    metadata: descriptor.metadata().iter().map(ToString::to_string).collect(),
                     pages: descriptor.pages().to_vec(),
                     toc: descriptor.table_of_contents().to_vec(),
                     links: descriptor.links().to_vec(),

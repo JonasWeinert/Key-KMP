@@ -339,6 +339,7 @@ fn pdf_capability_extension_error(error: PdfExtensionError) -> ExtensionError {
 struct DocumentState {
     path: PathBuf,
     title: Option<String>,
+    metadata: Vec<String>,
     pages: Vec<PageSize>,
     toc: Vec<TocEntry>,
     links: Vec<PdfLink>,
@@ -1362,6 +1363,7 @@ impl PdfReader {
                 generation,
                 path,
                 title,
+                metadata,
                 pages,
                 toc,
                 links,
@@ -1409,6 +1411,7 @@ impl PdfReader {
                 self.document = Some(DocumentState {
                     path: path.clone(),
                     title,
+                    metadata,
                     pages: pages.clone(),
                     toc,
                     links,

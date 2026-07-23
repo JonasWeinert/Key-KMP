@@ -301,14 +301,21 @@ impl PdfEngine for PdfiumEngine {
         cancellation
             .checkpoint()
             .map_err(|_| PdfiumEngineError::Cancelled)?;
-        let title = document
-            .metadata()
+        let metadata = document.metadata();
+        let title = metadata
             .get(PdfDocumentMetadataTagType::Title)
             .map(|tag| tag.value().trim().to_owned())
             .filter(|title| !title.is_empty());
+        let metadata = metadata
+            .iter()
+            .map(|tag| tag.value().split_whitespace().collect::<Vec<_>>().join(" "))
+            .filter(|value| !value.is_empty())
+            .collect();
         Ok(PdfiumEngineDocument {
             document,
-            descriptor: DocumentDescriptor::new(pages, table_of_contents, links).with_title(title),
+            descriptor: DocumentDescriptor::new(pages, table_of_contents, links)
+                .with_title(title)
+                .with_metadata(metadata),
             partial_text: HashMap::new(),
             owner: self.owner,
             not_send: self.not_send.clone(),
