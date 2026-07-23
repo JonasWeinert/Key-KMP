@@ -72,7 +72,7 @@ impl ScholarlyQuery {
             .find_map(|value| crate::scientific::detect_doi(value));
         doi.map(Self::Doi).or_else(|| {
             title
-                .filter(|title| title.split_whitespace().count() >= 3)
+                .filter(|title| title.split_whitespace().count() >= 2)
                 .map(|title| Self::Title(title.split_whitespace().collect::<Vec<_>>().join(" ")))
         })
     }

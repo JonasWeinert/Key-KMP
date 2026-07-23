@@ -105,7 +105,7 @@ impl ScholarlyQuery {
     }
 
     fn title(title: String) -> Option<Self> {
-        (title.split_whitespace().count() >= 3).then_some(Self::Title(title))
+        (title.split_whitespace().count() >= 2).then_some(Self::Title(title))
     }
 
     fn lookup_text(&self) -> &str {
@@ -339,7 +339,7 @@ fn fetch_semantic_scholar(
     cancellation: &CancellationToken,
 ) -> Result<ScholarlyMetadata, String> {
     let query = probable_title(reference);
-    if query.split_whitespace().count() < 3 {
+    if query.split_whitespace().count() < 2 {
         return Err("The reference does not contain enough title text to match".to_owned());
     }
     let mut url = Url::parse("https://api.semanticscholar.org/graph/v1/paper/search/match")
@@ -910,6 +910,15 @@ mod tests {
             Some(ScholarlyQuery::Title(
                 "A title that Semantic Scholar can match".to_owned()
             ))
+        );
+    }
+
+    #[test]
+    fn document_query_accepts_a_two_word_paper_title() {
+        let query = ScholarlyQuery::from_document_metadata(&[], Some("Deep Learning"));
+        assert_eq!(
+            query,
+            Some(ScholarlyQuery::Title("Deep Learning".to_owned()))
         );
     }
 

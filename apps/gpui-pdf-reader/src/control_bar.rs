@@ -672,6 +672,16 @@ impl ViewControlBar {
                             .text_color(tokens.content.secondary)
                             .child("Finding academic paper details…"),
                     ),
+                    AcademicDetailsDisplay::Unavailable(message) => panel.child(
+                        div()
+                            .flex_1()
+                            .flex()
+                            .items_center()
+                            .px_4()
+                            .design_typography(TypographyRole::Caption, &tokens)
+                            .text_color(tokens.content.secondary)
+                            .child(message),
+                    ),
                     AcademicDetailsDisplay::Ready(paper) => panel.child(
                         div()
                             .id("control-academic-paper-scroll")

@@ -11,6 +11,7 @@ use crate::academic_paper_view::AcademicPaperInfo;
 pub(crate) enum AcademicDetailsDisplay {
     Loading,
     Ready(AcademicPaperInfo),
+    Unavailable(String),
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -93,7 +94,23 @@ impl DocumentAcademicDetails {
                     metadata.as_ref(),
                 )))
             }
-            AcademicLookupState::None | AcademicLookupState::Failed => None,
+            AcademicLookupState::None => Some(AcademicDetailsDisplay::Unavailable(
+                "No DOI or usable document title was found in this PDF.".to_owned(),
+            )),
+            AcademicLookupState::Failed => {
+                let message = self
+                    .query
+                    .as_ref()
+                    .and_then(|query| session.query_state(query))
+                    .and_then(|state| match state {
+                        ScholarlyMetadataState::Failed(message) => Some(message.clone()),
+                        ScholarlyMetadataState::Loading | ScholarlyMetadataState::Ready(_) => None,
+                    })
+                    .unwrap_or_else(|| {
+                        "No academic paper record was found for this PDF.".to_owned()
+                    });
+                Some(AcademicDetailsDisplay::Unavailable(message))
+            }
         }
     }
 }

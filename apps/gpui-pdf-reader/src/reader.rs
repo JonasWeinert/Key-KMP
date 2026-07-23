@@ -1414,8 +1414,13 @@ impl PdfReader {
                     self.annotations = Some(AnnotationSet::new(page_count));
                     self.warning = Some("The annotation sidecar worker is unavailable".into());
                 }
+                let document_title = title.as_deref().or_else(|| {
+                    path.file_stem()
+                        .and_then(|name| name.to_str())
+                        .filter(|name| !name.is_empty())
+                });
                 self.document_academic_details
-                    .configure(&metadata, title.as_deref());
+                    .configure(&metadata, document_title);
                 self.document = Some(DocumentState {
                     path: path.clone(),
                     title,
