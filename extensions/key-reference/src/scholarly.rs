@@ -71,6 +71,57 @@ pub enum ScholarlyMetadataState {
     Failed(String),
 }
 
+/// A reusable scholarly lookup input with explicit DOI-first semantics.
+///
+/// Hosts can construct this from a citation or from document metadata without
+/// duplicating provider selection logic. A DOI is resolved through OpenAlex;
+/// a title is matched through Semantic Scholar.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ScholarlyQuery {
+    Doi(String),
+    Title(String),
+}
+
+impl ScholarlyQuery {
+    /// Builds a query from a citation or link label.
+    pub fn from_reference(reference: &str) -> Option<Self> {
+        let reference = normalize_reference(reference);
+        if reference.is_empty() {
+            return None;
+        }
+        detect_doi(&reference)
+            .map(Self::Doi)
+            .or_else(|| Self::title(probable_title(&reference)))
+    }
+
+    /// Builds a query for a document: metadata DOI takes priority, otherwise
+    /// the embedded PDF title is used as the Semantic Scholar query.
+    pub fn from_document_metadata(metadata: &[String], title: Option<&str>) -> Option<Self> {
+        metadata
+            .iter()
+            .find_map(|value| detect_doi(value))
+            .map(Self::Doi)
+            .or_else(|| title.and_then(|title| Self::title(normalize_reference(title))))
+    }
+
+    fn title(title: String) -> Option<Self> {
+        (title.split_whitespace().count() >= 3).then_some(Self::Title(title))
+    }
+
+    fn lookup_text(&self) -> &str {
+        match self {
+            Self::Doi(doi) | Self::Title(doi) => doi,
+        }
+    }
+
+    fn key(&self) -> String {
+        match self {
+            Self::Doi(doi) => format!("doi:{doi}"),
+            Self::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ScholarlyEvent {
     Fetched {
@@ -195,15 +246,24 @@ impl ScholarlySession {
         generation: u64,
         reference: &str,
     ) -> bool {
-        let reference = normalize_reference(reference);
-        if reference.is_empty() {
+        let Some(query) = ScholarlyQuery::from_reference(reference) else {
             return false;
-        }
-        let key = reference_key(&reference);
+        };
+        self.request_query(fetcher, generation, query)
+    }
+
+    /// Requests metadata for a reusable DOI-or-title query.
+    pub fn request_query(
+        &mut self,
+        fetcher: &ScholarlyFetcher,
+        generation: u64,
+        query: ScholarlyQuery,
+    ) -> bool {
+        let key = query.key();
         if self.entries.contains_key(&key) {
             return false;
         }
-        if !fetcher.fetch(generation, key.clone(), reference) {
+        if !fetcher.fetch(generation, key.clone(), query.lookup_text().to_owned()) {
             self.entries.insert(
                 key,
                 ScholarlyMetadataState::Failed("lookup unavailable".to_owned()),
@@ -212,6 +272,11 @@ impl ScholarlySession {
         }
         self.entries.insert(key, ScholarlyMetadataState::Loading);
         true
+    }
+
+    /// Returns metadata state for a reusable DOI-or-title query.
+    pub fn query_state(&self, query: &ScholarlyQuery) -> Option<&ScholarlyMetadataState> {
+        self.entries.get(&query.key())
     }
 
     pub fn apply(&mut self, event: ScholarlyEvent) -> Option<u64> {
@@ -553,8 +618,8 @@ fn title_tokens(value: &str) -> BTreeSet<String> {
 }
 
 fn reference_key(reference: &str) -> String {
-    detect_doi(reference)
-        .map(|doi| format!("doi:{doi}"))
+    ScholarlyQuery::from_reference(reference)
+        .map(|query| query.key())
         .unwrap_or_else(|| format!("title:{}", probable_title(reference).to_ascii_lowercase()))
 }
 
@@ -816,6 +881,32 @@ mod tests {
         assert_eq!(
             reference_key("doi:10.1000/ABC."),
             reference_key("https://doi.org/10.1000/abc")
+        );
+    }
+
+    #[test]
+    fn document_query_prefers_metadata_doi_over_title() {
+        let query = ScholarlyQuery::from_document_metadata(
+            &[
+                "Keywords: medicine".to_owned(),
+                "Identifier 10.1000/Document.Work".to_owned(),
+            ],
+            Some("A title that would otherwise be searched"),
+        );
+        assert_eq!(query, Some(ScholarlyQuery::Doi("10.1000/document.work".to_owned())));
+    }
+
+    #[test]
+    fn document_query_uses_embedded_title_when_metadata_has_no_doi() {
+        let query = ScholarlyQuery::from_document_metadata(
+            &["Keywords: medicine".to_owned()],
+            Some("A title that Semantic Scholar can match"),
+        );
+        assert_eq!(
+            query,
+            Some(ScholarlyQuery::Title(
+                "A title that Semantic Scholar can match".to_owned()
+            ))
         );
     }
 

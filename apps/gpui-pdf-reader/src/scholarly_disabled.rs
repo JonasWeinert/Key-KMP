@@ -59,6 +59,23 @@ pub enum ScholarlyMetadataState {
     Failed(String),
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ScholarlyQuery {
+    Doi(String),
+    Title(String),
+}
+
+impl ScholarlyQuery {
+    pub fn from_document_metadata(metadata: &[String], title: Option<&str>) -> Option<Self> {
+        let doi = metadata.iter().find_map(|value| crate::scientific::detect_doi(value));
+        doi.map(Self::Doi).or_else(|| {
+            title
+                .filter(|title| title.split_whitespace().count() >= 3)
+                .map(|title| Self::Title(title.split_whitespace().collect::<Vec<_>>().join(" ")))
+        })
+    }
+}
+
 #[derive(Debug)]
 pub enum ScholarlyEvent {
     Fetched {
@@ -111,6 +128,33 @@ impl ScholarlySession {
             ),
         );
         false
+    }
+
+    pub fn request_query(
+        &mut self,
+        _fetcher: &ScholarlyFetcher,
+        _generation: u64,
+        query: ScholarlyQuery,
+    ) -> bool {
+        let key = match query {
+            ScholarlyQuery::Doi(doi) => format!("doi:{doi}"),
+            ScholarlyQuery::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
+        };
+        self.entries.insert(
+            key,
+            ScholarlyMetadataState::Failed(
+                "Scholarly metadata is omitted from this build".to_owned(),
+            ),
+        );
+        false
+    }
+
+    pub fn query_state(&self, query: &ScholarlyQuery) -> Option<&ScholarlyMetadataState> {
+        let key = match query {
+            ScholarlyQuery::Doi(doi) => format!("doi:{doi}"),
+            ScholarlyQuery::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
+        };
+        self.entries.get(&key)
     }
 
     pub fn apply(&mut self, event: ScholarlyEvent) -> Option<u64> {

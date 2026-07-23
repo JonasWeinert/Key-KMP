@@ -2,5 +2,5 @@
 
 pub use key_reference::{
     ScholarlyEvent, ScholarlyFetcher, ScholarlyMetadata, ScholarlyMetadataState, ScholarlySession,
-    ScholarlySource,
+    ScholarlyQuery, ScholarlySource,
 };
