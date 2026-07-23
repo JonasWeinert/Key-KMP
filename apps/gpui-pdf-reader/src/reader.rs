@@ -33,8 +33,8 @@ use crate::navigation_focus::{
 };
 use crate::pdf_capability_bridge::PdfCapabilityBridge;
 use crate::scholarly::{
-    ScholarlyEvent, ScholarlyFetcher, ScholarlyMetadata, ScholarlyMetadataState, ScholarlySession,
-    ScholarlySource,
+    ScholarlyEvent, ScholarlyFetcher, ScholarlyMetadata, ScholarlyMetadataState, ScholarlyQuery,
+    ScholarlySession, ScholarlySource,
 };
 #[cfg(debug_assertions)]
 use crate::scientific::ScientificSignals;
@@ -111,6 +111,7 @@ use std::time::{Duration, Instant};
 mod annotation_io;
 mod comments;
 pub(crate) mod control_bar;
+pub(crate) mod document_academic_details;
 mod extensions;
 #[cfg(debug_assertions)]
 pub(crate) mod qa;
@@ -123,6 +124,7 @@ mod toc;
 mod ui;
 
 use annotation_io::{AnnotationIo, AnnotationIoEvent, AnnotationIoEvents, AnnotationIoOperation};
+use document_academic_details::DocumentAcademicDetails;
 use key_ui_gpui::{
     DesignStyled as _, ElevationRole, RadiusRole, ThemeTokens, UnitTransition, semantic_icon,
 };
@@ -339,7 +341,6 @@ fn pdf_capability_extension_error(error: PdfExtensionError) -> ExtensionError {
 struct DocumentState {
     path: PathBuf,
     title: Option<String>,
-    metadata: Vec<String>,
     pages: Vec<PageSize>,
     toc: Vec<TocEntry>,
     links: Vec<PdfLink>,
@@ -611,6 +612,7 @@ pub struct PdfReader {
     link_preview_session: Option<LinkPreviewSession>,
     scholarly_fetcher: ScholarlyFetcher,
     scholarly_session: ScholarlySession,
+    document_academic_details: DocumentAcademicDetails,
     reference_details: Option<String>,
     reference_details_group: Vec<String>,
     reference_details_transition: RevealState,
@@ -827,6 +829,7 @@ impl PdfReader {
                 link_preview_session: None,
                 scholarly_fetcher,
                 scholarly_session: ScholarlySession::default(),
+                document_academic_details: DocumentAcademicDetails::default(),
                 reference_details: None,
                 reference_details_group: Vec::new(),
                 reference_details_transition: RevealState::visible(),
@@ -1292,6 +1295,9 @@ impl PdfReader {
                             if event.generation() == reader.generation
                                 && reader.scholarly_session.apply(event) == Some(reader.generation)
                             {
+                                reader
+                                    .document_academic_details
+                                    .refresh(&reader.scholarly_session);
                                 if reader.current_reference_texts().iter().any(|reference| {
                                     matches!(
                                         reader.scholarly_session.state(reference),
@@ -1408,15 +1414,21 @@ impl PdfReader {
                     self.annotations = Some(AnnotationSet::new(page_count));
                     self.warning = Some("The annotation sidecar worker is unavailable".into());
                 }
+                self.document_academic_details
+                    .configure(&metadata, title.as_deref());
                 self.document = Some(DocumentState {
                     path: path.clone(),
                     title,
-                    metadata,
                     pages: pages.clone(),
                     toc,
                     links,
                     scientific_references: Vec::new(),
                 });
+                self.document_academic_details.request(
+                    &self.scholarly_fetcher,
+                    &mut self.scholarly_session,
+                    self.generation,
+                );
                 if let Err(error) = self.viewport.set_document_pages(pages) {
                     self.close_pdf_capability_generation();
                     self.status = ReaderStatus::Error(error.to_string().into());
@@ -2497,6 +2509,7 @@ impl PdfReader {
         self.scholarly_fetcher.begin_document(self.generation);
         self.link_preview_session = None;
         self.scholarly_session = ScholarlySession::default();
+        self.document_academic_details.clear();
         self.reference_details = None;
         self.reference_details_group.clear();
         self.reference_details_transition = RevealState::visible();

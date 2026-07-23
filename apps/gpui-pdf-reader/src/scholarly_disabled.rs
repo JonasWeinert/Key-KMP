@@ -67,7 +67,9 @@ pub enum ScholarlyQuery {
 
 impl ScholarlyQuery {
     pub fn from_document_metadata(metadata: &[String], title: Option<&str>) -> Option<Self> {
-        let doi = metadata.iter().find_map(|value| crate::scientific::detect_doi(value));
+        let doi = metadata
+            .iter()
+            .find_map(|value| crate::scientific::detect_doi(value));
         doi.map(Self::Doi).or_else(|| {
             title
                 .filter(|title| title.split_whitespace().count() >= 3)

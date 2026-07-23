@@ -893,7 +893,10 @@ mod tests {
             ],
             Some("A title that would otherwise be searched"),
         );
-        assert_eq!(query, Some(ScholarlyQuery::Doi("10.1000/document.work".to_owned())));
+        assert_eq!(
+            query,
+            Some(ScholarlyQuery::Doi("10.1000/document.work".to_owned()))
+        );
     }
 
     #[test]
