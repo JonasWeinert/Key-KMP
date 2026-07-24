@@ -17,6 +17,7 @@ const MAX_AUTHORS: usize = 12;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScholarlySource {
     OpenAlex,
+    Crossref,
     SemanticScholar,
 }
 
@@ -24,6 +25,7 @@ impl ScholarlySource {
     pub fn label(self) -> &'static str {
         match self {
             Self::OpenAlex => "OpenAlex",
+            Self::Crossref => "Crossref",
             Self::SemanticScholar => "Semantic Scholar",
         }
     }
@@ -79,6 +81,7 @@ pub enum ScholarlyMetadataState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScholarlyQuery {
     Doi(String),
+    LandingUrl(String),
     Title(String),
 }
 
@@ -94,14 +97,33 @@ impl ScholarlyQuery {
             .or_else(|| Self::title(probable_title(&reference)))
     }
 
-    /// Builds a query for a document: metadata DOI takes priority, otherwise
-    /// the embedded PDF title is used as the Semantic Scholar query.
-    pub fn from_document_metadata(metadata: &[String], title: Option<&str>) -> Option<Self> {
+    /// Builds a query for a document: metadata or first-page DOI evidence
+    /// takes priority, otherwise the embedded PDF title is used.
+    pub fn from_document_evidence(
+        metadata: &[String],
+        first_page_text: Option<&str>,
+        external_urls: &[String],
+        title: Option<&str>,
+    ) -> Option<Self> {
         metadata
             .iter()
+            .map(String::as_str)
+            .chain(first_page_text)
+            .chain(external_urls.iter().map(String::as_str))
             .find_map(|value| detect_doi(value))
             .map(Self::Doi)
+            .or_else(|| {
+                external_urls
+                    .iter()
+                    .find_map(|url| valid_http_string(url))
+                    .map(Self::LandingUrl)
+            })
             .or_else(|| title.and_then(|title| Self::title(normalize_reference(title))))
+    }
+
+    /// Builds a query from PDF metadata only.
+    pub fn from_document_metadata(metadata: &[String], title: Option<&str>) -> Option<Self> {
+        Self::from_document_evidence(metadata, None, &[], title)
     }
 
     fn title(title: String) -> Option<Self> {
@@ -110,13 +132,14 @@ impl ScholarlyQuery {
 
     fn lookup_text(&self) -> &str {
         match self {
-            Self::Doi(doi) | Self::Title(doi) => doi,
+            Self::Doi(value) | Self::LandingUrl(value) | Self::Title(value) => value,
         }
     }
 
     fn key(&self) -> String {
         match self {
             Self::Doi(doi) => format!("doi:{doi}"),
+            Self::LandingUrl(url) => format!("url:{url}"),
             Self::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
         }
     }
@@ -309,7 +332,12 @@ fn fetch_scholarly_metadata(
     cancellation: &CancellationToken,
 ) -> Result<ScholarlyMetadata, String> {
     if let Some(doi) = detect_doi(reference) {
-        fetch_openalex(&doi, cancellation)
+        fetch_openalex(&doi, cancellation).or_else(|openalex_error| {
+            fetch_crossref(&doi, cancellation)
+                .map_err(|crossref_error| format!("{openalex_error}; {crossref_error}"))
+        })
+    } else if let Some(url) = valid_http_string(reference) {
+        fetch_crossref_landing_url(&url, cancellation)
     } else {
         fetch_semantic_scholar(reference, cancellation)
     }
@@ -332,6 +360,46 @@ fn fetch_openalex(
     let value: Value = serde_json::from_slice(&body)
         .map_err(|error| format!("OpenAlex returned invalid metadata: {error}"))?;
     parse_openalex(&value).ok_or_else(|| "OpenAlex returned no usable work metadata".to_owned())
+}
+
+fn fetch_crossref(
+    doi: &str,
+    cancellation: &CancellationToken,
+) -> Result<ScholarlyMetadata, String> {
+    let mut url = Url::parse("https://api.crossref.org/works/")
+        .expect("the Crossref works endpoint is a valid URL");
+    url.path_segments_mut()
+        .map_err(|_| "Could not build the Crossref request URL".to_owned())?
+        .push(doi);
+    let body = fetch_public_json(url.as_str(), MAX_METADATA_BYTES, cancellation)
+        .map_err(|error| format!("Crossref: {error}"))?;
+    let value: Value = serde_json::from_slice(&body)
+        .map_err(|error| format!("Crossref returned invalid metadata: {error}"))?;
+    parse_crossref(value.get("message").unwrap_or(&value))
+        .ok_or_else(|| "Crossref returned no usable work metadata".to_owned())
+}
+
+fn fetch_crossref_landing_url(
+    landing_url: &str,
+    cancellation: &CancellationToken,
+) -> Result<ScholarlyMetadata, String> {
+    let mut url = Url::parse("https://api.crossref.org/works")
+        .expect("the Crossref works endpoint is a valid URL");
+    url.query_pairs_mut()
+        .append_pair("query", landing_url)
+        .append_pair("rows", "5");
+    let body = fetch_public_json(url.as_str(), MAX_METADATA_BYTES, cancellation)
+        .map_err(|error| format!("Crossref: {error}"))?;
+    let value: Value = serde_json::from_slice(&body)
+        .map_err(|error| format!("Crossref returned invalid metadata: {error}"))?;
+    let work = value
+        .pointer("/message/items")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|work| crossref_resource_matches(work, landing_url))
+        .ok_or_else(|| "Crossref found no work for the journal landing page".to_owned())?;
+    parse_crossref(work).ok_or_else(|| "Crossref returned no usable work metadata".to_owned())
 }
 
 fn fetch_semantic_scholar(
@@ -363,6 +431,110 @@ fn fetch_semantic_scholar(
         return Ok(merge_semantic_with_openalex(metadata, openalex));
     }
     Ok(metadata)
+}
+
+fn parse_crossref(value: &Value) -> Option<ScholarlyMetadata> {
+    let title = value
+        .get("title")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find_map(Value::as_str)
+        .map(normalize_space)
+        .filter(|title| !title.is_empty())?;
+    let authors = value
+        .get("author")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|author| {
+            let given = author
+                .get("given")
+                .and_then(Value::as_str)
+                .map(normalize_space);
+            let family = author
+                .get("family")
+                .and_then(Value::as_str)
+                .map(normalize_space);
+            match (given, family) {
+                (Some(given), Some(family)) => Some(format!("{given} {family}")),
+                (Some(name), None) | (None, Some(name)) => Some(name),
+                (None, None) => None,
+            }
+        })
+        .take(MAX_AUTHORS)
+        .collect();
+    let year = ["published-print", "published-online", "issued"]
+        .into_iter()
+        .find_map(|field| value.pointer(&format!("/{field}/date-parts/0/0")))
+        .and_then(Value::as_u64)
+        .and_then(|year| u32::try_from(year).ok());
+    let journal = value
+        .get("container-title")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find_map(Value::as_str)
+        .map(normalize_space)
+        .filter(|journal| !journal.is_empty());
+    let full_text_url = value
+        .get("link")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|link| {
+            link.get("content-type")
+                .and_then(Value::as_str)
+                .is_some_and(|kind| kind.eq_ignore_ascii_case("application/pdf"))
+        })
+        .and_then(|link| http_string(link.get("URL")));
+    Some(ScholarlyMetadata {
+        source: ScholarlySource::Crossref,
+        title,
+        abstract_text: None,
+        tldr_text: None,
+        authors,
+        year,
+        journal: journal.clone(),
+        journal_short: journal,
+        journal_url: None,
+        doi: value
+            .get("DOI")
+            .and_then(Value::as_str)
+            .and_then(detect_doi),
+        open_access: Some(full_text_url.is_some()),
+        full_text_url,
+        landing_url: http_string(
+            value
+                .get("resource")
+                .and_then(|resource| resource.get("primary"))
+                .and_then(|primary| primary.get("URL")),
+        ),
+        certainty: None,
+    })
+}
+
+fn crossref_resource_matches(value: &Value, landing_url: &str) -> bool {
+    let Some(candidate) = value
+        .pointer("/resource/primary/URL")
+        .and_then(Value::as_str)
+        .and_then(valid_http_string)
+    else {
+        return false;
+    };
+    canonical_http_url(&candidate) == canonical_http_url(landing_url)
+}
+
+fn canonical_http_url(value: &str) -> String {
+    let Ok(mut url) = Url::parse(value) else {
+        return value.to_ascii_lowercase();
+    };
+    url.set_fragment(None);
+    let mut normalized = url.to_string();
+    while normalized.ends_with('/') {
+        normalized.pop();
+    }
+    normalized.to_ascii_lowercase()
 }
 
 fn parse_openalex(value: &Value) -> Option<ScholarlyMetadata> {
@@ -920,6 +1092,66 @@ mod tests {
             query,
             Some(ScholarlyQuery::Title("Deep Learning".to_owned()))
         );
+    }
+
+    #[test]
+    fn document_evidence_prioritizes_first_page_or_link_dois() {
+        let query = ScholarlyQuery::from_document_evidence(
+            &["Keywords: methods".to_owned()],
+            Some("Read the article at https://doi.org/10.1000/first-page."),
+            &["https://publisher.example/article/10.1000/link".to_owned()],
+            Some("Fallback document title"),
+        );
+        assert_eq!(
+            query,
+            Some(ScholarlyQuery::Doi("10.1000/first-page".to_owned()))
+        );
+    }
+
+    #[test]
+    fn parses_crossref_work_metadata() {
+        let value = json!({
+            "DOI": "10.1000/crossref",
+            "title": ["A Crossref work"],
+            "author": [{"given": "Ada", "family": "Author"}],
+            "container-title": ["Journal of Tests"],
+            "published-online": {"date-parts": [[2025, 5, 1]]},
+            "resource": {"primary": {"URL": "https://publisher.example/article"}},
+            "link": [{"content-type": "application/pdf", "URL": "https://publisher.example/article.pdf"}]
+        });
+        let metadata = parse_crossref(&value).unwrap();
+        assert_eq!(metadata.source, ScholarlySource::Crossref);
+        assert_eq!(metadata.title, "A Crossref work");
+        assert_eq!(metadata.authors, vec!["Ada Author"]);
+        assert_eq!(metadata.year, Some(2025));
+        assert_eq!(metadata.doi.as_deref(), Some("10.1000/crossref"));
+        assert_eq!(
+            metadata.full_text_url.as_deref(),
+            Some("https://publisher.example/article.pdf")
+        );
+    }
+
+    #[test]
+    fn document_evidence_uses_verified_journal_landing_url_before_title() {
+        let query = ScholarlyQuery::from_document_evidence(
+            &[],
+            None,
+            &["https://publisher.example/articles/123".to_owned()],
+            Some("Fallback document title"),
+        );
+        assert_eq!(
+            query,
+            Some(ScholarlyQuery::LandingUrl(
+                "https://publisher.example/articles/123".to_owned()
+            ))
+        );
+        let value = json!({
+            "resource": {"primary": {"URL": "https://publisher.example/articles/123/"}}
+        });
+        assert!(crossref_resource_matches(
+            &value,
+            "https://publisher.example/articles/123"
+        ));
     }
 
     #[test]

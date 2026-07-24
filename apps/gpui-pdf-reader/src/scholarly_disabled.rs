@@ -5,6 +5,7 @@ use std::collections::HashMap;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScholarlySource {
     OpenAlex,
+    Crossref,
     SemanticScholar,
 }
 
@@ -12,6 +13,7 @@ impl ScholarlySource {
     pub fn label(self) -> &'static str {
         match self {
             Self::OpenAlex => "OpenAlex",
+            Self::Crossref => "Crossref",
             Self::SemanticScholar => "Semantic Scholar",
         }
     }
@@ -62,19 +64,46 @@ pub enum ScholarlyMetadataState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScholarlyQuery {
     Doi(String),
+    LandingUrl(String),
     Title(String),
 }
 
 impl ScholarlyQuery {
-    pub fn from_document_metadata(metadata: &[String], title: Option<&str>) -> Option<Self> {
-        let doi = metadata
+    pub fn from_document_evidence(
+        metadata: &[String],
+        first_page_text: Option<&str>,
+        external_urls: &[String],
+        title: Option<&str>,
+    ) -> Option<Self> {
+        metadata
             .iter()
-            .find_map(|value| crate::scientific::detect_doi(value));
-        doi.map(Self::Doi).or_else(|| {
-            title
-                .filter(|title| title.split_whitespace().count() >= 2)
-                .map(|title| Self::Title(title.split_whitespace().collect::<Vec<_>>().join(" ")))
-        })
+            .map(String::as_str)
+            .chain(first_page_text)
+            .chain(external_urls.iter().map(String::as_str))
+            .find_map(crate::scientific::detect_doi)
+            .map(Self::Doi)
+            .or_else(|| {
+                external_urls
+                    .iter()
+                    .find(|url| {
+                        url::Url::parse(url)
+                            .ok()
+                            .is_some_and(|url| matches!(url.scheme(), "http" | "https"))
+                    })
+                    .cloned()
+                    .map(Self::LandingUrl)
+            })
+            .or_else(|| {
+                title
+                    .filter(|title| title.split_whitespace().count() >= 2)
+                    .map(|title| {
+                        Self::Title(title.split_whitespace().collect::<Vec<_>>().join(" "))
+                    })
+            })
+    }
+
+    pub fn from_document_metadata(metadata: &[String], title: Option<&str>) -> Option<Self> {
+        Self::from_document_evidence(metadata, None, &[], title)
     }
 }
 
@@ -140,6 +169,7 @@ impl ScholarlySession {
     ) -> bool {
         let key = match query {
             ScholarlyQuery::Doi(doi) => format!("doi:{doi}"),
+            ScholarlyQuery::LandingUrl(url) => format!("url:{url}"),
             ScholarlyQuery::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
         };
         self.entries.insert(
@@ -154,6 +184,7 @@ impl ScholarlySession {
     pub fn query_state(&self, query: &ScholarlyQuery) -> Option<&ScholarlyMetadataState> {
         let key = match query {
             ScholarlyQuery::Doi(doi) => format!("doi:{doi}"),
+            ScholarlyQuery::LandingUrl(url) => format!("url:{url}"),
             ScholarlyQuery::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
         };
         self.entries.get(&key)
