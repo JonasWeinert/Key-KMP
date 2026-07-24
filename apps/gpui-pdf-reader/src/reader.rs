@@ -1419,8 +1419,19 @@ impl PdfReader {
                         .and_then(|name| name.to_str())
                         .filter(|name| !name.is_empty())
                 });
-                self.document_academic_details
-                    .configure(&metadata, document_title);
+                let first_page_external_urls = links
+                    .iter()
+                    .filter(|link| link.page == 0)
+                    .filter_map(|link| match &link.target {
+                        PdfLinkTarget::External { url } => Some(url.clone()),
+                        PdfLinkTarget::Internal { .. } => None,
+                    })
+                    .collect();
+                self.document_academic_details.configure(
+                    &metadata,
+                    document_title,
+                    first_page_external_urls,
+                );
                 self.document = Some(DocumentState {
                     path: path.clone(),
                     title,
@@ -1429,11 +1440,16 @@ impl PdfReader {
                     links,
                     scientific_references: Vec::new(),
                 });
-                self.document_academic_details.request(
-                    &self.scholarly_fetcher,
-                    &mut self.scholarly_session,
-                    self.generation,
-                );
+                if self.worker.ensure_text_pages(self.generation, vec![0]) {
+                    self.text_pending.insert(0);
+                } else {
+                    self.document_academic_details.scan_first_page(
+                        "",
+                        &self.scholarly_fetcher,
+                        &mut self.scholarly_session,
+                        self.generation,
+                    );
+                }
                 if let Err(error) = self.viewport.set_document_pages(pages) {
                     self.close_pdf_capability_generation();
                     self.status = ReaderStatus::Error(error.to_string().into());
@@ -1599,6 +1615,21 @@ impl PdfReader {
                 text,
             } if generation == self.generation => {
                 self.page_text.entry(page).or_insert(text);
+                if page == 0
+                    && let Some(first_page_text) = self.page_text.get(&page)
+                {
+                    let text = first_page_text
+                        .as_slice()
+                        .iter()
+                        .map(|character| character.value)
+                        .collect::<String>();
+                    self.document_academic_details.scan_first_page(
+                        &text,
+                        &self.scholarly_fetcher,
+                        &mut self.scholarly_session,
+                        self.generation,
+                    );
+                }
                 self.publish_pdf_text(page);
                 self.publish_pdf_selection();
                 self.text_pending.remove(&page);
@@ -1624,6 +1655,14 @@ impl PdfReader {
                 self.page_text
                     .entry(page)
                     .or_insert_with(|| Arc::new(TextLayer::empty()));
+                if page == 0 {
+                    self.document_academic_details.scan_first_page(
+                        "",
+                        &self.scholarly_fetcher,
+                        &mut self.scholarly_session,
+                        self.generation,
+                    );
+                }
                 self.publish_pdf_text(page);
                 self.publish_pdf_selection();
                 self.text_pending.remove(&page);
