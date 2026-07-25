@@ -33,8 +33,8 @@ use crate::navigation_focus::{
 };
 use crate::pdf_capability_bridge::PdfCapabilityBridge;
 use crate::scholarly::{
-    ScholarlyEvent, ScholarlyFetcher, ScholarlyMetadata, ScholarlyMetadataState, ScholarlySession,
-    ScholarlySource,
+    ScholarlyEvent, ScholarlyFetcher, ScholarlyMetadata, ScholarlyMetadataState, ScholarlyQuery,
+    ScholarlySession, ScholarlySource,
 };
 #[cfg(debug_assertions)]
 use crate::scientific::ScientificSignals;
@@ -111,6 +111,7 @@ use std::time::{Duration, Instant};
 mod annotation_io;
 mod comments;
 pub(crate) mod control_bar;
+pub(crate) mod document_academic_details;
 mod extensions;
 #[cfg(debug_assertions)]
 pub(crate) mod qa;
@@ -123,6 +124,7 @@ mod toc;
 mod ui;
 
 use annotation_io::{AnnotationIo, AnnotationIoEvent, AnnotationIoEvents, AnnotationIoOperation};
+use document_academic_details::DocumentAcademicDetails;
 use key_ui_gpui::{
     DesignStyled as _, ElevationRole, RadiusRole, ThemeTokens, UnitTransition, semantic_icon,
 };
@@ -610,6 +612,7 @@ pub struct PdfReader {
     link_preview_session: Option<LinkPreviewSession>,
     scholarly_fetcher: ScholarlyFetcher,
     scholarly_session: ScholarlySession,
+    document_academic_details: DocumentAcademicDetails,
     reference_details: Option<String>,
     reference_details_group: Vec<String>,
     reference_details_transition: RevealState,
@@ -826,6 +829,7 @@ impl PdfReader {
                 link_preview_session: None,
                 scholarly_fetcher,
                 scholarly_session: ScholarlySession::default(),
+                document_academic_details: DocumentAcademicDetails::default(),
                 reference_details: None,
                 reference_details_group: Vec::new(),
                 reference_details_transition: RevealState::visible(),
@@ -1291,6 +1295,9 @@ impl PdfReader {
                             if event.generation() == reader.generation
                                 && reader.scholarly_session.apply(event) == Some(reader.generation)
                             {
+                                reader
+                                    .document_academic_details
+                                    .refresh(&reader.scholarly_session);
                                 if reader.current_reference_texts().iter().any(|reference| {
                                     matches!(
                                         reader.scholarly_session.state(reference),
@@ -1362,6 +1369,7 @@ impl PdfReader {
                 generation,
                 path,
                 title,
+                metadata,
                 pages,
                 toc,
                 links,
@@ -1406,6 +1414,24 @@ impl PdfReader {
                     self.annotations = Some(AnnotationSet::new(page_count));
                     self.warning = Some("The annotation sidecar worker is unavailable".into());
                 }
+                let document_title = title.as_deref().or_else(|| {
+                    path.file_stem()
+                        .and_then(|name| name.to_str())
+                        .filter(|name| !name.is_empty())
+                });
+                let first_page_external_urls = links
+                    .iter()
+                    .filter(|link| link.page == 0)
+                    .filter_map(|link| match &link.target {
+                        PdfLinkTarget::External { url } => Some(url.clone()),
+                        PdfLinkTarget::Internal { .. } => None,
+                    })
+                    .collect();
+                self.document_academic_details.configure(
+                    &metadata,
+                    document_title,
+                    first_page_external_urls,
+                );
                 self.document = Some(DocumentState {
                     path: path.clone(),
                     title,
@@ -1414,6 +1440,16 @@ impl PdfReader {
                     links,
                     scientific_references: Vec::new(),
                 });
+                if self.worker.ensure_text_pages(self.generation, vec![0]) {
+                    self.text_pending.insert(0);
+                } else {
+                    self.document_academic_details.scan_first_page(
+                        "",
+                        &self.scholarly_fetcher,
+                        &mut self.scholarly_session,
+                        self.generation,
+                    );
+                }
                 if let Err(error) = self.viewport.set_document_pages(pages) {
                     self.close_pdf_capability_generation();
                     self.status = ReaderStatus::Error(error.to_string().into());
@@ -1579,6 +1615,21 @@ impl PdfReader {
                 text,
             } if generation == self.generation => {
                 self.page_text.entry(page).or_insert(text);
+                if page == 0
+                    && let Some(first_page_text) = self.page_text.get(&page)
+                {
+                    let text = first_page_text
+                        .as_slice()
+                        .iter()
+                        .map(|character| character.value)
+                        .collect::<String>();
+                    self.document_academic_details.scan_first_page(
+                        &text,
+                        &self.scholarly_fetcher,
+                        &mut self.scholarly_session,
+                        self.generation,
+                    );
+                }
                 self.publish_pdf_text(page);
                 self.publish_pdf_selection();
                 self.text_pending.remove(&page);
@@ -1604,6 +1655,14 @@ impl PdfReader {
                 self.page_text
                     .entry(page)
                     .or_insert_with(|| Arc::new(TextLayer::empty()));
+                if page == 0 {
+                    self.document_academic_details.scan_first_page(
+                        "",
+                        &self.scholarly_fetcher,
+                        &mut self.scholarly_session,
+                        self.generation,
+                    );
+                }
                 self.publish_pdf_text(page);
                 self.publish_pdf_selection();
                 self.text_pending.remove(&page);
@@ -2494,6 +2553,7 @@ impl PdfReader {
         self.scholarly_fetcher.begin_document(self.generation);
         self.link_preview_session = None;
         self.scholarly_session = ScholarlySession::default();
+        self.document_academic_details.clear();
         self.reference_details = None;
         self.reference_details_group.clear();
         self.reference_details_transition = RevealState::visible();

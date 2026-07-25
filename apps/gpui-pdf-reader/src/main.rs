@@ -1,3 +1,4 @@
+mod academic_paper_view;
 mod annotations;
 mod app_extensions;
 mod application_host;

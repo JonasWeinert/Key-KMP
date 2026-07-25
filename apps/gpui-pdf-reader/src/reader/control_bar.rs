@@ -1,3 +1,4 @@
+use super::document_academic_details::AcademicDetailsDisplay;
 use super::*;
 use key_workspace_core::{
     ControlBarAuxiliary, ControlBarCard, ControlBarEvent, ControlBarInteraction, ControlBarItem,
@@ -30,37 +31,21 @@ pub(crate) struct PdfControlBarSignature {
     search_complete: bool,
     dark_theme: bool,
     pdf_dark_mode: bool,
+    academic_details_revision: u64,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct PdfControlBarMetadata {
-    pub title: String,
-    pub path: String,
-    pub current_page: usize,
-    pub page_count: usize,
-    pub zoom_percent: u32,
+    pub academic_details: Option<AcademicDetailsDisplay>,
 }
 
 impl PdfReader {
     pub(crate) fn control_bar_metadata(&self) -> Option<PdfControlBarMetadata> {
-        let document = self.document.as_ref()?;
-        let page_count = document.pages.len();
-        let current_page = self
-            .layout()
-            .map(|layout| layout.current_page(self.scroll.y, self.viewport_height) + 1)
-            .unwrap_or(1)
-            .min(page_count.max(1));
+        self.document.as_ref()?;
         Some(PdfControlBarMetadata {
-            title: document.title.clone().unwrap_or_else(|| {
-                document.path.file_name().map_or_else(
-                    || "PDF document".to_owned(),
-                    |name| name.to_string_lossy().into_owned(),
-                )
-            }),
-            path: document.path.display().to_string(),
-            current_page,
-            page_count,
-            zoom_percent: (self.zoom * 100.0).round() as u32,
+            academic_details: self
+                .document_academic_details
+                .display(&self.scholarly_session),
         })
     }
 
@@ -84,6 +69,7 @@ impl PdfReader {
             search_complete: self.search.complete,
             dark_theme,
             pdf_dark_mode: self.pdf_dark_mode_enabled,
+            academic_details_revision: self.document_academic_details.revision(),
         }
     }
 

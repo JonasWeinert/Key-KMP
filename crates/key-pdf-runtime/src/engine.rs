@@ -18,6 +18,7 @@ pub struct EngineCapabilities {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentDescriptor {
     title: Option<Arc<str>>,
+    metadata: Arc<[Arc<str>]>,
     pages: Arc<[PageSize]>,
     table_of_contents: Arc<[TocEntry]>,
     links: Arc<[PdfLink]>,
@@ -31,6 +32,7 @@ impl DocumentDescriptor {
     ) -> Self {
         Self {
             title: None,
+            metadata: Arc::from([]),
             pages: pages.into(),
             table_of_contents: table_of_contents.into(),
             links: links.into(),
@@ -44,6 +46,18 @@ impl DocumentDescriptor {
 
     pub fn title(&self) -> Option<&str> {
         self.title.as_deref()
+    }
+
+    /// Sets normalized document metadata values that hosts may inspect without
+    /// depending on a particular PDF engine's metadata API.
+    pub fn with_metadata(mut self, metadata: Vec<String>) -> Self {
+        self.metadata = metadata.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Returns normalized document metadata values supplied by the engine.
+    pub fn metadata(&self) -> &[Arc<str>] {
+        &self.metadata
     }
 
     pub fn pages(&self) -> &[PageSize] {
@@ -934,6 +948,16 @@ mod tests {
 
         let titled = untitled.with_title(Some("A useful document title".to_owned()));
         assert_eq!(titled.title(), Some("A useful document title"));
+    }
+
+    #[test]
+    fn document_descriptor_preserves_engine_metadata() {
+        let descriptor = DocumentDescriptor::new(Vec::new(), Vec::new(), Vec::new())
+            .with_metadata(vec!["doi:10.1000/example".to_owned()]);
+        assert_eq!(
+            descriptor.metadata().first().map(AsRef::as_ref),
+            Some("doi:10.1000/example")
+        );
     }
 
     #[test]

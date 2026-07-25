@@ -36,7 +36,7 @@ pub use link_preview::{
 };
 pub use scholarly::{
     MatchCertainty, ScholarlyEvent, ScholarlyFetcher, ScholarlyMetadata, ScholarlyMetadataProvider,
-    ScholarlyMetadataState, ScholarlySession, ScholarlySource,
+    ScholarlyMetadataState, ScholarlyQuery, ScholarlySession, ScholarlySource,
 };
 
 /// Extracts and normalizes a DOI embedded in human-readable citation text.
