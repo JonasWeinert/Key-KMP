@@ -5,6 +5,6 @@ Upstream `pdfium-render` is licensed under either of
 
 at your option.
 
-GPUI PDF Reader elects the MIT option for this vendored distribution. The complete
+Key elects the MIT option for this vendored distribution. The complete
 MIT text is retained in `LICENSE-MIT`; the local viewport-tile patch and its
 fixtures are offered under the same terms.

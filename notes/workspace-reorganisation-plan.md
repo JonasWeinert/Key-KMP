@@ -1,4 +1,8 @@
-# Workspace reorganisation plan
+# Historical workspace reorganisation plan
+
+> This document records the GPUI-era extraction plan. Key now ships from
+> `apps/key`; the completed GPUI application is frozen at
+> `experiments/gpui-pdf-reader`.
 
 ## Goal
 
@@ -223,7 +227,7 @@ tests for every public crate before treating its API as stable.
 1. Freeze current behavior with saved unit, contract, and native E2E baselines.
    Agree the extension threat model and the read-only v1 capability boundary.
 2. Add a virtual workspace and move the unchanged binary to
-   `apps/gpui-pdf-reader`. Keep one lockfile, shared dependency versions,
+   `experiments/gpui-pdf-reader`. Keep one lockfile, shared dependency versions,
    patches, profiles, and lints at the workspace root.
 3. Extract `key-editor-core` from the existing pure Markdown model module.
    Preserve all model tests before moving the GPUI editor.

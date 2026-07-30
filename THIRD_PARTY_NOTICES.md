@@ -1,7 +1,7 @@
 # Third-party notices
 
 This file records the important third-party components and the license audit
-boundary for GPUI PDF Reader. The referenced license files are authoritative.
+boundary for Key. The referenced license files are authoritative.
 Keep them with redistributed source and binary bundles.
 
 ## Rust dependency graph
@@ -16,7 +16,7 @@ BSL-1.0, NCSA, or Apache-2.0 with LLVM exception. None lacks license metadata.
 
 Some multi-license declarations include a reciprocal alternative, including
 `Apache-2.0 OR GPL-2.0-only` and
-`MIT OR Apache-2.0 OR LGPL-2.1-or-later`. GPUI PDF Reader elects the explicit
+`MIT OR Apache-2.0 OR LGPL-2.1-or-later`. Key elects the explicit
 Apache/MIT branch; no GPL/LGPL branch is used. Expressions that require a
 reciprocal license with `AND` are rejected by the guard.
 
@@ -26,7 +26,7 @@ Key direct components include:
 |---|---|
 | `gpui` 0.2.2 and Zed support crates | Apache-2.0 |
 | `gpui-component` and its icon assets 0.5.1 | Apache-2.0 |
-| `pdfium-render` 0.9.2 plus GPUI PDF Reader tile patch | MIT (upstream also offers Apache-2.0) |
+| `pdfium-render` 0.9.2 plus Key tile patch | MIT (upstream also offers Apache-2.0) |
 | `image` 0.25 | MIT OR Apache-2.0 |
 | `wasmtime` 45 (standard bundle only) | Apache-2.0 WITH LLVM-exception |
 | `zed-reqwest`/`reqwest` (standard scholarly bundle only) | MIT OR Apache-2.0 |
@@ -46,7 +46,7 @@ retained Apache-2.0 license are recorded in
 
 ## PDFium binary
 
-GPUI PDF Reader pins Chromium PDFium build 7763 (Chromium 148.0.7763.0) from
+Key pins Chromium PDFium build 7763 (Chromium 148.0.7763.0) from
 Benoit Blanchon's `pdfium-binaries` packaging. The package-level MIT license is
 [`vendor/pdfium/LICENSE`](vendor/pdfium/LICENSE). PDFium itself uses a
 BSD-style license, retained in
@@ -65,7 +65,7 @@ Portions of this software use FreeType Project code
 distribution, including GPL-with-exception text for the Autoconf helper files
 `aclocal.m4` and `config.guess`. Those helper source files are not present in
 this repository and are not compiled or linked into `libpdfium.dylib`; the
-wording in the retained notice is not GPL code in GPUI PDF Reader. The shipped
+wording in the retained notice is not GPL code in Key. The shipped
 arm64 dylib links only Apple system frameworks and `libSystem`.
 
 The Intel archive is checksum-pinned by `scripts/fetch-pdfium.sh`, but should
@@ -75,7 +75,7 @@ receive the same binary inspection before an Intel or universal release.
 
 The vendored source at `vendor/pdfium-render-tile/` is `pdfium-render` 0.9.2 by
 Alastair Carey plus a focused viewport-tile extension and regression fixtures.
-GPUI PDF Reader elects the upstream MIT license option; see
+Key elects the upstream MIT license option; see
 `vendor/pdfium-render-tile/LICENSE-MIT` and `LICENSE.md`. The patch is offered
 under the same terms. `TILE_PATCH.md` describes the unsafe boundary, geometry,
 and full-versus-tiled verification.

@@ -1,4 +1,8 @@
-# Installable extension architecture
+# Historical installable extension architecture
+
+> This describes the extension host implemented by the frozen GPUI experiment.
+> It remains architectural input for Key, not a claim that the current Tauri
+> application already hosts installable extensions.
 
 ## Purpose
 

@@ -111,6 +111,9 @@
     "chrome": {
       "regular": {
         "row_order": "tabs_then_controls",
+        "tab_bar_placement": "flow",
+        "show_single_tab": true,
+        "show_new_tab_button": true,
         "utility_controls_row": "top",
         "utility_controls_leading_inset": 104.0,
         "tab_bar_height": 52.0,
@@ -118,6 +121,7 @@
         "split_segment_height": 32.0,
         "tab_popover_gap": 4.0,
         "tab_leading_inset": 104.0,
+        "tab_trailing_inset": 0.0,
         "control_leading_inset": 0.0,
         "tab_width": 220.0,
         "split_tab_width": 440.0,
@@ -127,10 +131,20 @@
         "utility_cluster_width": 96.0,
         "trailing_reserved_width": 52.0,
         "tab_horizontal_padding": 12.0,
-        "split_horizontal_padding": 4.0
+        "split_horizontal_padding": 4.0,
+        "tab_bar_tint_opacity": 0.10,
+        "active_tab_opacity": 0.88,
+        "tab_bar_outline_opacity": 0.30,
+        "active_tab_outline_opacity": 0.42,
+        "tab_min_title_characters": 15,
+        "tab_segment_gap": 6.0,
+        "tab_close_button_size": 18.0
       },
       "compact": {
         "row_order": "tabs_then_controls",
+        "tab_bar_placement": "flow",
+        "show_single_tab": true,
+        "show_new_tab_button": true,
         "utility_controls_row": "top",
         "utility_controls_leading_inset": 92.0,
         "tab_bar_height": 48.0,
@@ -138,6 +152,7 @@
         "split_segment_height": 30.0,
         "tab_popover_gap": 4.0,
         "tab_leading_inset": 92.0,
+        "tab_trailing_inset": 0.0,
         "control_leading_inset": 0.0,
         "tab_width": 190.0,
         "split_tab_width": 380.0,
@@ -147,7 +162,14 @@
         "utility_cluster_width": 96.0,
         "trailing_reserved_width": 52.0,
         "tab_horizontal_padding": 12.0,
-        "split_horizontal_padding": 4.0
+        "split_horizontal_padding": 4.0,
+        "tab_bar_tint_opacity": 0.10,
+        "active_tab_opacity": 0.88,
+        "tab_bar_outline_opacity": 0.30,
+        "active_tab_outline_opacity": 0.42,
+        "tab_min_title_characters": 15,
+        "tab_segment_gap": 6.0,
+        "tab_close_button_size": 18.0
       },
       "comfortable": null
     },

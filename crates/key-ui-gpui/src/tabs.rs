@@ -265,6 +265,7 @@ impl RenderOnce for TabStrip {
         };
         let available_tab_width = (viewport_width
             - chrome.tab_leading_inset
+            - chrome.tab_trailing_inset
             - utility_width
             - chrome.trailing_reserved_width)
             .max(chrome.tab_width * chrome.tab_min_width_ratio);
@@ -566,6 +567,7 @@ impl RenderOnce for TabStrip {
             } else {
                 chrome.tab_leading_inset
             }))
+            .pr(px(chrome.tab_trailing_inset))
             .window_control_area(WindowControlArea::Drag)
             .bg(tokens.materials.chrome.background)
             .when(utilities_in_tab_row, |bar| {

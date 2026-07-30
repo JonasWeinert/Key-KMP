@@ -1,18 +1,22 @@
 //! OpenAlex and Semantic Scholar metadata lookup and enrichment.
 
 use crate::detect_doi;
-use crate::link_preview::fetch_public_json;
+use crate::executor::ReferenceTaskPriority;
+use crate::link_preview::{fetch_public_json, fetch_public_json_response};
 use crate::{ReferenceDocumentScope, ReferenceExecutor};
-use key_safe_http::CancellationToken;
+use key_safe_http::{CancellationToken, HttpResponse};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use url::Url;
 
 const MAX_METADATA_BYTES: usize = 2 * 1024 * 1024;
 const MAX_REFERENCE_CHARS: usize = 2_000;
 const MAX_ABSTRACT_CHARS: usize = 8_000;
 const MAX_AUTHORS: usize = 12;
+const SEMANTIC_SCHOLAR_REQUEST_INTERVAL: Duration = Duration::from_millis(1_100);
+const SEMANTIC_SCHOLAR_MAX_BACKOFF: Duration = Duration::from_secs(32);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScholarlySource {
@@ -51,6 +55,7 @@ impl MatchCertainty {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScholarlyMetadata {
     pub source: ScholarlySource,
+    pub sources: Vec<ScholarlySource>,
     pub title: String,
     pub abstract_text: Option<String>,
     pub tldr_text: Option<String>,
@@ -94,6 +99,18 @@ impl ScholarlyQuery {
         }
         detect_doi(&reference)
             .map(Self::Doi)
+            .or_else(|| {
+                valid_http_string(&reference)
+                    .filter(|url| {
+                        Url::parse(url)
+                            .ok()
+                            .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+                            .is_some_and(|host| {
+                                host == "crossref.org" || host.ends_with(".crossref.org")
+                            })
+                    })
+                    .map(Self::LandingUrl)
+            })
             .or_else(|| Self::title(probable_title(&reference)))
     }
 
@@ -141,6 +158,18 @@ impl ScholarlyQuery {
             Self::Doi(doi) => format!("doi:{doi}"),
             Self::LandingUrl(url) => format!("url:{url}"),
             Self::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
+        }
+    }
+
+    fn task_priority(&self) -> ReferenceTaskPriority {
+        match self {
+            // Title-only references have no DOI provider fallback, so they
+            // receive scarce Semantic Scholar capacity first.
+            Self::Title(_) => ReferenceTaskPriority::High,
+            Self::LandingUrl(_) => ReferenceTaskPriority::Normal,
+            // DOI records can already be resolved by OpenAlex or Crossref;
+            // Semantic Scholar is optional gap-filling for these jobs.
+            Self::Doi(_) => ReferenceTaskPriority::Low,
         }
     }
 }
@@ -232,24 +261,31 @@ impl ScholarlyFetcher {
         self.scope.begin_generation(generation);
     }
 
-    fn fetch(&self, generation: u64, key: String, reference: String) -> bool {
+    fn fetch(
+        &self,
+        generation: u64,
+        key: String,
+        reference: String,
+        priority: ReferenceTaskPriority,
+    ) -> bool {
         if !self.scope.is_current(generation) {
             return false;
         }
         let events = self.events.clone();
         let provider = Arc::clone(&self.provider);
-        self.scope.execute(generation, move |cancellation| {
-            let result = provider
-                .fetch(&reference, &cancellation)
-                .map_err(|error| concise_error(&error));
-            if !cancellation.is_cancelled() {
-                let _ = events.send(ScholarlyEvent::Fetched {
-                    generation,
-                    key,
-                    result,
-                });
-            }
-        })
+        self.scope
+            .execute_with_priority(generation, priority, move |cancellation| {
+                let result = provider
+                    .fetch(&reference, &cancellation)
+                    .map_err(|error| concise_error(&error));
+                if !cancellation.is_cancelled() {
+                    let _ = events.send(ScholarlyEvent::Fetched {
+                        generation,
+                        key,
+                        result,
+                    });
+                }
+            })
     }
 }
 
@@ -283,10 +319,16 @@ impl ScholarlySession {
         query: ScholarlyQuery,
     ) -> bool {
         let key = query.key();
+        let priority = query.task_priority();
         if self.entries.contains_key(&key) {
             return false;
         }
-        if !fetcher.fetch(generation, key.clone(), query.lookup_text().to_owned()) {
+        if !fetcher.fetch(
+            generation,
+            key.clone(),
+            query.lookup_text().to_owned(),
+            priority,
+        ) {
             self.entries.insert(
                 key,
                 ScholarlyMetadataState::Failed("lookup unavailable".to_owned()),
@@ -327,20 +369,260 @@ impl ScholarlySession {
     }
 }
 
+struct SemanticScholarGate {
+    state: Mutex<SemanticScholarGateState>,
+    available: Condvar,
+}
+
+struct SemanticScholarGateState {
+    next_request_at: Instant,
+    cooldown_until: Instant,
+    high_waiters: usize,
+    normal_waiters: usize,
+    consecutive_rate_limits: u32,
+}
+
+impl SemanticScholarGate {
+    fn global() -> &'static Self {
+        static GATE: OnceLock<SemanticScholarGate> = OnceLock::new();
+        GATE.get_or_init(|| {
+            let now = Instant::now();
+            Self {
+                state: Mutex::new(SemanticScholarGateState {
+                    next_request_at: now,
+                    cooldown_until: now,
+                    high_waiters: 0,
+                    normal_waiters: 0,
+                    consecutive_rate_limits: 0,
+                }),
+                available: Condvar::new(),
+            }
+        })
+    }
+
+    fn acquire(
+        &self,
+        priority: ReferenceTaskPriority,
+        cancellation: &CancellationToken,
+    ) -> Result<(), String> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match priority {
+            ReferenceTaskPriority::High => state.high_waiters += 1,
+            ReferenceTaskPriority::Normal => state.normal_waiters += 1,
+            ReferenceTaskPriority::Low => {}
+        }
+        loop {
+            if cancellation.is_cancelled() {
+                Self::remove_waiter(&mut state, priority);
+                self.available.notify_all();
+                return Err("Semantic Scholar lookup was cancelled".to_owned());
+            }
+            let now = Instant::now();
+            let eligible = match priority {
+                ReferenceTaskPriority::High => true,
+                ReferenceTaskPriority::Normal => state.high_waiters == 0,
+                ReferenceTaskPriority::Low => state.high_waiters == 0 && state.normal_waiters == 0,
+            };
+            let allowed_at = state.next_request_at.max(state.cooldown_until);
+            if eligible && now >= allowed_at {
+                Self::remove_waiter(&mut state, priority);
+                state.next_request_at = now + SEMANTIC_SCHOLAR_REQUEST_INTERVAL;
+                self.available.notify_all();
+                return Ok(());
+            }
+            let wait = allowed_at
+                .saturating_duration_since(now)
+                .min(Duration::from_millis(100))
+                .max(Duration::from_millis(10));
+            let (next_state, _) = self
+                .available
+                .wait_timeout(state, wait)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            state = next_state;
+        }
+    }
+
+    fn remove_waiter(state: &mut SemanticScholarGateState, priority: ReferenceTaskPriority) {
+        match priority {
+            ReferenceTaskPriority::High => {
+                state.high_waiters = state.high_waiters.saturating_sub(1);
+            }
+            ReferenceTaskPriority::Normal => {
+                state.normal_waiters = state.normal_waiters.saturating_sub(1);
+            }
+            ReferenceTaskPriority::Low => {}
+        }
+    }
+
+    fn observe(&self, response: &HttpResponse) -> Option<Duration> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let now = Instant::now();
+        if response.status() == 429 {
+            state.consecutive_rate_limits = state.consecutive_rate_limits.saturating_add(1);
+            let delay = semantic_scholar_header_delay(response)
+                .unwrap_or_else(|| semantic_scholar_fallback_delay(state.consecutive_rate_limits));
+            state.cooldown_until = state.cooldown_until.max(now + delay);
+            self.available.notify_all();
+            return Some(delay);
+        }
+        if (200..300).contains(&response.status()) {
+            state.consecutive_rate_limits = 0;
+            if semantic_scholar_remaining(response) == Some(0)
+                && let Some(delay) = semantic_scholar_reset_delay(response)
+            {
+                state.cooldown_until = state.cooldown_until.max(now + delay);
+            }
+        }
+        self.available.notify_all();
+        None
+    }
+}
+
+fn semantic_scholar_fallback_delay(consecutive_rate_limits: u32) -> Duration {
+    let exponent = consecutive_rate_limits.clamp(1, 5);
+    Duration::from_secs(2_u64.saturating_pow(exponent)).min(SEMANTIC_SCHOLAR_MAX_BACKOFF)
+}
+
+fn header_u64(response: &HttpResponse, names: &[&str]) -> Option<u64> {
+    names.iter().find_map(|name| {
+        response
+            .header(name)
+            .and_then(|header| header.value_str())
+            .and_then(|value| value.trim().parse().ok())
+    })
+}
+
+fn semantic_scholar_remaining(response: &HttpResponse) -> Option<u64> {
+    header_u64(
+        response,
+        &[
+            "x-ratelimit-remaining",
+            "x-rate-limit-remaining",
+            "ratelimit-remaining",
+        ],
+    )
+}
+
+fn semantic_scholar_reset_delay(response: &HttpResponse) -> Option<Duration> {
+    let raw = header_u64(
+        response,
+        &["x-ratelimit-reset", "x-rate-limit-reset", "ratelimit-reset"],
+    )?;
+    Some(reset_header_delay(raw))
+}
+
+fn reset_header_delay(raw: u64) -> Duration {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    // Providers variously expose reset as seconds-from-now, Unix seconds, or
+    // Unix milliseconds. Normalize all three conventions conservatively.
+    if raw > 10_000_000_000 {
+        Duration::from_secs((raw / 1_000).saturating_sub(now))
+    } else if raw > 1_000_000_000 {
+        Duration::from_secs(raw.saturating_sub(now))
+    } else {
+        Duration::from_secs(raw)
+    }
+}
+
+fn semantic_scholar_header_delay(response: &HttpResponse) -> Option<Duration> {
+    header_u64(response, &["retry-after"])
+        .map(Duration::from_secs)
+        .or_else(|| semantic_scholar_reset_delay(response))
+}
+
+fn fetch_semantic_scholar_json(
+    url: &Url,
+    priority: ReferenceTaskPriority,
+    not_found: &str,
+    cancellation: &CancellationToken,
+) -> Result<Vec<u8>, String> {
+    let attempts = if priority == ReferenceTaskPriority::High {
+        2
+    } else {
+        1
+    };
+    for attempt in 0..attempts {
+        SemanticScholarGate::global().acquire(priority, cancellation)?;
+        let response = fetch_public_json_response(url.as_str(), MAX_METADATA_BYTES, cancellation)
+            .map_err(|error| format!("Semantic Scholar: {error}"))?;
+        let retry_delay = SemanticScholarGate::global().observe(&response);
+        match response.status() {
+            200..=299 => return Ok(response.body().to_vec()),
+            404 => return Err(not_found.to_owned()),
+            429 if attempt + 1 < attempts => continue,
+            429 => {
+                let detail = retry_delay
+                    .map(|delay| format!("; retry after about {}s", delay.as_secs().max(1)))
+                    .unwrap_or_default();
+                return Err(format!("Semantic Scholar rate limited the lookup{detail}"));
+            }
+            status => {
+                return Err(format!("Semantic Scholar returned HTTP {status}"));
+            }
+        }
+    }
+    Err("Semantic Scholar lookup did not complete".to_owned())
+}
+
 fn fetch_scholarly_metadata(
     reference: &str,
     cancellation: &CancellationToken,
 ) -> Result<ScholarlyMetadata, String> {
     if let Some(doi) = detect_doi(reference) {
-        fetch_openalex(&doi, cancellation).or_else(|openalex_error| {
+        let base = fetch_openalex(&doi, cancellation).or_else(|openalex_error| {
             fetch_crossref(&doi, cancellation)
                 .map_err(|crossref_error| format!("{openalex_error}; {crossref_error}"))
-        })
+        })?;
+        Ok(fetch_semantic_scholar_doi(&doi, cancellation)
+            .map(|semantic| merge_base_with_semantic(base.clone(), semantic))
+            .unwrap_or(base))
     } else if let Some(url) = valid_http_string(reference) {
         fetch_crossref_landing_url(&url, cancellation)
     } else {
         fetch_semantic_scholar(reference, cancellation)
     }
+}
+
+fn semantic_scholar_fields() -> &'static str {
+    "title,abstract,tldr,authors,year,venue,openAccessPdf,url,externalIds"
+}
+
+fn semantic_scholar_doi_url(doi: &str) -> Result<Url, String> {
+    let mut url = Url::parse("https://api.semanticscholar.org/graph/v1/paper/")
+        .expect("the Semantic Scholar paper endpoint is a valid URL");
+    url.path_segments_mut()
+        .map_err(|_| "Could not build the Semantic Scholar DOI request".to_owned())?
+        .pop_if_empty()
+        .push(&format!("DOI:{doi}"));
+    url.query_pairs_mut()
+        .append_pair("fields", semantic_scholar_fields());
+    Ok(url)
+}
+
+fn fetch_semantic_scholar_doi(
+    doi: &str,
+    cancellation: &CancellationToken,
+) -> Result<ScholarlyMetadata, String> {
+    let url = semantic_scholar_doi_url(doi)?;
+    let body = fetch_semantic_scholar_json(
+        &url,
+        ReferenceTaskPriority::Low,
+        "Semantic Scholar has no record for this DOI",
+        cancellation,
+    )?;
+    let value: Value = serde_json::from_slice(&body)
+        .map_err(|error| format!("Semantic Scholar returned invalid metadata: {error}"))?;
+    parse_semantic_scholar_work(&value, None)
+        .ok_or_else(|| "Semantic Scholar found no work for the DOI".to_owned())
 }
 
 fn fetch_openalex(
@@ -414,12 +696,13 @@ fn fetch_semantic_scholar(
         .expect("the Semantic Scholar endpoint is a valid URL");
     url.query_pairs_mut()
         .append_pair("query", &query)
-        .append_pair(
-            "fields",
-            "title,abstract,tldr,authors,year,venue,openAccessPdf,url,externalIds",
-        );
-    let body = fetch_public_json(url.as_str(), MAX_METADATA_BYTES, cancellation)
-        .map_err(|error| format!("Semantic Scholar: {error}"))?;
+        .append_pair("fields", semantic_scholar_fields());
+    let body = fetch_semantic_scholar_json(
+        &url,
+        ReferenceTaskPriority::High,
+        "Semantic Scholar found no reliable title match",
+        cancellation,
+    )?;
     let value: Value = serde_json::from_slice(&body)
         .map_err(|error| format!("Semantic Scholar returned invalid metadata: {error}"))?;
     let metadata = parse_semantic_scholar(&value, &query)
@@ -490,6 +773,7 @@ fn parse_crossref(value: &Value) -> Option<ScholarlyMetadata> {
         .and_then(|link| http_string(link.get("URL")));
     Some(ScholarlyMetadata {
         source: ScholarlySource::Crossref,
+        sources: vec![ScholarlySource::Crossref],
         title,
         abstract_text: None,
         tldr_text: None,
@@ -581,6 +865,7 @@ fn parse_openalex(value: &Value) -> Option<ScholarlyMetadata> {
     let landing_url = http_string(value.get("id"));
     Some(ScholarlyMetadata {
         source: ScholarlySource::OpenAlex,
+        sources: vec![ScholarlySource::OpenAlex],
         title,
         abstract_text: value
             .get("abstract_inverted_index")
@@ -610,21 +895,29 @@ fn parse_semantic_scholar(value: &Value, query: &str) -> Option<ScholarlyMetadat
         .get("data")
         .and_then(Value::as_array)
         .and_then(|works| works.first())?;
+    parse_semantic_scholar_work(work, Some(query))
+}
+
+fn parse_semantic_scholar_work(work: &Value, query: Option<&str>) -> Option<ScholarlyMetadata> {
     let title = work
         .get("title")
         .and_then(Value::as_str)
         .map(normalize_space)
         .filter(|title| !title.is_empty())?;
-    let coverage = title_token_coverage(query, &title);
-    if coverage < 0.28 {
-        return None;
-    }
-    let certainty = if coverage >= 0.72 {
-        MatchCertainty::High
-    } else if coverage >= 0.48 {
-        MatchCertainty::Medium
+    let certainty = if let Some(query) = query {
+        let coverage = title_token_coverage(query, &title);
+        if coverage < 0.28 {
+            return None;
+        }
+        if coverage >= 0.72 {
+            MatchCertainty::High
+        } else if coverage >= 0.48 {
+            MatchCertainty::Medium
+        } else {
+            MatchCertainty::Low
+        }
     } else {
-        MatchCertainty::Low
+        MatchCertainty::High
     };
     let authors = work
         .get("authors")
@@ -646,6 +939,7 @@ fn parse_semantic_scholar(value: &Value, query: &str) -> Option<ScholarlyMetadat
         .and_then(valid_http_string);
     Some(ScholarlyMetadata {
         source: ScholarlySource::SemanticScholar,
+        sources: vec![ScholarlySource::SemanticScholar],
         title,
         abstract_text: work
             .get("abstract")
@@ -695,6 +989,7 @@ fn merge_semantic_with_openalex(
     mut semantic: ScholarlyMetadata,
     openalex: ScholarlyMetadata,
 ) -> ScholarlyMetadata {
+    merge_sources(&mut semantic.sources, &openalex.sources);
     if semantic.abstract_text.is_none() {
         semantic.abstract_text = openalex.abstract_text;
     }
@@ -712,6 +1007,43 @@ fn merge_semantic_with_openalex(
     }
     semantic.landing_url = semantic.landing_url.or(openalex.landing_url);
     semantic
+}
+
+fn merge_base_with_semantic(
+    mut base: ScholarlyMetadata,
+    semantic: ScholarlyMetadata,
+) -> ScholarlyMetadata {
+    merge_sources(&mut base.sources, &semantic.sources);
+    if base.title.is_empty() {
+        base.title = semantic.title;
+    }
+    if base.abstract_text.is_none() {
+        base.abstract_text = semantic.abstract_text;
+    }
+    base.tldr_text = base.tldr_text.or(semantic.tldr_text);
+    if base.authors.is_empty() {
+        base.authors = semantic.authors;
+    }
+    base.year = base.year.or(semantic.year);
+    base.journal = base.journal.or(semantic.journal);
+    base.journal_short = base.journal_short.or(semantic.journal_short);
+    base.journal_url = base.journal_url.or(semantic.journal_url);
+    base.doi = base.doi.or(semantic.doi);
+    base.full_text_url = base.full_text_url.or(semantic.full_text_url);
+    if base.open_access != Some(true) {
+        base.open_access = semantic.open_access.or(base.open_access);
+    }
+    base.landing_url = base.landing_url.or(semantic.landing_url);
+    base.certainty = base.certainty.or(semantic.certainty);
+    base
+}
+
+fn merge_sources(target: &mut Vec<ScholarlySource>, sources: &[ScholarlySource]) {
+    for source in sources {
+        if !target.contains(source) {
+            target.push(*source);
+        }
+    }
 }
 
 fn reconstruct_abstract(value: &Value) -> Option<String> {
@@ -853,6 +1185,7 @@ mod tests {
             assert!(!cancellation.is_cancelled());
             Ok(ScholarlyMetadata {
                 source: ScholarlySource::OpenAlex,
+                sources: vec![ScholarlySource::OpenAlex],
                 title: reference.to_owned(),
                 abstract_text: None,
                 tldr_text: None,
@@ -1040,6 +1373,42 @@ mod tests {
     }
 
     #[test]
+    fn semantic_doi_enrichment_adds_tldr_to_an_openalex_match() {
+        let openalex = parse_openalex(&json!({
+            "id": "https://openalex.org/W100",
+            "doi": "https://doi.org/10.1000/combined",
+            "title": "Combined provider result",
+            "publication_year": 2026,
+            "authorships": [{"author": {"display_name": "Ada Author"}}],
+            "primary_location": {"source": {"display_name": "Provider Journal"}},
+            "abstract_inverted_index": {"OpenAlex": [0], "abstract": [1]}
+        }))
+        .unwrap();
+        let semantic = parse_semantic_scholar_work(
+            &json!({
+                "title": "Combined provider result",
+                "tldr": {"text": "Semantic Scholar summary"},
+                "externalIds": {"DOI": "10.1000/combined"},
+                "url": "https://semanticscholar.org/paper/combined"
+            }),
+            None,
+        )
+        .unwrap();
+
+        let merged = merge_base_with_semantic(openalex, semantic);
+
+        assert_eq!(
+            merged.tldr_text.as_deref(),
+            Some("Semantic Scholar summary")
+        );
+        assert_eq!(
+            merged.sources,
+            vec![ScholarlySource::OpenAlex, ScholarlySource::SemanticScholar]
+        );
+        assert_eq!(merged.title, "Combined provider result");
+    }
+
+    #[test]
     fn probable_title_prefers_the_descriptive_segment() {
         let reference = "[12] Lin H, Li R, Liu Z. Diagnostic efficacy and therapeutic decision-making capacity of an artificial intelligence platform. EClinicalMedicine. 2019;9:52-59.";
         assert_eq!(
@@ -1152,6 +1521,50 @@ mod tests {
             &value,
             "https://publisher.example/articles/123"
         ));
+    }
+
+    #[test]
+    fn semantic_scholar_doi_endpoint_uses_the_documented_paper_id_form() {
+        let url = semantic_scholar_doi_url("10.1038/s41586-020-2649-2").unwrap();
+        assert_eq!(url.host_str(), Some("api.semanticscholar.org"));
+        assert_eq!(
+            url.path(),
+            "/graph/v1/paper/DOI:10.1038%2Fs41586-020-2649-2"
+        );
+        assert_eq!(
+            url.query_pairs()
+                .find(|(key, _)| key == "fields")
+                .map(|(_, value)| value.into_owned()),
+            Some(semantic_scholar_fields().to_owned())
+        );
+    }
+
+    #[test]
+    fn title_queries_have_priority_over_optional_doi_enrichment() {
+        assert_eq!(
+            ScholarlyQuery::Title("A title-only reference".to_owned()).task_priority(),
+            ReferenceTaskPriority::High
+        );
+        assert_eq!(
+            ScholarlyQuery::Doi("10.1000/example".to_owned()).task_priority(),
+            ReferenceTaskPriority::Low
+        );
+    }
+
+    #[test]
+    fn missing_rate_headers_use_bounded_exponential_backoff() {
+        assert_eq!(semantic_scholar_fallback_delay(1), Duration::from_secs(2));
+        assert_eq!(semantic_scholar_fallback_delay(2), Duration::from_secs(4));
+        assert_eq!(semantic_scholar_fallback_delay(5), Duration::from_secs(32));
+        assert_eq!(
+            semantic_scholar_fallback_delay(100),
+            SEMANTIC_SCHOLAR_MAX_BACKOFF
+        );
+    }
+
+    #[test]
+    fn reset_header_supports_relative_seconds() {
+        assert_eq!(reset_header_delay(9), Duration::from_secs(9));
     }
 
     #[test]

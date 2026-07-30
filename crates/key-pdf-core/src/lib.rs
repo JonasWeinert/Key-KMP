@@ -32,8 +32,8 @@ pub use navigation_focus::{
     NavigationFocusFrame, NavigationFocusMotion, NavigationFocusTarget, NavigationFocusTone,
 };
 pub use scientific::{
-    ScientificAnalysis, ScientificAnalyzer, ScientificReference, ScientificSignals, detect_doi,
-    grouped_citation_numbers,
+    ScientificAnalysis, ScientificAnalyzer, ScientificCitation, ScientificReference,
+    ScientificSignals, detect_doi, grouped_citation_numbers,
 };
 pub use search::{
     MAX_NORMALIZED_QUERY_CHARS, MAX_SEARCH_QUERY_BYTES, MAX_SEARCH_RESULTS, SearchMatch,

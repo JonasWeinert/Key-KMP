@@ -19,6 +19,26 @@ type Task = Box<dyn FnOnce() + Send + 'static>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct ScopeId(u64);
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ReferenceTaskPriority {
+    High,
+    #[default]
+    Normal,
+    Low,
+}
+
+impl ReferenceTaskPriority {
+    const ORDERED: [Self; 3] = [Self::High, Self::Normal, Self::Low];
+
+    const fn index(self) -> usize {
+        match self {
+            Self::High => 0,
+            Self::Normal => 1,
+            Self::Low => 2,
+        }
+    }
+}
+
 /// Hard process-level limits for reference-preview background work.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReferenceExecutorConfig {
@@ -162,8 +182,12 @@ impl ReferenceExecutor {
         }
     }
 
-    fn submit(&self, scope: ScopeId, task: Task) -> bool {
-        self.inner.queue.submit(Job { scope, task })
+    fn submit(&self, scope: ScopeId, priority: ReferenceTaskPriority, task: Task) -> bool {
+        self.inner.queue.submit(Job {
+            scope,
+            priority,
+            task,
+        })
     }
 
     fn cancel_scope(&self, scope: ScopeId) {
@@ -260,11 +284,21 @@ impl ReferenceDocumentScope {
         generation: u64,
         task: impl FnOnce(CancellationToken) + Send + 'static,
     ) -> bool {
+        self.execute_with_priority(generation, ReferenceTaskPriority::Normal, task)
+    }
+
+    pub(crate) fn execute_with_priority(
+        &self,
+        generation: u64,
+        priority: ReferenceTaskPriority,
+        task: impl FnOnce(CancellationToken) + Send + 'static,
+    ) -> bool {
         let Some(cancellation) = self.token_for(generation) else {
             return false;
         };
         self.lease.executor.submit(
             self.lease.id,
+            priority,
             Box::new(move || {
                 if !cancellation.is_cancelled() {
                     task(cancellation);
@@ -311,6 +345,7 @@ struct GenerationState {
 
 struct Job {
     scope: ScopeId,
+    priority: ReferenceTaskPriority,
     task: Task,
 }
 
@@ -322,10 +357,15 @@ struct FairQueue {
 }
 
 struct QueueState {
-    by_scope: HashMap<ScopeId, VecDeque<Job>>,
-    ready_scopes: VecDeque<ScopeId>,
+    priorities: [ScopeQueue; 3],
     queued: usize,
     closed: bool,
+}
+
+#[derive(Default)]
+struct ScopeQueue {
+    by_scope: HashMap<ScopeId, VecDeque<Job>>,
+    ready_scopes: VecDeque<ScopeId>,
 }
 
 #[derive(Clone, Copy)]
@@ -339,8 +379,7 @@ impl FairQueue {
         Self {
             capacity,
             state: Mutex::new(QueueState {
-                by_scope: HashMap::new(),
-                ready_scopes: VecDeque::new(),
+                priorities: std::array::from_fn(|_| ScopeQueue::default()),
                 queued: 0,
                 closed: false,
             }),
@@ -359,11 +398,13 @@ impl FairQueue {
             return false;
         }
         let scope = job.scope;
-        let queue = state.by_scope.entry(scope).or_default();
+        let priority = job.priority;
+        let priority_queue = &mut state.priorities[priority.index()];
+        let queue = priority_queue.by_scope.entry(scope).or_default();
         let was_empty = queue.is_empty();
         queue.push_back(job);
         if was_empty {
-            state.ready_scopes.push_back(scope);
+            priority_queue.ready_scopes.push_back(scope);
         }
         state.queued += 1;
         self.available.notify_one();
@@ -376,23 +417,26 @@ impl FairQueue {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         loop {
-            if let Some(scope) = state.ready_scopes.pop_front() {
-                let (job, has_more) = {
-                    let queue = state
-                        .by_scope
-                        .get_mut(&scope)
-                        .expect("a ready scope has a queue");
-                    (queue.pop_front(), !queue.is_empty())
-                };
-                if has_more {
-                    state.ready_scopes.push_back(scope);
-                } else {
-                    state.by_scope.remove(&scope);
+            for priority in ReferenceTaskPriority::ORDERED {
+                let priority_queue = &mut state.priorities[priority.index()];
+                if let Some(scope) = priority_queue.ready_scopes.pop_front() {
+                    let (job, has_more) = {
+                        let queue = priority_queue
+                            .by_scope
+                            .get_mut(&scope)
+                            .expect("a ready scope has a queue");
+                        (queue.pop_front(), !queue.is_empty())
+                    };
+                    if has_more {
+                        priority_queue.ready_scopes.push_back(scope);
+                    } else {
+                        priority_queue.by_scope.remove(&scope);
+                    }
+                    if job.is_some() {
+                        state.queued -= 1;
+                    }
+                    return job;
                 }
-                if job.is_some() {
-                    state.queued -= 1;
-                }
-                return job;
             }
             if state.closed {
                 return None;
@@ -409,10 +453,16 @@ impl FairQueue {
             .state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(jobs) = state.by_scope.remove(&scope) {
-            state.queued = state.queued.saturating_sub(jobs.len());
+        let mut removed = 0;
+        for priority_queue in &mut state.priorities {
+            if let Some(jobs) = priority_queue.by_scope.remove(&scope) {
+                removed += jobs.len();
+            }
+            priority_queue
+                .ready_scopes
+                .retain(|candidate| *candidate != scope);
         }
-        state.ready_scopes.retain(|candidate| *candidate != scope);
+        state.queued = state.queued.saturating_sub(removed);
     }
 
     fn close(&self) {
@@ -421,8 +471,10 @@ impl FairQueue {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.closed = true;
-        state.by_scope.clear();
-        state.ready_scopes.clear();
+        for priority_queue in &mut state.priorities {
+            priority_queue.by_scope.clear();
+            priority_queue.ready_scopes.clear();
+        }
         state.queued = 0;
         self.available.notify_all();
     }
@@ -650,6 +702,34 @@ mod tests {
         wait_until(|| order.lock().unwrap().len() == 4);
         let order = order.lock().unwrap().clone();
         assert!(order.iter().position(|item| *item == "b1").unwrap() < 2);
+    }
+
+    #[test]
+    fn higher_priority_jobs_run_before_queued_optional_work() {
+        let executor = executor(1, 8);
+        let scope = executor.document_scope();
+        scope.begin_generation(1);
+        let barrier = Arc::new(Barrier::new(2));
+        let worker_barrier = Arc::clone(&barrier);
+        assert!(scope.execute(1, move |_| {
+            worker_barrier.wait();
+        }));
+        wait_until(|| executor.snapshot().active_jobs == 1);
+
+        let order = Arc::new(Mutex::new(Vec::new()));
+        for (priority, label) in [
+            (ReferenceTaskPriority::Low, "low"),
+            (ReferenceTaskPriority::Normal, "normal"),
+            (ReferenceTaskPriority::High, "high"),
+        ] {
+            let order = Arc::clone(&order);
+            assert!(scope.execute_with_priority(1, priority, move |_| {
+                order.lock().unwrap().push(label);
+            }));
+        }
+        barrier.wait();
+        wait_until(|| order.lock().unwrap().len() == 3);
+        assert_eq!(*order.lock().unwrap(), ["high", "normal", "low"]);
     }
 
     #[test]

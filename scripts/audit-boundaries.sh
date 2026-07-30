@@ -51,7 +51,7 @@ audit key-ui-gpui "pdfium-render reqwest zed-reqwest wasmtime key-pdfium key-saf
 # those roles into renderer-specific radius and shadow utilities, ensuring
 # root curvature/elevation policy cannot be bypassed by incidental UI code.
 if visual_bypasses=$(rg -n '\.rounded(_[a-z]+)?\(|\.shadow(_(sm|md|lg))?\(|BoxShadow \{' \
-    apps/gpui-pdf-reader/src \
+    experiments/gpui-pdf-reader/src \
     crates/key-editor-gpui/src \
     crates/key-extension-gpui/src \
     extensions/key-reference/src); then

@@ -22,8 +22,25 @@ pub struct ScientificSignals {
 pub struct ScientificAnalysis {
     pub is_scientific: bool,
     pub synthetic_links: Vec<PdfLink>,
+    pub citations: Vec<ScientificCitation>,
     pub references: Vec<ScientificReference>,
     pub signals: ScientificSignals,
+}
+
+/// A semantic in-text citation anchored to PDFium character order.
+///
+/// `start` and `end` are inclusive page-local character indices. `numbers`
+/// retains every member of a grouped citation such as `[20-22, 24]`; the
+/// legacy synthetic link can therefore remain a single navigation target
+/// without throwing away the group needed by richer reader UIs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScientificCitation {
+    pub page: usize,
+    pub start: usize,
+    pub end: usize,
+    pub bounds: TextBounds,
+    pub source: String,
+    pub numbers: Vec<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,8 +130,11 @@ enum CitationKind {
 #[derive(Clone, Debug)]
 struct CitationCandidate {
     page: usize,
+    start: usize,
+    end: usize,
     bounds: TextBounds,
-    number: u32,
+    source: String,
+    numbers: Vec<u32>,
     kind: CitationKind,
 }
 
@@ -244,6 +264,11 @@ impl ScientificAnalyzer {
         } else {
             Vec::new()
         };
+        let citations = if is_scientific {
+            self.semantic_citations(signals.superscript_citations >= 3)
+        } else {
+            Vec::new()
+        };
         let references = if is_scientific {
             self.references.into_values().collect()
         } else {
@@ -252,6 +277,7 @@ impl ScientificAnalyzer {
         ScientificAnalysis {
             is_scientific,
             synthetic_links,
+            citations,
             references,
             signals,
         }
@@ -306,7 +332,11 @@ impl ScientificAnalyzer {
             if citation.kind == CitationKind::Superscript && !include_superscripts {
                 continue;
             }
-            let Some(reference) = self.references.get(&citation.number) else {
+            let Some(reference) = citation
+                .numbers
+                .iter()
+                .find_map(|number| self.references.get(number))
+            else {
                 continue;
             };
             if self.existing_links.iter().any(|link| {
@@ -328,6 +358,29 @@ impl ScientificAnalyzer {
             });
         }
         links
+    }
+
+    fn semantic_citations(&self, include_superscripts: bool) -> Vec<ScientificCitation> {
+        self.citations
+            .iter()
+            .filter(|citation| citation.kind != CitationKind::Superscript || include_superscripts)
+            .filter_map(|citation| {
+                let numbers = citation
+                    .numbers
+                    .iter()
+                    .copied()
+                    .filter(|number| self.references.contains_key(number))
+                    .collect::<Vec<_>>();
+                (!numbers.is_empty()).then(|| ScientificCitation {
+                    page: citation.page,
+                    start: citation.start,
+                    end: citation.end,
+                    bounds: citation.bounds,
+                    source: citation.source.clone(),
+                    numbers,
+                })
+            })
+            .collect()
     }
 }
 
@@ -520,12 +573,6 @@ fn bracket_citations(
         if digit_start == index {
             continue;
         }
-        let number = text[digit_start..index]
-            .iter()
-            .map(|character| character.value)
-            .collect::<String>()
-            .parse::<u32>()
-            .ok();
         while index < end
             && (text[index].value.is_ascii_digit()
                 || matches!(text[index].value, ',' | '-' | '–' | '—')
@@ -539,12 +586,30 @@ fn bracket_citations(
         }
         let source_end = index;
         index += 1;
-        if let (Some(number), Some(bounds)) = (number, range_bounds(text, source_start, source_end))
+        let source = text[source_start..=source_end]
+            .iter()
+            .map(|character| character.value)
+            .collect::<String>();
+        let numbers = grouped_citation_numbers(&source).or_else(|| {
+            text[digit_start..source_end]
+                .iter()
+                .take_while(|character| character.value.is_ascii_digit())
+                .map(|character| character.value)
+                .collect::<String>()
+                .parse::<u32>()
+                .ok()
+                .map(|number| vec![number])
+        });
+        if let (Some(numbers), Some(bounds)) =
+            (numbers, range_bounds(text, source_start, source_end))
         {
             result.push(CitationCandidate {
                 page,
+                start: source_start,
+                end: source_end,
                 bounds,
-                number,
+                source,
+                numbers,
                 kind: CitationKind::Bracket,
             });
         }
@@ -604,18 +669,27 @@ fn superscript_citations(
         if !raised {
             continue;
         }
-        let number = text[source_start..=source_end]
+        let source = text[source_start..=source_end]
             .iter()
-            .take_while(|character| character.value.is_ascii_digit())
             .map(|character| character.value)
-            .collect::<String>()
-            .parse::<u32>()
-            .ok();
-        if let Some(number) = number {
+            .collect::<String>();
+        let numbers = grouped_citation_numbers(&source).or_else(|| {
+            source
+                .chars()
+                .take_while(char::is_ascii_digit)
+                .collect::<String>()
+                .parse::<u32>()
+                .ok()
+                .map(|number| vec![number])
+        });
+        if let Some(numbers) = numbers {
             result.push(CitationCandidate {
                 page,
+                start: source_start,
+                end: source_end,
                 bounds,
-                number,
+                source,
+                numbers,
                 kind: CitationKind::Superscript,
             });
         }
@@ -766,6 +840,23 @@ mod tests {
     }
 
     #[test]
+    fn bracket_candidates_preserve_pdfium_range_and_every_group_member() {
+        let text = text_layer(&[("Prior work [2-4, 7] supports this.", 0.05, 0.1, 0.02)]);
+        let citations = bracket_citations(3, &text, 0, text.len());
+        assert_eq!(citations.len(), 1);
+        assert_eq!(citations[0].page, 3);
+        assert_eq!(citations[0].source, "[2-4, 7]");
+        assert_eq!(citations[0].numbers, vec![2, 3, 4, 7]);
+        assert_eq!(
+            text[citations[0].start..=citations[0].end]
+                .iter()
+                .map(|character| character.value)
+                .collect::<String>(),
+            "[2-4, 7]"
+        );
+    }
+
+    #[test]
     fn reference_parser_handles_bracketed_and_period_markers() {
         let text = text_layer(&[
             ("References", 0.05, 0.05, 0.02),
@@ -848,6 +939,7 @@ mod tests {
         assert_eq!(analysis.signals.reference_entries, 8);
         assert!(analysis.signals.superscript_citations >= 4);
         assert!(analysis.synthetic_links.len() >= 4);
+        assert!(analysis.citations.len() >= 4);
         assert_eq!(analysis.references.len(), 8);
         assert!(
             analysis

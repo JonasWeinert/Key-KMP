@@ -3,7 +3,7 @@ name = "key-pdf-toc"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "First-party native TOC pilot for the Key PDF extension contract"
+description = "First-party native TOC pilot for the Key extension contract"
 
 [lib]
 path = "src/lib.rs"

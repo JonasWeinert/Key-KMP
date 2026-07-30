@@ -18,7 +18,7 @@ pub fn render_tile_with_config(
 ```
 
 It also adds `PdfPageText::char_at()` and the explicitly unsafe
-`char_at_unchecked()`. GPUI PDF Reader validates PDFium's character count once, caps it
+`char_at_unchecked()`. Key validates PDFium's character count once, caps it
 at 100,000, and then uses the unchecked accessor for its bounded, cancellable
 walk; that avoids both a full index-vector allocation and one redundant
 `FPDFText_CountChars()` call per character. The upstream `chars()` convenience

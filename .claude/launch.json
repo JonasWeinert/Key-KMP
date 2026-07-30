@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "affine-tauri-vite",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/key", "run", "dev"],
+      "port": 1420
+    }
+  ]
+}
