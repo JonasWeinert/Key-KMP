@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "apps/gpui-pdf-reader",
+    "experiments/gpui-pdf-reader",
     "crates/key-editor-core",
     "crates/key-editor-gpui",
     "crates/key-extension-api",
@@ -21,7 +21,12 @@ members = [
     "extensions/key-reference",
     "extensions/key-pdf-toc",
 ]
-default-members = ["apps/gpui-pdf-reader"]
+default-members = [
+    "crates/key-pdf-core",
+    "crates/key-pdf-runtime",
+    "crates/key-pdfium",
+    "extensions/key-reference",
+]
 # This patched dependency has its own focused engine-parity test command. Keep
 # it outside the product workspace so Cargo can execute that manifest directly.
 exclude = ["vendor/pdfium-render-tile"]
@@ -59,8 +64,9 @@ cbindgen = { path = "vendor/cbindgen-compat" }
 # zed-font-kit uses dirs on macOS; dirs declares this MPL-only utility. This
 # independently written MIT implementation supplies its three-method API.
 option-ext = { path = "vendor/option-ext-compat" }
-# zed-font-kit also declares the MPL-only dwrote package for Windows. GPUI PDF
-# Reader is macOS-only, so this MIT placeholder is never compiled, but keeps
+# zed-font-kit also declares the MPL-only dwrote package for Windows. The
+# historical GPUI experiment is macOS-only, so this placeholder is never
+# compiled, but keeps
 # even the resolved lock graph inside the project's license policy.
 dwrote = { path = "vendor/dwrote-compat" }
 

@@ -4,6 +4,10 @@
 **/target/
 **/*.rs.bk
 
+# JavaScript dependency trees. Individual apps may add narrower frontend
+# outputs in their own ignore files.
+node_modules/
+
 # Python tooling caches produced by packaging helpers.
 __pycache__/
 *.py[cod]

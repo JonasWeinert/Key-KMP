@@ -9,7 +9,7 @@ fn main() {
         .and_then(Path::parent)
         .expect("reader lives below workspace root");
     let targets = [
-        root.join("apps/gpui-pdf-reader/src"),
+        root.join("experiments/gpui-pdf-reader/src"),
         root.join("crates/key-ui-gpui/src"),
         root.join("crates/key-editor-gpui/src"),
         root.join("crates/key-extension-gpui/src"),

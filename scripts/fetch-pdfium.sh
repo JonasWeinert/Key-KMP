@@ -5,7 +5,7 @@ version=7763
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 if [ "$(uname -s)" != Darwin ]; then
-    echo "GPUI PDF Reader currently supports macOS only; no unaudited binary was downloaded." >&2
+    echo "Key currently supports macOS only; no unaudited binary was downloaded." >&2
     exit 1
 fi
 os=mac

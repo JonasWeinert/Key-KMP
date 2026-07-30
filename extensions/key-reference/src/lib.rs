@@ -45,7 +45,10 @@ pub use scholarly::{
 /// authority for whether the identifier resolves to a work.
 #[must_use]
 pub fn detect_doi(text: &str) -> Option<String> {
-    let lower = text.to_ascii_lowercase();
+    // DOI-bearing web links, especially Crossref API links, frequently encode
+    // the separator in the path. Normalize that one structural escape before
+    // applying the syntax matcher.
+    let lower = text.to_ascii_lowercase().replace("%2f", "/");
     let bytes = lower.as_bytes();
     let mut cursor = 0;
     while let Some(relative) = lower[cursor..].find("10.") {
@@ -61,17 +64,24 @@ pub fn detect_doi(text: &str) -> Option<String> {
             continue;
         }
         index += 1;
+        let prefix_end = index;
+        // PDF text extraction commonly inserts a line-break space immediately
+        // after the DOI slash. Treat only that boundary whitespace as layout
+        // noise; whitespace later in the suffix still terminates the DOI.
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        let suffix_start = index;
         while index < bytes.len()
             && !bytes[index].is_ascii_whitespace()
             && !matches!(bytes[index], b'<' | b'>' | b'"' | b'\'')
         {
             index += 1;
         }
-        let doi = lower[start..index]
-            .trim_end_matches(|value: char| {
-                matches!(value, '.' | ',' | ';' | ':' | ')' | ']' | '}')
-            })
-            .to_owned();
+        let suffix = lower[suffix_start..index].trim_end_matches(|value: char| {
+            matches!(value, '.' | ',' | ';' | ':' | ')' | ']' | '}')
+        });
+        let doi = format!("{}{suffix}", &lower[start..prefix_end]);
         if doi.len() > digit_count + 4 {
             return Some(doi);
         }
@@ -89,6 +99,14 @@ mod tests {
         assert_eq!(
             detect_doi("See https://doi.org/10.1234/Example.Work)."),
             Some("10.1234/example.work".to_owned())
+        );
+        assert_eq!(
+            detect_doi("Wrapped DOI 10.2337/ dc06-1509"),
+            Some("10.2337/dc06-1509".to_owned())
+        );
+        assert_eq!(
+            detect_doi("https://api.crossref.org/works/10.1000%2FEncoded.Work"),
+            Some("10.1000/encoded.work".to_owned())
         );
         assert_eq!(detect_doi("10.12/not-a-doi"), None);
     }

@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Capabilities required by the isolated PDF experiment","local":true,"windows":["main","pdf-renderer-*"],"permissions":["core:default","dialog:allow-open"]}}

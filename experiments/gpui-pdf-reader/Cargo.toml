@@ -3,7 +3,7 @@ name = "gpui-pdf-reader"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "A fast native PDF reader built with GPUI and PDFium"
+description = "Frozen native GPUI/PDFium experiment that preceded Key"
 
 [[bin]]
 name = "gpui-pdf-reader"

@@ -82,35 +82,61 @@
     "sidebar_foreground_mix": 0.040,
     "split_gutter_foreground_mix": 0.150
   },
+  "components": {
+    "corners": {
+      "tab": {
+        "top_left": { "shape": "convex", "radius": 18.0 },
+        "top_right": { "shape": "convex", "radius": 18.0 },
+        "bottom_right": { "shape": "convex", "radius": 18.0 },
+        "bottom_left": { "shape": "convex", "radius": 18.0 }
+      }
+    }
+  },
   "workspace": {
     "chrome": {
       "regular": {
         "row_order": "controls_then_tabs",
+        "tab_bar_placement": "overlay",
+        "show_single_tab": false,
+        "show_new_tab_button": false,
         "utility_controls_row": "top",
         "utility_controls_leading_inset": 104.0,
-        "tab_bar_height": 42.0,
-        "tab_height": 30.0,
-        "split_segment_height": 24.0,
+        "tab_bar_height": 38.0,
+        "tab_height": 34.0,
+        "split_segment_height": 32.0,
         "tab_popover_gap": 4.0,
-        "tab_leading_inset": 0.0,
+        "tab_leading_inset": 2.0,
+        "tab_trailing_inset": 2.0,
         "control_leading_inset": 196.0,
         "tab_width": 220.0,
         "split_tab_width": 440.0,
-        "new_tab_button_size": 28.0
+        "new_tab_button_size": 28.0,
+        "tab_bar_tint_opacity": 0.10,
+        "active_tab_opacity": 1.0,
+        "tab_bar_outline_opacity": 0.0,
+        "active_tab_outline_opacity": 0.0
       },
       "compact": {
         "row_order": "controls_then_tabs",
+        "tab_bar_placement": "overlay",
+        "show_single_tab": false,
+        "show_new_tab_button": false,
         "utility_controls_row": "top",
         "utility_controls_leading_inset": 92.0,
-        "tab_bar_height": 40.0,
-        "tab_height": 28.0,
-        "split_segment_height": 22.0,
+        "tab_bar_height": 36.0,
+        "tab_height": 32.0,
+        "split_segment_height": 30.0,
         "tab_popover_gap": 4.0,
-        "tab_leading_inset": 0.0,
+        "tab_leading_inset": 2.0,
+        "tab_trailing_inset": 2.0,
         "control_leading_inset": 184.0,
         "tab_width": 190.0,
         "split_tab_width": 380.0,
-        "new_tab_button_size": 26.0
+        "new_tab_button_size": 26.0,
+        "tab_bar_tint_opacity": 0.10,
+        "active_tab_opacity": 1.0,
+        "tab_bar_outline_opacity": 0.0,
+        "active_tab_outline_opacity": 0.0
       },
       "comfortable": null
     },

@@ -383,7 +383,7 @@ fn validate_and_cache_image(
     }
 }
 
-fn safe_get(
+fn safe_get_response(
     url: &str,
     accept: &str,
     maximum_bytes: usize,
@@ -416,6 +416,17 @@ fn safe_get(
     let response = SafeHttpClient::new(policy)
         .execute(request, cancellation)
         .map_err(|error| error.to_string())?;
+    Ok(response)
+}
+
+fn safe_get(
+    url: &str,
+    accept: &str,
+    maximum_bytes: usize,
+    content_types: ContentTypePolicy,
+    cancellation: &CancellationToken,
+) -> Result<key_safe_http::HttpResponse, String> {
+    let response = safe_get_response(url, accept, maximum_bytes, content_types, cancellation)?;
     if !(200..300).contains(&response.status()) {
         return Err(format!(
             "The remote server returned HTTP {}",
@@ -423,6 +434,21 @@ fn safe_get(
         ));
     }
     Ok(response)
+}
+
+pub(crate) fn fetch_public_json_response(
+    url: &str,
+    maximum_bytes: usize,
+    cancellation: &CancellationToken,
+) -> Result<key_safe_http::HttpResponse, String> {
+    safe_get_response(
+        url,
+        "application/json",
+        maximum_bytes,
+        ContentTypePolicy::json(),
+        cancellation,
+    )
+    .map_err(|error| error.replace("link preview", "metadata request"))
 }
 
 pub(crate) fn fetch_public_json(

@@ -1,6 +1,7 @@
 # Extensions
 
-GPUI PDF Reader uses a pre-stable, capability-based extension contract. An
+Key uses a pre-stable, capability-based extension contract. The frozen GPUI
+experiment contains the only complete host implementation today. An
 installable package is either declarative data or a WebAssembly Component Model
 guest. Local packages cannot load native Rust code, construct GPUI elements,
 open files, create sockets, or call PDFium directly.

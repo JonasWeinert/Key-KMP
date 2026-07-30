@@ -467,6 +467,13 @@ pub enum ChromeRowOrder {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum TabBarPlacement {
+    Flow,
+    Overlay,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ChromeUtilityControlsRow {
     Top,
     Tab,
@@ -477,6 +484,9 @@ pub enum ChromeUtilityControlsRow {
 #[serde(default, deny_unknown_fields)]
 pub struct ChromeLayoutConfig {
     pub row_order: ChromeRowOrder,
+    pub tab_bar_placement: TabBarPlacement,
+    pub show_single_tab: bool,
+    pub show_new_tab_button: bool,
     pub utility_controls_row: ChromeUtilityControlsRow,
     pub utility_controls_leading_inset: f32,
     pub tab_bar_height: f32,
@@ -484,6 +494,7 @@ pub struct ChromeLayoutConfig {
     pub split_segment_height: f32,
     pub tab_popover_gap: f32,
     pub tab_leading_inset: f32,
+    pub tab_trailing_inset: f32,
     pub control_leading_inset: f32,
     pub tab_width: f32,
     pub split_tab_width: f32,
@@ -494,12 +505,22 @@ pub struct ChromeLayoutConfig {
     pub trailing_reserved_width: f32,
     pub tab_horizontal_padding: f32,
     pub split_horizontal_padding: f32,
+    pub tab_bar_tint_opacity: f32,
+    pub active_tab_opacity: f32,
+    pub tab_bar_outline_opacity: f32,
+    pub active_tab_outline_opacity: f32,
+    pub tab_min_title_characters: f32,
+    pub tab_segment_gap: f32,
+    pub tab_close_button_size: f32,
 }
 
 impl Default for ChromeLayoutConfig {
     fn default() -> Self {
         Self {
             row_order: ChromeRowOrder::TabsThenControls,
+            tab_bar_placement: TabBarPlacement::Flow,
+            show_single_tab: true,
+            show_new_tab_button: true,
             utility_controls_row: ChromeUtilityControlsRow::Top,
             utility_controls_leading_inset: 104.0,
             tab_bar_height: 52.0,
@@ -507,6 +528,7 @@ impl Default for ChromeLayoutConfig {
             split_segment_height: 32.0,
             tab_popover_gap: 4.0,
             tab_leading_inset: 104.0,
+            tab_trailing_inset: 0.0,
             control_leading_inset: 0.0,
             tab_width: 220.0,
             split_tab_width: 440.0,
@@ -517,6 +539,13 @@ impl Default for ChromeLayoutConfig {
             trailing_reserved_width: 52.0,
             tab_horizontal_padding: 12.0,
             split_horizontal_padding: 4.0,
+            tab_bar_tint_opacity: 0.10,
+            active_tab_opacity: 0.88,
+            tab_bar_outline_opacity: 0.30,
+            active_tab_outline_opacity: 0.42,
+            tab_min_title_characters: 15.0,
+            tab_segment_gap: 6.0,
+            tab_close_button_size: 18.0,
         }
     }
 }
@@ -534,6 +563,7 @@ impl ChromeLayoutConfig {
             ("split_segment_height", self.split_segment_height, false),
             ("tab_popover_gap", self.tab_popover_gap, true),
             ("tab_leading_inset", self.tab_leading_inset, true),
+            ("tab_trailing_inset", self.tab_trailing_inset, true),
             ("control_leading_inset", self.control_leading_inset, true),
             ("tab_width", self.tab_width, false),
             ("split_tab_width", self.split_tab_width, false),
@@ -551,6 +581,13 @@ impl ChromeLayoutConfig {
                 self.split_horizontal_padding,
                 true,
             ),
+            (
+                "tab_min_title_characters",
+                self.tab_min_title_characters,
+                false,
+            ),
+            ("tab_segment_gap", self.tab_segment_gap, true),
+            ("tab_close_button_size", self.tab_close_button_size, false),
         ] {
             validate_number(&format!("{prefix}.{name}"), value, allow_zero, 2_048.0)?;
         }
@@ -560,6 +597,17 @@ impl ChromeLayoutConfig {
             false,
             1.0,
         )?;
+        for (name, value) in [
+            ("tab_bar_tint_opacity", self.tab_bar_tint_opacity),
+            ("active_tab_opacity", self.active_tab_opacity),
+            ("tab_bar_outline_opacity", self.tab_bar_outline_opacity),
+            (
+                "active_tab_outline_opacity",
+                self.active_tab_outline_opacity,
+            ),
+        ] {
+            validate_number(&format!("{prefix}.{name}"), value, true, 1.0)?;
+        }
         if self.tab_height > self.tab_bar_height {
             return Err(ConfigError::InvalidValue(format!(
                 "{prefix}.tab_height must not exceed tab_bar_height"

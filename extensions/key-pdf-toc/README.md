@@ -1,4 +1,4 @@
-# Key PDF TOC pilot
+# Key TOC pilot
 
 This bundled native extension proves the pre-stable PDF capability contract.
 It receives a bounded title/page selection from a trusted presentation, then

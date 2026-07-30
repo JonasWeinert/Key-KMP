@@ -157,6 +157,6 @@ annotates PDFs through the same core/runtime boundaries.
 
 An embedding app should construct the editor, viewport controller, PDF
 runtime, stores, capability providers, and optional extension adapters through
-their public crates. It must not import `apps/gpui-pdf-reader`, copy its reader
+their public crates. It must not import `experiments/gpui-pdf-reader`, copy its reader
 state, or inherit its menus, file picker, sidecar path, PDFium bundle lookup,
 or default extension policy.

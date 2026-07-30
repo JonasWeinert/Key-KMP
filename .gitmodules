@@ -1,0 +1,4 @@
+[submodule "apps/key/upstream-affine"]
+	path = apps/key/upstream-affine
+	url = https://github.com/toeverything/AFFiNE.git
+	branch = canary

@@ -6,6 +6,10 @@ license.workspace = true
 description = "Bounded, capability-scoped HTTP and ephemeral document caching for Key applications"
 
 [dependencies]
-reqwest.workspace = true
+# `key-safe-http` owns the concrete HTTPS transport, so it must own the TLS
+# feature too. Previously GPUI enabled Rustls incidentally through its own
+# dependency graph while standalone hosts such as Tauri compiled reqwest
+# without any HTTPS backend and failed every scholarly request at runtime.
+reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 tempfile.workspace = true
 url.workspace = true

@@ -1,412 +1,267 @@
-# GPUI PDF Reader
+<p align="center">
+  <img src="assets/readme/key-logo.svg" alt="Key" width="260"/>
+</p>
 
-GPUI PDF Reader is a fast, native PDF reader built with Rust, GPUI, and PDFium.
-It is designed as a cross-platform application, with smooth navigation,
-bounded high-resolution rendering, and a selectable text layer.
+<p align="center">
+  <strong>A desktop workspace for reading, annotating, searching, and connecting scientific literature.</strong>
+</p>
 
-> GPUI PDF Reader is under active development. macOS is currently the only
-> platform being actively developed, built, tested, and supported. Linux and
-> Windows are intended targets, but the current source tree should not be
-> considered functional or supported on either platform yet.
+<p align="center">
+  Key combines a PDF.js reading surface with native Rust and PDFium document services, structured annotations, and scholarly metadata.
+</p>
 
-There are no signed or notarized binary releases yet. The current version is
-best suited to contributors, testers, and people comfortable building Rust
-software from source.
+<p align="center">
+  <a href="#overview">Overview</a> ·
+  <a href="#current-capabilities">Capabilities</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#documentation">Documentation</a>
+</p>
 
-## Platform status
+<p align="center">
+  <img src="https://img.shields.io/badge/status-active_development-6F9B4B?style=flat-square" alt="Status: active development"/>
+  <img src="https://img.shields.io/badge/platform-macOS_Apple_silicon-16161D?style=flat-square" alt="Platform: macOS Apple silicon"/>
+  <img src="https://img.shields.io/badge/desktop-Tauri_2-6B8AC9?style=flat-square" alt="Desktop: Tauri 2"/>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-DCD7BA?style=flat-square&labelColor=16161D" alt="License: MIT"/></a>
+</p>
 
-| Platform | Status |
-|---|---|
-| macOS, Apple silicon | Actively developed and tested |
-| macOS, Intel | Source and PDFium fetch support; release validation still needed |
-| Linux | Planned, not currently developed or supported |
-| Windows | Planned, not currently developed or supported |
+<p align="center">
+  <img src="assets/readme/key-citations.png" alt="Key displaying bibliographic details for an in-text citation" width="100%"/>
+</p>
 
-The core document, layout, scheduling, and text-selection code is written to
-remain portable. Platform integration and the current GPUI dependency setup
-are macOS-specific today.
+<p align="center">
+  <sub>Bibliographic context for a grouped in-text citation, shown in the native Tauri application.</sub>
+</p>
 
-## Highlights
+## Overview
 
-- Open PDFs with `Command-O`, the empty-state control, or the command line.
-- Smooth continuous horizontal and vertical scrolling with a trackpad, mouse,
-  or keyboard.
-- Cursor-anchored pinch and `Command`/`Control`-wheel zoom from 20% to 500%,
-  with Fit Width and 100% controls.
-- Bounded high-resolution viewport tiles instead of oversized full-page
-  bitmaps at high zoom.
-- Selectable text, word selection, cross-page selection, Select All, and copy.
-- Selection-anchored highlights in yellow, green, blue, pink, or purple.
-- Markdown-backed comments with a WYSIWYG editor for bold, italic, inline
-  code, bulleted lists, and numbered lists.
-- One intent-sensitive reader interface with compact floating controls over
-  each PDF pane. There is no separate layout mode to configure.
-- Thirty-seven bundled gpui-component themes, selectable from View → Theme,
-  plus a system-following mode. All reader chrome and icons use shared semantic
-  theme tokens. Dark themes use PDFium forced-color rendering for dark paper
-  and readable text/vector content while preserving embedded image pixels.
-  The PDF paper stays distinct from the workspace, and the floating controls provide a
-  moon/sun control to show the original light PDF without changing app theme.
-- Animated near-full-height comments and search panels float over their PDF
-  pane while extending horizontal reach so covered content remains accessible.
-- Case-insensitive in-document search with on-page result highlights, a
-  virtualized result list, and previous/next navigation.
-- PDFium rendering for intrinsic page rotation, CropBox pages, annotations,
-  and AcroForm appearances.
-- Outline-aware navigation for PDFs with a table of contents: a subtle
-  hierarchy rail follows reading position, reveals section detail on hover,
-  and smoothly moves to explicit destinations or matched page headings when
-  clicked.
-- Clickable PDF links for URLs and in-document destinations. Internal jumps
-  refine rough page destinations against nearby text and use the same centered,
-  transient focus animation as search and outline navigation.
-- Hover previews for links and scientific citations, including grouped
-  references, OpenAlex/Semantic Scholar metadata, selectable citation details,
-  abstract/TLDR tabs, DOI copy, open-access links, and bounded website images.
-- A capability-based extension host with declarative and sandboxed WebAssembly
-  packages, permission previews, lifecycle management, nested host-owned menu
-  slots, and bounded host-rendered panels. Installable packages cannot load
-  arbitrary native Rust or receive GPUI/PDFium handles.
-- Latest-wins rendering and bounded caches to keep rapid scrolling and zooming
-  responsive.
+Key is a desktop application for working with scientific PDFs. The current application provides continuous document reading, multiple open papers, split views, search, text selection, annotations, comments, outlines, links, and contextual information for academic references.
 
-Forms are rendered for visual fidelity but are not interactive yet.
+The document view is backed by two complementary representations:
 
-Highlights and comments are app-managed annotations. GPUI PDF Reader leaves
-the PDF unchanged and stores them beside it in a versioned JSON sidecar named
-`<document>.pdf.gpui-pdf-reader.json`. The reader validates the sidecar against
-the PDF's SHA-256 content identity, file size, and page count before loading or
-saving it. Moving, copying, or restoring an unchanged document does not detach
-its annotations. Keep the sidecar with the PDF when moving a document if you
-want to retain them.
+- PDF.js parses and rasterizes the pages displayed in the workspace.
+- A native Rust service uses PDFium for canonical character order, text geometry, hit testing, search, outlines, links, and preprocessing.
 
-## Build from source
+This separation allows the interface to use the TypeScript and React ecosystem while retaining a stable native document model for features that must survive changes in zoom, tile resolution, or renderer layout.
 
-You need:
+The planned scope extends beyond the reader into a connected research workspace. Library management, durable notes, relationships between papers and claims, writing surfaces, and source-grounded assistance are intended to use the same document identities and provenance model. These areas are not presented as implemented features.
 
-- macOS
-- Xcode Command Line Tools
+| Area | Available now | Planned scope |
+|----|----|----|
+| Reading | Tabs, split views, continuous pages, outlines, links, search, responsive zoom | Library-level navigation and cross-document reading sessions |
+| Annotation | Color highlights, comments, rich-text editing, stable text anchors | Durable sidecars, database-backed storage, and relationships between notes |
+| References | In-text citation detection, grouped citations, metadata cards, source links | Citation graph navigation and integration with the broader knowledge layer |
+| Research workspace | Per-document interface state and multi-paper viewing | Connected notes, claims, writing, and source-grounded assistance |
+
+> Key is under active development. The current macOS build is intended for contributors and testing and is not yet a notarized public release.
+
+## Interface
+
+<table>
+<tr>
+<td width="50%">
+<img src="assets/readme/key-search.png" alt="Key search results with matching text highlighted in the document"/>
+</td>
+<td width="50%">
+<img src="assets/readme/key-split.png" alt="Key displaying two scientific papers in a split view"/>
+</td>
+</tr>
+<tr>
+<td valign="top">
+<strong>Document search</strong><br/>
+Results remain visible in an expanded control bar and are connected to normalized highlight regions on the page.
+</td>
+<td valign="top">
+<strong>Split reading</strong><br/>
+Two independently rendered documents can share the workspace while retaining separate position, zoom, and document state.
+</td>
+</tr>
+</table>
+
+The images above were captured from the Tauri application. The surrounding backgrounds and shadows are documentation framing; the complete application chrome is preserved inside each frame.
+
+## Current capabilities
+
+### Reading and navigation
+
+- Multiple documents can remain open as tabs. Tabs resize to use the available strip width and move into an overflow state before titles become unreadable.
+- A tab can contain a resizable two-document split. Each pane retains independent view state, while the workspace limits the number of fully resident readers.
+- Pages use bounded high-resolution PDF.js tiles rather than one full-page canvas at the current zoom. Visible work is prioritized and stale rendering can be cancelled.
+- Trackpad zoom immediately scales the current visual result and schedules sharper tiles after the interaction settles.
+- Document outlines, internal destinations, external links, native menu actions, and document-level panels are integrated with the workspace.
+
+### Text, search, and annotations
+
+- Text selection and hit testing use PDFium character identities and geometry supplied by the native companion.
+- Search results are computed against the native document text and displayed in a persistent results strip with page context.
+- Selection, search, and annotation regions are normalized into visually consistent rectangles so whitespace and item boundaries do not create avoidable gaps.
+- Highlights use the selected annotation color. Commented annotations also receive an underline; uncommented annotations use color alone.
+- Comments use a reusable rich-text editor with Markdown-backed storage. Formatting is rendered directly in the editor and comment summaries rather than exposing Markdown syntax during editing.
+
+### Scientific references
+
+- Preprocessing identifies bibliography entries, in-text citation markers, linked DOI and Crossref targets, and grouped references.
+- Citation cards can display a title, authors, venue, year, abstract or TLDR, provider status, and links without moving the reader away from the cited passage.
+- OpenAlex and Semantic Scholar results are merged rather than treated as mutually exclusive. Provider requests are queued, throttled, cached, and prioritized according to identifier availability.
+- Citation overlays remain anchored to the source text. Hover cards are positioned from the text region and remain interactive when the pointer moves from the document onto the card.
+
+## Architecture
+
+Key uses a Tauri shell around a React application and a native document companion. The webview and native service exchange typed commands and serializable data; renderer-specific objects do not cross that boundary.
+
+| Layer | Responsibility | Technology |
+|----|----|----|
+| Desktop shell | Windows, native menus, file access, packaging, and command routing | Tauri 2 |
+| Workspace interface | Tabs, splits, control bars, panels, comments, and citation cards | TypeScript, React |
+| Visible page renderer | PDF parsing and bounded Canvas2D tile rasterization | PDF.js |
+| Native document service | Text geometry, search, outlines, links, preprocessing, and coordinate normalization | Rust, PDFium |
+| Scholarly metadata | Reference lookup, result merging, throttling, caching, and source links | OpenAlex, Semantic Scholar |
+| Interface policy | Typed geometry, materials, typography, motion, color, and component configuration | Shared JSON schema and host adapters |
+
+```mermaid
+flowchart LR
+    File["PDF file"] --> PDFJS["PDF.js page tiles"]
+    File --> Native["Rust document service"]
+    Native --> PDFium["PDFium text and geometry"]
+    Native --> Analysis["Links and scientific analysis"]
+    Analysis --> Providers["OpenAlex and Semantic Scholar"]
+    PDFJS --> Workspace["React workspace"]
+    PDFium --> Workspace
+    Providers --> Workspace
+    Workspace --> State["Annotations and interface state"]
+```
+
+### Text identity and coordinates
+
+PDFium character order is the persistent text identity used by the application. Native page-space bounds are normalized once and converted into the active PDF.js viewport when an overlay is painted.
+
+Annotations therefore store character ranges and canonical geometry rather than PDF.js text-item indices or screen pixels. The same anchor can be resolved after zooming, changing tile resolution, reopening a document, or displaying the page in another pane.
+
+PDF.js text data is still useful for rendering and diagnostics, but it is not treated as the durable identity of a passage.
+
+### Staged document processing
+
+Opening a document is divided into stages:
+
+1. PDF.js opens the visible document and schedules the tiles required for the current viewport.
+2. The native service makes page metadata and canonical text geometry available.
+3. Search, outlines, links, and saved annotations become usable from the native model.
+4. Scientific-reference analysis and external metadata lookups continue in the background.
+5. Completed analysis is cached and sent to the interface without blocking the initial reading view.
+
+The scheduling boundary is intentionally explicit so future persistent storage can replace or supplement in-memory caches without changing the workspace contract.
+
+### Resource policy
+
+Only the active panes and a small warm set retain expensive rendering state. Tile work is prioritized by visibility and interaction, and obsolete requests are cancelled when the viewport changes. Metadata lookup has separate concurrency and rate-limit controls so network work cannot monopolize rendering resources.
+
+The design and behavior of the interface are also supplied through typed configuration rather than scattered host-specific constants. Components receive geometry, material, color, and motion values through the design-system adapter.
+
+## Planned scope
+
+The reader and native document model are the base for additional research components:
+
+- a persistent library and document index;
+- sidecar or database-backed annotations and document state;
+- linked notes, claims, citations, and source passages;
+- writing surfaces that can reference the same canonical document anchors;
+- source-grounded assistance with visible provenance and inspectable context;
+- broader platform support where Tauri, PDF.js, and the native companion can be packaged reliably.
+
+The storage boundary is currently repository- and file-oriented. It is structured so a later SQLite-backed implementation can provide colder caches and indexed retrieval without changing the public document and extension contracts.
+
+## Quick start
+
+### Requirements
+
+- macOS with Xcode Command Line Tools
 - A current stable Rust toolchain
+- Node.js and npm
 
-GPUI PDF Reader uses Rust edition 2024. A minimum supported Rust version has
-not been declared yet.
-
-The repository includes the audited Apple silicon PDFium binary used during
-development. To install or refresh the pinned PDFium build for the current Mac
-architecture, then run GPUI PDF Reader:
+### Run the desktop application
 
 ```sh
 ./scripts/fetch-pdfium.sh
-cargo run --locked -- /path/to/document.pdf
+cd apps/key
+npm install
+npm run tauri -- dev
 ```
 
-For an optimized build:
+The checked-in PDFium build targets Apple silicon. A matching alternative can be supplied with `PDFIUM_DYNAMIC_LIB_PATH`.
+
+### Frontend-only development
 
 ```sh
-cargo build --release --locked
-./target/release/gpui-pdf-reader /path/to/document.pdf
+cd apps/key
+npm run dev
 ```
 
-The default `standard` bundle includes local installable extensions and bounded
-scholarly networking. A smaller reader omits Wasmtime and all scholarly/network
-providers while retaining the core PDF, text, search, comment, and annotation
-experience:
+Open `http://localhost:1420/?renderer=pdfjs-workspace`.
 
-```sh
-cargo build --release --locked --no-default-features
-```
+The browser entry point is useful for interface development. Native preprocessing, PDFium search, and scholarly lookup require the Tauri application.
 
-The fetch script downloads Chromium PDFium build 7763, selects `mac-arm64` or
-`mac-x64`, verifies a pinned SHA-256 digest, and retains the upstream notices.
+### Common commands
 
-An alternative matching-architecture PDFium library can be provided as a file
-or directory:
+| Task | Command |
+|----|----|
+| Frontend tests | `npm test` |
+| Production frontend build | `npm run build` |
+| Browser workspace smoke test | `npm run test:pdfjs-workspace-ux` |
+| Native Rust check | `cargo check --manifest-path src-tauri/Cargo.toml` |
+| Build `Key.app` and DMG | `npm run tauri -- build` |
+| Shared Rust and GPUI suite | `sh scripts/test.sh` from the repository root |
 
-```sh
-PDFIUM_DYNAMIC_LIB_PATH=/path/to/libpdfium.dylib \
-  cargo run --locked -- /path/to/document.pdf
-```
+Local release artifacts are written to:
 
-Runtime lookup order is `PDFIUM_DYNAMIC_LIB_PATH`, the executable directory,
-the executable's `../Resources` directory, `vendor/pdfium/lib`, and finally the
-system library lookup path.
+- `apps/key/src-tauri/target/release/bundle/macos/Key.app`
+- `apps/key/src-tauri/target/release/bundle/dmg/Key_0.1.0_aarch64.dmg`
 
-### Design-system overrides
+They are currently ad-hoc signed and not notarized.
 
-The renderer-independent UI configuration lives in
-`assets/ui/key-glass.json`. It controls root visual policy, geometry,
-materials/translucency, semantic region contrast, responsive width classes,
-base-theme selection, semantic color overrides, typed icon roles, and
-workspace composition through a strict, versioned schema. Workspace
-composition includes the order and geometry of the chrome rows, tab sizing,
-responsive placement of the sidebar/tab-overview utility group, independent
-split-tab segment height, control insets, and split-pane spacing. To run with
-another configuration:
+## Repository map
 
-```sh
-GPUI_PDF_READER_STYLE_PATH=/path/to/design-system.json \
-  cargo run --locked -- /path/to/document.pdf
-```
+| Path | Purpose |
+|----|----|
+| [`apps/key`](apps/key/) | Active Tauri, React, PDF.js, and native companion application |
+| [`crates`](crates/) | Renderer-neutral document, runtime, UI, storage, and host crates |
+| [`extensions/key-reference`](extensions/key-reference/) | Scholarly metadata and provider scheduling |
+| [`assets/ui`](assets/ui/) | Typed interface and visual configuration |
+| [`experiments/gpui-pdf-reader`](experiments/gpui-pdf-reader/) | Frozen but working native GPUI experiment |
+| [`tests`](tests/) | Shared fixtures and native end-to-end scenarios |
 
-The bootstrap path is loaded once. A newly selected file is validated and
-applied to every open window immediately; invalid or unknown values produce a
-diagnostic and leave the last valid configuration active. Example extremes are provided in
-`assets/ui/variations/clear-glass.json` and
-`assets/ui/variations/square-opaque.json`. The standalone
-`assets/ui/variations/safari-glass.json` preset combines glass materials with a
-Safari-style control-row-first composition. A minimal layout-only override is
-also provided in `assets/ui/variations/safari-chrome.json`; selecting either
-requires no Rust changes:
+### Tauri and GPUI implementations
 
-```sh
-GPUI_PDF_READER_STYLE_PATH=assets/ui/variations/safari-glass.json \
-  cargo run --locked -- /path/to/document.pdf
-```
+Key is implemented in Tauri. This provides a mature desktop lifecycle and packaging model, access to the TypeScript component ecosystem, and a practical route to additional supported platforms.
 
-The square preset also demonstrates that root policy can prohibit curvature,
-shadows, translucency, and motion even when individual components request
-them.
+The GPUI reader remains in `experiments/gpui-pdf-reader` as a working implementation and architectural reference. It demonstrates native rendering, scheduling, sidecar annotations, extensions, and macOS integration, but it is not the target for current feature development.
 
-The environment variable is an optional developer/bootstrap override. Normal
-use does not require launching with a path: choose **File → Load UI
-Configuration…**, press **⌘⇧,**, or activate **Appearance** in Settings. The
-selected JSON is validated and applied immediately on demand; it is not polled
-after selection. A rejected theme name, color channel, icon value, layout
-value, or unknown key leaves the current configuration active.
+## Documentation
 
-`appearance.theme` selects either the system theme or a named bundled theme.
-`appearance.colors` overrides semantic roles such as chrome, canvas, split
-gutter, content, accent, popover, border, and document paper. `appearance.icons`
-maps semantic UI roles to a closed typed glyph set. Components consume these
-resolved roles instead of parsing arbitrary CSS-like properties.
-
-The same file owns typography roles, state-dependent opacity/surface/border
-values, per-component metrics, reader panel and TOC geometry, shadow geometry,
-animation timing, and independent shapes for every component corner. Corners
-may be `square`, `convex`, or `concave`; root curvature and concavity policy is
-resolved last, so a component cannot override a disabled root capability. The
-vendored GPUI shader interprets concave radii as real inward cut-outs rather
-than approximating them with ordinary rounded corners.
-
-On macOS, window-level glass uses GPUI's native blurred background. Component
-materials use typed alpha, tint, border, highlight, and elevation values.
-`element_blur` is retained as an explicit capability request, but GPUI 0.2.2
-does not yet expose per-element backdrop sampling; it therefore renders with
-the configured translucent fallback rather than claiming a false blur.
-
-Every local reader compilation runs a build-time style-boundary audit before
-the app is compiled. It rejects feature-owned corner/shadow utilities and raw
-RGB/HSL construction; reusable views must go through typed `key-ui-gpui`
-roles. `scripts/test.sh` retains the broader dependency-boundary audit.
-
-For local redistribution, place `libpdfium.dylib` beside the executable or in
-`GPUI PDF Reader.app/Contents/Resources` and retain all project and dependency
-notices. A local, unsigned application bundle can be assembled after either
-release build:
-
-```sh
-sh scripts/package-macos-app.sh standard target/release/gpui-pdf-reader
-# Or, after the --no-default-features build:
-sh scripts/package-macos-app.sh minimal target/release/gpui-pdf-reader
-```
-
-The assembler places the executable, PDFium, theme provenance/assets, and a
-feature-selected dependency inventory with retained notices in
-`target/dist/<bundle>/GPUI PDF Reader.app`, then checks the runtime PDFium path,
-Mach-O architectures, and dynamic-library assumptions. Run
-`sh scripts/test-macos-bundle.sh` for a fast assembly smoke test without a full
-reader build. Signing, notarization, and automatic updates have not been
-implemented yet.
-
-## Controls
-
-| Action | Input |
-|---|---|
-| Open | Empty-state control or `Command-O` |
-| Scroll | Two-finger trackpad, mouse wheel, or both trackpad axes |
-| Horizontal scroll | Native horizontal gesture or `Shift`-wheel |
-| Pan | Middle-button drag |
-| Zoom | Pinch, `Command`/`Control`-wheel, toolbar `−`/`+`, or `Command--` / `Command-=` |
-| Actual size | `Command-0` |
-| Fit width | Toolbar or View menu |
-| Fine navigation | Arrow keys |
-| Page navigation | `Page Up` / `Page Down`, `Shift-Space` / `Space` |
-| First / last page | `Home` / `End` |
-| Select text | Left drag; `Shift`-click extends; double-click selects a word |
-| Select all / copy | `Command-A` / `Command-C` |
-| Highlight selection | Choose one of the five floating color controls |
-| Add comment to selection | Floating selection control or `Command-Option-M` |
-| Search document | Floating Search control or `Command-F` |
-| Next / previous search result | `Command-G` / `Command-Shift-G` |
-| Show / hide comments | Floating Comments control |
-| Install or update an extension | File → Install or Update Extension, then review it in the Extensions panel |
-| Open an active extension | Tools → Extensions → extension name |
-| Manage extension settings | Tools → Extensions → Manage |
-
-The comment editor displays formatted content directly while storing Markdown.
-Its hovering formatting pill provides bold, italic, inline code, bulleted-list,
-and numbered-list controls. Edits auto-save; `Escape` or Back returns to the
-comments list with an animated transition inside its floating panel.
-
-Keyboard scrolling is animated. Precise trackpad deltas are applied directly,
-and zoom gestures preserve the document position beneath the pointer.
+| Read this | For |
+|----|----|
+| [Key application guide](apps/key/README.md) | Setup, releases, benchmarks, renderer entry points, and implementation details |
+| [Engine boundary](apps/key/docs/engine-contract.md) | Commands and data exchanged between the workspace and native PDF services |
+| [Text and coordinate model](notes/text-layer.md) | Canonical PDFium character order, bounds, hit testing, and known limits |
+| [Scheduling and zoom](notes/scheduling-and-zoom.md) | Demand planning, cancellation, rendering budgets, and interaction behavior |
+| [Links and scientific references](notes/links-and-scientific-references.md) | Citation detection, metadata lookup, previews, and navigation |
+| [Testing strategy](notes/testing.md) | Fixtures, deterministic checks, native end-to-end coverage, and regressions |
+| [Extension architecture](extensions/README.md) | Capability-based extension contracts and host boundaries |
+| [GPUI experiment](experiments/gpui-pdf-reader/README.md) | Scope and implementation details of the native experiment |
 
 ## Current limitations
 
-- Only macOS is currently implemented and supported.
-- Encrypted PDFs do not have a password prompt.
-- Thumbnail navigation, PDF-embedded annotation editing, and interactive form
-  filling are not implemented yet.
-- Highlights and comments use a companion sidecar; they are not written into
-  the PDF and are not interoperable with PDF annotation tools yet.
-- There is no packaged, signed, or notarized application release.
-- The extension API and local package format are pre-stable. Local packages are
-  explicitly marked unverified; a signed registry and revocation service have
-  not been implemented.
-- Zoom is limited to 20–500%.
-- PDFium's initial text-page loading call is synchronous. Later character
-  extraction is cancellable and scheduled behind visible rendering.
-- Automatic text indexing is limited to the nearest 16 visible pages at once.
-  This is normally invisible, but can matter for PDFs with many unusually tiny
-  pages on screen simultaneously.
+- macOS on Apple silicon is the only validated platform.
+- Password-protected PDFs do not yet have a password prompt.
+- Interactive forms, thumbnails, and editing of PDF-embedded annotations are not implemented.
+- Highlights and comments currently use versioned webview storage rather than the planned sidecar or database layer.
+- Scholarly metadata depends on external providers and may be delayed by availability or rate limits.
 
-## Development
+## Feedback
 
-The repository is a virtual Cargo workspace. The standalone app lives in
-`apps/gpui-pdf-reader`; reusable editor, PDF domain/runtime/PDFium, shared UI,
-storage, safe-network, and extension layers live in `crates/`. Reference and
-first-party feature packages live in `extensions/`. No reusable crate imports
-the standalone app shell.
+Reports are most useful when they include a reproducible PDF, the expected behavior, and the observed result. Performance traces and examples of difficult scientific-document structure are also welcome.
 
-Core crates contain no GPUI, PDFium, Wasmtime, network, or app-shell types.
-`key-pdf-gpui` provides an embeddable viewport controller/entity adapter;
-applications inject the PDF engine, annotation store, product chrome, and
-optional capabilities. The semantic extension APIs likewise contain no GPUI,
-PDFium, Wasmtime, filesystem-path, or socket types.
-
-GPUI owns the window, input, layout, and GPU painting. PDFium rasterizes pages
-and supplies character data for the text layer. All PDFium calls run on one
-dedicated worker thread because document and form handles are not assumed to
-be thread-safe.
-
-Rendering uses 1024px tile cores with a 32px bleed gutter. Only the core is
-painted; the gutter prevents PDFium edge culling and antialiasing seams,
-including on intrinsically rotated pages. Tile allocation is capped at
-1088×1088 BGRA pixels, and the GPU cache targets 48 tiles or 128 MiB while
-protecting the exact visible working set.
-
-Viewport requests replace stale queued work. Visible tiles run before text
-extraction, document search, and prefetch work. PDFium rendering, text
-extraction, and search all stay on the same worker thread. Zoom rendering is
-debounced for 150ms, while a new zoom burst immediately cancels the previous
-queued viewport. Stale successes and failures are both discarded.
-
-Text coordinates are extracted at a stable precision independent of current
-zoom and indexed in a bounded spatial grid. Copy streams uncached pages rather
-than retaining the full document, and Select All stores only its endpoints.
-
-Removed GPU images cross two frame callbacks before their textures are
-released. This is required because GPUI's Metal renderer may still reference a
-texture from an already submitted frame during rapid multi-page zoom.
-
-Short investigation notes are kept in [`notes/`](notes/). The focused PDFium
-tile extension is documented in
-[`vendor/pdfium-render-tile/TILE_PATCH.md`](vendor/pdfium-render-tile/TILE_PATCH.md).
-The workspace map is in [`notes/architecture.md`](notes/architecture.md), and
-the installable package guide is in [`extensions/README.md`](extensions/README.md).
-
-## Testing
-
-Run the deterministic development suite with:
-
-```sh
-sh scripts/test.sh
-```
-
-It checks formatting, all workspace targets, Clippy with warnings denied, the
-minimal bundle, architectural dependency boundaries, the explicit
-permissive-license policy, and the focused tiled-versus-full PDFium pixel
-regression. The PDFium regression covers portrait pages, intrinsic rotation,
-CropBox geometry, annotations, and AcroForm appearances.
-
-The native macOS E2E suite opens a real GPUI window and stresses rapid
-Command-wheel zoom in both directions plus keyboard zoom across the render
-debounce:
-
-```sh
-sh tests/e2e/macos_zoom.sh
-```
-
-The feature scenario creates all five highlight colors, types and formats a
-multiword comment through GPUI's native input path, opens and closes both
-sidebars while injecting live trackpad-style input, types a query into the
-search field, navigates results, then relaunches the copied fixture to verify
-the sidecar round trip:
-
-```sh
-sh tests/e2e/macos_features.sh
-```
-
-The Fluid scenario types and auto-saves a comment, clicks its highlighted text,
-slides between the comment list and editor, opens a list item, searches the
-document, verifies overlay-panel horizontal reach, and relaunches to check the
-sidecar:
-
-```sh
-sh tests/e2e/macos_fluid.sh
-```
-
-The annotation-ownership scenario creates and persists independent highlights
-and comments in three tabs, then changes one PDF's timestamp and reloads it to
-verify that content identity—not tab order or file metadata—owns the sidecar:
-
-```sh
-sh tests/e2e/macos_annotation_ownership.sh
-```
-
-The extension scenario installs and uses both reference packages, relaunches
-to prove durable restoration, rejects a package that requests native code, and
-contains a fuel-exhausting Component Model guest without taking down the app:
-
-```sh
-sh tests/e2e/macos_extensions.sh
-```
-
-Each E2E case has a hard watchdog and requires a quiet Ready state, all exact
-visible tiles, bounded tile memory, and no panic or GPU/Metal fault in the app
-or macOS logs. The feature scenario also measures document-anchor drift during
-sidebar transitions. These scripts need a logged-in macOS GUI session but do
-not require Accessibility permission.
-
-The root integration fixture is `tests/fixtures/interaction.pdf`.
-
-## Roadmap
-
-Likely development areas include:
-
-- Linux and Windows platform support
-- Thumbnail navigation
-- Password handling for encrypted PDFs
-- Interactive forms
-- A signed extension registry and stable extension API
-- Packaged and signed application releases
-
-The roadmap is directional rather than a release commitment.
+[Open an issue](https://github.com/JonasWeinert/GPUI-PDF-Reader/issues).
 
 ## License
 
-GPUI PDF Reader source is MIT licensed. Its supported dependency graph is
-restricted to MIT, Apache-2.0, and more-permissive license choices; GPL, LGPL,
-AGPL, MPL, and similar reciprocal-only dependencies are excluded by project
-policy.
-
-See [`LICENSE`](LICENSE) and
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). PDFium's complete binary
-notices are retained in [`vendor/pdfium/licenses/`](vendor/pdfium/licenses/),
-and exact Rust dependency versions are locked in `Cargo.lock`.
-
-`THIRD_PARTY_NOTICES.md` is an inventory and policy record, not a replacement
-for the complete dependency license bundle required when distributing a
-binary. The app-bundle assembler generates a standard- or minimal-specific
-Rust dependency inventory, retains package-level notice files available in the
-resolved sources, and includes the complete native PDFium and theme notices.
+Key is MIT licensed. See [LICENSE](LICENSE), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and the [PDFium notices](vendor/pdfium/licenses/).

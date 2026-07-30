@@ -1,0 +1,31 @@
+[package]
+name = "key"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Key research PDF reader desktop application"
+
+[lib]
+name = "key_app"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+key-pdf-core = { path = "../../../crates/key-pdf-core" }
+key-pdf-runtime = { path = "../../../crates/key-pdf-runtime" }
+key-pdfium = { path = "../../../crates/key-pdfium" }
+key-reference = { path = "../../../extensions/key-reference" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+
+# Keep the desktop shell independently resolvable. It consumes the repository's
+# shared crates through path dependencies without merging its Tauri dependency
+# graph into the renderer-neutral root workspace.
+[workspace]
+
+[patch.crates-io]
+pdfium-render = { path = "../../../vendor/pdfium-render-tile" }

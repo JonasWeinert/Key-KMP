@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "fixture": "../../../tests/fixtures/interaction.pdf",
+  "fixturePages": 3,
+  "scenario": {
+    "scrollJumps": 8,
+    "zoomChanges": 6,
+    "settlingPolicy": "eight animation frames per interaction plus ten final frames"
+  },
+  "primaryComparison": {
+    "environment": "Tauri 2 macOS WebKit, same window and visible frontend",
+    "warmRunsPerEngine": 5,
+    "native": {
+      "medianDurationMs": 2017,
+      "medianP95FrameIntervalMs": 18,
+      "medianMaximumFrameIntervalMs": 37,
+      "medianFramesOver20Ms": 2,
+      "runs": [
+        {"durationMs": 2021, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 35, "framesOver20Ms": 2},
+        {"durationMs": 2015, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 30, "framesOver20Ms": 2},
+        {"durationMs": 2032, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 48, "framesOver20Ms": 2},
+        {"durationMs": 2004, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 17, "maximumFrameIntervalMs": 37, "framesOver20Ms": 3},
+        {"durationMs": 2017, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 39, "framesOver20Ms": 2}
+      ]
+    },
+    "wasm": {
+      "medianDurationMs": 2014,
+      "medianP95FrameIntervalMs": 18,
+      "medianMaximumFrameIntervalMs": 27,
+      "medianFramesOver20Ms": 1,
+      "runs": [
+        {"durationMs": 2013, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 27, "framesOver20Ms": 1},
+        {"durationMs": 2033, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 42, "framesOver20Ms": 2},
+        {"durationMs": 2006, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 21, "framesOver20Ms": 2},
+        {"durationMs": 2014, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 20, "framesOver20Ms": 0},
+        {"durationMs": 2099, "medianFrameIntervalMs": 17, "p95FrameIntervalMs": 18, "maximumFrameIntervalMs": 112, "framesOver20Ms": 1}
+      ]
+    },
+    "interpretation": "The medians are indistinguishable for interaction frame health: native duration is 1.0015x WASM and both p95 values are 18 ms. The fixed-frame harness cannot establish render-throughput superiority. The native path has a higher median worst-frame value (37 ms versus 27 ms), while the WASM path has one 112 ms outlier; more runs and render-completion instrumentation are required."
+  },
+  "secondaryDiagnostic": {
+    "environment": "in-app Chromium browser, WASM only; not comparable to the primary Tauri/WebKit measurements",
+    "warmRuns": 5,
+    "medianDurationMs": 1014,
+    "medianP95FrameIntervalMs": 8.9,
+    "runs": [
+      {"durationMs": 1013.3, "p95FrameIntervalMs": 8.7, "maximumFrameIntervalMs": 9.3, "framesOver20Ms": 0},
+      {"durationMs": 1004.9, "p95FrameIntervalMs": 8.4, "maximumFrameIntervalMs": 9.3, "framesOver20Ms": 0},
+      {"durationMs": 1014, "p95FrameIntervalMs": 8.9, "maximumFrameIntervalMs": 9.3, "framesOver20Ms": 0},
+      {"durationMs": 1015.2, "p95FrameIntervalMs": 9, "maximumFrameIntervalMs": 9.3, "framesOver20Ms": 0},
+      {"durationMs": 1014, "p95FrameIntervalMs": 8.9, "maximumFrameIntervalMs": 9.3, "framesOver20Ms": 0}
+    ]
+  },
+  "functionalChecks": {
+    "nativeOpenedAndRenderedThreePages": true,
+    "nativeSearchQuery": "Linked reference",
+    "nativeSearchResultCount": 1,
+    "wasmSearchResultCount": 1,
+    "nativeTwoDocumentTabsMounted": true,
+    "nativeSplitPaneCount": 2,
+    "nativeSplitDocuments": [
+      "interaction.pdf",
+      "PUBMED_16226083.pdf"
+    ]
+  }
+}

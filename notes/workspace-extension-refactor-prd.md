@@ -1,4 +1,8 @@
-# Workspace and extension refactor PRD
+# Historical workspace and extension refactor PRD
+
+> This PRD documents the GPUI-era refactor that produced the shared `key-*`
+> crates. The working GPUI application now lives at
+> `experiments/gpui-pdf-reader`; active product work lives at `apps/key`.
 
 ## Status
 
@@ -202,13 +206,13 @@ Documentation only. No runtime behavior changes.
 
 ### Outcome
 
-The existing reader builds from `apps/gpui-pdf-reader` inside one workspace,
+The existing reader builds from `experiments/gpui-pdf-reader` inside one workspace,
 with behavior and dependency versions unchanged.
 
 ### Work
 
 - Add a virtual root workspace manifest.
-- Move the current package to `apps/gpui-pdf-reader` mechanically.
+- Preserve the completed package at `experiments/gpui-pdf-reader`.
 - Centralize shared dependency versions, profiles, patches, and lints without
   changing resolved versions.
 - Make scripts locate the workspace root rather than assume the old package
