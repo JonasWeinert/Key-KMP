@@ -1,107 +1,184 @@
-# Key
+<p align="center">
+  <img src="assets/readme/key-logo.svg" alt="Key" width="260"/>
+</p>
 
-Key is a research-focused PDF reader. Its desktop application combines a Tauri
-2 shell and TypeScript/React workspace with PDF.js rendering and the
-repository's Rust/PDFium backend.
+<p align="center">
+  <strong>A desktop workspace for reading, annotating, searching, and connecting scientific literature.</strong>
+</p>
 
-The active product lives in [`apps/key`](apps/key/). An earlier native GPUI
-implementation remains under
-[`experiments/gpui-pdf-reader`](experiments/gpui-pdf-reader/) as a working but
-abandoned experiment. It proved the native architecture and still exercises
-the shared Rust crates, but it is no longer a product target.
+<p align="center">
+  Key combines a PDF.js reading surface with native Rust and PDFium document services, structured annotations, and scholarly metadata.
+</p>
 
-> Key is under active development. macOS on Apple silicon is the only
-> platform currently built and tested. Local release bundles are ad-hoc signed,
-> but there is no notarized public release yet.
+<p align="center">
+  <a href="#overview">Overview</a> ·
+  <a href="#current-capabilities">Capabilities</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#documentation">Documentation</a>
+</p>
 
-## What works
+<p align="center">
+  <img src="https://img.shields.io/badge/status-active_development-6F9B4B?style=flat-square" alt="Status: active development"/>
+  <img src="https://img.shields.io/badge/platform-macOS_Apple_silicon-16161D?style=flat-square" alt="Platform: macOS Apple silicon"/>
+  <img src="https://img.shields.io/badge/desktop-Tauri_2-6B8AC9?style=flat-square" alt="Desktop: Tauri 2"/>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-DCD7BA?style=flat-square&labelColor=16161D" alt="License: MIT"/></a>
+</p>
 
-- Multi-document tabs, split views, a floating Safari-style tab strip, and a
-  view-owned control bar that adapts to the available width.
-- Continuous scrolling and responsive pointer-anchored trackpad zoom with
-  temporary client-side scaling while exact tiles are debounced.
-- Bounded 512-physical-pixel PDF.js Canvas2D tiles instead of oversized
-  full-page bitmaps.
-- A selectable text layer anchored to the PDFium character sequence, including
-  cross-line selection and harmonized selection/search/annotation geometry.
-- Indexed document search with highlighted results, previous/next navigation,
-  and per-document search state.
-- Highlights in orange, green, blue, pink, or purple. A highlight with a
-  comment also receives a matching underline.
-- Markdown-backed comments with a reusable rich-text editor. Formatting is
-  displayed directly in the editor and comment overview rather than exposing
-  Markdown syntax.
-- Document outlines, internal links, external links, and panels that float over
-  the document while extending its horizontal scroll reach.
-- Scientific citation overlays with grouped references, OpenAlex and Semantic
-  Scholar enrichment, abstract/TLDR summaries, source links, and an expanded
-  details modal.
-- Anchored citation cards that remain interactive until the user clicks
-  elsewhere in the view, including visible lookup progress and failure states.
-- Native macOS menu actions for opening PDFs, zoom, actual size, fit width,
-  search, outline, references, comments, sidebar, and split-view controls.
-- A shared, data-driven design system. Chrome layout, materials, opacity,
-  spacing, typography, shapes, and component behavior are resolved from typed
-  configuration rather than duplicated as view-specific constants.
+<p align="center">
+  <img src="assets/readme/key-citations.png" alt="Key displaying bibliographic details for an in-text citation" width="100%"/>
+</p>
 
-Forms are rendered for visual fidelity but are not interactive yet.
+<p align="center">
+  <sub>Bibliographic context for a grouped in-text citation, shown in the native Tauri application.</sub>
+</p>
+
+## Overview
+
+Key is a desktop application for working with scientific PDFs. The current application provides continuous document reading, multiple open papers, split views, search, text selection, annotations, comments, outlines, links, and contextual information for academic references.
+
+The document view is backed by two complementary representations:
+
+- PDF.js parses and rasterizes the pages displayed in the workspace.
+- A native Rust service uses PDFium for canonical character order, text geometry, hit testing, search, outlines, links, and preprocessing.
+
+This separation allows the interface to use the TypeScript and React ecosystem while retaining a stable native document model for features that must survive changes in zoom, tile resolution, or renderer layout.
+
+The planned scope extends beyond the reader into a connected research workspace. Library management, durable notes, relationships between papers and claims, writing surfaces, and source-grounded assistance are intended to use the same document identities and provenance model. These areas are not presented as implemented features.
+
+| Area | Available now | Planned scope |
+|----|----|----|
+| Reading | Tabs, split views, continuous pages, outlines, links, search, responsive zoom | Library-level navigation and cross-document reading sessions |
+| Annotation | Color highlights, comments, rich-text editing, stable text anchors | Durable sidecars, database-backed storage, and relationships between notes |
+| References | In-text citation detection, grouped citations, metadata cards, source links | Citation graph navigation and integration with the broader knowledge layer |
+| Research workspace | Per-document interface state and multi-paper viewing | Connected notes, claims, writing, and source-grounded assistance |
+
+> Key is under active development. The current macOS build is intended for contributors and testing and is not yet a notarized public release.
+
+## Interface
+
+<table>
+<tr>
+<td width="50%">
+<img src="assets/readme/key-search.png" alt="Key search results with matching text highlighted in the document"/>
+</td>
+<td width="50%">
+<img src="assets/readme/key-split.png" alt="Key displaying two scientific papers in a split view"/>
+</td>
+</tr>
+<tr>
+<td valign="top">
+<strong>Document search</strong><br/>
+Results remain visible in an expanded control bar and are connected to normalized highlight regions on the page.
+</td>
+<td valign="top">
+<strong>Split reading</strong><br/>
+Two independently rendered documents can share the workspace while retaining separate position, zoom, and document state.
+</td>
+</tr>
+</table>
+
+The images above were captured from the Tauri application. The surrounding backgrounds and shadows are documentation framing; the complete application chrome is preserved inside each frame.
+
+## Current capabilities
+
+### Reading and navigation
+
+- Multiple documents can remain open as tabs. Tabs resize to use the available strip width and move into an overflow state before titles become unreadable.
+- A tab can contain a resizable two-document split. Each pane retains independent view state, while the workspace limits the number of fully resident readers.
+- Pages use bounded high-resolution PDF.js tiles rather than one full-page canvas at the current zoom. Visible work is prioritized and stale rendering can be cancelled.
+- Trackpad zoom immediately scales the current visual result and schedules sharper tiles after the interaction settles.
+- Document outlines, internal destinations, external links, native menu actions, and document-level panels are integrated with the workspace.
+
+### Text, search, and annotations
+
+- Text selection and hit testing use PDFium character identities and geometry supplied by the native companion.
+- Search results are computed against the native document text and displayed in a persistent results strip with page context.
+- Selection, search, and annotation regions are normalized into visually consistent rectangles so whitespace and item boundaries do not create avoidable gaps.
+- Highlights use the selected annotation color. Commented annotations also receive an underline; uncommented annotations use color alone.
+- Comments use a reusable rich-text editor with Markdown-backed storage. Formatting is rendered directly in the editor and comment summaries rather than exposing Markdown syntax during editing.
+
+### Scientific references
+
+- Preprocessing identifies bibliography entries, in-text citation markers, linked DOI and Crossref targets, and grouped references.
+- Citation cards can display a title, authors, venue, year, abstract or TLDR, provider status, and links without moving the reader away from the cited passage.
+- OpenAlex and Semantic Scholar results are merged rather than treated as mutually exclusive. Provider requests are queued, throttled, cached, and prioritized according to identifier availability.
+- Citation overlays remain anchored to the source text. Hover cards are positioned from the text region and remain interactive when the pointer moves from the document onto the card.
 
 ## Architecture
 
+Key uses a Tauri shell around a React application and a native document companion. The webview and native service exchange typed commands and serializable data; renderer-specific objects do not cross that boundary.
+
+| Layer | Responsibility | Technology |
+|----|----|----|
+| Desktop shell | Windows, native menus, file access, packaging, and command routing | Tauri 2 |
+| Workspace interface | Tabs, splits, control bars, panels, comments, and citation cards | TypeScript, React |
+| Visible page renderer | PDF parsing and bounded Canvas2D tile rasterization | PDF.js |
+| Native document service | Text geometry, search, outlines, links, preprocessing, and coordinate normalization | Rust, PDFium |
+| Scholarly metadata | Reference lookup, result merging, throttling, caching, and source links | OpenAlex, Semantic Scholar |
+| Interface policy | Typed geometry, materials, typography, motion, color, and component configuration | Shared JSON schema and host adapters |
+
 ```mermaid
 flowchart LR
-    PDF["PDF file"] --> JS["PDF.js renderer"]
-    PDF --> Companion["Rust companion"]
-    JS --> Tiles["Bounded Canvas2D tiles"]
-    Tiles --> View["Tauri webview"]
-    Companion --> PDFium["PDFium text and document model"]
-    PDFium --> Geometry["Canonical character geometry and search"]
-    PDFium --> Analysis["Outline, links, references, and citations"]
-    Analysis --> Lookup["OpenAlex and Semantic Scholar"]
-    Geometry --> View
-    Analysis --> View
-    Lookup --> View
-    View --> State["App-owned annotations and per-document UI state"]
+    File["PDF file"] --> PDFJS["PDF.js page tiles"]
+    File --> Native["Rust document service"]
+    Native --> PDFium["PDFium text and geometry"]
+    Native --> Analysis["Links and scientific analysis"]
+    Analysis --> Providers["OpenAlex and Semantic Scholar"]
+    PDFJS --> Workspace["React workspace"]
+    PDFium --> Workspace
+    Providers --> Workspace
+    Workspace --> State["Annotations and interface state"]
 ```
 
-PDF.js owns visible rasterization. PDFium is not used as a second visual
-renderer in the current application; it supplies the canonical character
-sequence, normalized page geometry, indexed search, document structure, and
-scientific analysis.
+### Text identity and coordinates
 
-Opening is staged. PDF.js parsing and the native companion start in parallel.
-The initial document and text geometry make the reader usable first; reference
-analysis and scholarly lookups continue in the background and update the
-already-open view as results arrive. The companion can hibernate its live
-PDFium document after disposable text has been installed, keeping the storage
-boundary flexible for a later SQLite-backed implementation.
+PDFium character order is the persistent text identity used by the application. Native page-space bounds are normalized once and converted into the active PDF.js viewport when an overlay is painted.
 
-Annotations store PDFium character ranges. Search and scientific-analysis
-records carry normalized page bounds derived from the same native character
-geometry. PDF.js converts those bounds into its current viewport only when it
-paints an overlay. This keeps annotations, search results, citations, and text
-selection stable across zoom levels without treating PDF.js text-item indices
-as persistent document identity.
+Annotations therefore store character ranges and canonical geometry rather than PDF.js text-item indices or screen pixels. The same anchor can be resolved after zooming, changing tile resolution, reopening a document, or displaying the page in another pane.
 
-## Platform status
+PDF.js text data is still useful for rendering and diagnostics, but it is not treated as the durable identity of a passage.
 
-| Platform | Status |
-|---|---|
-| macOS, Apple silicon | Current development and release target |
-| macOS, Intel | Not validated; the checked-in PDFium library is arm64 |
-| Linux | Intended, not currently supported |
-| Windows | Intended, not currently supported |
+### Staged document processing
 
-## Build and run the current app
+Opening a document is divided into stages:
 
-Requirements:
+1. PDF.js opens the visible document and schedules the tiles required for the current viewport.
+2. The native service makes page metadata and canonical text geometry available.
+3. Search, outlines, links, and saved annotations become usable from the native model.
+4. Scientific-reference analysis and external metadata lookups continue in the background.
+5. Completed analysis is cached and sent to the interface without blocking the initial reading view.
+
+The scheduling boundary is intentionally explicit so future persistent storage can replace or supplement in-memory caches without changing the workspace contract.
+
+### Resource policy
+
+Only the active panes and a small warm set retain expensive rendering state. Tile work is prioritized by visibility and interaction, and obsolete requests are cancelled when the viewport changes. Metadata lookup has separate concurrency and rate-limit controls so network work cannot monopolize rendering resources.
+
+The design and behavior of the interface are also supplied through typed configuration rather than scattered host-specific constants. Components receive geometry, material, color, and motion values through the design-system adapter.
+
+## Planned scope
+
+The reader and native document model are the base for additional research components:
+
+- a persistent library and document index;
+- sidecar or database-backed annotations and document state;
+- linked notes, claims, citations, and source passages;
+- writing surfaces that can reference the same canonical document anchors;
+- source-grounded assistance with visible provenance and inspectable context;
+- broader platform support where Tauri, PDF.js, and the native companion can be packaged reliably.
+
+The storage boundary is currently repository- and file-oriented. It is structured so a later SQLite-backed implementation can provide colder caches and indexed retrieval without changing the public document and extension contracts.
+
+## Quick start
+
+### Requirements
 
 - macOS with Xcode Command Line Tools
 - A current stable Rust toolchain
 - Node.js and npm
 
-The repository includes the audited Apple-silicon PDFium library used during
-development. It can be refreshed with the pinned fetch script.
+### Run the desktop application
 
 ```sh
 ./scripts/fetch-pdfium.sh
@@ -110,202 +187,81 @@ npm install
 npm run tauri -- dev
 ```
 
-An alternative matching-architecture PDFium library can be supplied with
-`PDFIUM_DYNAMIC_LIB_PATH`.
+The checked-in PDFium build targets Apple silicon. A matching alternative can be supplied with `PDFIUM_DYNAMIC_LIB_PATH`.
 
-```sh
-PDFIUM_DYNAMIC_LIB_PATH=/path/to/libpdfium.dylib \
-  npm run tauri -- dev
-```
-
-To build the optimized macOS application and disk image:
-
-```sh
-cd apps/key
-npm run tauri -- build
-```
-
-Tauri writes the local artifacts to:
-
-- `apps/key/src-tauri/target/release/bundle/macos/Key.app`
-- `apps/key/src-tauri/target/release/bundle/dmg/Key_0.1.0_aarch64.dmg`
-
-These local artifacts are ad-hoc signed according to the current Tauri
-configuration and are not notarized.
-
-### Web-only development
-
-The frontend can be opened without Tauri:
+### Frontend-only development
 
 ```sh
 cd apps/key
 npm run dev
 ```
 
-Then use
-`http://localhost:1420/?renderer=pdfjs-workspace`.
+Open `http://localhost:1420/?renderer=pdfjs-workspace`.
 
-This is useful for layout and browser interaction work. Native PDFium search,
-preprocessing, persistent companion state, and scholarly lookup require the
-Tauri application; the browser path uses its PDF.js fallbacks.
+The browser entry point is useful for interface development. Native preprocessing, PDFium search, and scholarly lookup require the Tauri application.
 
-## Controls
+### Common commands
 
-| Action | Input |
-|---|---|
-| Open PDF | Empty state, global `+`, File menu, or `Command-O` |
-| Switch document | Floating tab strip |
-| Split view | Global split control or View menu |
-| Scroll | Trackpad, mouse wheel, or both trackpad axes |
-| Zoom | Trackpad pinch, `Command`/`Control`-wheel, `−`/`+`, or `Command--` / `Command-=` |
-| Actual size | Zoom value, View menu, or `Command-0` |
-| Fit width | Control bar or View menu |
-| Select text | Left-button drag |
-| Copy selection | Floating selection control or `Command-C` |
-| Highlight selection | One of the five floating color controls |
-| Add or edit a comment | Floating note control |
-| Search | Control bar, View menu, or `Command-F` |
-| Next/previous result | Search controls or `Command-G` / `Command-Shift-G` |
-| Outline, references, comments | Control bar or View menu |
-| Dismiss a citation card | Click elsewhere in the PDF view |
+| Task | Command |
+|----|----|
+| Frontend tests | `npm test` |
+| Production frontend build | `npm run build` |
+| Browser workspace smoke test | `npm run test:pdfjs-workspace-ux` |
+| Native Rust check | `cargo check --manifest-path src-tauri/Cargo.toml` |
+| Build `Key.app` and DMG | `npm run tauri -- build` |
+| Shared Rust and GPUI suite | `sh scripts/test.sh` from the repository root |
 
-Control-bar mode is retained when switching documents. Search queries and
-comment state belong to each document, so returning to a tab restores its
-previous state without leaking the query to another PDF.
+Local release artifacts are written to:
 
-## Design system
+- `apps/key/src-tauri/target/release/bundle/macos/Key.app`
+- `apps/key/src-tauri/target/release/bundle/dmg/Key_0.1.0_aarch64.dmg`
 
-The base renderer-independent configuration is
-[`assets/ui/key-glass.json`](assets/ui/key-glass.json). The current Tauri
-profile merges it with
-[`assets/ui/variations/safari-glass.json`](assets/ui/variations/safari-glass.json).
+They are currently ad-hoc signed and not notarized.
 
-The same schema drives the GPUI and Tauri implementations. Views receive
-resolved values through their host abstraction; they do not independently
-hardcode tab placement, control order, widths, corner radii, translucency, or
-motion policy. This is what allows the tab bar, split-tab segments, control
-bar, and floating surfaces to change together.
-
-Other checked-in visual configurations include:
-
-- [`assets/ui/variations/clear-glass.json`](assets/ui/variations/clear-glass.json)
-- [`assets/ui/variations/square-opaque.json`](assets/ui/variations/square-opaque.json)
-- [`assets/ui/variations/safari-chrome.json`](assets/ui/variations/safari-chrome.json)
-
-## Testing
-
-For the current Tauri/PDF.js application:
-
-```sh
-cd apps/key
-npm test
-npm run build
-npm run test:pdfjs-workspace-ux
-cargo check --manifest-path src-tauri/Cargo.toml
-```
-
-The workspace UX smoke test opens a real browser, loads the deterministic
-interaction fixture, and verifies annotation colors, comment underlines,
-recoloring, rich Markdown editing, comment cards, and plain-highlight styling.
-
-Native PDF.js performance scenarios are available separately:
-
-```sh
-npm run benchmark:pdfjs-tauri -- /absolute/path/to/document.pdf
-npm run benchmark:pdfjs-workspace-tauri -- /absolute/path/to/pdf-directory
-npm run benchmark:resources -- <tauri-pid>
-```
-
-The shared Rust suite, including the frozen GPUI experiment, remains available:
-
-```sh
-sh scripts/test.sh
-```
-
-Its macOS E2E cases live in [`tests/e2e`](tests/e2e/), and the shared
-integration fixture is
-[`tests/fixtures/interaction.pdf`](tests/fixtures/interaction.pdf).
-
-## Project layout
+## Repository map
 
 | Path | Purpose |
-|---|---|
-| `apps/key/src/pdfjs` | Current PDF.js reader, overlays, workspace, and UI state |
-| `apps/key/src-tauri` | Tauri shell, native PDFium companion, staged preprocessing, and lookup commands |
-| `crates/key-pdf-core` | Renderer-independent PDF, text, search, and scientific-analysis domain logic |
-| `crates/key-pdf-runtime` | Scheduling, cancellation, document sessions, and demand management |
-| `crates/key-pdfium` | Native PDFium adapter |
-| `extensions/key-reference` | Scholarly metadata, provider scheduling, throttling, and merging |
-| `assets/ui` | Shared typed design-system configurations |
-| `experiments/gpui-pdf-reader` | Frozen, working native GPUI experiment |
-| `tests/fixtures` | Deterministic PDF fixtures used by both implementations |
+|----|----|
+| [`apps/key`](apps/key/) | Active Tauri, React, PDF.js, and native companion application |
+| [`crates`](crates/) | Renderer-neutral document, runtime, UI, storage, and host crates |
+| [`extensions/key-reference`](extensions/key-reference/) | Scholarly metadata and provider scheduling |
+| [`assets/ui`](assets/ui/) | Typed interface and visual configuration |
+| [`experiments/gpui-pdf-reader`](experiments/gpui-pdf-reader/) | Frozen but working native GPUI experiment |
+| [`tests`](tests/) | Shared fixtures and native end-to-end scenarios |
 
-The pinned AFFiNE submodule under
-`apps/key/upstream-affine` is retained as a source reference.
-The current desktop application does not boot AFFiNE or depend on its Electron
-runtime.
+### Tauri and GPUI implementations
 
-## Why Tauri replaced the GPUI application
+Key is implemented in Tauri. This provides a mature desktop lifecycle and packaging model, access to the TypeScript component ecosystem, and a practical route to additional supported platforms.
 
-The GPUI reader reached a genuinely working state: it has a native PDFium tile
-renderer, extension host, sidecar annotations, themes, and macOS integration.
-It was valuable validation, not a failed prototype.
+The GPUI reader remains in `experiments/gpui-pdf-reader` as a working implementation and architectural reference. It demonstrates native rendering, scheduling, sidecar annotations, extensions, and macOS integration, but it is not the target for current feature development.
 
-It is nevertheless frozen as an experiment. Key now targets Tauri because its
-TypeScript ecosystem offers substantially richer building blocks for planned
-feature components, Tauri has a more mature application and packaging surface,
-and its webview model provides a clearer route to additional desktop platforms.
-Maintaining two product frontends would dilute that advantage and force new UX
-work to be implemented twice.
+## Documentation
 
-The experiment stays buildable so behavior can be compared and reusable Rust
-work can be recovered. Run it explicitly:
-
-```sh
-./scripts/fetch-pdfium.sh
-cargo run --locked -p gpui-pdf-reader -- /path/to/document.pdf
-```
-
-For an optimized GPUI build:
-
-```sh
-cargo build --release --locked -p gpui-pdf-reader
-./target/release/gpui-pdf-reader /path/to/document.pdf
-```
-
-No new product features should be added directly to the GPUI application.
-Useful renderer-neutral behavior belongs in the shared `key-*` crates; active
-interface work belongs in `apps/key`.
-
-Detailed background material remains in:
-
-- [`notes/architecture.md`](notes/architecture.md)
-- [`notes/text-layer.md`](notes/text-layer.md)
-- [`notes/scheduling-and-zoom.md`](notes/scheduling-and-zoom.md)
-- [`notes/links-and-scientific-references.md`](notes/links-and-scientific-references.md)
-- [`extensions/README.md`](extensions/README.md)
+| Read this | For |
+|----|----|
+| [Key application guide](apps/key/README.md) | Setup, releases, benchmarks, renderer entry points, and implementation details |
+| [Engine boundary](apps/key/docs/engine-contract.md) | Commands and data exchanged between the workspace and native PDF services |
+| [Text and coordinate model](notes/text-layer.md) | Canonical PDFium character order, bounds, hit testing, and known limits |
+| [Scheduling and zoom](notes/scheduling-and-zoom.md) | Demand planning, cancellation, rendering budgets, and interaction behavior |
+| [Links and scientific references](notes/links-and-scientific-references.md) | Citation detection, metadata lookup, previews, and navigation |
+| [Testing strategy](notes/testing.md) | Fixtures, deterministic checks, native end-to-end coverage, and regressions |
+| [Extension architecture](extensions/README.md) | Capability-based extension contracts and host boundaries |
+| [GPUI experiment](experiments/gpui-pdf-reader/README.md) | Scope and implementation details of the native experiment |
 
 ## Current limitations
 
-- Only macOS on Apple silicon is actively tested.
-- Encrypted PDFs do not have a password prompt.
-- Interactive forms, thumbnail navigation, and PDF-embedded annotation editing
-  are not implemented.
-- Tauri highlights and comments currently use versioned browser local storage.
-  They are not written into the PDF and do not yet use the GPUI sidecar store
-  or a database.
-- Scholarly metadata depends on external providers and can be delayed by their
-  availability and rate limits. Provider throttling and retry scheduling reduce
-  failures but cannot eliminate them.
-- The current release configuration is ad-hoc signed and not notarized.
-- The AFFiNE/embedPDF/PDFium-WASM comparison path remains in the source tree for
-  historical measurements, but it is not the active application renderer.
+- macOS on Apple silicon is the only validated platform.
+- Password-protected PDFs do not yet have a password prompt.
+- Interactive forms, thumbnails, and editing of PDF-embedded annotations are not implemented.
+- Highlights and comments currently use versioned webview storage rather than the planned sidecar or database layer.
+- Scholarly metadata depends on external providers and may be delayed by availability or rate limits.
+
+## Feedback
+
+Reports are most useful when they include a reproducible PDF, the expected behavior, and the observed result. Performance traces and examples of difficult scientific-document structure are also welcome.
+
+[Open an issue](https://github.com/JonasWeinert/GPUI-PDF-Reader/issues).
 
 ## License
 
-Key source is MIT licensed. The supported dependency graph is restricted by
-project policy to MIT, Apache-2.0, and more-permissive licenses.
-
-See [`LICENSE`](LICENSE), [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md),
-and the PDFium notices in
-[`vendor/pdfium/licenses`](vendor/pdfium/licenses/).
+Key is MIT licensed. See [LICENSE](LICENSE), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and the [PDFium notices](vendor/pdfium/licenses/).

@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key — mark & logo system</title>
+<style>
+  :root{
+    /* brand */
+    --ink:#16161D;
+    --paper:#DCD7BA;
+    --green:#6F9B4B;   /* Key      */
+    --blue:#6B8AC9;    /* Documents*/
+    --red:#C34043;     /* PDF      */
+    --violet:#8265AD;  /* Data     */
+    /* page */
+    --bg:#0E0E13;
+    --panel:#191921;
+    --line:#272730;
+    --fg:#DCD7BA;
+    --dim:#8A8878;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--fg);
+    font-family:var(--sans);font-size:15px;line-height:1.6;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:96px 96px;background-position:-1px -1px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 96px}
+  .rule{height:1px;background:var(--line);margin:0}
+
+  /* ---------- type ---------- */
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--dim);margin:0 0 20px;
+  }
+  h1{
+    font-family:var(--mono);font-weight:500;
+    font-size:clamp(34px,7.2vw,68px);line-height:1.02;letter-spacing:-.035em;
+    margin:0 0 22px;color:var(--fg);
+  }
+  h1 em{font-style:normal;color:var(--green)}
+  h2{
+    font-family:var(--mono);font-weight:500;font-size:13px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--fg);margin:0;
+  }
+  .lede{max-width:52ch;color:var(--dim);margin:0}
+  .lede strong{color:var(--fg);font-weight:500}
+  p{margin:0 0 12px}
+  .note{font-size:13px;color:var(--dim);max-width:60ch}
+  code{font-family:var(--mono);font-size:.9em;color:var(--fg);background:#20202a;padding:1px 5px;border-radius:4px}
+
+  /* ---------- header ---------- */
+  header{padding:88px 0 56px}
+  .head-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:48px;align-items:end}
+  @media(max-width:760px){.head-grid{grid-template-columns:1fr;gap:28px}header{padding:56px 0 40px}}
+
+  /* ---------- sections ---------- */
+  section{padding:56px 0}
+  .sec-head{display:flex;align-items:baseline;gap:20px;margin-bottom:32px;flex-wrap:wrap}
+  .sec-head .note{margin:0}
+
+  /* ---------- keycap stage ---------- */
+  .stage{
+    background:var(--paper);border-radius:14px;display:grid;place-items:center;
+    padding:26px;
+  }
+  .stage.dark{background:#0A0A0E}
+  .stage svg{display:block;width:100%;height:auto}
+
+  /* the press interaction — the whole page behaves like a keyboard */
+  .capbtn{
+    appearance:none;border:0;background:none;padding:0;margin:0;cursor:pointer;
+    display:grid;gap:10px;justify-items:stretch;text-align:left;font:inherit;color:inherit;
+  }
+  .capbtn .stage{transition:transform .16s cubic-bezier(.34,.8,.24,1)}
+  .capbtn .kplate{transition:transform .12s cubic-bezier(.34,.8,.24,1)}
+  .capbtn:hover .kplate{transform:translateY(4px)}
+  .capbtn:active .kplate{transform:translateY(10px)}
+  .capbtn:focus-visible{outline:2px solid var(--green);outline-offset:6px;border-radius:16px}
+  .caplabel{
+    font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--dim);display:flex;justify-content:space-between;gap:8px;
+  }
+  .caplabel b{color:var(--fg);font-weight:500}
+
+  .row{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  @media(max-width:760px){.row{grid-template-columns:repeat(2,1fr)}}
+
+  /* ---------- panels ---------- */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  @media(max-width:900px){.grid4{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+  .panel h3{
+    font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--fg);margin:0 0 4px;font-weight:500;
+  }
+  .panel .note{margin:0 0 18px}
+
+  /* ---------- anatomy ---------- */
+  .anatomy{display:grid;grid-template-columns:280px 1fr;gap:40px;align-items:center}
+  @media(max-width:760px){.anatomy{grid-template-columns:1fr;gap:24px}}
+  dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 18px;align-items:baseline}
+  dt{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);white-space:nowrap}
+  dd{margin:0;font-size:14px;color:var(--dim)}
+  dd b{color:var(--fg);font-weight:500}
+
+  /* ---------- swatches ---------- */
+  .chips{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  @media(max-width:760px){.chips{grid-template-columns:repeat(3,1fr)}}
+  .chip{border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+  .chip i{display:block;height:64px}
+  .chip span{
+    display:block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+    padding:8px 10px;color:var(--dim);background:var(--panel);
+  }
+  .chip span b{display:block;color:var(--fg);letter-spacing:.14em;font-weight:500;text-transform:uppercase}
+
+  /* ---------- favicon strip ---------- */
+  .sizes{display:flex;align-items:flex-end;gap:26px;flex-wrap:wrap}
+  .size{display:grid;gap:10px;justify-items:center}
+  .size .box{background:var(--paper);border-radius:5px;padding:3px;display:grid;place-items:center}
+  .size svg{display:block}
+  .size small{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.1em}
+
+  /* ---------- terminal ---------- */
+  .term{
+    background:#0A0A0E;border-radius:12px;padding:18px 20px;
+    font-family:var(--mono);font-size:13px;line-height:1.9;color:var(--paper);
+  }
+  .term .p{color:var(--green)}
+  .term .d{color:var(--dim)}
+  .term .cell{vertical-align:-.22em;width:.6em;height:1.2em;color:var(--paper)}
+  .frames{font-family:var(--mono);font-size:13px;color:var(--fg);letter-spacing:.18em}
+
+  /* ---------- toast ---------- */
+  .toast{
+    position:fixed;left:50%;bottom:28px;transform:translate(-50%,16px);
+    background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:12px;
+    letter-spacing:.08em;padding:10px 16px;border-radius:8px;opacity:0;pointer-events:none;
+    transition:opacity .18s ease,transform .18s ease;z-index:9;
+  }
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  footer{padding:48px 0 0;color:var(--dim);font-size:13px}
+
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Key — identity system</p>
+  <div class="head-grid">
+    <div>
+      <h1>One cap.<br>Every <em>surface</em>.</h1>
+    </div>
+    <div>
+      <p class="lede">The mark is a keycap. Its legend is a <strong>block cursor and a caret</strong> — the two glyphs a modal editor and a shell already share — set with a hair of space so they resolve into a <strong>K</strong>.<br><br>Every part of the product gets the same cap with a different legend, the way a keyboard gets a different letter on every key.</p>
+    </div>
+  </div>
+</header>
+
+<div class="rule"></div>
+
+<!-- ============ HERO ROW ============ -->
+<section>
+  <div class="sec-head">
+    <h2>The set</h2>
+    <p class="note">Press a cap to copy its SVG.</p>
+  </div>
+
+  <div class="row">
+    <!-- CORE -->
+    <button class="capbtn" data-copy aria-label="Copy Key core mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key">
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <g class="kplate">
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+            <rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/>
+            <path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Key</b><span>core</span></span>
+    </button>
+
+    <!-- DOCUMENTS -->
+    <button class="capbtn" data-copy aria-label="Copy Documents mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key Documents">
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <g class="kplate">
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+            <rect x="31" y="38" width="9" height="34" rx="2.5" fill="#6B8AC9"/>
+            <rect x="47" y="38" width="38" height="8" rx="4" fill="#16161D"/>
+            <rect x="47" y="51" width="38" height="8" rx="4" fill="#16161D"/>
+            <rect x="47" y="64" width="24" height="8" rx="4" fill="#16161D"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Docs</b><span>writing</span></span>
+    </button>
+
+    <!-- PDF -->
+    <button class="capbtn" data-copy aria-label="Copy PDF mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key PDF">
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <g class="kplate">
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+            <rect x="31" y="38" width="9" height="34" rx="2.5" fill="#C34043"/>
+            <path d="M52 40.5H69.5L83.5 54.5V69.5H52Z" fill="#16161D" stroke="#16161D" stroke-width="5" stroke-linejoin="round"/>
+            <path d="M69.5 40.5L83.5 54.5H69.5Z" fill="#DCD7BA" stroke="#DCD7BA" stroke-width="3" stroke-linejoin="round"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>PDF</b><span>reading</span></span>
+    </button>
+
+    <!-- DATA -->
+    <button class="capbtn" data-copy aria-label="Copy Databases mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key Databases">
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <g class="kplate">
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+            <rect x="31" y="38" width="9" height="34" rx="2.5" fill="#8265AD"/>
+            <rect x="47" y="38" width="38" height="34" rx="8" fill="#16161D"/>
+            <rect x="47" y="48" width="38" height="4.5" fill="#DCD7BA"/>
+            <rect x="64" y="52.5" width="4.5" height="19.5" fill="#DCD7BA"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Data</b><span>tables</span></span>
+    </button>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ ANATOMY ============ -->
+<section>
+  <div class="sec-head">
+    <h2>Anatomy</h2>
+    <p class="note">Two flat tones make the depth. No gradient, no bevel, no shadow.</p>
+  </div>
+
+  <div class="panel">
+    <div class="anatomy">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key mark construction">
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+          <rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/>
+          <path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          <g stroke="#C34043" stroke-width="0.75" opacity=".55" fill="none" stroke-dasharray="3 3">
+            <line x1="0" y1="55" x2="120" y2="55"/>
+            <line x1="49" y1="0" x2="49" y2="120"/>
+            <line x1="53.5" y1="0" x2="53.5" y2="120"/>
+          </g>
+        </svg>
+      </span>
+      <dl>
+        <dt>Body</dt>
+        <dd><b>Ink, 96 × 94, r26.</b> Taller lip at the bottom than the top — the cap is read slightly from the front, so it sits rather than floats.</dd>
+        <dt>Plate</dt>
+        <dd><b>Paper, inset 10, r16.</b> Radius equals body radius minus inset, so every corner stays concentric.</dd>
+        <dt>Cursor</dt>
+        <dd><b>The stem.</b> A block cursor in the accent colour. It is the only coloured element in the whole system.</dd>
+        <dt>Caret</dt>
+        <dd><b>The arm and leg.</b> 4.5 units of air between cursor and caret: enough to keep both glyphs legible, tight enough to close into a K.</dd>
+        <dt>Legend</dt>
+        <dd>Everything lives in a <b>34-unit optical band</b>. Swap the glyph, keep the band, and any future surface joins the set.</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ LOCKUP ============ -->
+<section>
+  <div class="sec-head">
+    <h2>Lockup</h2>
+    <p class="note">The K in the wordmark is the mark itself, so the two never disagree.</p>
+  </div>
+
+  <div class="grid2">
+    <button class="capbtn" data-copy aria-label="Copy horizontal lockup SVG">
+      <span class="stage">
+        <svg viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key logo">
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <g class="kplate">
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+            <rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/>
+            <path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <g transform="translate(140,30)" fill="#16161D">
+            <rect x="0" y="8" width="10" height="44" rx="2.5"/>
+            <path d="M36 13L20 30L36 47" fill="none" stroke="#16161D" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="55" y="8" width="10" height="44" rx="2.5"/>
+            <rect x="55" y="8" width="32" height="10" rx="2.5"/>
+            <rect x="55" y="25" width="26" height="10" rx="2.5"/>
+            <rect x="55" y="42" width="32" height="10" rx="2.5"/>
+            <path d="M102 13L118 31L134 13M118 31V47" fill="none" stroke="#16161D" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Horizontal</b><span>primary</span></span>
+    </button>
+
+    <button class="capbtn" data-copy aria-label="Copy terminal lockup SVG">
+      <span class="stage dark">
+        <svg viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key wordmark with cursor">
+          <g transform="translate(68,30)" fill="#DCD7BA">
+            <rect x="0" y="8" width="10" height="44" rx="2.5"/>
+            <path d="M36 13L20 30L36 47" fill="none" stroke="#DCD7BA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="55" y="8" width="10" height="44" rx="2.5"/>
+            <rect x="55" y="8" width="32" height="10" rx="2.5"/>
+            <rect x="55" y="25" width="26" height="10" rx="2.5"/>
+            <rect x="55" y="42" width="32" height="10" rx="2.5"/>
+            <path d="M102 13L118 31L134 13M118 31V47" fill="none" stroke="#DCD7BA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="152" y="8" width="12" height="44" rx="2.5" fill="#6F9B4B"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Wordmark</b><span>terminal / CLI</span></span>
+    </button>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ LOADING ============ -->
+<section>
+  <div class="sec-head">
+    <h2>Loading</h2>
+    <p class="note">Each animation is self-contained — the keyframes travel inside the SVG.</p>
+  </div>
+
+  <div class="grid4">
+    <div class="panel">
+      <h3>Keypress</h3>
+      <p class="note">Primary. The cap actuates and the cursor blinks off on the release.</p>
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="keyld-press" role="img" aria-label="Loading">
+          <style>
+            .keyld-press .cap{animation:keyPress 1.15s cubic-bezier(.34,.8,.24,1) infinite}
+            .keyld-press .cur{animation:keyCur 1.15s steps(1,end) infinite}
+            @keyframes keyPress{0%{transform:translateY(0)}14%{transform:translateY(10px)}42%{transform:translateY(0)}100%{transform:translateY(0)}}
+            @keyframes keyCur{0%,52%{opacity:1}53%,78%{opacity:.16}79%,100%{opacity:1}}
+            @media(prefers-reduced-motion:reduce){.keyld-press .cap,.keyld-press .cur{animation:none}}
+          </style>
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <g class="cap">
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+            <rect class="cur" x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/>
+            <path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </svg>
+      </span>
+    </div>
+
+    <div class="panel">
+      <h3>Flip</h3>
+      <p class="note">The cap holds still. The caret flips through edge-on and the cursor blinks out on the turn.</p>
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="keyld-flip" role="img" aria-label="Loading">
+          <style>
+            .keyld-flip .cur{animation:keyFlick 1.6s steps(1,end) infinite}
+            .keyld-flip .chev{animation:keyFlip 1.6s cubic-bezier(.45,0,.55,1) infinite;transform-origin:66.5px 55px}
+            @keyframes keyFlick{0%,31%{opacity:1}32%,51%{opacity:.16}52%,83%{opacity:1}84%,100%{opacity:.16}}
+            @keyframes keyFlip{0%,30%{transform:scaleX(1)}52%,80%{transform:scaleX(-1)}100%{transform:scaleX(1)}}
+            @media(prefers-reduced-motion:reduce){.keyld-flip .cur,.keyld-flip .chev{animation:none}}
+          </style>
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+          <rect class="cur" x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/>
+          <path class="chev" d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+    </div>
+
+    <div class="panel">
+      <h3>hjkl</h3>
+      <p class="note">Long waits. The caret walks left, down, up, right — one press per direction.</p>
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" class="keyld-hjkl" role="img" aria-label="Loading">
+          <style>
+            .keyld-hjkl .cap{animation:keyPress2 1.15s cubic-bezier(.34,.8,.24,1) infinite}
+            .keyld-hjkl .dir{animation:keyDir 4.6s steps(1,end) infinite;transform-origin:61px 55px}
+            @keyframes keyPress2{0%{transform:translateY(0)}14%{transform:translateY(10px)}42%{transform:translateY(0)}100%{transform:translateY(0)}}
+            @keyframes keyDir{0%{transform:rotate(0deg)}25%{transform:rotate(-90deg)}50%{transform:rotate(90deg)}75%{transform:rotate(180deg)}}
+            @media(prefers-reduced-motion:reduce){.keyld-hjkl .cap,.keyld-hjkl .dir{animation:none}}
+          </style>
+          <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+          <g class="cap">
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+            <path class="dir" d="M70 41L52 55L70 69" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </svg>
+      </span>
+    </div>
+
+    <div class="panel">
+      <h3>Prompt</h3>
+      <p class="note">Inline. Sits at the end of a line of CLI output at x-height.</p>
+      <span class="stage dark" style="align-items:center">
+        <svg viewBox="0 0 150 60" xmlns="http://www.w3.org/2000/svg" class="keyld-prompt" role="img" aria-label="Working">
+          <style>
+            .keyld-prompt .b{animation:keyMarch 1.35s ease-in-out infinite}
+            .keyld-prompt .b2{animation-delay:.15s}
+            .keyld-prompt .b3{animation-delay:.3s}
+            @keyframes keyMarch{0%,100%{opacity:.18}35%{opacity:1}}
+            @media(prefers-reduced-motion:reduce){.keyld-prompt .b{animation:none;opacity:.6}}
+          </style>
+          <rect x="10" y="13" width="9" height="34" rx="2.5" fill="#DCD7BA"/>
+          <path d="M45 17L28 30L45 43" fill="none" stroke="#DCD7BA" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect class="b b1" x="72" y="13" width="10" height="34" rx="2.5" fill="#6F9B4B"/>
+          <rect class="b b2" x="96" y="13" width="10" height="34" rx="2.5" fill="#6F9B4B"/>
+          <rect class="b b3" x="120" y="13" width="10" height="34" rx="2.5" fill="#6F9B4B"/>
+        </svg>
+      </span>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:18px">
+    <button class="capbtn" data-copy aria-label="Copy terminal cell loader SVG">
+      <span class="stage dark" style="padding:34px">
+        <svg viewBox="0 0 24 48" xmlns="http://www.w3.org/2000/svg" class="keyld-cell" style="color:#DCD7BA;width:auto;height:120px" role="img" aria-label="Working">
+          <style>
+            .keyld-cell .blk{animation:keyScan 1.1s cubic-bezier(.4,0,.5,1) infinite}
+            @keyframes keyScan{
+              0%{transform:scaleY(.06);transform-origin:12px 45px}
+              44%{transform:scaleY(1);transform-origin:12px 45px}
+              50%{transform:scaleY(1);transform-origin:12px 3px}
+              94%,100%{transform:scaleY(.06);transform-origin:12px 3px}
+            }
+            @media(prefers-reduced-motion:reduce){.keyld-cell .blk{animation:none}}
+          </style>
+          <rect class="blk" x="2" y="3" width="20" height="42" rx="1.5" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Cell</b><span>one column wide</span></span>
+    </button>
+
+    <div class="panel">
+      <h3>In a line of output</h3>
+      <p class="note">The mark's stem, alone, scanning inside a single character cell. No colour, no cap, no second glyph — it inherits the terminal's foreground and never disturbs the column grid.</p>
+      <div class="term">
+        <div><span class="p">$</span> key sync --vault ~/notes</div>
+        <div class="d">indexing 2,481 pages <svg viewBox="0 0 24 48" xmlns="http://www.w3.org/2000/svg" class="keyld-cell cell"><rect class="blk" x="2" y="3" width="20" height="42" rx="1.5" fill="currentColor"/></svg></div>
+      </div>
+      <p class="note" style="margin:16px 0 6px">Where SVG can't render, the same motion in block characters:</p>
+      <p class="frames">▁ ▃ ▄ ▅ ▆ ▇ █ ▇ ▆ ▅ ▄ ▃</p>
+    </div>
+  </div>
+</section>
+<div class="rule"></div>
+
+<!-- ============ ONE COLOUR ============ -->
+<section>
+  <div class="sec-head">
+    <h2>One colour</h2>
+    <p class="note">Masked, so it inherits <code>currentColor</code> — good for terminal output, stamps, embroidery, favicons.</p>
+  </div>
+
+  <div class="grid3">
+    <button class="capbtn" data-copy aria-label="Copy one-colour mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="color:#16161D" role="img" aria-label="Key, one colour">
+          <mask id="keyMonoA" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
+            <rect x="12" y="14" width="96" height="94" rx="26" fill="#fff"/>
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#000"/>
+            <rect x="40" y="38" width="9" height="34" rx="2.5" fill="#fff"/>
+            <path d="M75 42L58 55L75 68" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </mask>
+          <rect width="120" height="120" fill="currentColor" mask="url(#keyMonoA)"/>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Knockout</b><span>on paper</span></span>
+    </button>
+
+    <button class="capbtn" data-copy aria-label="Copy inverted mark SVG">
+      <span class="stage dark">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="color:#DCD7BA" role="img" aria-label="Key, inverted">
+          <mask id="keyMonoB" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
+            <rect x="12" y="14" width="96" height="94" rx="26" fill="#fff"/>
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#000"/>
+            <rect x="40" y="38" width="9" height="34" rx="2.5" fill="#fff"/>
+            <path d="M75 42L58 55L75 68" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </mask>
+          <rect width="120" height="120" fill="currentColor" mask="url(#keyMonoB)"/>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Knockout</b><span>on ink</span></span>
+    </button>
+
+    <button class="capbtn" data-copy aria-label="Copy app icon SVG">
+      <span class="stage dark">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Key app icon">
+          <rect width="120" height="120" rx="27" fill="#16161D"/>
+          <g transform="translate(60,60) scale(.72) translate(-60,-60)">
+            <rect x="12" y="14" width="96" height="94" rx="26" fill="#DCD7BA"/>
+            <rect x="22" y="24" width="76" height="62" rx="16" fill="#16161D"/>
+            <rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/>
+            <path d="M75 42L58 55L75 68" fill="none" stroke="#DCD7BA" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>App icon</b><span>1024 safe</span></span>
+    </button>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ LINE CUT ============ -->
+<section>
+  <div class="sec-head">
+    <h2>Line cut</h2>
+    <p class="note">One stroke weight, no filled masses, transparent ground. Ink is <code>currentColor</code>, so a single file sits on light or dark.</p>
+  </div>
+
+  <div class="row">
+    <button class="capbtn" data-copy aria-label="Copy Key line mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="color:#16161D" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Key">
+          <rect x="15" y="17" width="90" height="88" rx="24"/>
+          <g class="kplate">
+            <rect x="27" y="29" width="66" height="52" rx="12"/>
+            <path d="M47 42V68" stroke="#6F9B4B"/>
+            <path d="M72 43L56 55L72 67"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Key</b><span>core</span></span>
+    </button>
+
+    <button class="capbtn" data-copy aria-label="Copy Documents line mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="color:#16161D" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Key Documents">
+          <rect x="15" y="17" width="90" height="88" rx="24"/>
+          <g class="kplate">
+            <rect x="27" y="29" width="66" height="52" rx="12"/>
+            <path d="M37 42V68" stroke="#6B8AC9"/>
+            <path d="M47 43H84M47 55H84M47 67H68"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Docs</b><span>writing</span></span>
+    </button>
+
+    <button class="capbtn" data-copy aria-label="Copy PDF line mark SVG">
+      <span class="stage">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="color:#16161D" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Key PDF">
+          <rect x="15" y="17" width="90" height="88" rx="24"/>
+          <g class="kplate">
+            <rect x="27" y="29" width="66" height="52" rx="12"/>
+            <path d="M37 42V68" stroke="#C34043"/>
+            <path d="M53 43H71L83 55V67H53Z"/>
+            <path d="M71 43V55H83"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>PDF</b><span>reading</span></span>
+    </button>
+
+    <button class="capbtn" data-copy aria-label="Copy Databases line mark SVG">
+      <span class="stage dark">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="color:#DCD7BA" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Key Databases">
+          <rect x="15" y="17" width="90" height="88" rx="24"/>
+          <g class="kplate">
+            <rect x="27" y="29" width="66" height="52" rx="12"/>
+            <path d="M37 42V68" stroke="#8265AD"/>
+            <rect x="50" y="42" width="34" height="26" rx="7"/>
+            <path d="M50 52H84M67 55V65"/>
+          </g>
+        </svg>
+      </span>
+      <span class="caplabel"><b>Data</b><span>tables</span></span>
+    </button>
+  </div>
+
+  <p class="note" style="margin:18px 0 0">The lip stays: plate inset 12 at the sides and top, 24 at the bottom, so the silhouette matches the solid cut exactly. Strokes and the gaps between them are both 6 units — the mark is built on one number.</p>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ SMALL SIZES ============ -->
+<section>
+  <div class="sec-head">
+    <h2>Small sizes</h2>
+    <p class="note">Below 24px the standard cap fills in. The compact cut thickens the legend and widens the plate — swap at 24px.</p>
+  </div>
+
+  <div class="panel">
+    <div class="sizes">
+      <div class="size"><span class="box" style="padding:2px"><svg width="16" height="16" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="10" width="104" height="100" rx="28" fill="#16161D"/><rect x="20" y="22" width="80" height="64" rx="16" fill="#DCD7BA"/><rect x="38" y="36" width="12" height="36" rx="2.5" fill="#6F9B4B"/><path d="M78 41L58 54L78 67" fill="none" stroke="#16161D" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg></span><small>16</small></div>
+      <div class="size"><span class="box" style="padding:3px"><svg width="24" height="24" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="10" width="104" height="100" rx="28" fill="#16161D"/><rect x="20" y="22" width="80" height="64" rx="16" fill="#DCD7BA"/><rect x="38" y="36" width="12" height="36" rx="2.5" fill="#6F9B4B"/><path d="M78 41L58 54L78 67" fill="none" stroke="#16161D" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg></span><small>24</small></div>
+      <div class="size"><span class="box" style="padding:4px"><svg width="32" height="32" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/><rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/><rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/><path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg></span><small>32</small></div>
+      <div class="size"><span class="box" style="padding:6px"><svg width="48" height="48" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/><rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/><rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/><path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg></span><small>48</small></div>
+      <div class="size"><span class="box" style="padding:8px"><svg width="72" height="72" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/><rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/><rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/><path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg></span><small>72</small></div>
+    </div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ COLOUR ============ -->
+<section>
+  <div class="sec-head">
+    <h2>Colour</h2>
+    <p class="note">Ink and paper carry the mark. The accents only ever appear on the cursor, one per surface.</p>
+  </div>
+
+  <div class="chips">
+    <div class="chip"><i style="background:#16161D"></i><span><b>Ink</b>#16161D</span></div>
+    <div class="chip"><i style="background:#DCD7BA"></i><span><b>Paper</b>#DCD7BA</span></div>
+    <div class="chip"><i style="background:#6F9B4B"></i><span><b>Key</b>#6F9B4B</span></div>
+    <div class="chip"><i style="background:#6B8AC9"></i><span><b>Docs</b>#6B8AC9</span></div>
+    <div class="chip"><i style="background:#C34043"></i><span><b>PDF</b>#C34043</span></div>
+    <div class="chip"><i style="background:#8265AD"></i><span><b>Data</b>#8265AD</span></div>
+  </div>
+</section>
+
+<div class="rule"></div>
+
+<!-- ============ USAGE ============ -->
+<section>
+  <div class="sec-head"><h2>Using it</h2></div>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Clear space</h3>
+      <p class="note" style="margin-bottom:0">Keep the width of the cursor stem — 9 units, or 7.5% of the mark's width — clear on all four sides. In dense UI, the cap's own lip reads as breathing room, so nothing extra is needed.</p>
+    </div>
+    <div class="panel">
+      <h3>Don't</h3>
+      <p class="note" style="margin-bottom:0">Add gradients, bevels or drop shadows — the two flat tones are the depth. Recolour the plate. Outline the cap. Close the gap between cursor and caret. Rotate the cap: it is always face-on.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="rule" style="margin-bottom:24px"></div>
+  Every asset on this page is plain SVG. Press any cap to copy its markup; the loaders bring their own keyframes.
+</footer>
+
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+(function(){
+  var toast = document.getElementById('toast'), t;
+  function say(msg){
+    toast.textContent = msg; toast.classList.add('on');
+    clearTimeout(t); t = setTimeout(function(){ toast.classList.remove('on'); }, 1400);
+  }
+  function copy(text){
+    if(navigator.clipboard && window.isSecureContext){
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(res, rej){
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly','');
+      ta.style.cssText = 'position:fixed;top:0;left:-9999px';
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy') ? res() : rej(); }catch(e){ rej(e); }
+      document.body.removeChild(ta);
+    });
+  }
+  document.querySelectorAll('[data-copy]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var svg = btn.querySelector('svg');
+      if(!svg) return;
+      var clone = svg.cloneNode(true);
+      clone.removeAttribute('class');
+      clone.querySelectorAll('.kplate').forEach(function(g){ g.removeAttribute('class'); });
+      copy(clone.outerHTML).then(function(){ say('SVG copied'); })
+                           .catch(function(){ say('Copy blocked — select and copy from the file'); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

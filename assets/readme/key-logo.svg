@@ -1,0 +1,17 @@
+<svg viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
+  <title id="title">Key</title>
+  <desc id="description">The Key keycap mark followed by the Key wordmark.</desc>
+  <rect x="12" y="14" width="96" height="94" rx="26" fill="#16161D"/>
+  <rect x="22" y="24" width="76" height="62" rx="16" fill="#DCD7BA"/>
+  <rect x="40" y="38" width="9" height="34" rx="2.5" fill="#6F9B4B"/>
+  <path d="M75 42L58 55L75 68" fill="none" stroke="#16161D" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(140,30)" fill="#16161D">
+    <rect x="0" y="8" width="10" height="44" rx="2.5"/>
+    <path d="M36 13L20 30L36 47" fill="none" stroke="#16161D" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="55" y="8" width="10" height="44" rx="2.5"/>
+    <rect x="55" y="8" width="32" height="10" rx="2.5"/>
+    <rect x="55" y="25" width="26" height="10" rx="2.5"/>
+    <rect x="55" y="42" width="32" height="10" rx="2.5"/>
+    <path d="M102 13L118 31L134 13M118 31V47" fill="none" stroke="#16161D" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
