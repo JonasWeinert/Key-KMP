@@ -19,6 +19,7 @@ import PdfJsBenchmarkApp, {
   type PdfReaderHandle,
   type PdfReaderPanel,
 } from './PdfJsBenchmarkApp';
+import GlobalSearchHome from './GlobalSearchHome';
 import {
   activateWorkspaceTab,
   activeWorkspaceTab,
@@ -773,17 +774,7 @@ export default function PdfJsWorkspaceApp() {
               />
             )}
           </div>
-        ) : (
-          <button
-            type="button"
-            className="pdfjs-workspace-empty"
-            onClick={() => inputRef.current?.click()}
-          >
-            <span><Icon name="document" /></span>
-            <strong>No document open</strong>
-            <small>Choose a PDF, or drop one anywhere in this window.</small>
-          </button>
-        )}
+        ) : <GlobalSearchHome onOpenFile={() => inputRef.current?.click()} />}
       </div>
     </main>
   );

@@ -13,12 +13,18 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+anyhow = "1"
+asupersync = { version = "0.3.10", default-features = false, features = ["proc-macros"] }
+frankensearch = { git = "https://github.com/Dicklesworthstone/frankensearch.git", rev = "b559c92e03242336614b995c562a13dfd1269eed", default-features = false, features = ["persistent", "download"] }
+frankensearch-embed = { git = "https://github.com/Dicklesworthstone/frankensearch.git", rev = "b559c92e03242336614b995c562a13dfd1269eed", default-features = false, features = ["bundled-default-models"] }
 key-pdf-core = { path = "../../../crates/key-pdf-core" }
 key-pdf-runtime = { path = "../../../crates/key-pdf-runtime" }
 key-pdfium = { path = "../../../crates/key-pdfium" }
 key-reference = { path = "../../../extensions/key-reference" }
+opendataloader-pdf = { path = "../../../crates/opendataloader-pdf-rs", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 
@@ -26,6 +32,9 @@ tauri-plugin-dialog = "2"
 # shared crates through path dependencies without merging its Tauri dependency
 # graph into the renderer-neutral root workspace.
 [workspace]
+
+[features]
+semantic-onnx = ["opendataloader-pdf/onnx"]
 
 [patch.crates-io]
 pdfium-render = { path = "../../../vendor/pdfium-render-tile" }

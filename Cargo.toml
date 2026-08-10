@@ -29,7 +29,7 @@ default-members = [
 ]
 # This patched dependency has its own focused engine-parity test command. Keep
 # it outside the product workspace so Cargo can execute that manifest directly.
-exclude = ["vendor/pdfium-render-tile"]
+exclude = ["vendor/pdfium-render-tile", "crates/opendataloader-pdf-rs"]
 resolver = "3"
 
 [workspace.package]

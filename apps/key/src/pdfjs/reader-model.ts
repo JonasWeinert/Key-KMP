@@ -7,6 +7,7 @@ import type {
   NativeSearchMatch,
   NativeTextPage,
   PaperPreprocessingResult,
+  SemanticDocument,
 } from '../engines/types';
 
 export type HighlightColor = 'orange' | 'green' | 'blue' | 'pink' | 'purple';
@@ -154,16 +155,19 @@ export async function openNativeCompanion(
   file: File,
   bytes: Uint8Array,
   _includeText = true,
+  semanticOnnx = false,
 ): Promise<{
   id: string;
   document?: NativeDocumentInfo;
   analysis?: PaperPreprocessingResult;
+  semantic?: SemanticDocument;
 }> {
   const id = nativeDocumentId(file);
   if (!isTauri()) return { id };
   const snapshot = await invoke<NativeCompanionSnapshot>('begin_pdfjs_companion', {
     id,
     bytes: Array.from(bytes),
+    semanticOnnx,
   });
   snapshot.document.id = id;
   if (snapshot.analysis) snapshot.analysis.document.id = id;
@@ -173,7 +177,12 @@ export async function openNativeCompanion(
     id,
     (disposableDocumentReferences.get(id) ?? 0) + 1,
   );
-  return { id, document: snapshot.document, analysis: snapshot.analysis };
+  return {
+    id,
+    document: snapshot.document,
+    analysis: snapshot.analysis,
+    semantic: snapshot.semantic,
+  };
 }
 
 export function watchNativeCompanion(
