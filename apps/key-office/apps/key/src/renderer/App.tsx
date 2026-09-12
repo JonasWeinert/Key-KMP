@@ -5,10 +5,13 @@ import LibraryHome, {
   type LibraryHit,
 } from "./LibraryHome";
 import "./shell.css";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 interface Workspace {
   id: string;
   name: string;
   root: string;
+  icon?: string;
+  color?: string;
 }
 interface Project {
   id: string;
@@ -485,6 +488,46 @@ export default function App() {
     <div className="key-shell">
       <TabBar
         api={officeTabs}
+        trailingControls={
+          !home && (
+            <div className="key-chrome-layout-controls">
+              {activeTab && activeTab.views.length > 1 && (
+                <>
+                  <button
+                    title="Swap panes"
+                    aria-label="Swap panes"
+                    onClick={() => action("swap")}
+                  >
+                    ⇄
+                  </button>
+                  <button
+                    title="Separate panes"
+                    aria-label="Separate panes"
+                    onClick={() =>
+                      action("separate", { viewId: tabs.activeViewId })
+                    }
+                  >
+                    ↗
+                  </button>
+                </>
+              )}
+              <button
+                title="Split with another tab"
+                aria-label="Split with another tab"
+                disabled={
+                  !tabs.tabs.some(
+                    (t) =>
+                      t.id !== tabs.activeTabId &&
+                      t.views.some((v) => v.kind !== "home"),
+                  )
+                }
+                onClick={() => action("split", { viewId: tabs.activeViewId })}
+              >
+                ◫
+              </button>
+            </div>
+          )
+        }
         chromeControl={
           <button
             className="key-sidebar-toggle"
@@ -499,73 +542,6 @@ export default function App() {
           </button>
         }
       />
-      <header className="key-navbar">
-        <select
-          aria-label="Workspace"
-          value={workspaceId || ""}
-          onChange={(e) => chooseScope(e.target.value || undefined)}
-        >
-          <option value="">All workspaces</option>
-          {workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name}
-            </option>
-          ))}
-        </select>
-        <span className="key-path">
-          {selectedProject
-            ? `${selectedWorkspace?.name} / ${selectedProject.name}`
-            : selectedWorkspace?.name || "All workspaces"}
-          <span>
-            {" "}
-            /{" "}
-            {home
-              ? section === "record"
-                ? title || "Untitled"
-                : "Sources"
-              : activeView?.title || activeTab?.title}
-          </span>
-        </span>
-        <div className="key-navbar-actions">
-          {activeTab && activeTab.views.length > 1 && (
-            <>
-              <button onClick={() => action("swap")}>Swap panes</button>
-              <button
-                onClick={() =>
-                  action("separate", { viewId: tabs.activeViewId })
-                }
-              >
-                Separate
-              </button>
-            </>
-          )}
-          {!home && (
-            <button
-              disabled={
-                !tabs.tabs.some(
-                  (t) =>
-                    t.id !== tabs.activeTabId &&
-                    t.views.some((v) => v.kind !== "home"),
-                )
-              }
-              onClick={() => action("split", { viewId: tabs.activeViewId })}
-            >
-              Split with another tab
-            </button>
-          )}
-          <button
-            onClick={() =>
-              void task(async () => {
-                const added = await api().addWorkspace();
-                setWorkspaces(await api().workspaces());
-                if (added) chooseScope(added.id);
-              })
-            }
-          >
-            ＋ Workspace
-          </button>
-        </div>
-      </header>
       <div className="key-shell-body">
         <div
           ref={sidebarSlot}
@@ -573,12 +549,32 @@ export default function App() {
         >
           <aside
             className="key-sidebar"
+            style={
+              {
+                "--workspace-accent": selectedWorkspace?.color || "#64748b",
+              } as React.CSSProperties
+            }
             inert={sidebarCollapsed}
             aria-hidden={sidebarCollapsed}
           >
-            <div className="key-sidebar-caption">
-              {selectedWorkspace?.name || "Overview"}
-            </div>
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              selectedId={workspaceId}
+              onSelect={chooseScope}
+              onAdd={async () => {
+                const added = await api().addWorkspace();
+                setWorkspaces(await api().workspaces());
+                if (added) chooseScope(added.id);
+              }}
+              onSave={async (id, icon, color) => {
+                await api().invoke(
+                  "workspace_set_appearance",
+                  { icon, color },
+                  id,
+                );
+                setWorkspaces(await api().workspaces());
+              }}
+            />
             <button
               className={section === "sources" ? "selected" : ""}
               onClick={() => {

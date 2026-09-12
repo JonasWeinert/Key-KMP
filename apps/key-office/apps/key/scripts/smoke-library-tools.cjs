@@ -37,9 +37,8 @@ const assert = require("node:assert/strict");
       },
       path.resolve(__dirname, "../../../../../tests/fixtures/interaction.pdf"),
     );
-    await page
-      .getByRole("combobox", { name: "Workspace", exact: true })
-      .selectOption(source.workspaceId);
+    await page.getByRole("button", { name: "Workspace", exact: true }).click();
+    await page.locator(`[data-workspace-id="${source.workspaceId}"]`).click();
     await page
       .getByRole("checkbox", { name: "Select all sources on this page" })
       .check();

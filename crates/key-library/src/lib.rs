@@ -249,10 +249,10 @@ impl Library {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(err)?;
-        if version > 12 {
+        if version > 13 {
             return Err("library was created by a newer Key version".into());
         }
-        if version > 0 && version < 12 {
+        if version > 0 && version < 13 {
             let backup = library
                 .root
                 .join(format!("library-before-v{version}-migration.sqlite3"));
@@ -308,6 +308,9 @@ impl Library {
         if version < 12 {
             conn.execute_batch(include_str!("migrations/012_source_entries.sql"))
                 .map_err(err)?;
+        }
+        if version < 13 {
+            conn.execute_batch(include_str!("migrations/013_workspace_appearance.sql")).map_err(err)?;
         }
         library.recover_publications()?;
         Ok(library)

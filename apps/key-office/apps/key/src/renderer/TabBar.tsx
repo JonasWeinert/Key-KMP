@@ -182,9 +182,11 @@ const KIND_ICON: Record<TabSummary["kind"], ReactElement> = {
 export function TabBar({
   api,
   chromeControl,
+  trailingControls,
 }: {
   api: TabsApi;
   chromeControl?: ReactNode;
+  trailingControls?: ReactNode;
 }) {
   const t = (key: string) =>
     ({ closeTab: "Close tab", newTab: "New tab", tabList: "All tabs" })[key] ??
@@ -535,6 +537,7 @@ export function TabBar({
           </svg>
         </button>
       </div>
+      {trailingControls}
       <button
         className="tab-overflow-btn"
         title={t("tabList")}

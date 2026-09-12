@@ -3281,6 +3281,7 @@ impl Host {
                 &arg::<String>(args, "name")?,
                 &arg::<PathBuf>(args, "workspaceRoot")?,
             )?),
+            "workspace_set_appearance" => json_output(self.search.library().set_workspace_appearance(&arg::<String>(args,"icon")?,&arg::<String>(args,"color")?)?),
             "workspace_info" => json_output(self.search.library().workspace_info()?),
             "workspace_projects" => json_output(self.search.library().projects()?),
             "workspace_create_project" => json_output(

@@ -213,11 +213,15 @@ textarea:focus-visible {
   background: var(--bg-hover-strong, #e8eaee);
 }
 .key-sidebar > button.selected {
-  background: var(--active-bg, #eaeaea);
+  background: color-mix(
+    in srgb,
+    var(--workspace-accent, #64748b) 12%,
+    transparent
+  );
   font-weight: 600;
 }
 .key-sidebar > button.scope-current {
-  color: var(--color-brand-secondary, #0f7fff);
+  color: var(--workspace-accent, #64748b);
 }
 .key-sidebar-section {
   display: flex;
@@ -455,7 +459,7 @@ textarea:focus-visible {
 }
 .key-split-divider {
   position: fixed;
-  top: 96px;
+  top: 40px;
   bottom: 0;
   width: 6px;
   z-index: 50;
@@ -535,10 +539,10 @@ textarea:focus-visible {
   inset: 8px;
   bottom: 10px;
   width: 224px;
-  border: 1px solid var(--border-subtle, #e5e7eb);
-  border-radius: 14px;
-  background: var(--surface, #fff);
-  box-shadow: 0 3px 14px #00000008;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   transition:
     opacity 100ms,
     transform 180ms;
@@ -572,4 +576,158 @@ textarea:focus-visible {
   .key-sidebar-slot .key-sidebar {
     transition: none;
   }
+}
+.key-workspace-switcher {
+  position: relative;
+  margin-bottom: 16px;
+}
+.key-workspace-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.key-workspace-trigger strong {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+.key-workspace-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 18px;
+}
+.key-workspace-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  box-shadow: 0 4px 18px #00000010;
+}
+.key-workspace-dropdown [role="menu"] {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 65vh;
+  overflow: auto;
+}
+.key-workspace-dropdown button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  padding: 7px;
+  font-size: 12px;
+  text-align: left;
+}
+.key-workspace-dropdown [role^="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.key-workspace-dropdown [role^="menuitem"] span:nth-child(2) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.key-workspace-dropdown button:hover {
+  background: var(--surface-hover, #f0f1f3);
+}
+.key-workspace-dropdown hr {
+  border: 0;
+  border-top: 1px solid var(--border, #ddd);
+  width: 100%;
+}
+.key-workspace-dropdown form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.key-workspace-dropdown header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.key-workspace-dropdown label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+}
+.key-workspace-dropdown input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 5px;
+  padding: 5px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.key-workspace-icon-options,
+.key-workspace-colors {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.key-workspace-icon-options button {
+  text-align: center;
+  font-size: 18px;
+}
+.key-workspace-colors button {
+  height: 23px;
+  border: 2px solid transparent;
+}
+.key-workspace-dropdown button[aria-pressed="true"] {
+  outline: 2px solid var(--text-primary, #333);
+  outline-offset: 1px;
+}
+.key-workspace-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+}
+.key-chrome-layout-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+.key-chrome-layout-controls button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 5px;
+  width: 28px;
+  height: 28px;
+  padding: 3px;
+  cursor: pointer;
+}
+.key-chrome-layout-controls button:hover {
+  background: #00000008;
+}
+.key-chrome-layout-controls button:disabled {
+  opacity: 0.3;
+  cursor: default;
 }

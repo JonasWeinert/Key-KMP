@@ -24,9 +24,8 @@ const assert = require("node:assert/strict");
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor();
     const [workspace] = await page.evaluate(() => window.key.workspaces());
-    await page
-      .getByRole("combobox", { name: "Workspace", exact: true })
-      .selectOption(workspace.id);
+    await page.getByRole("button", { name: "Workspace", exact: true }).click();
+    await page.locator(`[data-workspace-id="${workspace.id}"]`).click();
     await page
       .getByRole("button", { name: "References, web & media", exact: true })
       .click();
@@ -100,9 +99,8 @@ const assert = require("node:assert/strict");
     const note = entries.entries.find((e) => e.title === "Notebook synapse");
     assert.equal(note.properties.Reviewed, true);
     await page.reload();
-    await page
-      .getByRole("combobox", { name: "Workspace", exact: true })
-      .selectOption(workspace.id);
+    await page.getByRole("button", { name: "Workspace", exact: true }).click();
+    await page.locator(`[data-workspace-id="${workspace.id}"]`).click();
     await page
       .getByRole("button", { name: "References, web & media", exact: true })
       .click();

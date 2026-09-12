@@ -12,6 +12,8 @@ pub struct WorkspaceInfo {
     pub id: String,
     pub name: String,
     pub root: String,
+    pub icon: Option<String>,
+    pub color: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,7 +96,7 @@ impl Library {
         let id = fresh_id();
         self.writer.run(true, move |c| {
             c.execute(
-                "INSERT OR IGNORE INTO workspace_identity VALUES(1,?1,?2,?3,?4)",
+                "INSERT OR IGNORE INTO workspace_identity(singleton,id,name,root,created_at) VALUES(1,?1,?2,?3,?4)",
                 params![id, name, root, now_ms()],
             )
             .map_err(err)?;
@@ -106,18 +108,31 @@ impl Library {
     pub fn workspace_info(&self) -> Result<Option<WorkspaceInfo>> {
         self.connection()?
             .query_row(
-                "SELECT id,name,root FROM workspace_identity WHERE singleton=1",
+                "SELECT id,name,root,icon,color FROM workspace_identity WHERE singleton=1",
                 [],
                 |r| {
                     Ok(WorkspaceInfo {
                         id: r.get(0)?,
                         name: r.get(1)?,
                         root: r.get(2)?,
+                        icon: r.get(3)?,
+                        color: r.get(4)?,
                     })
                 },
             )
             .optional()
             .map_err(err)
+    }
+    pub fn set_workspace_appearance(&self, icon: &str, color: &str) -> Result<WorkspaceInfo> {
+        let icon = icon.trim().to_owned();
+        if icon.chars().count()>32 || icon.chars().any(char::is_control) { return Err("Choose a short emoji or icon".into()); }
+        if color.len()!=7 || !color.starts_with('#') || !color[1..].bytes().all(|c|c.is_ascii_hexdigit()) { return Err("Choose a valid colour".into()); }
+        let color=color.to_owned();
+        self.writer.run(true,move|c|{
+            if c.execute("UPDATE workspace_identity SET icon=?1,color=?2 WHERE singleton=1",params![icon,color]).map_err(err)?!=1 {return Err("Workspace not initialized".into());}
+            Ok(())
+        })?;
+        self.workspace_info()?.ok_or("Workspace not initialized".into())
     }
     pub fn projects(&self) -> Result<Vec<Project>> {
         self.connection()?
@@ -635,5 +650,25 @@ mod tests {
         let report = l.scan_linked_folder(&f.id, 100).unwrap();
         assert_eq!(report.indexed, 2);
         assert!(report.errors.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod appearance_tests {
+    use super::*;
+    #[test]
+    fn workspace_appearance_is_validated_and_survives_reopen() {
+        let temp=tempfile::tempdir().unwrap();
+        let lib=Library::open(temp.path().join(".key")).unwrap();
+        lib.initialize_workspace("Research",temp.path()).unwrap();
+        lib.set_workspace_appearance("🔬","#7c3aed").unwrap();
+        assert!(lib.set_workspace_appearance("x","not-a-color").is_err());
+        assert!(lib.set_workspace_appearance("bad\nicon","#112233").is_err());
+        drop(lib);
+        let reopened=Library::open(temp.path().join(".key")).unwrap();
+        let info=reopened.workspace_info().unwrap().unwrap();
+        assert_eq!(info.icon.as_deref(),Some("🔬"));
+        assert_eq!(info.color.as_deref(),Some("#7c3aed"));
+        assert_eq!(info.name,"Research");
     }
 }

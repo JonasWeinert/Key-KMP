@@ -179,7 +179,7 @@ function placeViews() {
   const [width, height] = window.getContentSize();
   const ids = tab?.viewIds ?? [];
   const left = sidebarWidth,
-    top = 96,
+    top = 40,
     available = Math.max(0, width - left);
   const first = Math.round(available * (tab?.splitRatio ?? 0.5));
   ids.forEach((id, index) =>
@@ -549,6 +549,10 @@ else
           if (!record && event.sender.id !== window.webContents.id)
             throw Error("Unknown view");
           const targetWorkspace = record?.workspaceId ?? workspaceId;
+          if (command === "workspace_set_appearance") {
+            shell(event.sender.id);
+            return registry.setAppearance(workspaceId, args.icon, args.color);
+          }
           if (command === "agent_fill_status") return agentFill.status();
           if (command === "agent_fill_configure")
             return agentFill.configure(args);

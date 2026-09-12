@@ -37,9 +37,8 @@ const assert = require("node:assert/strict");
     await page.screenshot({ path: path.join(temp, "full-width-home.png") });
     const workspaces = await page.evaluate(() => window.key.workspaces());
     assert(workspaces.length > 0);
-    await page
-      .getByRole("combobox", { name: "Workspace", exact: true })
-      .selectOption(workspaces[0].id);
+    await page.getByRole("button", { name: "Workspace", exact: true }).click();
+    await page.locator(`[data-workspace-id="${workspaces[0].id}"]`).click();
     await page
       .getByRole("button", { name: "Create item", exact: true })
       .click();
@@ -99,9 +98,8 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor();
-    await page
-      .getByRole("combobox", { name: "Workspace", exact: true })
-      .selectOption(workspaces[0].id);
+    await page.getByRole("button", { name: "Workspace", exact: true }).click();
+    await page.locator(`[data-workspace-id="${workspaces[0].id}"]`).click();
     await page
       .locator(".key-sidebar")
       .getByRole("button", { name: "Reviewed notes", exact: false })

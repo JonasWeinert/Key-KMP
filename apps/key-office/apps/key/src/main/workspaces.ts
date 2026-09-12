@@ -6,6 +6,8 @@ export interface WorkspaceInfo {
   id: string
   name: string
   root: string
+  icon?: string
+  color?: string
 }
 export interface RegistryOptions {
   registryDir: string
@@ -94,6 +96,28 @@ export class Registry {
     if (!this.entries.length)
       await this.add(join(this.options.defaultWorkspaceParent, 'Personal'), 'Personal')
     return this.entries.map((w) => ({ ...w }))
+  }
+  async setAppearance(
+    id: string,
+    icon: string,
+    color: string,
+  ): Promise<WorkspaceInfo> {
+    const action = async () => {
+      await this.ready;
+      const workspace = this.entries.find((w) => w.id === id);
+      if (!workspace) throw Error("Choose a workspace");
+      const updated = await this.host(workspace).invoke<WorkspaceInfo>(
+        "workspace_set_appearance",
+        { icon, color },
+      );
+      // The SQLite identity is authoritative; registry keeps a lightweight display cache.
+      Object.assign(workspace, { icon: updated.icon, color: updated.color });
+      await this.persist();
+      return { ...workspace };
+    };
+    const result = this.mutations.then(action, action);
+    this.mutations = result.catch(() => undefined);
+    return result;
   }
   async add(root: string, name: string): Promise<WorkspaceInfo> {
     const action = async (): Promise<WorkspaceInfo> => {
