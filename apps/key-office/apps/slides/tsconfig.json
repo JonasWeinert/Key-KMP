@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    // Pin resolution to this repo's workspace sources (avoids stale types when node_modules links point elsewhere)
+    "baseUrl": ".",
+    "paths": {
+      "@key/pptx-engine": ["../../packages/pptx-engine/src/index.ts"],
+      "@key/pptx-engine/table-grid": ["../../packages/pptx-engine/src/table-grid.ts"],
+      "@key/pptx-engine/identity": ["../../packages/pptx-engine/src/identity.ts"],
+      "@key/pptx-engine/background-promote": [
+        "../../packages/pptx-engine/src/background-promote.ts"
+      ],
+      "@key/pptx-render": ["../../packages/pptx-render/src/index.ts"],
+      "@key/docx-engine/metafile": ["../../packages/docx-engine/src/metafile.ts"]
+    }
+  },
+  "include": ["src", "tests", "electron.vite.config.ts", "vitest.config.ts"]
+}

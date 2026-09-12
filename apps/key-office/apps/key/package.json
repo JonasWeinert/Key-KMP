@@ -1,0 +1,146 @@
+{
+  "name": "@key/electron",
+  "version": "0.1.0",
+  "private": true,
+  "productName": "Key",
+  "description": "Key research workspace",
+  "license": "Apache-2.0",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dist:mac": "node scripts/prepare-package.mjs && electron-builder --mac dir",
+    "build:backend": "node scripts/build-backend.mjs"
+  },
+  "dependencies": {
+    "@key/ui": "*",
+    "@key/i18n": "*",
+    "@key/electron-utils": "*",
+    "@key/docs": "*",
+    "@key/sheets": "*",
+    "@key/slides": "*",
+    "@key/docx-engine": "*",
+    "@key/pptx-engine": "*",
+    "@key/pptx-render": "*",
+    "@key/agent-core": "*",
+    "@key/ai-provider": "*",
+    "@key/ai-search": "*",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "pdfjs-dist": "5.4.624",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0"
+  },
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-vite": "^5.0.0",
+    "electron-builder": "^26.0.12",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.11",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/node": "^22.0.0",
+    "@playwright/test": "^1.61.1"
+  },
+  "build": {
+    "appId": "dev.key.workspace",
+    "productName": "Key",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "asar": true,
+    "npmRebuild": false,
+    "extraResources": [
+      {
+        "from": "../../../key/src-tauri/target/debug/key-desktop-host",
+        "to": "backend/key-desktop-host"
+      },
+      {
+        "from": "../../../../vendor/pdfium/lib/libpdfium.dylib",
+        "to": "backend/libpdfium.dylib"
+      },
+      {
+        "from": "../../../../crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q",
+        "to": "models/snowflake-arctic-embed-xs-q"
+      },
+      {
+        "from": "../docs/out",
+        "to": "modules/docs"
+      },
+      {
+        "from": "../sheets/out",
+        "to": "modules/sheets"
+      },
+      {
+        "from": "../slides/out",
+        "to": "modules/slides"
+      },
+      {
+        "from": "../markdown/out",
+        "to": "modules/markdown"
+      },
+      {
+        "from": "../html/out",
+        "to": "modules/html"
+      },
+      {
+        "from": "../sheets/native/xlsx-engine/target/release/xlsx-sidecar",
+        "to": "native/xlsx-sidecar"
+      },
+      {
+        "from": "../../LICENSE",
+        "to": "licenses/GENOFFICE-LICENSE"
+      },
+      {
+        "from": "../../NOTICE",
+        "to": "NOTICE"
+      },
+      {
+        "from": "../../LICENSE-UNICODE.txt",
+        "to": "licenses/LICENSE-UNICODE.txt"
+      },
+      {
+        "from": "../../../../LICENSE",
+        "to": "licenses/KEY-LICENSE"
+      },
+      {
+        "from": "../../../../vendor/pdfium/LICENSE",
+        "to": "licenses/PDFIUM-LICENSE"
+      },
+      {
+        "from": "build/THIRD-PARTY-NOTICES.txt",
+        "to": "THIRD-PARTY-NOTICES.txt"
+      },
+      {
+        "from": "../../node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "LICENSES.chromium.html"
+      },
+      {
+        "from": "../../node_modules/@genspark/cli",
+        "to": "gsk/node_modules/@genspark/cli"
+      },
+      {
+        "from": "../../node_modules/ws",
+        "to": "gsk/node_modules/ws"
+      }
+    ],
+    "mac": {
+      "target": "dir",
+      "identity": null,
+      "category": "public.app-category.productivity",
+      "icon": "../../../key/src-tauri/icons/icon.png"
+    },
+    "electronVersion": "43.3.0",
+    "electronDist": "../../node_modules/electron/dist"
+  }
+}

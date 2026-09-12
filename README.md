@@ -21,7 +21,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/status-active_development-6F9B4B?style=flat-square" alt="Status: active development"/>
   <img src="https://img.shields.io/badge/platform-macOS_Apple_silicon-16161D?style=flat-square" alt="Platform: macOS Apple silicon"/>
-  <img src="https://img.shields.io/badge/desktop-Tauri_2-6B8AC9?style=flat-square" alt="Desktop: Tauri 2"/>
+  <img src="https://img.shields.io/badge/desktop-Electron-6B8AC9?style=flat-square" alt="Desktop: Electron"/>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-DCD7BA?style=flat-square&labelColor=16161D" alt="License: MIT"/></a>
 </p>
 
@@ -32,6 +32,20 @@
 <p align="center">
   <sub>Bibliographic context for a grouped in-text citation, shown in the native Tauri application.</sub>
 </p>
+
+## Electron workspace app
+
+The current desktop integration is [Key Electron](apps/key-electron/README.md): the retained Rust PDF/search backend and reader, Gen Office editors, workspace-specific SQLite databases, project libraries and saved filtered database views. The supplied Library mock informs the layout; preview-only features are identified in the [design audit](apps/key/docs/electron-design-audit.md).
+
+```sh
+cd apps/key-office
+npm install
+npm run build:backend -w @key/electron
+npm run build:all
+npm run start -w @key/electron
+```
+
+See the [packaging notes](apps/key-electron/PACKAGING.md) for the unsigned macOS build. The Tauri implementation and its instructions below are retained as the migration baseline; existing Tauri libraries are not silently relocated.
 
 ## Overview
 

@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link id="ds-theme" rel="stylesheet" href="_ds/modernist-6b2e488b-28f9-4d6e-8dc4-b49dc6e403a4/styles.css">
+  <script src="_ds/modernist-6b2e488b-28f9-4d6e-8dc4-b49dc6e403a4/_ds_bundle.js"></script>
+  <script src="_ds/nocturne-20519fbd-a01a-444c-a3cb-ac316e4fa154/_ds_bundle.js"></script>
+  <style>
+    html,body{height:100%}
+    body{margin:0;overflow:hidden}
+    a{color:var(--color-accent)} a:hover{color:var(--color-accent-600)}
+    input,button,select{font:inherit;color:inherit}
+    button{cursor:pointer}
+    ::placeholder{color:color-mix(in srgb, var(--color-text) 45%, transparent)}
+    @media (prefers-reduced-motion: reduce){*{transition:none !important}}
+    html[data-theme="light"]{--radius-sm:4px;--radius-md:6px;--radius-lg:10px;--font-heading-weight:600}
+  </style>
+</helmet>
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);font-size:13px;line-height:1.45;position:relative">
+
+  <!-- Workspace chrome: tab bar -->
+  <div style="display:flex;align-items:stretch;height:38px;border-bottom:1px solid var(--color-divider);background:var(--color-surface);flex:none;min-width:0">
+    <div style="display:flex;align-items:center;padding:0 14px;font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:14px;letter-spacing:0.02em;border-right:1px solid var(--color-divider)">Key</div>
+    <div style="display:flex;align-items:stretch;min-width:0;overflow:hidden">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="2">
+        <div role="button" tabindex="0" onClick="{{ t.onSelect }}" onKeyDown="{{ t.onKey }}" title="{{ t.title }}" style="display:flex;align-items:center;gap:8px;padding:0 12px;max-width:220px;min-width:0;flex:{{ t.flex }};border-right:1px solid var(--color-divider);border-bottom:2px solid {{ t.border }};background:{{ t.bg }};cursor:default;outline-offset:-2px" style-hover="background:color-mix(in srgb, var(--color-text) 6%, transparent)">
+          <sc-if value="{{ t.isLibrary }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m16 6 4 14M12 6v14M8 8v12M4 4v16"></path></svg></sc-if>
+          <sc-if value="{{ t.isDoc }}" hint-placeholder-val="{{ false }}"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:{{ t.dot }}" title="{{ t.dotTitle }}"></span></sc-if>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{{ t.weight }}">{{ t.title }}</span>
+          <sc-if value="{{ t.isDoc }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ t.onClose }}" aria-label="Close tab (keeps the document in your library)" title="Close tab" style="display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;border:0;background:transparent;border-radius:var(--radius-sm);color:inherit;opacity:0.7;flex:none;padding:0" style-hover="background:color-mix(in srgb, var(--color-text) 12%, transparent);opacity:1"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:4px;padding:0 8px;flex:none">
+      <button onClick="{{ openNotes }}" style="border:1px solid var(--color-divider);background:transparent;padding:4px 10px;font-size:12px;border-radius:var(--radius-md)" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">Design notes</button>
+      <button onClick="{{ toggleTheme }}" aria-label="Toggle light/dark theme" title="{{ themeTitle }}" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:0;background:transparent;border-radius:var(--radius-md)" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">
+        <sc-if value="{{ isDark }}" hint-placeholder-val="{{ false }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0"></path></svg></sc-if>
+        <sc-if value="{{ isLight }}" hint-placeholder-val="{{ true }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></sc-if>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ LIBRARY VIEW ═══ -->
+  <sc-if value="{{ libraryActive }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="Library" style="flex:1;min-height:0;display:flex;flex-direction:column">
+
+    <!-- Empty state -->
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px">
+        <div style="max-width:440px;display:flex;flex-direction:column;gap:14px">
+          <h1 style="font-size:22px;margin:0">Your library is empty</h1>
+          <p style="margin:0;color:color-mix(in srgb, var(--color-text) 70%, transparent)">Add PDFs to read them right away. Key extracts the text and builds a search index in the background, so you can start reading while that happens. Documents stay here between sessions, and the same file is never added twice.</p>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+            <button class="btn btn-primary" onClick="{{ openAddDialog }}" style="justify-content:flex-start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add PDFs</button>
+            <button class="btn btn-secondary" onClick="{{ loadSample }}" title="Prototype only">Load sample library</button>
+          </div>
+          <p style="margin:0;font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">You can also drop PDF files anywhere in this window.</p>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ notEmpty }}" hint-placeholder-val="{{ true }}">
+    <!-- Header -->
+    <div style="display:flex;align-items:flex-end;gap:16px;padding:16px 20px 10px;flex:none">
+      <div style="min-width:0">
+        <h1 style="font-size:20px;margin:0;line-height:1.1">Library</h1>
+        <button onClick="{{ openActivity }}" title="Show processing activity" style="display:block;border:0;background:transparent;padding:0;font-size:12px;margin-top:4px;text-align:left;color:color-mix(in srgb, var(--color-text) 65%, transparent)" style-hover="color:var(--color-text)">{{ countsLine }}</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary" onClick="{{ openAddDialog }}" style="justify-content:flex-start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Add PDFs</button>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div style="padding:0 20px 10px;flex:none">
+      <form onSubmit="{{ onSearchSubmit }}" style="display:flex;gap:8px;align-items:stretch">
+        <div style="flex:1;display:flex;align-items:center;gap:8px;min-height:38px;padding:0 10px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md)" style-focus-within="border-color:var(--color-accent)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;opacity:0.6"><path d="M21 21l-4.3-4.3M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14"></path></svg>
+          <input value="{{ query }}" onChange="{{ onQueryChange }}" placeholder="Search passages by keyword, or describe an idea you remember" aria-label="Search library" style="flex:1;border:0;background:transparent;outline:none;font-size:14px;min-width:0;padding:6px 0"></input>
+          <sc-if value="{{ hasQueryText }}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{ clearQuery }}" aria-label="Clear search" style="border:0;background:transparent;opacity:0.6;display:inline-flex;padding:2px" style-hover="opacity:1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></sc-if>
+        </div>
+        <div style="position:relative">
+          <button type="button" onClick="{{ toggleFilters }}" aria-expanded="{{ filtersOpen }}" style="display:inline-flex;align-items:center;gap:6px;height:100%;padding:0 12px;border:1px solid {{ filterBtnBorder }};background:var(--color-surface);border-radius:var(--radius-md);font-size:13px" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"></path></svg>
+            Filters<sc-if value="{{ hasActiveFilters }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;padding:0 6px;background:var(--color-accent);color:var(--color-bg);border-radius:var(--radius-sm)">{{ activeFilterCount }}</span></sc-if>
+          </button>
+
+          <!-- Filter popover -->
+          <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
+            <div role="dialog" aria-label="Search filters" style="position:absolute;top:calc(100% + 6px);right:0;width:420px;z-index:30;background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:14px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:baseline;gap:8px"><span style="font-weight:600">Narrow passage search</span><span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Filters limit which documents are searched</span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <label class="field" style="grid-column:1/-1"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Author (exact name)</span><input class="input" list="kl-authors" value="{{ ff.author }}" onChange="{{ ffSet.author }}" placeholder="e.g. Kahneman, D."></input></label>
+                <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Year from</span><input class="input" inputMode="numeric" value="{{ ff.yearFrom }}" onChange="{{ ffSet.yearFrom }}" placeholder="1900"></input></label>
+                <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Year to</span><input class="input" inputMode="numeric" value="{{ ff.yearTo }}" onChange="{{ ffSet.yearTo }}" placeholder="2026"></input></label>
+                <sc-if value="{{ ffErr.year }}" hint-placeholder-val="{{ false }}"><div style="grid-column:1/-1;font-size:12px;color:var(--color-accent-700);margin-top:-4px">{{ ffErr.year }}</div></sc-if>
+                <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Tag</span><select class="input" value="{{ ff.tag }}" onChange="{{ ffSet.tag }}"><option value="">Any tag</option><sc-for list="{{ allTags }}" as="x"><option value="{{ x }}">{{ x }}</option></sc-for></select></label>
+                <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Collection</span><select class="input" value="{{ ff.collection }}" onChange="{{ ffSet.collection }}"><option value="">Any collection</option><sc-for list="{{ allCollections }}" as="x"><option value="{{ x }}">{{ x }}</option></sc-for></select></label>
+                <div class="field" style="grid-column:1/-1"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Annotations</span>
+                  <div class="seg" role="radiogroup">
+                    <label class="seg-opt"><input type="radio" name="kl-ann" checked="{{ ffAnn.any }}" onChange="{{ ffSet.annAny }}"></input>Any</label>
+                    <label class="seg-opt"><input type="radio" name="kl-ann" checked="{{ ffAnn.with }}" onChange="{{ ffSet.annWith }}"></input>With annotations</label>
+                    <label class="seg-opt"><input type="radio" name="kl-ann" checked="{{ ffAnn.without }}" onChange="{{ ffSet.annWithout }}"></input>Without</label>
+                  </div>
+                </div>
+                <label class="field" style="grid-column:1/-1"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Metadata or comments contain phrase</span><input class="input" value="{{ ff.phrase }}" onChange="{{ ffSet.phrase }}" placeholder="e.g. cohort"></input></label>
+                <div style="grid-column:1/-1;display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:8px;padding-top:8px;border-top:1px solid var(--color-divider)">
+                  <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Custom property</span><input class="input" list="kl-props" value="{{ ff.propName }}" onChange="{{ ffSet.propName }}" placeholder="Name, e.g. Read"></input></label>
+                  <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Type</span><select class="input" value="{{ ff.propType }}" onChange="{{ ffSet.propType }}"><option value="text">Text</option><option value="num">Number</option><option value="bool">True/false</option></select></label>
+                  <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Equals</span>
+                    <sc-if value="{{ ffPropIsBool }}" hint-placeholder-val="{{ false }}"><select class="input" value="{{ ff.propValue }}" onChange="{{ ffSet.propValue }}"><option value="">Choose…</option><option value="true">True</option><option value="false">False</option></select></sc-if>
+                    <sc-if value="{{ ffPropNotBool }}" hint-placeholder-val="{{ true }}"><input class="input" value="{{ ff.propValue }}" onChange="{{ ffSet.propValue }}" placeholder="{{ ffPropPlaceholder }}"></input></sc-if>
+                  </label>
+                  <sc-if value="{{ ffErr.prop }}" hint-placeholder-val="{{ false }}"><div style="grid-column:1/-1;font-size:12px;color:var(--color-accent-700)">{{ ffErr.prop }}</div></sc-if>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:2px">
+                <span style="font-size:11px;margin-right:auto;color:color-mix(in srgb, var(--color-text) 60%, transparent)">One typed condition per search · exact matching</span>
+                <button type="button" class="btn btn-ghost" onClick="{{ resetFilters }}">Reset</button>
+                <button type="button" class="btn btn-primary" onClick="{{ applyFilters }}" disabled="{{ ffInvalid }}">Apply</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        <button type="submit" class="btn btn-primary" disabled="{{ searchDisabled }}" style="justify-content:flex-start">Search</button>
+      </form>
+      <datalist id="kl-authors"><sc-for list="{{ allAuthors }}" as="x"><option value="{{ x }}"></option></sc-for></datalist>
+      <datalist id="kl-props"><sc-for list="{{ allPropNames }}" as="x"><option value="{{ x }}"></option></sc-for></datalist>
+      <sc-if value="{{ hasActiveFilters }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px">
+          <sc-for list="{{ filterChips }}" as="c">
+            <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 4px 2px 8px;font-size:12px;border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-surface)"><span style="opacity:0.65">{{ c.key }}</span><span style="font-weight:600">{{ c.value }}</span><button type="button" onClick="{{ c.onRemove }}" aria-label="Remove filter" style="border:0;background:transparent;display:inline-flex;padding:2px;opacity:0.7;border-radius:var(--radius-sm)" style-hover="opacity:1;background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span>
+          </sc-for>
+          <button type="button" class="btn btn-ghost" onClick="{{ resetFilters }}" style="font-size:12px">Clear all</button>
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- Split: list | pane -->
+    <div style="flex:1;min-height:0;display:flex;border-top:1px solid var(--color-divider)">
+      <!-- Document list -->
+      <div style="flex:1 1 58%;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--color-divider)">
+        <sc-if value="{{ browseMode }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 20px;flex:none;border-bottom:1px solid var(--color-divider)">
+          <div style="display:flex;gap:2px;flex-wrap:wrap" role="tablist" aria-label="Library scope">
+            <sc-for list="{{ scopes }}" as="s" hint-placeholder-count="3">
+              <button role="tab" aria-selected="{{ s.active }}" onClick="{{ s.onSelect }}" style="padding:4px 10px;border:0;border-radius:var(--radius-md);font-size:12px;white-space:nowrap;background:{{ s.bg }};color:{{ s.color }};font-weight:{{ s.weight }}" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)">{{ s.label }}</button>
+            </sc-for>
+          </div>
+          <div style="margin-left:auto;display:inline-flex;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden" role="radiogroup" aria-label="View">
+            <button aria-pressed="{{ viewIsList }}" onClick="{{ setViewList }}" title="List view" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;border:0;background:{{ viewListBg }}" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+            <button aria-pressed="{{ viewIsTable }}" onClick="{{ setViewTable }}" title="Table view" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:26px;border:0;border-left:1px solid var(--color-divider);background:{{ viewTableBg }}" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18v14H3zM3 10h18M3 15h18M9 5v14M15 5v14"></path></svg></button>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">Sort<select value="{{ sort }}" onChange="{{ onSortChange }}" style="border:1px solid var(--color-divider);background:var(--color-surface);border-radius:var(--radius-md);padding:3px 6px;font-size:12px"><option value="recent">Recently added</option><option value="title">Title</option><option value="year">Year</option><option value="status">Status</option></select></label>
+        </div>
+        </sc-if>
+        <sc-if value="{{ searchMode }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 20px;flex:none;border-bottom:1px solid var(--color-divider);font-size:12px;color:color-mix(in srgb, var(--color-text) 70%, transparent)">
+            <sc-if value="{{ searching }}" hint-placeholder-val="{{ false }}"><span style="width:8px;height:8px;border-radius:50%;background:var(--color-accent);flex:none"></span><span>Searching for “{{ res.query }}”…</span></sc-if>
+            <sc-if value="{{ res.ready }}" hint-placeholder-val="{{ true }}"><span><span style="color:var(--color-text);font-weight:600">“{{ res.query }}”</span> · {{ res.countLine }}</span></sc-if>
+            <sc-if value="{{ res.filterNote }}" hint-placeholder-val="{{ false }}"><span>· {{ res.filterNote }}</span></sc-if>
+            <button class="btn btn-ghost" onClick="{{ clearQuery }}" style="margin-left:auto;font-size:12px;padding:2px 6px">Back to library</button>
+          </div>
+          <sc-if value="{{ res.capped }}" hint-placeholder-val="{{ false }}"><div style="padding:8px 20px;font-size:12px;border-bottom:1px solid var(--color-divider)">Search stopped at 1,000 candidate passages. Add a filter or more specific words to see the most relevant ones.</div></sc-if>
+          <sc-if value="{{ res.error }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:20px;display:flex;flex-direction:column;gap:8px;max-width:420px">
+              <div style="font-weight:600;display:flex;align-items:center;gap:6px;color:var(--color-accent-700)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg>Search couldn't finish</div>
+              <div style="color:color-mix(in srgb, var(--color-text) 75%, transparent)">The search index didn't respond in time. Your query and filters are kept.</div>
+              <div><button class="btn btn-secondary" onClick="{{ retrySearch }}">Try again</button></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ res.none }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:20px;display:flex;flex-direction:column;gap:6px;max-width:420px"><div style="font-weight:600">No passages match</div><div style="color:color-mix(in srgb, var(--color-text) 75%, transparent)">{{ res.noneHint }}</div></div>
+          </sc-if>
+        </sc-if>
+        <sc-if value="{{ scopeIsRemoved }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:8px 20px;font-size:12px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 70%, transparent)">Removed documents are hidden from the library and search but keep their annotations and metadata. Restore them any time, or delete Key's saved copy permanently.</div>
+        </sc-if>
+        <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:32px 20px;font-size:13px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">{{ noRowsText }}</div>
+        </sc-if>
+        <div style="flex:1;overflow:auto;min-height:0" role="list">
+          <sc-for list="{{ searchGroups }}" as="g" hint-placeholder-count="0">
+            <div role="listitem" style="border-bottom:1px solid var(--color-divider);padding:8px 20px 6px">
+              <div style="display:flex;align-items:baseline;gap:10px;min-width:0">
+                <span title="{{ g.title }}" style="font-weight:600;font-size:13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ g.title }}</span>
+                <span style="font-size:12px;flex:none;color:color-mix(in srgb, var(--color-text) 65%, transparent)">{{ g.meta }}</span>
+                <span style="margin-left:auto;font-size:11px;flex:none;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ g.count }}</span>
+                <button onClick="{{ g.onOpenDoc }}" title="Open document" aria-label="Open document" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;background:transparent;border-radius:var(--radius-md);flex:none;opacity:0.7" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent);opacity:1"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"></path></svg></button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px">
+                <sc-for list="{{ g.items }}" as="x">
+                  <div role="button" tabindex="0" aria-selected="{{ x.selected }}" onClick="{{ x.onOpen }}" onDoubleClick="{{ x.onReader }}" onKeyDown="{{ x.onKey }}" style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;padding:5px 8px 6px 8px;margin:0 -8px;border-radius:var(--radius-md);background:{{ x.bg }};cursor:default;outline-offset:-2px" style-hover="background:color-mix(in srgb, var(--color-text) 5%, transparent)">
+                    <div style="font-size:11px;padding-top:2px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">p. {{ x.page }}</div>
+                    <div style="min-width:0">
+                      <div style="font-size:13px;line-height:1.45;color:color-mix(in srgb, var(--color-text) 88%, transparent)">{{ x.before }}<mark style="background:color-mix(in srgb, var(--color-accent) 22%, transparent);color:inherit;padding:0 1px">{{ x.match }}</mark>{{ x.after }}</div>
+                      <div style="font-size:11px;margin-top:2px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ x.kindLabel }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ res.hasMore }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:12px 20px;display:flex;align-items:center;gap:10px">
+              <button class="btn btn-secondary" onClick="{{ loadMore }}" disabled="{{ res.loadingMore }}">{{ res.loadMoreLabel }}</button>
+              <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ res.moreHint }}</span>
+            </div>
+          </sc-if>
+          <sc-if value="{{ showTable }}" hint-placeholder-val="{{ false }}">
+            <div style="overflow-x:auto">
+            <table style="width:100%;min-width:760px;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
+              <thead><tr style="position:sticky;top:0;z-index:1;background:var(--color-bg)">
+                <th style="text-align:left;font-weight:600;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:8px 8px 8px 20px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 65%, transparent);width:30%">Title</th>
+                <th style="text-align:left;font-weight:600;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:8px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 65%, transparent);width:14%">Authors</th>
+                <th style="text-align:right;font-weight:600;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:8px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 65%, transparent);width:56px">Year</th>
+                <th style="text-align:right;font-weight:600;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:8px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 65%, transparent);width:56px">Pages</th>
+                <th style="text-align:left;font-weight:600;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:8px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 65%, transparent);width:12%">Tags</th>
+                <th style="text-align:left;font-weight:600;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:8px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 65%, transparent);width:12%">Collection</th>
+                <th style="text-align:left;font-weight:600;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;padding:8px;border-bottom:1px solid var(--color-divider);color:color-mix(in srgb, var(--color-text) 65%, transparent);width:20%">Status</th>
+                <th style="padding:8px 12px 8px 8px;border-bottom:1px solid var(--color-divider);width:12%"></th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+                  <tr tabindex="0" aria-selected="{{ r.selected }}" onClick="{{ r.onSelect }}" onDoubleClick="{{ r.onOpen }}" onKeyDown="{{ r.onKey }}" style="background:{{ r.bg }};cursor:default;outline-offset:-2px;position:relative" style-hover="background:color-mix(in srgb, var(--color-text) 5%, transparent)">
+                    <td style="padding:6px 8px 6px 20px;border-bottom:1px solid var(--color-divider);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600" title="{{ r.title }}"><sc-if value="{{ r.isOpen }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--color-accent);margin-right:8px;vertical-align:middle" title="Open in a tab"></span></sc-if>{{ r.title }}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:color-mix(in srgb, var(--color-text) 80%, transparent)" title="{{ r.authorsFull }}">{{ r.authorsShort }}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);text-align:right;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--color-text) 80%, transparent)">{{ r.yearText }}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);text-align:right;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--color-text) 80%, transparent)">{{ r.pages }}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><sc-for list="{{ r.tags }}" as="tg"><span style="display:inline-block;font-size:11px;padding:0 6px;margin-right:4px;background:color-mix(in srgb, var(--color-text) 7%, transparent);border-radius:var(--radius-sm)">{{ tg }}</span></sc-for></td>
+                    <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:color-mix(in srgb, var(--color-text) 80%, transparent)">{{ r.collectionText }}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid var(--color-divider);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ r.statusColor }}" title="{{ r.statusFull }}">
+                      <sc-if value="{{ r.showBar }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;vertical-align:middle;width:44px;height:3px;margin-right:8px;background:color-mix(in srgb, var(--color-text) 12%, transparent);border-radius:var(--radius-sm);overflow:hidden"><span style="display:block;height:100%;width:{{ r.pct }}%;background:{{ r.barColor }}"></span></span></sc-if>{{ r.statusText }}
+                    </td>
+                    <td style="padding:2px 12px 2px 8px;border-bottom:1px solid var(--color-divider);position:relative">
+                      <div style="display:flex;gap:2px;justify-content:flex-end;align-items:center">
+                        <sc-for list="{{ r.actions }}" as="a"><button onClick="{{ a.onClick }}" title="{{ a.label }}" aria-label="{{ a.label }}" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:0;background:transparent;border-radius:var(--radius-md);color:{{ a.color }}" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.d }}"></path></svg></button></sc-for>
+                        <button onClick="{{ r.onMenu }}" title="More" aria-label="More actions" aria-haspopup="menu" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:0;background:transparent;border-radius:var(--radius-md)" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+                      </div>
+                      <sc-if value="{{ r.menuOpen }}" hint-placeholder-val="{{ false }}">
+                        <div role="menu" style="position:absolute;right:12px;top:calc(100% - 4px);z-index:20;min-width:220px;background:var(--color-surface);box-shadow:var(--shadow-lg);border-radius:var(--radius-md);padding:4px;display:flex;flex-direction:column">
+                          <sc-for list="{{ r.menu }}" as="m"><button role="menuitem" onClick="{{ m.onClick }}" disabled="{{ m.disabled }}" style="display:flex;justify-content:space-between;gap:12px;text-align:left;border:0;background:transparent;padding:6px 10px;font-size:13px;border-radius:var(--radius-sm);color:{{ m.color }}" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><span>{{ m.label }}</span><span style="font-size:11px;opacity:0.6">{{ m.hint }}</span></button></sc-for>
+                        </div>
+                      </sc-if>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+            </div>
+          </sc-if>
+          <sc-for list="{{ listRows }}" as="r" hint-placeholder-count="8">
+            <div role="listitem">
+            <div role="button" tabindex="0" aria-selected="{{ r.selected }}" onClick="{{ r.onSelect }}" onDoubleClick="{{ r.onOpen }}" onKeyDown="{{ r.onKey }}" style="position:relative;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(120px,0.8fr) auto;gap:14px;align-items:center;padding:7px 12px 7px 20px;border-bottom:1px solid var(--color-divider);background:{{ r.bg }};cursor:default;outline-offset:-2px" style-hover="background:color-mix(in srgb, var(--color-text) 5%, transparent)">
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:7px;min-width:0">
+                  <span title="{{ r.title }}" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px">{{ r.title }}</span>
+                  <sc-if value="{{ r.isOpen }}" hint-placeholder-val="{{ false }}"><span title="Open in a tab" style="flex:none;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;padding:0 5px;border:1px solid var(--color-divider);border-radius:var(--radius-sm);opacity:0.8">Open</span></sc-if>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;color:color-mix(in srgb, var(--color-text) 65%, transparent)">
+                  <span style="overflow:hidden;text-overflow:ellipsis">{{ r.meta }}</span>
+                  <sc-for list="{{ r.tags }}" as="tg"><span style="flex:none;font-size:11px;padding:0 6px;background:color-mix(in srgb, var(--color-text) 7%, transparent);border-radius:var(--radius-sm)">{{ tg }}</span></sc-for>
+                </div>
+              </div>
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:{{ r.statusColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  <sc-if value="{{ r.attention }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex:none"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg></sc-if>
+                  <span style="overflow:hidden;text-overflow:ellipsis">{{ r.statusText }}</span>
+                </div>
+                <sc-if value="{{ r.showBar }}" hint-placeholder-val="{{ false }}">
+                  <div style="height:3px;margin-top:5px;background:color-mix(in srgb, var(--color-text) 12%, transparent);border-radius:var(--radius-sm);overflow:hidden"><div style="height:100%;width:{{ r.pct }}%;background:{{ r.barColor }}"></div></div>
+                </sc-if>
+                <sc-if value="{{ r.statusSub }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;margin-top:2px;color:color-mix(in srgb, var(--color-text) 60%, transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.statusSub }}</div></sc-if>
+              </div>
+              <div style="display:flex;gap:2px;justify-content:flex-end;align-items:center">
+                <sc-for list="{{ r.actions }}" as="a">
+                  <button onClick="{{ a.onClick }}" title="{{ a.label }}" aria-label="{{ a.label }}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:transparent;border-radius:var(--radius-md);color:{{ a.color }}" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.d }}"></path></svg></button>
+                </sc-for>
+                <button onClick="{{ r.onMenu }}" title="More" aria-label="More actions" aria-haspopup="menu" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:transparent;border-radius:var(--radius-md)" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+              </div>
+              <sc-if value="{{ r.menuOpen }}" hint-placeholder-val="{{ false }}">
+                <div role="menu" style="position:absolute;right:12px;top:calc(100% - 4px);z-index:20;min-width:220px;background:var(--color-surface);box-shadow:var(--shadow-lg);border-radius:var(--radius-md);padding:4px;display:flex;flex-direction:column">
+                  <sc-for list="{{ r.menu }}" as="m">
+                    <button role="menuitem" onClick="{{ m.onClick }}" disabled="{{ m.disabled }}" title="{{ m.hint }}" style="display:flex;justify-content:space-between;gap:12px;text-align:left;border:0;background:transparent;padding:6px 10px;font-size:13px;border-radius:var(--radius-sm);color:{{ m.color }}" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><span>{{ m.label }}</span><span style="font-size:11px;opacity:0.6">{{ m.hint }}</span></button>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- Right pane -->
+      <sc-if value="{{ paneOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:0 0 42%;min-width:320px;max-width:560px;display:flex;flex-direction:column;background:var(--color-bg)">
+        <div style="display:flex;align-items:center;gap:8px;flex:none;border-bottom:1px solid var(--color-divider);padding:8px 12px 8px 16px;min-height:44px">
+          <span style="font-size:12px;font-weight:600;white-space:nowrap">{{ paneTitle }}</span>
+          <span title="{{ paneSub }}" style="font-size:12px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:color-mix(in srgb, var(--color-text) 65%, transparent)">{{ paneSub }}</span>
+          <sc-if value="{{ panePreview }}" hint-placeholder-val="{{ false }}"><button class="btn btn-primary" onClick="{{ pv.onOpenReader }}" style="margin-left:auto;padding:4px 10px;font-size:12px;flex:none">Open in reader</button></sc-if>
+          <button onClick="{{ closePane }}" aria-label="Close panel" style="border:0;background:transparent;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-md);flex:none;margin-left:{{ paneCloseMargin }}" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+        </div>
+
+        <!-- Preview pane -->
+        <sc-if value="{{ panePreview }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;overflow:auto;background:color-mix(in srgb, var(--color-text) 6%, var(--color-bg));padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px">
+            <sc-if value="{{ pv.error }}" hint-placeholder-val="{{ false }}">
+              <div style="width:100%;display:flex;flex-direction:column;gap:8px;padding:14px;background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md)">
+                <div style="font-weight:600;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg>Original PDF not found</div>
+                <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 75%, transparent)">The passage is in the index, but the file it came from isn't where Key last saw it. Relink it to preview or read.</div>
+                <div><button class="btn btn-primary" onClick="{{ pv.onRelink }}" style="padding:4px 10px;font-size:12px">Relink PDF…</button></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ pv.showPage }}" hint-placeholder-val="{{ true }}">
+              <div style="width:100%;background:#fbfaf8;color:#1f1d1c;box-shadow:var(--shadow-md);padding:28px 32px 36px 56px;font-family:Georgia, 'Times New Roman', serif;font-size:12px;line-height:1.6">
+                <div style="display:flex;justify-content:space-between;font-family:var(--font-body);font-size:9.5px;letter-spacing:0.04em;text-transform:uppercase;color:#7a7674;margin-bottom:16px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%">{{ pv.docTitle }}</span><span>{{ pv.page }}</span></div>
+                <sc-for list="{{ pv.paras }}" as="p">
+                  <div style="position:relative;margin:0 0 10px">
+                    <sc-if value="{{ p.isHit }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:-46px;top:2px;font-family:var(--font-body);font-size:9px;letter-spacing:0.05em;text-transform:uppercase;color:var(--color-accent-700);width:40px;line-height:1.3">Result</span></sc-if>
+                    <sc-if value="{{ p.isNote }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:-46px;top:2px;font-family:var(--font-body);font-size:9px;letter-spacing:0.05em;text-transform:uppercase;color:#7a7674;width:40px;line-height:1.3">Note</span></sc-if>
+                    <p style="margin:0;padding:{{ p.pad }};outline:{{ p.outline }};outline-offset:2px;background:{{ p.bg }};text-decoration:{{ p.deco }};text-decoration-color:#9b9797;text-underline-offset:3px">{{ p.text }}</p>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 60%, transparent);align-self:flex-start">{{ pv.hint }}</div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <!-- Results pane -->
+        <sc-if value="{{ paneResults }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div style="padding:10px 16px;border-bottom:1px solid var(--color-divider);flex:none;font-size:12px;color:color-mix(in srgb, var(--color-text) 70%, transparent)">
+              <sc-if value="{{ searching }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--color-accent);flex:none"></span>Searching for “{{ res.query }}”…</div></sc-if>
+              <sc-if value="{{ res.ready }}" hint-placeholder-val="{{ true }}"><div><span style="color:var(--color-text);font-weight:600">“{{ res.query }}”</span> · {{ res.countLine }}</div></sc-if>
+              <sc-if value="{{ res.capped }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;color:var(--color-text)">Search stopped at 1,000 candidate passages. Add a filter or more specific words to see the most relevant ones.</div></sc-if>
+              <sc-if value="{{ res.filterNote }}" hint-placeholder-val="{{ false }}"><div style="margin-top:2px">{{ res.filterNote }}</div></sc-if>
+            </div>
+            <div style="flex:1;overflow:auto;min-height:0">
+              <sc-if value="{{ res.error }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:20px 16px;display:flex;flex-direction:column;gap:8px;max-width:380px">
+                  <div style="font-weight:600;display:flex;align-items:center;gap:6px;color:var(--color-accent-700)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg>Search couldn't finish</div>
+                  <div style="color:color-mix(in srgb, var(--color-text) 75%, transparent)">The search index didn't respond in time. Your query and filters are kept.</div>
+                  <div><button class="btn btn-secondary" onClick="{{ retrySearch }}">Try again</button></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ res.none }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:20px 16px;display:flex;flex-direction:column;gap:6px;max-width:380px">
+                  <div style="font-weight:600">No passages match</div>
+                  <div style="color:color-mix(in srgb, var(--color-text) 75%, transparent)">{{ res.noneHint }}</div>
+                </div>
+              </sc-if>
+              <sc-for list="{{ res.groups }}" as="g" hint-placeholder-count="0">
+                <div style="border-bottom:1px solid var(--color-divider)">
+                  <div style="position:sticky;top:0;z-index:1;display:flex;align-items:baseline;gap:8px;padding:8px 16px 4px;background:var(--color-bg)">
+                    <span title="{{ g.title }}" style="font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ g.title }}</span>
+                    <span style="font-size:11px;flex:none;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ g.meta }}</span>
+                    <span style="margin-left:auto;font-size:11px;flex:none;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ g.count }}</span>
+                  </div>
+                  <sc-for list="{{ g.items }}" as="x">
+                    <div role="button" tabindex="0" onClick="{{ x.onOpen }}" onKeyDown="{{ x.onKey }}" style="display:grid;grid-template-columns:44px minmax(0,1fr) 20px;gap:8px;padding:6px 12px 8px 16px;background:{{ x.bg }};cursor:default;outline-offset:-2px" style-hover="background:color-mix(in srgb, var(--color-text) 5%, transparent)">
+                      <div style="font-size:11px;padding-top:2px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">p. {{ x.page }}</div>
+                      <div style="min-width:0">
+                        <div style="font-size:13px;line-height:1.45;color:color-mix(in srgb, var(--color-text) 88%, transparent)">{{ x.before }}<mark style="background:color-mix(in srgb, var(--color-accent) 22%, transparent);color:inherit;padding:0 1px">{{ x.match }}</mark>{{ x.after }}</div>
+                        <div style="font-size:11px;margin-top:3px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">{{ x.kindLabel }}</div>
+                      </div>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5;margin-top:3px"><path d="M7 17 17 7M7 7h10v10"></path></svg>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+              <sc-if value="{{ res.hasMore }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:12px 16px;display:flex;align-items:center;gap:10px">
+                  <button class="btn btn-secondary" onClick="{{ loadMore }}" disabled="{{ res.loadingMore }}">{{ res.loadMoreLabel }}</button>
+                  <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ res.moreHint }}</span>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- Details pane -->
+        <sc-if value="{{ paneDetails }}" hint-placeholder-val="{{ true }}">
+          <sc-if value="{{ det.none }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:24px 16px;font-size:13px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">Select a document to see and edit its details. Double-click or press Enter to open it.</div>
+          </sc-if>
+          <sc-if value="{{ det.loading }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:16px;display:flex;flex-direction:column;gap:10px" aria-busy="true">
+              <div style="height:16px;width:70%;background:color-mix(in srgb, var(--color-text) 8%, transparent)"></div>
+              <div style="height:12px;width:45%;background:color-mix(in srgb, var(--color-text) 8%, transparent)"></div>
+              <div style="height:36px;width:100%;background:color-mix(in srgb, var(--color-text) 6%, transparent);margin-top:8px"></div>
+              <div style="height:36px;width:100%;background:color-mix(in srgb, var(--color-text) 6%, transparent)"></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ det.ready }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:{{ det.statusColor }}">{{ det.statusText }}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <button class="btn btn-primary" onClick="{{ det.onOpen }}" style="padding:5px 10px;font-size:13px">{{ det.openLabel }}</button>
+                  <sc-for list="{{ det.stateActions }}" as="a"><button class="btn btn-secondary" onClick="{{ a.onClick }}" style="padding:5px 10px;font-size:13px">{{ a.label }}</button></sc-for>
+                  <sc-if value="{{ det.canRemove }}" hint-placeholder-val="{{ true }}"><button class="btn btn-secondary" onClick="{{ det.onRemove }}" style="padding:5px 10px;font-size:13px;margin-left:auto">Remove from library</button></sc-if>
+                  <sc-if value="{{ det.isRemoved }}" hint-placeholder-val="{{ false }}"><button class="btn btn-secondary" onClick="{{ det.onRestore }}" style="padding:5px 10px;font-size:13px;margin-left:auto">Restore</button><button class="btn btn-secondary" onClick="{{ det.onDelete }}" style="padding:5px 10px;font-size:13px;color:var(--color-accent-700)">Delete permanently…</button></sc-if>
+                </div>
+                <div style="font-size:11px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ det.fileLine }}</div>
+              </div>
+              <form onSubmit="{{ det.onSave }}" style="padding:12px 16px;display:flex;flex-direction:column;gap:12px">
+                <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Title</span><input class="input" value="{{ det.form.title }}" onChange="{{ det.set.title }}"></input></label>
+                <div style="display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:10px">
+                  <div class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Authors</span>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px;min-height:36px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md)">
+                      <sc-for list="{{ det.authors }}" as="c"><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 4px 2px 8px;font-size:12px;background:color-mix(in srgb, var(--color-text) 8%, transparent);border-radius:var(--radius-sm)">{{ c.label }}<button type="button" onClick="{{ c.onRemove }}" aria-label="Remove author" style="border:0;background:transparent;display:inline-flex;padding:1px;opacity:0.7"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span></sc-for>
+                      <input value="{{ det.form.newAuthor }}" onChange="{{ det.set.newAuthor }}" onKeyDown="{{ det.addAuthorKey }}" placeholder="{{ det.authorPlaceholder }}" style="flex:1;min-width:100px;border:0;background:transparent;outline:none;font-size:13px;padding:2px 4px"></input>
+                    </div>
+                  </div>
+                  <label class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Year</span><input class="input" inputMode="numeric" value="{{ det.form.year }}" onChange="{{ det.set.year }}" placeholder="Unknown"></input></label>
+                </div>
+                <sc-if value="{{ det.err.year }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;margin-top:-8px;color:var(--color-accent-700)">{{ det.err.year }}</div></sc-if>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Tags</span>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px;min-height:36px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md)">
+                      <sc-for list="{{ det.tags }}" as="c"><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 4px 2px 8px;font-size:12px;background:color-mix(in srgb, var(--color-text) 8%, transparent);border-radius:var(--radius-sm)">{{ c.label }}<button type="button" onClick="{{ c.onRemove }}" aria-label="Remove tag" style="border:0;background:transparent;display:inline-flex;padding:1px;opacity:0.7"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span></sc-for>
+                      <input value="{{ det.form.newTag }}" onChange="{{ det.set.newTag }}" onKeyDown="{{ det.addTagKey }}" placeholder="Add tag ↵" style="flex:1;min-width:70px;border:0;background:transparent;outline:none;font-size:13px;padding:2px 4px"></input>
+                    </div>
+                  </div>
+                  <div class="field"><span style="display:block;font-size:12px;margin-bottom:4px;opacity:0.75">Collections</span>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px;min-height:36px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md)">
+                      <sc-for list="{{ det.collections }}" as="c"><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 4px 2px 8px;font-size:12px;background:color-mix(in srgb, var(--color-text) 8%, transparent);border-radius:var(--radius-sm)">{{ c.label }}<button type="button" onClick="{{ c.onRemove }}" aria-label="Remove from collection" style="border:0;background:transparent;display:inline-flex;padding:1px;opacity:0.7"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span></sc-for>
+                      <input list="kl-colls" value="{{ det.form.newColl }}" onChange="{{ det.set.newColl }}" onKeyDown="{{ det.addCollKey }}" placeholder="Add ↵" style="flex:1;min-width:60px;border:0;background:transparent;outline:none;font-size:13px;padding:2px 4px"></input>
+                      <datalist id="kl-colls"><sc-for list="{{ allCollections }}" as="x"><option value="{{ x }}"></option></sc-for></datalist>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px"><span style="font-size:12px;opacity:0.75">Properties</span><span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Typed values · text, number, true/false</span></div>
+                  <div style="display:flex;flex-direction:column;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden">
+                    <sc-for list="{{ det.props }}" as="p">
+                      <div style="display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1.2fr) 28px;gap:6px;align-items:center;padding:4px 6px;border-bottom:1px solid var(--color-divider);background:var(--color-surface)">
+                        <span title="{{ p.name }}" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:4px">{{ p.name }}</span>
+                        <span style="font-size:11px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">{{ p.typeLabel }}</span>
+                        <sc-if value="{{ p.isText }}" hint-placeholder-val="{{ true }}"><input value="{{ p.value }}" onChange="{{ p.onChange }}" style="border:1px solid transparent;background:transparent;padding:3px 6px;font-size:13px;border-radius:var(--radius-sm);min-width:0" style-hover="border-color:var(--color-divider)"></input></sc-if>
+                        <sc-if value="{{ p.isNum }}" hint-placeholder-val="{{ false }}"><input inputMode="decimal" value="{{ p.value }}" onChange="{{ p.onChange }}" style="border:1px solid {{ p.border }};background:transparent;padding:3px 6px;font-size:13px;border-radius:var(--radius-sm);min-width:0;font-variant-numeric:tabular-nums" style-hover="border-color:var(--color-divider)"></input></sc-if>
+                        <sc-if value="{{ p.isBool }}" hint-placeholder-val="{{ false }}">
+                          <div class="seg" style="font-size:12px"><label class="seg-opt" style="padding:3px 10px"><input type="radio" name="{{ p.radioName }}" checked="{{ p.isTrue }}" onChange="{{ p.onTrue }}"></input>True</label><label class="seg-opt" style="padding:3px 10px"><input type="radio" name="{{ p.radioName }}" checked="{{ p.isFalse }}" onChange="{{ p.onFalse }}"></input>False</label></div>
+                        </sc-if>
+                        <button type="button" onClick="{{ p.onRemove }}" aria-label="Remove property" style="border:0;background:transparent;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;opacity:0.6;border-radius:var(--radius-sm)" style-hover="opacity:1;background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+                      </div>
+                    </sc-for>
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) 92px minmax(0,1.2fr) auto;gap:6px;align-items:center;padding:6px">
+                      <input value="{{ det.form.np.name }}" onChange="{{ det.set.npName }}" placeholder="Property name" list="kl-props" style="border:1px solid var(--color-divider);background:var(--color-bg);padding:4px 6px;font-size:13px;border-radius:var(--radius-sm);min-width:0"></input>
+                      <select value="{{ det.form.np.type }}" onChange="{{ det.set.npType }}" style="border:1px solid var(--color-divider);background:var(--color-bg);padding:4px 4px;font-size:12px;border-radius:var(--radius-sm)"><option value="text">Text</option><option value="num">Number</option><option value="bool">True/false</option></select>
+                      <sc-if value="{{ det.npIsBool }}" hint-placeholder-val="{{ false }}"><select value="{{ det.form.np.value }}" onChange="{{ det.set.npValue }}" style="border:1px solid var(--color-divider);background:var(--color-bg);padding:4px 4px;font-size:12px;border-radius:var(--radius-sm)"><option value="">Choose…</option><option value="true">True</option><option value="false">False</option></select></sc-if>
+                      <sc-if value="{{ det.npNotBool }}" hint-placeholder-val="{{ true }}"><input value="{{ det.form.np.value }}" onChange="{{ det.set.npValue }}" placeholder="{{ det.npPlaceholder }}" style="border:1px solid var(--color-divider);background:var(--color-bg);padding:4px 6px;font-size:13px;border-radius:var(--radius-sm);min-width:0"></input></sc-if>
+                      <button type="button" class="btn btn-secondary" onClick="{{ det.addProp }}" disabled="{{ det.npDisabled }}" style="padding:3px 10px;font-size:12px">Add</button>
+                    </div>
+                  </div>
+                  <sc-if value="{{ det.err.prop }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;margin-top:4px;color:var(--color-accent-700)">{{ det.err.prop }}</div></sc-if>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding-top:4px">
+                  <button type="submit" class="btn btn-primary" disabled="{{ det.saveDisabled }}" style="justify-content:flex-start">{{ det.saveLabel }}</button>
+                  <sc-if value="{{ det.saved }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:color-mix(in srgb, var(--color-text) 70%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Saved</span></sc-if>
+                  <sc-if value="{{ det.dirty }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-ghost" onClick="{{ det.onRevert }}" style="font-size:12px">Discard changes</button></sc-if>
+                  <span style="margin-left:auto;font-size:11px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">Edits don't reprocess the PDF</span>
+                </div>
+                <sc-if value="{{ det.saveError }}" hint-placeholder-val="{{ false }}">
+                  <div role="alert" style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--color-accent);border-radius:var(--radius-md);font-size:12px">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round" style="flex:none;margin-top:1px"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg>
+                    <div style="flex:1"><div style="font-weight:600">Couldn't save changes</div><div style="color:color-mix(in srgb, var(--color-text) 75%, transparent)">The library database was busy. Your edits are still here.</div></div>
+                    <button type="button" class="btn btn-secondary" onClick="{{ det.onSaveClick }}" style="padding:3px 10px;font-size:12px">Retry</button>
+                  </div>
+                </sc-if>
+              </form>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <!-- Activity pane -->
+        <sc-if value="{{ paneActivity }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;overflow:auto">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--color-divider);display:flex;align-items:center;gap:8px">
+              <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 70%, transparent)">{{ act.summary }}</div>
+              <div style="margin-left:auto;display:flex;gap:4px">
+                <sc-if value="{{ act.canPauseAll }}" hint-placeholder-val="{{ false }}"><button class="btn btn-secondary" onClick="{{ pauseAll }}" style="padding:3px 10px;font-size:12px">Pause all</button></sc-if>
+                <sc-if value="{{ act.canResumeAll }}" hint-placeholder-val="{{ false }}"><button class="btn btn-secondary" onClick="{{ resumeAll }}" style="padding:3px 10px;font-size:12px">Resume all</button></sc-if>
+              </div>
+            </div>
+            <sc-if value="{{ act.idle }}" hint-placeholder-val="{{ false }}"><div style="padding:20px 16px;font-size:13px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">Nothing is processing. Every document is searchable or needs no further work.</div></sc-if>
+            <sc-for list="{{ act.items }}" as="r">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--color-divider)">
+                <div style="min-width:0;flex:1">
+                  <div role="button" tabindex="0" onClick="{{ r.onSelect }}" title="{{ r.title }}" style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;cursor:default">{{ r.title }}</div>
+                  <div style="font-size:12px;color:{{ r.statusColor }};margin-top:1px">{{ r.statusText }}</div>
+                  <sc-if value="{{ r.showBar }}" hint-placeholder-val="{{ false }}"><div style="height:3px;margin-top:5px;background:color-mix(in srgb, var(--color-text) 12%, transparent);overflow:hidden"><div style="height:100%;width:{{ r.pct }}%;background:{{ r.barColor }}"></div></div></sc-if>
+                </div>
+                <div style="display:flex;gap:2px">
+                  <sc-for list="{{ r.actions }}" as="a"><button onClick="{{ a.onClick }}" title="{{ a.label }}" aria-label="{{ a.label }}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:transparent;border-radius:var(--radius-md);color:{{ a.color }}" style-hover="background:color-mix(in srgb, var(--color-text) 10%, transparent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.d }}"></path></svg></button></sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <div style="padding:12px 16px;font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent)">Processing runs in the background. Documents open and read normally while their text is extracted; keyword search becomes available before semantic indexing finishes. Image-only PDFs can't be made searchable (OCR isn't available yet).</div>
+          </div>
+        </sc-if>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ═══ READER VIEW ═══ -->
+  <sc-if value="{{ readerActive }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Reader" style="flex:1;min-height:0;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--color-divider);background:var(--color-surface);flex:none;min-width:0">
+        <sc-if value="{{ rd.hasResults }}" hint-placeholder-val="{{ false }}">
+          <button class="btn btn-secondary" onClick="{{ rd.onBack }}" style="padding:4px 10px;font-size:12px;gap:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>Back to results</button>
+          <div style="display:inline-flex;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden">
+            <button onClick="{{ rd.onPrev }}" disabled="{{ rd.prevDisabled }}" aria-label="Previous result" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:transparent" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+            <span style="display:inline-flex;align-items:center;padding:0 10px;font-size:12px;border-left:1px solid var(--color-divider);border-right:1px solid var(--color-divider);font-variant-numeric:tabular-nums;white-space:nowrap">{{ rd.resultLabel }}</span>
+            <button onClick="{{ rd.onNext }}" disabled="{{ rd.nextDisabled }}" aria-label="Next result" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:transparent" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+          </div>
+          <span style="font-size:12px;color:color-mix(in srgb, var(--color-text) 60%, transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px" title="Search “{{ rd.query }}”">“{{ rd.query }}”</span>
+        </sc-if>
+        <sc-if value="{{ rd.showDismiss }}" hint-placeholder-val="{{ false }}"><button class="btn btn-ghost" onClick="{{ rd.onDismiss }}" style="font-size:12px;padding:4px 8px">Dismiss highlight</button></sc-if>
+        <div style="margin-left:auto;display:inline-flex;align-items:center;gap:2px;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;flex:none">
+          <button onClick="{{ rd.onPagePrev }}" disabled="{{ rd.pagePrevDisabled }}" aria-label="Previous page" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:transparent" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+          <span style="font-size:12px;padding:0 8px;font-variant-numeric:tabular-nums;white-space:nowrap">{{ rd.pageLabel }}</span>
+          <button onClick="{{ rd.onPageNext }}" disabled="{{ rd.pageNextDisabled }}" aria-label="Next page" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:transparent" style-hover="background:color-mix(in srgb, var(--color-text) 8%, transparent)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+        </div>
+      </div>
+      <sc-if value="{{ rd.notice }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:6px 16px;font-size:12px;border-bottom:1px solid var(--color-divider);display:flex;gap:8px;align-items:center;color:color-mix(in srgb, var(--color-text) 75%, transparent)"><span style="width:6px;height:6px;border-radius:50%;background:{{ rd.noticeDot }};flex:none"></span>{{ rd.notice }}</div>
+      </sc-if>
+      <div style="flex:1;min-height:0;overflow:auto;background:color-mix(in srgb, var(--color-text) 6%, var(--color-bg));padding:24px;display:flex;justify-content:center;align-items:flex-start">
+        <sc-if value="{{ rd.locating }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:80px;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;color:color-mix(in srgb, var(--color-text) 75%, transparent)"><span style="width:10px;height:10px;border-radius:50%;background:var(--color-accent)"></span>{{ rd.locatingText }}</div>
+        </sc-if>
+        <sc-if value="{{ rd.error }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:80px;max-width:420px;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md)">
+            <div style="font-weight:600;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg>{{ rd.errorTitle }}</div>
+            <div style="font-size:13px;color:color-mix(in srgb, var(--color-text) 75%, transparent)">{{ rd.errorBody }}</div>
+            <div style="display:flex;gap:6px"><sc-if value="{{ rd.canRelink }}" hint-placeholder-val="{{ false }}"><button class="btn btn-primary" onClick="{{ rd.onRelink }}" style="padding:5px 10px;font-size:13px">Relink PDF…</button></sc-if><sc-if value="{{ rd.hasResults }}" hint-placeholder-val="{{ false }}"><button class="btn btn-secondary" onClick="{{ rd.onBack }}" style="padding:5px 10px;font-size:13px">Back to results</button></sc-if></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ rd.showPage }}" hint-placeholder-val="{{ false }}">
+          <div style="width:min(720px,100%);min-height:920px;background:#fbfaf8;color:#1f1d1c;box-shadow:var(--shadow-md);padding:56px 64px 64px;font-family:Georgia, 'Times New Roman', serif;font-size:14.5px;line-height:1.65;position:relative">
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-body);font-size:10.5px;letter-spacing:0.04em;text-transform:uppercase;color:#7a7674;margin-bottom:28px"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%">{{ rd.docTitle }}</span><span>{{ rd.page }}</span></div>
+            <sc-for list="{{ rd.paras }}" as="p">
+              <div style="position:relative;margin:0 0 14px">
+                <sc-if value="{{ p.isHit }}" hint-placeholder-val="{{ false }}">
+                  <span style="position:absolute;left:-56px;top:2px;font-family:var(--font-body);font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:var(--color-accent-700);width:48px;line-height:1.3">Search result</span>
+                </sc-if>
+                <sc-if value="{{ p.isNote }}" hint-placeholder-val="{{ false }}">
+                  <span style="position:absolute;left:-56px;top:2px;font-family:var(--font-body);font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:#7a7674;width:48px;line-height:1.3">Your note · Mar 12</span>
+                </sc-if>
+                <p style="margin:0;padding:{{ p.pad }};outline:{{ p.outline }};outline-offset:2px;background:{{ p.bg }};text-decoration:{{ p.deco }};text-decoration-color:#9b9797;text-underline-offset:3px">{{ p.text }}</p>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ═══ FUTURE CONCEPT: Databases ═══ -->
+  <sc-if value="{{ conceptActive }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Databases concept" style="flex:1;min-height:0;display:flex;flex-direction:column">
+      <div style="padding:8px 20px;font-size:12px;border-bottom:1px solid var(--color-accent);display:flex;gap:10px;align-items:center;background:color-mix(in srgb, var(--color-accent) 8%, var(--color-bg))"><span style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--color-accent-700)">Future concept</span><span>Not implemented. Shows how today's tags, collections and custom properties could grow into user-defined databases. Today's data maps onto it directly: a collection becomes a database, a custom property becomes a typed attribute, a tag becomes a multi-select.</span></div>
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:200px minmax(0,1fr)">
+        <div style="border-right:1px solid var(--color-divider);padding:14px 12px;display:flex;flex-direction:column;gap:2px;font-size:13px">
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.6;padding:0 8px 6px">Databases</div>
+          <div style="padding:5px 8px;background:color-mix(in srgb, var(--color-text) 8%, transparent);border-radius:var(--radius-md);font-weight:600">Papers <span style="opacity:0.55;font-weight:400">40</span></div>
+          <div style="padding:5px 8px">Projects <span style="opacity:0.55">3</span></div>
+          <div style="padding:5px 8px">Experiments <span style="opacity:0.55">7</span></div>
+          <div style="padding:5px 8px;opacity:0.7">+ New database</div>
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.6;padding:16px 8px 6px">Attributes of Papers</div>
+          <div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between"><span>Status</span><span style="opacity:0.55">Select</span></div>
+          <div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between"><span>Project</span><span style="opacity:0.55">Relation</span></div>
+          <div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between"><span>Read</span><span style="opacity:0.55">True/false</span></div>
+          <div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between"><span>Rating</span><span style="opacity:0.55">Number</span></div>
+          <div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between"><span>Cited by</span><span style="opacity:0.55">Rollup</span></div>
+          <div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between"><span>Age</span><span style="opacity:0.55">Formula</span></div>
+        </div>
+        <div style="min-width:0;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:2px;padding:10px 20px 0;border-bottom:1px solid var(--color-divider)">
+            <span style="padding:6px 10px;border-bottom:2px solid var(--color-accent);margin-bottom:-1px;font-size:12px;font-weight:600">All papers</span>
+            <span style="padding:6px 10px;font-size:12px;opacity:0.7">To read</span>
+            <span style="padding:6px 10px;font-size:12px;opacity:0.7">By project</span>
+            <span style="padding:6px 10px;font-size:12px;opacity:0.7">Thesis core · rated</span>
+            <span style="margin-left:auto;font-size:11px;opacity:0.6;padding-bottom:6px">Saved views · filters and sorts persist per view</span>
+          </div>
+          <div style="overflow:auto;min-height:0">
+            <table class="table" style="font-size:12.5px">
+              <thead><tr><th>Title</th><th>Status</th><th>Project ↗</th><th>Read</th><th>Rating</th><th>Cited by Σ</th><th>Age ƒ</th></tr></thead>
+              <tbody>
+                <tr><td>Attention Is All You Need</td><td><span class="tag tag-neutral">Reading</span></td><td style="color:var(--color-accent-700)">Thesis</td><td>✓</td><td>5</td><td>3</td><td>9 y</td></tr>
+                <tr><td>Scaling Laws for Neural Language Models</td><td><span class="tag tag-neutral">Reading</span></td><td style="color:var(--color-accent-700)">Thesis</td><td>✓</td><td>—</td><td>2</td><td>6 y</td></tr>
+                <tr><td>Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks</td><td><span class="tag tag-outline">To read</span></td><td style="color:var(--color-accent-700)">Thesis</td><td>—</td><td>—</td><td>1</td><td>6 y</td></tr>
+                <tr><td>Dense Passage Retrieval for Open-Domain Question Answering</td><td><span class="tag tag-neutral">Done</span></td><td style="color:var(--color-accent-700)">Thesis</td><td>✓</td><td>4</td><td>0</td><td>6 y</td></tr>
+                <tr><td>Okavango Delta hydrology survey — field notes, draft 3</td><td><span class="tag tag-neutral">Reading</span></td><td style="color:var(--color-accent-700)">Fieldwork 2025</td><td>—</td><td>—</td><td>0</td><td>—</td></tr>
+                <tr><td>The Structure of Scientific Revolutions</td><td><span class="tag tag-neutral">Done</span></td><td style="opacity:0.5">—</td><td>✓</td><td>5</td><td>0</td><td>64 y</td></tr>
+              </tbody>
+            </table>
+            <div style="padding:12px 20px;font-size:12px;color:color-mix(in srgb, var(--color-text) 65%, transparent);max-width:640px">Relations link records across databases (a Paper belongs to a Project). Rollups count or sum through a relation; formulas derive values from a record's own attributes. Passage search stays the same: these attributes would simply become additional filters.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Toast -->
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="position:absolute;left:20px;bottom:20px;z-index:40;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 14px;background:var(--color-surface);box-shadow:var(--shadow-lg);border-radius:var(--radius-md);font-size:13px;max-width:460px">
+      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ toast.msg }}</span>
+      <sc-if value="{{ toast.actionLabel }}" hint-placeholder-val="{{ false }}"><button class="btn btn-ghost" onClick="{{ toast.onAction }}" style="padding:3px 8px;font-size:13px">{{ toast.actionLabel }}</button></sc-if>
+      <button onClick="{{ dismissToast }}" aria-label="Dismiss" style="border:0;background:transparent;display:inline-flex;padding:4px;opacity:0.6;border-radius:var(--radius-sm)" style-hover="opacity:1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+    </div>
+  </sc-if>
+
+  <!-- Dialog: add PDFs (mock file chooser) -->
+  <sc-if value="{{ dlgAdd }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" style="z-index:50;position:absolute" onClick="{{ closeDialog }}">
+      <div class="dialog" role="dialog" aria-modal="true" aria-label="Choose PDFs" onClick="{{ stop }}" style="width:min(520px,100%)">
+        <div class="dialog-title">Choose PDFs</div>
+        <div class="dialog-body" style="opacity:1">
+          <div style="font-size:12px;margin-bottom:8px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">~/Downloads · select one or more files</div>
+          <div style="border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden">
+            <sc-for list="{{ dlgAdd.files }}" as="f">
+              <label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--color-divider);font-size:13px;cursor:pointer;background:{{ f.bg }}" style-hover="background:color-mix(in srgb, var(--color-text) 5%, transparent)">
+                <input type="checkbox" checked="{{ f.checked }}" onChange="{{ f.onToggle }}" style="accent-color:var(--color-accent)"></input>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"></path></svg>
+                <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</span>
+                <span style="font-size:11px;opacity:0.6;flex:none">{{ f.size }}</span>
+                <sc-if value="{{ f.dupe }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;flex:none;color:var(--color-accent-700)">Already in library</span></sc-if>
+              </label>
+            </sc-for>
+          </div>
+          <div style="font-size:12px;margin-top:8px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">Files open right away. Text extraction and indexing continue in the background. A file already in your library opens its existing entry, keeping its annotations.</div>
+        </div>
+        <div class="dialog-actions"><button class="btn btn-secondary" onClick="{{ closeDialog }}">Cancel</button><button class="btn btn-primary" onClick="{{ confirmAdd }}" disabled="{{ dlgAdd.noneSelected }}">{{ dlgAdd.confirmLabel }}</button></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Dialog: permanent delete -->
+  <sc-if value="{{ dlgDelete }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" style="z-index:50;position:absolute" onClick="{{ closeDialogIfIdle }}">
+      <div class="dialog" role="dialog" aria-modal="true" aria-label="Delete permanently" onClick="{{ stop }}">
+        <div class="dialog-title">Delete permanently?</div>
+        <div class="dialog-body" style="opacity:1;display:flex;flex-direction:column;gap:8px">
+          <div style="font-weight:600;font-size:13px">{{ dlgDelete.title }}</div>
+          <div>This deletes Key's saved copy of the PDF, all annotations and the metadata you've added. It can't be undone.</div>
+          <div style="font-size:12px;color:color-mix(in srgb, var(--color-text) 65%, transparent)">Your original file elsewhere on disk is not affected.</div>
+          <sc-if value="{{ dlgDelete.blocked }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="display:flex;gap:8px;padding:8px 10px;border:1px solid var(--color-accent);border-radius:var(--radius-md);font-size:12px;margin-top:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round" style="flex:none;margin-top:1px"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg><span>{{ dlgDelete.blocked }}</span></div>
+          </sc-if>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{ closeDialog }}" disabled="{{ dlgDelete.deleting }}">Cancel</button>
+          <sc-if value="{{ dlgDelete.showCloseTab }}" hint-placeholder-val="{{ false }}"><button class="btn btn-secondary" onClick="{{ dlgDelete.onCloseTab }}">Close its tab</button></sc-if>
+          <button class="btn btn-primary" onClick="{{ confirmDelete }}" disabled="{{ dlgDelete.disabled }}" aria-busy="{{ dlgDelete.deleting }}">{{ dlgDelete.label }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Dialog: relink -->
+  <sc-if value="{{ dlgRelink }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" style="z-index:50;position:absolute" onClick="{{ closeDialog }}">
+      <div class="dialog" role="dialog" aria-modal="true" aria-label="Relink PDF" onClick="{{ stop }}" style="width:min(500px,100%)">
+        <div class="dialog-title">Relink the original PDF</div>
+        <div class="dialog-body" style="opacity:1;display:flex;flex-direction:column;gap:8px">
+          <div style="font-weight:600;font-size:13px">{{ dlgRelink.title }}</div>
+          <sc-if value="{{ dlgRelink.pick }}" hint-placeholder-val="{{ true }}">
+            <div>Key can't find the original file (it may have been moved or renamed). Choose it to restore reading. Annotations and metadata stay attached only if the chosen file is the same document.</div>
+            <div style="border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;margin-top:4px">
+              <sc-for list="{{ dlgRelink.files }}" as="f">
+                <button onClick="{{ f.onPick }}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border:0;border-bottom:1px solid var(--color-divider);background:transparent;font-size:13px" style-hover="background:color-mix(in srgb, var(--color-text) 6%, transparent)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"></path></svg>
+                  <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.name }}</span><span style="font-size:11px;opacity:0.6">{{ f.size }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ dlgRelink.checking }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--color-accent)"></span>Checking that the file matches…</div></sc-if>
+          <sc-if value="{{ dlgRelink.mismatch }}" hint-placeholder-val="{{ false }}">
+            <div role="alert" style="display:flex;gap:8px;padding:8px 10px;border:1px solid var(--color-accent);border-radius:var(--radius-md);font-size:12px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2.2" stroke-linecap="round" style="flex:none;margin-top:1px"><path d="M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"></path></svg><span><strong>That's a different document.</strong> “{{ dlgRelink.picked }}” doesn't match the original, so it wasn't linked and no annotations were transferred. You can add it as a new document instead.</span></div>
+          </sc-if>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{ closeDialog }}">Cancel</button>
+          <sc-if value="{{ dlgRelink.mismatch }}" hint-placeholder-val="{{ false }}"><button class="btn btn-secondary" onClick="{{ dlgRelink.onChooseAgain }}">Choose another file</button><button class="btn btn-primary" onClick="{{ dlgRelink.onAddNew }}">Add as new document</button></sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- Design notes drawer -->
+  <sc-if value="{{ notesOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:60;background:color-mix(in srgb, var(--color-neutral-900) 40%, transparent)" onClick="{{ closeNotes }}">
+      <div onClick="{{ stop }}" style="position:absolute;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--color-bg);box-shadow:var(--shadow-lg);overflow:auto;padding:20px 24px 32px;display:flex;flex-direction:column;gap:18px;font-size:13px">
+        <div style="display:flex;align-items:center;gap:8px"><h2 style="font-size:18px;margin:0">Design notes</h2><button onClick="{{ closeNotes }}" aria-label="Close" style="margin-left:auto;border:0;background:transparent;display:inline-flex;padding:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h6 style="margin:0">Try these</h6>
+          <div style="color:color-mix(in srgb, var(--color-text) 78%, transparent);line-height:1.6">Search <b>consolidation</b> (mixed exact and related passages), <b>error</b> (recoverable failure), <b>nothing</b> (no matches), <b>everything</b> (capped at 1,000 candidates). Open a result, use Previous/Next, then Back to results. Pause/resume the 910-page handbook; retry the failed paper; relink the missing scan; remove a document and Undo; visit the Removed scope to restore or delete. Use the Tweaks panel to start empty, fail saves, or speed up processing.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h6 style="margin:0">Hierarchy</h6>
+          <div style="color:color-mix(in srgb, var(--color-text) 78%, transparent);line-height:1.6">One search field spans the whole view because finding a passage is the primary job. The list keeps rows to two lines: title with an Open marker, then authors · year · pages · tags in muted type. Status lives in its own column so stable documents read as quiet text (“910 searchable passages”) while active work gets a thin stage bar and attention states get the accent. Counts sit under the title as a sentence, not a stat row.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h6 style="margin:0">Interaction</h6>
+          <div style="color:color-mix(in srgb, var(--color-text) 78%, transparent);line-height:1.6">Single-click selects (details load on demand in the right pane); double-click, Enter or the arrow button opens, reusing an existing tab. Searching turns the list itself into results, grouped under each document's title and authors, so the view stays full width until a result is clicked; that opens a page preview on the right with an Open in reader action. Back to library restores the normal list. Results group by document with page targets visible; exact matches are marked in the snippet, meaning-based matches are labelled “Related passage” with no fake word highlight. Opening a result shows a locating state; the latest click always wins. The reader's highlight is an accent outline with a margin label, distinct from saved notes (grey underline), and is never saved. Close tab, Remove (undoable, then Removed scope), Restore and Delete permanently are separate actions with separate copy.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h6 style="margin:0">What's what</h6>
+          <div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;line-height:1.5;color:color-mix(in srgb, var(--color-text) 78%, transparent)">
+            <span class="tag tag-neutral" style="align-self:start">Preserved</span><span>Library list, Add PDFs (multiple), open/closed state, processing states and actions, passage search with paged loading and the 1,000 cap, all seven filters with one typed property condition, metadata editing, remove/restore/permanent delete, relink.</span>
+            <span class="tag tag-outline" style="align-self:start">Proposed</span><span>Scope tabs (All / Open / Needs attention / Removed), results grouped by document, right-pane Results · Details · Activity, chip inputs replacing semicolon fields, Undo toast, keyword-available wording during indexing, mismatch guard on relink, blocked-deletion explanations.</span>
+            <span class="tag tag-accent" style="align-self:start">Future</span><span>User-defined databases with relations, rollups, formulas and saved views. <button class="btn btn-ghost" onClick="{{ openConcept }}" style="padding:0 4px;font-size:13px">Open the concept screen</button></span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h6 style="margin:0">Themes and access</h6>
+          <div style="color:color-mix(in srgb, var(--color-text) 78%, transparent);line-height:1.6">Light theme follows Modernist (Archivo, square corners, red accent); dark follows Nocturne (Inter, 8px radii, blurple accent). Both are driven by the same tokens, so every surface, rule and control swaps together. Nothing animates continuously; progress bars only move when work happens. All controls are keyboard reachable with a visible accent focus ring.</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;view&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;list&quot;,&quot;table&quot;],&quot;default&quot;:&quot;list&quot;,&quot;tsType&quot;:&quot;'list' | 'table'&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;startEmpty&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Scenarios&quot;},&quot;processingSpeed&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;off&quot;,&quot;normal&quot;,&quot;fast&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;'off' | 'normal' | 'fast'&quot;,&quot;section&quot;:&quot;Scenarios&quot;},&quot;failSaves&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Scenarios&quot;}}">
+const MUTED = 'color-mix(in srgb, var(--color-text) 65%, transparent)';
+const ICON = {
+  open: 'M7 17 17 7M7 7h10v10',
+  pause: 'M8 5v14M16 5v14',
+  play: 'M7 4l13 8-13 8z',
+  retry: 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
+  link: 'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1',
+  restore: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
+  trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6',
+};
+const SEED = [
+  ["Attention Is All You Need", ["Vaswani, A.","Shazeer, N.","Parmar, N."], 2017, 15, ["transformers","nlp"], ["Thesis core"], "indexed", {open:true, ann:true, props:[["Read","bool",true],["Rating","num",5]]}],
+  ["Handbook of the Cognitive Neuroscience of Memory: Encoding, Consolidation and Retrieval Across the Lifespan", ["Marchetti, L. (ed.)","Okafor, A. (ed.)"], 2021, 910, ["memory","neuroscience"], ["Background reading"], "processing", {open:true, pagesDone:312}],
+  ["Scaling Laws for Neural Language Models", ["Kaplan, J.","McCandlish, S."], 2020, 30, ["scaling","llm"], ["Thesis core"], "indexed", {open:true, props:[["Read","bool",true]]}],
+  ["The Structure of Scientific Revolutions", ["Kuhn, T. S."], 1962, 264, ["philosophy of science"], ["Background reading"], "indexed", {ann:true}],
+  ["Deep Residual Learning for Image Recognition", ["He, K.","Zhang, X.","Ren, S.","Sun, J."], 2016, 12, ["vision"], [], "indexed", {}],
+  ["Thinking, Fast and Slow", ["Kahneman, D."], 2011, 499, ["cognition"], ["Background reading"], "indexed", {ann:true}],
+  ["Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks", ["Lewis, P.","Perez, E.","Piktus, A."], 2020, 19, ["retrieval","nlp"], ["Thesis core"], "indexed", {props:[["Read","bool",false]]}],
+  ["A Mathematical Theory of Communication", ["Shannon, C. E."], 1948, 55, ["information theory"], ["Classics"], "indexed", {ann:true}],
+  ["Okavango Delta hydrology survey — field notes, draft 3", [], null, 48, ["fieldwork"], ["Fieldwork 2025"], "indexing", {passagesDone:96}],
+  ["Fieldwork funding report 2024–25", [], 2025, 22, [], ["Fieldwork 2025"], "queued", {}],
+  ["Language Models are Few-Shot Learners", ["Brown, T. B.","Mann, B.","Ryder, N."], 2020, 75, ["llm"], ["Thesis core"], "failed", {stage:"Indexing"}],
+  ["IMG_2024_03_11 scan.pdf", [], null, 12, [], [], "missing", {}],
+  ["The Limits to Growth", ["Meadows, D. H.","Meadows, D. L.","Randers, J."], 1972, 205, ["systems"], ["Classics"], "notext", {}],
+  ["Silent Spring", ["Carson, R."], 1962, 378, ["ecology"], ["Classics"], "paused", {prev:"processing", pagesDone:140}],
+  ["Committee minutes, 14 March", [], 2026, 6, [], [], "queued", {}],
+  ["The Selfish Gene", ["Dawkins, R."], 1976, 224, ["evolution"], ["Classics"], "indexed", {}],
+  ["Distributed Representations of Words and Phrases and their Compositionality", ["Mikolov, T.","Sutskever, I.","Chen, K."], 2013, 9, ["nlp","embeddings"], [], "indexed", {}],
+  ["Gödel, Escher, Bach: An Eternal Golden Braid", ["Hofstadter, D. R."], 1979, 777, ["cognition"], ["Background reading"], "indexed", {ann:true}],
+  ["Dense Passage Retrieval for Open-Domain Question Answering", ["Karpukhin, V.","Oğuz, B."], 2020, 13, ["retrieval"], ["Thesis core"], "indexed", {props:[["Read","bool",true],["Rating","num",4]]}],
+  ["The Origin of Species", ["Darwin, C."], 1859, 502, ["evolution"], ["Classics"], "indexed", {}],
+  ["Long Short-Term Memory", ["Hochreiter, S.","Schmidhuber, J."], 1997, 32, ["rnn"], [], "indexed", {}],
+  ["Judgment under Uncertainty: Heuristics and Biases", ["Tversky, A.","Kahneman, D."], 1974, 8, ["cognition"], [], "indexed", {ann:true}],
+  ["Ethics committee approval — protocol 2025/114", [], 2025, 4, ["admin"], ["Fieldwork 2025"], "indexed", {}],
+  ["Lost in the Middle: How Language Models Use Long Contexts", ["Liu, N. F.","Lin, K."], 2023, 18, ["llm","retrieval"], ["Thesis core"], "indexed", {}],
+  ["Small Is Beautiful", ["Schumacher, E. F."], 1973, 288, ["economics"], [], "indexed", {}],
+  ["Efficient Estimation of Word Representations in Vector Space", ["Mikolov, T.","Chen, K.","Corrado, G."], 2013, 12, ["embeddings"], [], "indexed", {}],
+  ["Wetland sediment cores — lab protocol v2", [], 2024, 14, ["fieldwork","protocol"], ["Fieldwork 2025"], "indexed", {}],
+  ["The Design of Everyday Things", ["Norman, D. A."], 1988, 240, ["design"], ["Background reading"], "indexed", {ann:true}],
+  ["Chain-of-Thought Prompting Elicits Reasoning in Large Language Models", ["Wei, J.","Wang, X."], 2022, 43, ["llm","reasoning"], ["Thesis core"], "indexed", {}],
+  ["An Essay on the Principle of Population", ["Malthus, T. R."], 1798, 134, ["economics"], ["Classics"], "indexed", {}],
+  ["Neural Machine Translation by Jointly Learning to Align and Translate", ["Bahdanau, D.","Cho, K.","Bengio, Y."], 2015, 15, ["nlp"], [], "indexed", {}],
+  ["Guns, Germs, and Steel", ["Diamond, J."], 1997, 480, ["history"], ["Background reading"], "indexed", {}],
+  ["Training language models to follow instructions with human feedback", ["Ouyang, L.","Wu, J."], 2022, 68, ["llm","alignment"], ["Thesis core"], "indexed", {props:[["Read","bool",false]]}],
+  ["Sapiens: A Brief History of Humankind", ["Harari, Y. N."], 2011, 443, ["history"], [], "indexed", {}],
+  ["ImageNet Classification with Deep Convolutional Neural Networks", ["Krizhevsky, A.","Sutskever, I.","Hinton, G. E."], 2012, 9, ["vision"], [], "indexed", {}],
+  ["Supervisor meeting notes — spring term", [], 2026, 11, ["notes"], [], "indexed", {ann:true}],
+  ["Grant application draft — Leverhulme 2026", [], 2026, 27, ["admin"], [], "indexed", {}],
+  ["Adam: A Method for Stochastic Optimization", ["Kingma, D. P.","Ba, J."], 2015, 15, ["optimization"], [], "indexed", {}],
+  ["Society of Mind", ["Minsky, M."], 1986, 339, ["cognition"], ["Background reading"], "indexed", {}],
+  ["Batch Normalization: Accelerating Deep Network Training", ["Ioffe, S.","Szegedy, C."], 2015, 11, ["optimization"], [], "indexed", {}],
+  ["Shannon 1948 — duplicate scan", ["Shannon, C. E."], 1948, 55, [], [], "indexed", {removed:true}],
+  ["Budget export (spreadsheet).pdf", [], 2025, 3, [], [], "notext", {removed:true}],
+];
+const EXACT = [
+  "Prior work on {q} has largely assumed a fixed vocabulary, an assumption we relax in Section 4.",
+  "We find that {q} accounts for most of the variance in downstream performance across the sizes we tested.",
+  "The relationship between {q} and recall was first noted in a small sample and has since been replicated in three independent cohorts.",
+  "Critics of {q} have argued that the effect disappears once task familiarity is controlled for.",
+  "A second consequence of {q} is that gains from additional data taper predictably, following a power law.",
+];
+const SEMANTIC = [
+  "Performance improves smoothly as compute, data and parameters grow together; no single factor dominates once the others are held in proportion.",
+  "Retrieval of episodic detail is reconstructive rather than reproductive, and each act of recall reshapes what is stored.",
+  "The committee agreed that the sampling schedule should shift to early morning to avoid the afternoon wind.",
+  "What counts as an anomaly depends on the paradigm; the same observation can be noise under one and a crisis under another.",
+  "Attention weights concentrate on a handful of positions, which suggests that most of the context window is consulted only rarely.",
+  "Selection acts on the gene's own frequency, and apparent altruism follows wherever relatedness makes it pay.",
+  "System 1 answers a simpler question than the one that was asked, and System 2 rarely notices the substitution.",
+];
+const FILLER = [
+  "The argument proceeds in three steps. First, we show that the standard account cannot accommodate the cases described above. Second, we propose a minimal revision. Third, we test the revision against two further data sets collected under different conditions.",
+  "Table 3 summarises the estimates. The interval widens for the smaller cohort, as expected, but the sign is stable across specifications, and the effect survives the inclusion of the controls introduced in the previous section.",
+  "It is worth pausing on what this does not show. Nothing here speaks to mechanism; the design is observational, and several plausible confounders remain unmeasured. We return to these limitations in the discussion.",
+  "Earlier treatments of the problem tended to conflate two distinct questions: whether the phenomenon occurs at all, and whether it matters for practice. We keep these apart throughout.",
+  "The remainder of this chapter develops the formal apparatus. Readers primarily interested in the empirical results may skip to Section 5 without loss of continuity.",
+  "A natural objection is that the sample was drawn from a single institution. We address this by replicating the central analysis on the public data set described in Appendix B.",
+];
+const hash = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return h; };
+const PAGE_SIZE = 20;
+const ACTIVE = ['processing','indexing','publishing'];
+
+function buildDocs(seed) {
+  return seed.map((r, i) => {
+    const [title, authors, year, pages, tags, collections, state, x] = r;
+    const d = { id: 'd' + i, title, authors: [...authors], year, pages, tags: [...tags], collections: [...collections], state,
+      props: (x.props || []).map(([name, type, value]) => ({ name, type, value })),
+      ann: !!x.ann, removed: !!x.removed, pagesDone: x.pagesDone || 0, passagesTotal: 0, passagesDone: x.passagesDone || 0,
+      prev: x.prev || null, stage: x.stage || null, pubTicks: 0, stopping: false, stopTicks: 0, open: !!x.open, added: i };
+    if (['indexed','missing','indexing','publishing'].includes(state)) d.passagesTotal = Math.round(pages * 3.7);
+    if (state === 'indexing') d.keywordReady = true;
+    return d;
+  });
+}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const docs = props.startEmpty ? [] : buildDocs(SEED);
+    this.state = {
+      theme: props.theme ?? 'light', docs, tabs: docs.filter(d => d.open).map(d => d.id), activeTab: 'library',
+      selectedId: null, scope: 'all', sort: 'recent', query: '', searching: false, res: null, loadingMore: false,
+      filtersOpen: false, ff: this.blankFilters(), applied: this.blankFilters(),
+      paneMode: null, previewIdx: null, view: props.view ?? 'list', det: null, reader: null, dialog: null, toast: null, notesOpen: false, menuId: null, nextId: 1000,
+    };
+    this.reqId = 0;
+  }
+  blankFilters() { return { author: '', yearFrom: '', yearTo: '', tag: '', collection: '', ann: 'any', phrase: '', propName: '', propType: 'text', propValue: '' }; }
+  componentDidMount() {
+    this.applyTheme(this.state.theme);
+    this.timer = setInterval(this.tick, 900);
+    this.onDocClick = e => { if (this.state.menuId && !e.target.closest('[role="menu"]')) this.setState({ menuId: null }); };
+    document.addEventListener('click', this.onDocClick);
+  }
+  componentWillUnmount() { clearInterval(this.timer); clearTimeout(this.toastT); document.removeEventListener('click', this.onDocClick); }
+  componentDidUpdate(pp, ps) {
+    if (pp.view !== this.props.view && this.props.view) this.setState({ view: this.props.view });
+    if (pp.theme !== this.props.theme && this.props.theme) { this.applyTheme(this.props.theme); this.setState({ theme: this.props.theme }); }
+    if (pp.startEmpty !== this.props.startEmpty) { const docs = this.props.startEmpty ? [] : buildDocs(SEED); this.setState({ docs, tabs: docs.filter(d => d.open).map(d => d.id), activeTab: 'library', selectedId: null, res: null, det: null, reader: null }); }
+  }
+  applyTheme(t) {
+    const link = document.getElementById('ds-theme') || document.querySelector('link[href*="_ds/"]');
+    if (link) link.href = t === 'dark' ? '_ds/nocturne-20519fbd-a01a-444c-a3cb-ac316e4fa154/styles.css' : '_ds/modernist-6b2e488b-28f9-4d6e-8dc4-b49dc6e403a4/styles.css';
+    document.documentElement.style.colorScheme = t;
+    document.documentElement.dataset.theme = t;
+  }
+  doc(id) { return this.state.docs.find(d => d.id === id); }
+  patchDoc(id, fn) { this.setState(s => ({ docs: s.docs.map(d => d.id === id ? { ...d, ...(typeof fn === 'function' ? fn(d) : fn) } : d) })); }
+  showToast(msg, actionLabel, onAction) {
+    clearTimeout(this.toastT);
+    this.setState({ toast: { msg, actionLabel, onAction: () => { onAction && onAction(); this.setState({ toast: null }); } } });
+    this.toastT = setTimeout(() => this.setState({ toast: null }), 7000);
+  }
+
+  // ── processing simulation ──
+  tick = () => {
+    const speed = this.props.processingSpeed ?? 'normal';
+    if (speed === 'off') return;
+    const m = speed === 'fast' ? 5 : 1;
+    this.setState(s => {
+      let active = s.docs.filter(d => ACTIVE.includes(d.state) && !d.stopping).length;
+      let changed = false;
+      const docs = s.docs.map(d0 => {
+        const d = { ...d0 };
+        if (d.stopping) { d.stopTicks += 1; if (d.stopTicks >= 4) { d.stopping = false; d.prev = d.state; d.state = 'paused'; } changed = true; return d; }
+        if (d.state === 'queued' && !d.removed && active < 2) { d.state = 'processing'; d.pagesDone = 0; active++; changed = true; return d; }
+        if (d.state === 'processing') { d.pagesDone = Math.min(d.pages, d.pagesDone + (d.pages > 400 ? 9 : 25) * m); if (d.pagesDone >= d.pages) { d.state = 'indexing'; d.passagesTotal = Math.round(d.pages * 3.7); d.passagesDone = 0; d.keywordReady = true; } changed = true; return d; }
+        if (d.state === 'indexing') { d.passagesDone = Math.min(d.passagesTotal, d.passagesDone + (d.pages > 400 ? 40 : 110) * m); if (d.passagesDone >= d.passagesTotal) { d.state = 'publishing'; d.pubTicks = 0; } changed = true; return d; }
+        if (d.state === 'publishing') { d.pubTicks += m; if (d.pubTicks >= 3) d.state = 'indexed'; changed = true; return d; }
+        return d0;
+      });
+      return changed ? { docs } : null;
+    });
+  };
+  pause = id => this.patchDoc(id, d => ({ prev: d.state, state: 'paused' }));
+  resume = id => this.patchDoc(id, d => ({ state: d.prev === 'processing' || d.prev === 'indexing' ? d.prev : 'queued', prev: null }));
+  retry = id => this.patchDoc(id, { state: 'queued', stage: null, pagesDone: 0, passagesDone: 0 });
+  pauseAll = () => this.setState(s => ({ docs: s.docs.map(d => ACTIVE.includes(d.state) || d.state === 'queued' ? { ...d, prev: d.state, state: 'paused' } : d) }));
+  resumeAll = () => this.setState(s => ({ docs: s.docs.map(d => d.state === 'paused' ? { ...d, state: d.prev === 'processing' || d.prev === 'indexing' ? d.prev : 'queued', prev: null } : d) }));
+
+  // ── status text ──
+  statusOf(d) {
+    const n = x => x.toLocaleString();
+    switch (d.state) {
+      case 'queued': return { text: 'Waiting to process', bar: 0, tone: 'muted' };
+      case 'processing': return { text: `Extracting text · ${n(d.pagesDone)} of ${n(d.pages)} pages`, bar: d.pagesDone / d.pages * 100, tone: 'active' };
+      case 'indexing': return { text: `${n(d.passagesDone)} of ${n(d.passagesTotal)} passages prepared`, sub: 'Keyword search available', bar: d.passagesDone / d.passagesTotal * 100, tone: 'active' };
+      case 'publishing': return { text: 'Saving search index…', sub: 'Keyword search available', bar: 100, tone: 'active' };
+      case 'indexed': return { text: `${n(d.passagesTotal)} searchable passages`, tone: 'ok' };
+      case 'paused': { const p = d.prev === 'indexing' ? `${n(d.passagesDone)} of ${n(d.passagesTotal)} passages prepared` : d.prev === 'processing' ? `${n(d.pagesDone)} of ${n(d.pages)} pages extracted` : 'Not started'; return { text: 'Paused', sub: p, tone: 'muted' }; }
+      case 'failed': return { text: `${d.stage || 'Processing'} failed`, sub: 'Readable · retry to make it searchable', tone: 'attention' };
+      case 'missing': return { text: 'Original PDF not found', sub: 'Relink to read it again', tone: 'attention' };
+      case 'notext': return { text: 'No extractable text', sub: 'Readable · passage search unavailable', tone: 'muted' };
+    }
+    return { text: '', tone: 'muted' };
+  }
+  toneColor(t) { return t === 'attention' ? 'var(--color-accent-700)' : t === 'active' ? 'var(--color-text)' : MUTED; }
+  stateActions(d) {
+    const a = [];
+    if (d.removed) return a;
+    if (ACTIVE.includes(d.state) || d.state === 'queued') a.push({ label: 'Pause processing', d: ICON.pause, onClick: e => { e.stopPropagation(); this.pause(d.id); } });
+    if (d.state === 'paused') a.push({ label: 'Resume processing', d: ICON.play, onClick: e => { e.stopPropagation(); this.resume(d.id); } });
+    if (d.state === 'failed') a.push({ label: 'Retry', d: ICON.retry, color: 'var(--color-accent-700)', onClick: e => { e.stopPropagation(); this.retry(d.id); } });
+    if (d.state === 'missing') a.push({ label: 'Relink PDF', d: ICON.link, color: 'var(--color-accent-700)', onClick: e => { e.stopPropagation(); this.openRelink(d.id); } });
+    return a;
+  }
+
+  // ── tabs / opening ──
+  openDoc = (id, keepReader) => {
+    this.setState(s => ({ tabs: s.tabs.includes(id) ? s.tabs : [...s.tabs, id], activeTab: id, menuId: null,
+      reader: keepReader ? s.reader : { docId: id, page: 1, resultIdx: null, locating: false, dismissed: false, error: null } }));
+  };
+  closeTab = id => this.setState(s => ({ tabs: s.tabs.filter(t => t !== id), activeTab: s.activeTab === id ? 'library' : s.activeTab }));
+  select = id => {
+    if (this.state.selectedId === id && this.state.det && !this.state.det.loading) { this.setState({ paneMode: 'details', menuId: null }); return; }
+    this.setState({ selectedId: id, paneMode: 'details', det: { docId: id, loading: true }, menuId: null });
+    setTimeout(() => { if (this.state.selectedId !== id) return; const d = this.doc(id); if (!d) return; this.setState({ det: { docId: id, loading: false, form: this.formFrom(d), saving: false, saved: false, error: false } }); }, 300);
+  };
+  formFrom(d) { return { title: d.title, authors: [...d.authors], year: d.year ? String(d.year) : '', tags: [...d.tags], collections: [...d.collections], props: d.props.map(p => ({ ...p, value: p.type === 'bool' ? p.value : String(p.value) })), newAuthor: '', newTag: '', newColl: '', np: { name: '', type: 'text', value: '' } }; }
+
+  // ── removal ──
+  remove = id => {
+    const d = this.doc(id); if (!d) return;
+    const wasActive = ACTIVE.includes(d.state);
+    this.patchDoc(id, { removed: true, stopping: wasActive, stopTicks: 0, prev: wasActive ? d.state : d.prev });
+    this.setState(s => ({ tabs: s.tabs.filter(t => t !== id), activeTab: s.activeTab === id ? 'library' : s.activeTab, menuId: null, selectedId: s.selectedId === id ? null : s.selectedId, det: s.selectedId === id ? null : s.det }));
+    this.showToast(`Removed “${d.title}” from your library`, 'Undo', () => this.restore(id));
+  };
+  restore = id => { this.patchDoc(id, d => ({ removed: false, stopping: false, state: d.stopping ? 'paused' : d.state })); const d = this.doc(id); this.showToast(`Restored “${d.title}”`); };
+  openDelete = id => this.setState({ dialog: { type: 'delete', docId: id, deleting: false }, menuId: null });
+  confirmDelete = () => {
+    const dlg = this.state.dialog; if (!dlg || dlg.deleting) return;
+    this.setState({ dialog: { ...dlg, deleting: true } });
+    setTimeout(() => { const d = this.doc(dlg.docId); this.setState(s => ({ docs: s.docs.filter(x => x.id !== dlg.docId), dialog: null, selectedId: s.selectedId === dlg.docId ? null : s.selectedId, det: s.selectedId === dlg.docId ? null : s.det })); this.showToast(`Deleted “${d.title}” permanently`); }, 1100);
+  };
+
+  // ── relink ──
+  openRelink = id => this.setState({ dialog: { type: 'relink', docId: id, step: 'pick' }, menuId: null });
+  pickRelink = (name, matches) => {
+    const dlg = this.state.dialog;
+    this.setState({ dialog: { ...dlg, step: 'checking', picked: name } });
+    setTimeout(() => {
+      if (matches) { this.patchDoc(dlg.docId, { state: 'indexed' }); this.setState({ dialog: null }); this.showToast('Relinked. Annotations and metadata are intact.'); if (this.state.reader && this.state.reader.docId === dlg.docId) this.setState(s => ({ reader: { ...s.reader, error: null } })); }
+      else this.setState({ dialog: { ...dlg, step: 'mismatch', picked: name } });
+    }, 900);
+  };
+
+  // ── add PDFs ──
+  addFiles = () => [
+    { name: 'attention_is_all_you_need (1).pdf', size: '2.1 MB', dupe: 'd0' },
+    { name: 'Bender_Koller_2020_Climbing_towards_NLU.pdf', size: '410 KB', title: 'Climbing towards NLU: On Meaning, Form, and Understanding in the Age of Data', authors: ['Bender, E. M.','Koller, A.'], year: 2020, pages: 14 },
+    { name: 'Okavango_transect_photos_2025.pdf', size: '88 MB', title: 'Okavango transect photos 2025', authors: [], year: 2025, pages: 64, notext: true },
+    { name: 'Marr_1982_Vision_ch1-3.pdf', size: '19 MB', title: 'Vision: A Computational Investigation (chapters 1–3)', authors: ['Marr, D.'], year: 1982, pages: 118 },
+    { name: 'reading_list_autumn.pdf', size: '60 KB', title: 'Reading list — autumn term', authors: [], year: 2026, pages: 3 },
+  ];
+  openAddDialog = () => this.setState({ dialog: { type: 'add', checked: [1, 2] } });
+  confirmAdd = () => {
+    const dlg = this.state.dialog; const files = this.addFiles();
+    let id = this.state.nextId; const news = []; const opened = []; let dupes = 0;
+    dlg.checked.forEach(i => {
+      const f = files[i];
+      if (f.dupe) { dupes++; opened.push(f.dupe); return; }
+      const d = { id: 'd' + id, title: f.title, authors: f.authors, year: f.year, pages: f.pages, tags: [], collections: [], props: [], state: f.notext ? 'notext' : 'queued', ann: false, removed: false, pagesDone: 0, passagesTotal: 0, passagesDone: 0, prev: null, stage: null, pubTicks: 0, stopping: false, stopTicks: 0, added: id };
+      id++; news.push(d); opened.push(d.id);
+    });
+    this.setState(s => ({ docs: [...s.docs, ...news], nextId: id, dialog: null, tabs: [...s.tabs, ...opened.filter(o => !s.tabs.includes(o))], activeTab: opened[0] || s.activeTab, reader: opened[0] ? { docId: opened[0], page: 1, resultIdx: null, locating: false, dismissed: false, error: null } : s.reader }));
+    const n = opened.length; this.showToast(`Opened ${n} PDF${n === 1 ? '' : 's'}${dupes ? ` · ${dupes} matched an existing library entry` : ''}`);
+  };
+  loadSample = () => { const docs = buildDocs(SEED); this.setState({ docs, tabs: docs.filter(d => d.open).map(d => d.id) }); };
+
+  // ── search ──
+  eligibleDocs(f) {
+    return this.state.docs.filter(d => !d.removed && (d.state === 'indexed' || d.state === 'missing' || d.keywordReady) && this.matchesFilters(d, f));
+  }
+  matchesFilters(d, f) {
+    if (f.author && !d.authors.some(a => a.toLowerCase() === f.author.trim().toLowerCase())) return false;
+    if (f.yearFrom && (!d.year || d.year < +f.yearFrom)) return false;
+    if (f.yearTo && (!d.year || d.year > +f.yearTo)) return false;
+    if (f.tag && !d.tags.includes(f.tag)) return false;
+    if (f.collection && !d.collections.includes(f.collection)) return false;
+    if (f.ann === 'with' && !d.ann) return false;
+    if (f.ann === 'without' && d.ann) return false;
+    if (f.phrase && ![d.title, ...d.authors, ...d.tags, ...d.collections].join(' ').toLowerCase().includes(f.phrase.trim().toLowerCase())) return false;
+    if (f.propName) { const p = d.props.find(p => p.name.toLowerCase() === f.propName.trim().toLowerCase() && p.type === f.propType); if (!p) return false;
+      if (f.propType === 'bool') { if (String(p.value) !== f.propValue) return false; } else if (f.propType === 'num') { if (+p.value !== +f.propValue) return false; } else if (String(p.value).toLowerCase() !== f.propValue.trim().toLowerCase()) return false; }
+    return true;
+  }
+  runSearch = (q, f) => {
+    const id = ++this.reqId;
+    this.setState(s => ({ searching: true, res: { query: q, filters: f, items: [], total: 0, loaded: 0, error: false }, previewIdx: null, paneMode: s.paneMode === 'preview' ? null : s.paneMode, filtersOpen: false, menuId: null }));
+    setTimeout(() => {
+      if (id !== this.reqId) return;
+      const lq = q.toLowerCase();
+      if (lq.includes('error')) { this.setState({ searching: false, res: { query: q, filters: f, items: [], total: 0, loaded: 0, error: true } }); return; }
+      const docs = this.eligibleDocs(f);
+      const h = hash(q + JSON.stringify(f));
+      let total = docs.length === 0 || lq.includes('nothing') ? 0 : Math.min(docs.length * 4, 20 + (h % 55));
+      let capped = false;
+      if (lq.includes('everything') && docs.length) { total = 1000; capped = true; }
+      const items = [];
+      // cluster hits: the top few documents get several passages each (mixed exact + related), the tail gets one
+      const pool = Math.max(1, Math.min(docs.length, 4 + Math.ceil(total / 6)));
+      for (let i = 0; i < total; i++) {
+        const slot = i < pool * 3 ? Math.floor(i / 3) : pool + (i - pool * 3);
+        const d = docs[(h + slot * 7) % docs.length];
+        const exact = (i + Math.floor(i / 3)) % 3 !== 1;
+        const tpl = exact ? EXACT[(h + i) % EXACT.length] : SEMANTIC[(h + i) % SEMANTIC.length];
+        items.push({ id: i, docId: d.id, page: 1 + ((h >>> 3) * (i + 3)) % d.pages, exact, text: exact ? tpl.replace('{q}', q.trim()) : tpl, q: q.trim() });
+      }
+      this.setState({ searching: false, res: { query: q, filters: f, items, total, loaded: Math.min(PAGE_SIZE, total), capped, error: false } });
+    }, 700);
+  };
+  onSearchSubmit = e => { e.preventDefault(); const q = this.state.query.trim(); if (!q) return; this.runSearch(q, this.state.applied); };
+  retrySearch = () => this.runSearch(this.state.res.query, this.state.res.filters);
+  loadMore = () => { this.setState({ loadingMore: true }); setTimeout(() => this.setState(s => ({ loadingMore: false, res: { ...s.res, loaded: Math.min(s.res.total, s.res.loaded + PAGE_SIZE) } })), 500); };
+  openResult = idx => {
+    const r = this.state.res; const item = r.items[idx]; if (!item) return;
+    const d = this.doc(item.docId); const req = ++this.locReq;
+    this.setState(s => ({ tabs: s.tabs.includes(d.id) ? s.tabs : [...s.tabs, d.id], activeTab: d.id, reader: { docId: d.id, page: item.page, resultIdx: idx, locating: true, dismissed: false, error: null } }));
+    setTimeout(() => {
+      if (req !== this.locReq) return;
+      const dd = this.doc(d.id);
+      let error = null;
+      if (dd.state === 'missing') error = { title: "Can't open this passage", body: "The original PDF for this document isn't where Key last saw it. Relink the file to read it; the passage is still in the index.", relink: true };
+      this.setState(s => ({ reader: { ...s.reader, locating: false, error } }));
+    }, 650);
+  };
+  locReq = 0;
+
+  // ── filters ──
+  filterErrors(f) {
+    const e = {};
+    const isYear = v => /^\d{4}$/.test(v.trim());
+    if ((f.yearFrom && !isYear(f.yearFrom)) || (f.yearTo && !isYear(f.yearTo))) e.year = 'Enter a four-digit year, e.g. 1998.';
+    else if (f.yearFrom && f.yearTo && +f.yearFrom > +f.yearTo) e.year = '“From” year must not be after “to” year.';
+    if (f.propName || f.propValue) {
+      if (!f.propName) e.prop = 'Give the property a name.';
+      else if (f.propValue === '') e.prop = 'Enter a value to match.';
+      else if (f.propType === 'num' && isNaN(Number(f.propValue))) e.prop = 'Number properties need a numeric value, e.g. 4 or 2.5.';
+      else if (f.propType === 'bool' && !['true', 'false'].includes(f.propValue)) e.prop = 'Choose true or false.';
+    }
+    return e;
+  }
+  applyFilters = () => { const f = this.state.ff; if (Object.keys(this.filterErrors(f)).length) return; this.setState({ applied: { ...f }, filtersOpen: false }); if (this.state.res) this.runSearch(this.state.res.query, { ...f }); };
+  resetFilters = () => { const b = this.blankFilters(); const had = this.activeChips(this.state.applied).length; this.setState({ ff: b, applied: b, filtersOpen: false }); if (had && this.state.res) this.runSearch(this.state.res.query, b); };
+  removeFilter = key => { const f = { ...this.state.applied }; if (key === 'year') { f.yearFrom = ''; f.yearTo = ''; } else if (key === 'prop') { f.propName = ''; f.propValue = ''; f.propType = 'text'; } else if (key === 'ann') f.ann = 'any'; else f[key] = ''; this.setState({ applied: f, ff: { ...f } }); if (this.state.res) this.runSearch(this.state.res.query, f); };
+  activeChips(f) {
+    const c = [];
+    if (f.author) c.push({ key: 'Author', value: f.author, k: 'author' });
+    if (f.yearFrom || f.yearTo) c.push({ key: 'Year', value: f.yearFrom && f.yearTo ? `${f.yearFrom}–${f.yearTo}` : f.yearFrom ? `from ${f.yearFrom}` : `to ${f.yearTo}`, k: 'year' });
+    if (f.tag) c.push({ key: 'Tag', value: f.tag, k: 'tag' });
+    if (f.collection) c.push({ key: 'Collection', value: f.collection, k: 'collection' });
+    if (f.ann !== 'any') c.push({ key: 'Annotations', value: f.ann === 'with' ? 'with' : 'without', k: 'ann' });
+    if (f.phrase) c.push({ key: 'Contains', value: `“${f.phrase}”`, k: 'phrase' });
+    if (f.propName) c.push({ key: f.propName, value: `= ${f.propValue}`, k: 'prop' });
+    return c;
+  }
+
+  // ── details editing ──
+  setForm(patch) { this.setState(s => ({ det: { ...s.det, saved: false, form: { ...s.det.form, ...patch } } })); }
+  detErrors(form) {
+    const e = {};
+    if (form.year && !/^\d{4}$/.test(form.year.trim())) e.year = 'Year must be four digits, or leave it empty if unknown.';
+    if (form.props.some(p => p.type === 'num' && isNaN(Number(p.value)))) e.prop = 'A number property has a value that isn’t numeric.';
+    return e;
+  }
+  saveDetails = e => {
+    if (e && e.preventDefault) e.preventDefault();
+    const det = this.state.det; if (!det || det.saving) return;
+    if (Object.keys(this.detErrors(det.form)).length) return;
+    this.setState({ det: { ...det, saving: true, error: false } });
+    setTimeout(() => {
+      if (this.props.failSaves) { this.setState(s => ({ det: { ...s.det, saving: false, error: true } })); return; }
+      const f = this.state.det.form;
+      this.patchDoc(det.docId, { title: f.title.trim() || 'Untitled', authors: f.authors, year: f.year ? +f.year : null, tags: f.tags, collections: f.collections, props: f.props.map(p => ({ ...p, value: p.type === 'num' ? Number(p.value) : p.value })) });
+      this.setState(s => ({ det: { ...s.det, saving: false, saved: true, error: false } }));
+    }, 700);
+  };
+
+  // ── render ──
+  renderVals() {
+    const s = this.state; const P = this.props;
+    const stop = e => e.stopPropagation();
+    const isDark = s.theme === 'dark';
+    const live = s.docs.filter(d => !d.removed);
+    const removed = s.docs.filter(d => d.removed);
+    const counts = { total: live.length, indexed: live.filter(d => d.state === 'indexed').length, processing: live.filter(d => ACTIVE.includes(d.state) || d.state === 'queued').length, attention: live.filter(d => d.state === 'failed' || d.state === 'missing').length, open: s.tabs.length };
+    const countsLine = [`${counts.total} documents`, `${counts.indexed} searchable`, counts.processing ? `${counts.processing} processing` : null, counts.attention ? `${counts.attention} need${counts.attention === 1 ? 's' : ''} attention` : null].filter(Boolean).join(' · ');
+    const keyNav = (fn) => e => { if (e.key === 'Enter') { e.preventDefault(); fn(); } };
+
+    // tabs
+    const tabs = [{ id: 'library', title: 'Library', isLibrary: true }, ...s.tabs.map(id => ({ id, doc: this.doc(id) })), ...(s.activeTab === 'concept' ? [{ id: 'concept', title: 'Databases · concept', isLibrary: false }] : [])].filter(t => t.id === 'library' || t.id === 'concept' || t.doc).map(t => {
+      const active = s.activeTab === t.id; const d = t.doc;
+      const st = d ? this.statusOf(d) : null;
+      return { id: t.id, title: d ? d.title : t.title, isLibrary: !!t.isLibrary, isDoc: !!d, flex: d ? '1 1 0' : 'none', bg: active ? 'var(--color-bg)' : 'transparent', border: active ? 'var(--color-accent)' : 'transparent', weight: active ? 600 : 400,
+        dot: d ? (st.tone === 'attention' ? 'var(--color-accent)' : st.tone === 'active' ? 'var(--color-neutral-500)' : 'transparent') : 'transparent', dotTitle: st ? st.text : '',
+        onSelect: () => this.setState(x => ({ activeTab: t.id, reader: d && (!x.reader || x.reader.docId !== d.id) ? { docId: d.id, page: 1, resultIdx: null, locating: false, dismissed: false, error: null } : x.reader })),
+        onKey: keyNav(() => this.setState({ activeTab: t.id })), onClose: e => { e.stopPropagation(); this.closeTab(t.id); } };
+    });
+
+    // rows
+    const scopeDocs = s.scope === 'removed' ? removed : live.filter(d => s.scope === 'open' ? s.tabs.includes(d.id) : s.scope === 'attention' ? ['failed', 'missing', 'notext', 'paused'].includes(d.state) : true);
+    const order = { failed: 0, missing: 1, processing: 2, indexing: 3, publishing: 4, queued: 5, paused: 6, notext: 7, indexed: 8 };
+    const sorted = [...scopeDocs].sort((a, b) => s.sort === 'title' ? a.title.localeCompare(b.title) : s.sort === 'year' ? (b.year || 0) - (a.year || 0) : s.sort === 'status' ? order[a.state] - order[b.state] : b.added - a.added);
+    const rows = sorted.map(d => {
+      const st = this.statusOf(d); const removedScope = s.scope === 'removed';
+      const meta = [d.authors.length ? (d.authors.length > 2 ? `${d.authors[0].split(',')[0]} et al.` : d.authors.map(a => a.split(',')[0]).join(' & ')) : 'No authors', d.year || 'Year unknown', `${d.pages} pp`].join(' · ');
+      const actions = removedScope
+        ? [{ label: 'Restore to library', d: ICON.restore, onClick: e => { e.stopPropagation(); this.restore(d.id); } }, { label: 'Delete permanently…', d: ICON.trash, color: 'var(--color-accent-700)', onClick: e => { e.stopPropagation(); this.openDelete(d.id); } }]
+        : [...this.stateActions(d), ...(d.state !== 'missing' ? [{ label: 'Open', d: ICON.open, onClick: e => { e.stopPropagation(); this.openDoc(d.id); } }] : [])];
+      const menu = removedScope
+        ? [{ label: 'Restore to library', onClick: () => this.restore(d.id) }, { label: 'Delete permanently…', hint: 'Deletes Key’s copy', color: 'var(--color-accent-700)', onClick: () => this.openDelete(d.id) }]
+        : [{ label: 'Open', hint: s.tabs.includes(d.id) ? 'Switch to tab' : 'New tab', onClick: () => this.openDoc(d.id), disabled: d.state === 'missing' }, { label: 'Details', onClick: () => this.select(d.id) },
+          ...(s.tabs.includes(d.id) ? [{ label: 'Close tab', hint: 'Keeps document', onClick: () => this.closeTab(d.id) }] : []),
+          ...(d.state === 'missing' ? [{ label: 'Relink PDF…', onClick: () => this.openRelink(d.id) }] : []),
+          { label: 'Remove from library', hint: 'Recoverable', onClick: () => this.remove(d.id) }];
+      return { id: d.id, title: d.title, meta, tags: d.tags.slice(0, 3), isOpen: s.tabs.includes(d.id), selected: s.selectedId === d.id,
+        authorsShort: d.authors.length ? (d.authors.length > 2 ? `${d.authors[0]} et al.` : d.authors.join('; ')) : '—', authorsFull: d.authors.join('; '), yearText: d.year || '—', pages: d.pages, collectionText: d.collections.join(', ') || '—', statusFull: st.text + (st.sub ? ` · ${st.sub}` : ''),
+        bg: s.selectedId === d.id ? 'color-mix(in srgb, var(--color-accent) 9%, transparent)' : 'transparent',
+        statusText: st.text, statusSub: st.sub || '', statusColor: this.toneColor(st.tone), attention: st.tone === 'attention',
+        showBar: st.bar !== undefined, pct: Math.round(st.bar || 0), barColor: d.state === 'publishing' ? 'var(--color-neutral-400)' : 'var(--color-neutral-600)',
+        actions, menu, menuOpen: s.menuId === d.id,
+        onSelect: () => this.select(d.id), onOpen: () => { if (d.state !== 'missing') this.openDoc(d.id); else this.openRelink(d.id); }, onKey: keyNav(() => d.state !== 'missing' && this.openDoc(d.id)),
+        onMenu: e => { e.stopPropagation(); this.setState(x => ({ menuId: x.menuId === d.id ? null : d.id })); } };
+    });
+    const scopes = [['all', 'All', live.length], ['open', 'Open', counts.open], ['attention', 'Needs attention', live.filter(d => ['failed', 'missing', 'notext', 'paused'].includes(d.state)).length], ['removed', 'Removed', removed.length]].map(([id, label, n]) => ({ id, label: `${label} ${n}`, active: s.scope === id, bg: s.scope === id ? 'color-mix(in srgb, var(--color-text) 10%, transparent)' : 'transparent', color: 'var(--color-text)', weight: s.scope === id ? 600 : 400, onSelect: () => this.setState({ scope: id, menuId: null }) }));
+    const noRowsText = s.scope === 'removed' ? 'No removed documents.' : s.scope === 'open' ? 'No documents are open. Open one from the list, or add PDFs.' : s.scope === 'attention' ? 'Nothing needs attention.' : 'No documents.';
+
+    // filters
+    const ff = s.ff; const ffErr = this.filterErrors(ff); const chips = this.activeChips(s.applied);
+    const ffSet = {}; ['author', 'yearFrom', 'yearTo', 'tag', 'collection', 'phrase', 'propName', 'propType', 'propValue'].forEach(k => ffSet[k] = e => this.setState(x => ({ ff: { ...x.ff, [k]: e.target.value, ...(k === 'propType' ? { propValue: '' } : {}) } })));
+    ffSet.annAny = () => this.setState(x => ({ ff: { ...x.ff, ann: 'any' } })); ffSet.annWith = () => this.setState(x => ({ ff: { ...x.ff, ann: 'with' } })); ffSet.annWithout = () => this.setState(x => ({ ff: { ...x.ff, ann: 'without' } }));
+    const uniq = a => [...new Set(a)].sort();
+    const allTags = uniq(live.flatMap(d => d.tags)), allCollections = uniq(live.flatMap(d => d.collections)), allAuthors = uniq(live.flatMap(d => d.authors)), allPropNames = uniq(live.flatMap(d => d.props.map(p => p.name)));
+
+    const sd0 = s.selectedId ? this.doc(s.selectedId) : null;
+    // results
+    const r = s.res; let res = { ready: false, groups: [], hasMore: false };
+    if (r) {
+      const shown = r.items.slice(0, r.loaded);
+      const groupsMap = new Map();
+      shown.forEach((it, i) => {
+        const d = this.doc(it.docId); if (!d) return;
+        if (!groupsMap.has(d.id)) groupsMap.set(d.id, { id: d.id, title: d.title, meta: [d.authors[0] ? d.authors[0].split(',')[0] + (d.authors.length > 1 ? ' et al.' : '') : null, d.year].filter(Boolean).join(', '), items: [] });
+        const cur = s.reader && s.reader.resultIdx === i && s.activeTab !== 'library';
+        let before = it.text, match = '', after = '';
+        if (it.exact) { const k = it.text.toLowerCase().indexOf(it.q.toLowerCase()); if (k >= 0) { before = it.text.slice(0, k); match = it.text.slice(k, k + it.q.length); after = it.text.slice(k + it.q.length); } }
+        groupsMap.get(d.id).items.push({ idx: i, page: it.page, before, match, after, kindLabel: it.exact ? 'Exact match' : 'Related passage', bg: s.reader && s.reader.resultIdx === i ? 'color-mix(in srgb, var(--color-accent) 9%, transparent)' : 'transparent', onOpen: () => this.openResult(i), onKey: keyNav(() => this.openResult(i)) });
+      });
+      const groups = [...groupsMap.values()].map(g => { g.items.sort((a, b) => a.page - b.page); const ex = g.items.filter(x => x.kindLabel === 'Exact match').length, rel = g.items.length - ex; return { ...g, count: g.items.length === 1 ? (ex ? '1 exact' : '1 related') : `${g.items.length} passages · ${[ex ? `${ex} exact` : null, rel ? `${rel} related` : null].filter(Boolean).join(', ')}` }; });
+      const fc = this.activeChips(r.filters).length;
+      res = { query: r.query, ready: !s.searching && !r.error, error: !s.searching && r.error, none: !s.searching && !r.error && r.total === 0, capped: !s.searching && r.capped,
+        countLine: r.total === 0 ? 'no matches' : r.capped ? `${r.loaded} of 1,000+ candidate passages loaded` : r.loaded < r.total ? `${r.loaded} of ${r.total} matching passages loaded` : `${r.total} matching passage${r.total === 1 ? '' : 's'} in ${groups.length} document${groups.length === 1 ? '' : 's'}`,
+        filterNote: fc ? `${fc} filter${fc === 1 ? '' : 's'} applied · ${this.eligibleDocs(r.filters).length} documents searched` : '',
+        noneHint: this.eligibleDocs(r.filters).length === 0 ? 'No searchable documents match the current filters. Remove a filter, or wait for processing to finish.' : 'Try different words, describe the idea another way, or remove a filter. Documents that are still processing or have no extractable text aren’t searched.',
+        groups, hasMore: !s.searching && !r.error && r.loaded < r.total, loadingMore: s.loadingMore, loadMoreLabel: s.loadingMore ? 'Loading…' : `Load ${Math.min(PAGE_SIZE, r.total - r.loaded)} more`, moreHint: `${r.total - r.loaded} more not loaded yet` };
+    }
+
+    // search groups (in-list) + preview pane
+    const searchGroups = res.groups ? res.groups.map(g => ({ ...g, onOpenDoc: e => { e.stopPropagation(); this.openDoc(g.id); }, items: g.items.map(x => ({ ...x, selected: s.previewIdx === x.idx, bg: s.previewIdx === x.idx ? 'color-mix(in srgb, var(--color-accent) 9%, transparent)' : 'transparent', onOpen: () => this.setState({ previewIdx: x.idx, paneMode: 'preview', menuId: null }), onReader: () => this.openResult(x.idx), onKey: keyNav(() => this.openResult(x.idx)) })) })) : [];
+    let pv = {};
+    const pitem = r && s.previewIdx !== null ? r.items[s.previewIdx] : null;
+    const pdoc = pitem ? this.doc(pitem.docId) : null;
+    if (pdoc) {
+      const seed = hash(pdoc.id + ':' + pitem.page); const hitAt = 1 + (seed % 3); const noteAt = pdoc.ann ? (hitAt === 3 ? 0 : 3) : -1;
+      const paras = []; for (let i = 0; i < 5; i++) { const isHit = i === hitAt, isNote = i === noteAt; paras.push({ text: isHit ? pitem.text + ' ' + FILLER[(seed + i) % FILLER.length].split('. ')[0] + '.' : FILLER[(seed + i) % FILLER.length], isHit, isNote, pad: isHit ? '2px 6px' : '0', outline: isHit ? '2px solid var(--color-accent)' : 'none', bg: isHit ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent', deco: isNote ? 'underline' : 'none' }); }
+      pv = { docTitle: pdoc.title, page: pitem.page, paras, error: pdoc.state === 'missing', showPage: pdoc.state !== 'missing', onRelink: () => this.openRelink(pdoc.id), onOpenReader: () => this.openResult(s.previewIdx), hint: `Page ${pitem.page} of ${pdoc.pages} · ${pitem.exact ? 'exact match' : 'related passage'} · double-click a result to open it in the reader` };
+    }
+    const paneMode = s.paneMode === 'preview' && !pdoc ? null : s.paneMode === 'details' && !sd0 ? null : s.paneMode;
+    const paneTitle = paneMode === 'preview' ? 'Preview' : paneMode === 'details' ? 'Details' : paneMode === 'activity' ? 'Activity' : '';
+    const paneSub = paneMode === 'preview' && pdoc ? pdoc.title : paneMode === 'details' && sd0 ? sd0.title : paneMode === 'activity' ? `${counts.processing} processing` : '';
+
+    // panes (legacy, unused)
+    const panes = [['results', r ? `Results${r.total && !s.searching ? ` ${r.loaded}` : ''}` : 'Results', !r], ['details', 'Details', false], ['activity', `Activity${counts.processing ? ` ${counts.processing}` : ''}`, false]].map(([id, label, disabled]) => ({ id, label, disabled, active: s.paneMode === id, border: s.paneMode === id ? 'var(--color-accent)' : 'transparent', weight: s.paneMode === id ? 600 : 400, color: disabled ? MUTED : 'var(--color-text)', onSelect: () => this.setState({ paneMode: id }) }));
+
+    // details
+    let det = { none: true };
+    const sd = s.selectedId ? this.doc(s.selectedId) : null;
+    if (s.det && sd) {
+      if (s.det.loading) det = { none: false, loading: true };
+      else {
+        const f = s.det.form; const err = this.detErrors(f); const st = this.statusOf(sd);
+        const dirty = JSON.stringify({ ...f, newAuthor: '', newTag: '', newColl: '', np: null }) !== JSON.stringify({ ...this.formFrom(sd), np: null });
+        const chipList = (key, label) => f[key].map((v, i) => ({ label: v, onRemove: () => this.setForm({ [key]: f[key].filter((_, j) => j !== i) }) }));
+        const addKey = (listKey, inputKey) => e => { if (e.key === 'Enter' || e.key === ';') { e.preventDefault(); const v = f[inputKey].trim(); if (v && !f[listKey].includes(v)) this.setForm({ [listKey]: [...f[listKey], v], [inputKey]: '' }); else this.setForm({ [inputKey]: '' }); } else if (e.key === 'Backspace' && !f[inputKey] && f[listKey].length) { this.setForm({ [listKey]: f[listKey].slice(0, -1) }); } };
+        const set = {}; ['title', 'year', 'newAuthor', 'newTag', 'newColl'].forEach(k => set[k] = e => this.setForm({ [k]: e.target.value }));
+        set.npName = e => this.setForm({ np: { ...f.np, name: e.target.value } }); set.npType = e => this.setForm({ np: { ...f.np, type: e.target.value, value: '' } }); set.npValue = e => this.setForm({ np: { ...f.np, value: e.target.value } });
+        const npValid = f.np.name.trim() && f.np.value !== '' && (f.np.type !== 'num' || !isNaN(Number(f.np.value)));
+        const props = f.props.map((p, i) => ({ name: p.name, typeLabel: p.type === 'bool' ? 'True/false' : p.type === 'num' ? 'Number' : 'Text', isText: p.type === 'text', isNum: p.type === 'num', isBool: p.type === 'bool', value: p.value, isTrue: p.value === true, isFalse: p.value === false, radioName: `kl-p-${sd.id}-${i}`,
+          border: p.type === 'num' && isNaN(Number(p.value)) ? 'var(--color-accent)' : 'transparent',
+          onChange: e => this.setForm({ props: f.props.map((q, j) => j === i ? { ...q, value: e.target.value } : q) }), onTrue: () => this.setForm({ props: f.props.map((q, j) => j === i ? { ...q, value: true } : q) }), onFalse: () => this.setForm({ props: f.props.map((q, j) => j === i ? { ...q, value: false } : q) }), onRemove: () => this.setForm({ props: f.props.filter((_, j) => j !== i) }) }));
+        det = { none: false, loading: false, ready: true, form: f, set, err, props, authors: chipList('authors'), tags: chipList('tags'), collections: chipList('collections'),
+          addAuthorKey: addKey('authors', 'newAuthor'), addTagKey: addKey('tags', 'newTag'), addCollKey: addKey('collections', 'newColl'), authorPlaceholder: f.authors.length ? 'Add author ↵' : 'Add authors, e.g. Kuhn, T. S. ↵',
+          npIsBool: f.np.type === 'bool', npNotBool: f.np.type !== 'bool', npPlaceholder: f.np.type === 'num' ? 'e.g. 4' : 'Value', npDisabled: !npValid,
+          addProp: () => { const existing = f.props.findIndex(p => p.name.toLowerCase() === f.np.name.trim().toLowerCase()); const np = { name: f.np.name.trim(), type: f.np.type, value: f.np.type === 'bool' ? f.np.value === 'true' : f.np.value }; this.setForm({ props: existing >= 0 ? f.props.map((p, j) => j === existing ? np : p) : [...f.props, np], np: { name: '', type: 'text', value: '' } }); },
+          statusText: st.text + (st.sub ? ` · ${st.sub}` : ''), statusColor: this.toneColor(st.tone), openLabel: sd.state === 'missing' ? 'Relink PDF…' : s.tabs.includes(sd.id) ? 'Go to tab' : 'Open', onOpen: () => sd.state === 'missing' ? this.openRelink(sd.id) : this.openDoc(sd.id),
+          stateActions: this.stateActions(sd).map(a => ({ label: a.label, onClick: a.onClick })), canRemove: !sd.removed, isRemoved: sd.removed, onRemove: () => this.remove(sd.id), onRestore: () => this.restore(sd.id), onDelete: () => this.openDelete(sd.id),
+          fileLine: `${sd.pages} pages · ${sd.state === 'missing' ? 'source missing' : 'saved copy in Key'}${sd.ann ? ' · has annotations' : ''}`,
+          saving: s.det.saving, saved: s.det.saved && !dirty, saveError: s.det.error, dirty: dirty && !s.det.saving, saveDisabled: s.det.saving || !dirty || Object.keys(err).length > 0, saveLabel: s.det.saving ? 'Saving…' : 'Save changes',
+          onSave: this.saveDetails, onSaveClick: () => this.saveDetails(), onRevert: () => this.setState(x => ({ det: { ...x.det, form: this.formFrom(sd), error: false, saved: false } })) };
+      }
+    }
+
+    // activity
+    const actDocs = live.filter(d => d.state !== 'indexed' && d.state !== 'notext').sort((a, b) => order[a.state] - order[b.state]);
+    const act = { items: actDocs.map(d => { const st = this.statusOf(d); return { title: d.title, statusText: st.text + (st.sub ? ` · ${st.sub}` : ''), statusColor: this.toneColor(st.tone), showBar: st.bar !== undefined, pct: Math.round(st.bar || 0), barColor: 'var(--color-neutral-600)', actions: this.stateActions(d), onSelect: () => this.select(d.id) }; }),
+      summary: `${counts.indexed} of ${counts.total} searchable · ${counts.processing} processing · ${live.filter(d => d.state === 'paused').length} paused`, idle: actDocs.length === 0,
+      canPauseAll: live.some(d => ACTIVE.includes(d.state) || d.state === 'queued'), canResumeAll: live.some(d => d.state === 'paused') };
+
+    // reader
+    let rd = {};
+    const rdoc = s.reader ? this.doc(s.reader.docId) : null;
+    const readerActive = s.activeTab !== 'library' && s.activeTab !== 'concept' && !!rdoc;
+    if (readerActive) {
+      const rs = s.reader; const hasResults = rs.resultIdx !== null && r && r.items[rs.resultIdx];
+      const item = hasResults ? r.items[rs.resultIdx] : null;
+      const total = r ? r.loaded : 0;
+      const missing = rdoc.state === 'missing';
+      const error = rs.error || (missing && !rs.locating ? { title: 'Original PDF not found', body: "Key can't find the file it opened before, so the pages can't be shown. Relink the original to keep reading; annotations and metadata are kept.", relink: true } : null);
+      const onPage = item && rs.page === item.page && !rs.dismissed && !error;
+      const seed = hash(rdoc.id + ':' + rs.page);
+      const paras = [];
+      const n = 5; const hitAt = onPage ? 1 + (seed % 3) : -1; const noteAt = rdoc.ann ? (hitAt === 3 ? 0 : 3) : -1;
+      for (let i = 0; i < n; i++) {
+        const isHit = i === hitAt, isNote = i === noteAt;
+        paras.push({ text: isHit ? item.text + ' ' + FILLER[(seed + i) % FILLER.length].split('. ')[0] + '.' : FILLER[(seed + i) % FILLER.length], isHit, isNote,
+          pad: isHit ? '2px 6px' : '0', outline: isHit ? '2px solid var(--color-accent)' : 'none', bg: isHit ? 'color-mix(in srgb, var(--color-accent) 10%, transparent)' : 'transparent', deco: isNote ? 'underline' : 'none' });
+      }
+      const notice = rdoc.state === 'processing' ? `Extracting text · ${rdoc.pagesDone} of ${rdoc.pages} pages. Reading isn't affected; search inside this document will follow.` : rdoc.state === 'indexing' ? `Preparing passages for meaning-based search · keyword search already available.` : rdoc.state === 'notext' ? `This PDF has no extractable text. You can read and annotate it, but passage search isn't available.` : rdoc.state === 'queued' ? 'Waiting to process. Reading isn’t affected.' : rdoc.state === 'failed' ? `${rdoc.stage} failed. The document reads normally; retry from the Library to make it searchable.` : '';
+      rd = { docTitle: rdoc.title, page: rs.page, pages: rdoc.pages, resultLabel: `Result ${hasResults ? rs.resultIdx + 1 : 0} of ${total}`, pageLabel: `Page ${rs.page} of ${rdoc.pages}`, hasResults: !!hasResults, resultNo: hasResults ? rs.resultIdx + 1 : 0, resultTotal: total, query: r ? r.query : '',
+        prevDisabled: !hasResults || rs.resultIdx === 0, nextDisabled: !hasResults || rs.resultIdx >= total - 1, onPrev: () => this.openResult(rs.resultIdx - 1), onNext: () => this.openResult(rs.resultIdx + 1),
+        onBack: () => this.setState({ activeTab: 'library' }), showDismiss: !!onPage, onDismiss: () => this.setState(x => ({ reader: { ...x.reader, dismissed: true } })),
+        pagePrevDisabled: rs.page <= 1, pageNextDisabled: rs.page >= rdoc.pages, onPagePrev: () => this.setState(x => ({ reader: { ...x.reader, page: Math.max(1, x.reader.page - 1) } })), onPageNext: () => this.setState(x => ({ reader: { ...x.reader, page: Math.min(rdoc.pages, x.reader.page + 1) } })),
+        notice, noticeDot: rdoc.state === 'failed' ? 'var(--color-accent)' : 'var(--color-neutral-500)',
+        locating: rs.locating, locatingText: `Opening “${rdoc.title.length > 48 ? rdoc.title.slice(0, 48) + '…' : rdoc.title}” · locating passage on page ${rs.page}…`,
+        error: !rs.locating && !!error, errorTitle: error ? error.title : '', errorBody: error ? error.body : '', canRelink: !!(error && error.relink), onRelink: () => this.openRelink(rdoc.id),
+        showPage: !rs.locating && !error, paras };
+    }
+
+    // dialogs
+    const dlg = s.dialog; let dlgAdd = null, dlgDelete = null, dlgRelink = null;
+    if (dlg && dlg.type === 'add') { const files = this.addFiles(); dlgAdd = { files: files.map((f, i) => ({ name: f.name, size: f.size, dupe: !!f.dupe, checked: dlg.checked.includes(i), bg: dlg.checked.includes(i) ? 'color-mix(in srgb, var(--color-accent) 7%, transparent)' : 'transparent', onToggle: () => this.setState(x => ({ dialog: { ...x.dialog, checked: x.dialog.checked.includes(i) ? x.dialog.checked.filter(j => j !== i) : [...x.dialog.checked, i] } })) })), noneSelected: dlg.checked.length === 0, confirmLabel: dlg.checked.length ? `Open ${dlg.checked.length} PDF${dlg.checked.length === 1 ? '' : 's'}` : 'Open' }; }
+    if (dlg && dlg.type === 'delete') { const d = this.doc(dlg.docId); const open = d && s.tabs.includes(d.id); const stopping = d && d.stopping;
+      const blocked = !d ? '' : open ? 'This document is open in a tab. Close the tab before deleting it.' : stopping ? 'Processing is still stopping for this document. Try again in a moment.' : '';
+      dlgDelete = { title: d ? d.title : '', blocked, showCloseTab: !!open, onCloseTab: () => this.closeTab(d.id), deleting: dlg.deleting, disabled: dlg.deleting || !!blocked, label: dlg.deleting ? 'Deleting…' : 'Delete permanently' }; }
+    if (dlg && dlg.type === 'relink') { const d = this.doc(dlg.docId);
+      dlgRelink = { title: d ? d.title : '', pick: dlg.step === 'pick', checking: dlg.step === 'checking', mismatch: dlg.step === 'mismatch', picked: dlg.picked || '',
+        files: [{ name: 'IMG_2024_03_11.pdf', size: '4.8 MB', match: true }, { name: 'IMG_2024_03_12.pdf', size: '5.1 MB', match: false }, { name: 'scan_archive_march.pdf', size: '21 MB', match: false }].map(f => ({ name: f.name, size: f.size, onPick: () => this.pickRelink(f.name, f.match) })),
+        onChooseAgain: () => this.setState(x => ({ dialog: { ...x.dialog, step: 'pick' } })), onAddNew: () => { this.setState({ dialog: null }); this.showToast(`Added “${dlg.picked}” as a new document`); } }; }
+
+    return {
+      isDark, isLight: !isDark, toggleTheme: () => { const next = isDark ? 'light' : 'dark'; this.applyTheme(next); this.setState({ theme: next }); }, themeTitle: isDark ? 'Switch to light theme' : 'Switch to dark theme',
+      tabs, libraryActive: s.activeTab === 'library', readerActive, conceptActive: s.activeTab === 'concept', rd,
+      isEmpty: live.length === 0 && removed.length === 0, notEmpty: live.length > 0 || removed.length > 0, countsLine, openAddDialog: this.openAddDialog, loadSample: this.loadSample,
+      query: s.query, onQueryChange: e => this.setState({ query: e.target.value }), hasQueryText: !!s.query, clearQuery: () => { this.reqId++; this.setState(x => ({ query: '', res: null, searching: false, previewIdx: null, paneMode: x.paneMode === 'preview' ? null : x.paneMode })); }, onSearchSubmit: this.onSearchSubmit, searchDisabled: !s.query.trim() || s.searching, searching: s.searching,
+      filtersOpen: s.filtersOpen, toggleFilters: () => this.setState(x => ({ filtersOpen: !x.filtersOpen, ff: { ...x.applied } })), filterBtnBorder: chips.length ? 'var(--color-accent)' : 'var(--color-divider)', hasActiveFilters: chips.length > 0, activeFilterCount: chips.length,
+      ff, ffErr, ffAnn: { any: ff.ann === 'any', with: ff.ann === 'with', without: ff.ann === 'without' }, ffSet, ffPropIsBool: ff.propType === 'bool', ffPropNotBool: ff.propType !== 'bool', ffPropPlaceholder: ff.propType === 'num' ? 'e.g. 4' : 'Value', ffInvalid: Object.keys(ffErr).length > 0,
+      applyFilters: this.applyFilters, resetFilters: this.resetFilters, filterChips: chips.map(c => ({ key: c.key, value: c.value, onRemove: () => this.removeFilter(c.k) })),
+      allTags, allCollections, allAuthors, allPropNames,
+      scopes, scopeIsRemoved: s.scope === 'removed', sort: s.sort, onSortChange: e => this.setState({ sort: e.target.value }), rows: r ? [] : rows, listRows: r || s.view === 'table' ? [] : rows, showTable: !r && s.view === 'table' && rows.length > 0, noRows: !r && rows.length === 0, noRowsText,
+      viewIsList: s.view !== 'table', viewIsTable: s.view === 'table', viewListBg: s.view !== 'table' ? 'color-mix(in srgb, var(--color-text) 10%, transparent)' : 'transparent', viewTableBg: s.view === 'table' ? 'color-mix(in srgb, var(--color-text) 10%, transparent)' : 'transparent', setViewList: () => this.setState({ view: 'list' }), setViewTable: () => this.setState({ view: 'table' }),
+      browseMode: !r, searchMode: !!r, searchGroups,
+      paneOpen: !!paneMode, paneTitle, paneSub, panePreview: paneMode === 'preview', pv, paneCloseMargin: paneMode === 'preview' ? '0' : 'auto', closePane: () => this.setState({ paneMode: null, previewIdx: null }), openActivity: () => this.setState({ paneMode: 'activity' }),
+      panes, paneResults: false, paneDetails: paneMode === 'details', paneActivity: paneMode === 'activity',
+      res, retrySearch: this.retrySearch, loadMore: this.loadMore, det, act, pauseAll: this.pauseAll, resumeAll: this.resumeAll,
+      toast: s.toast, dismissToast: () => this.setState({ toast: null }),
+      dlgAdd, dlgDelete, dlgRelink, confirmAdd: this.confirmAdd, confirmDelete: this.confirmDelete, closeDialog: () => this.setState({ dialog: null }), closeDialogIfIdle: () => { if (!(s.dialog && s.dialog.deleting)) this.setState({ dialog: null }); }, stop,
+      notesOpen: s.notesOpen, openNotes: () => this.setState({ notesOpen: true }), closeNotes: () => this.setState({ notesOpen: false }), openConcept: () => this.setState({ notesOpen: false, activeTab: 'concept' }),
+    };
+  }
+}
+</script>
+</body>
+</html>

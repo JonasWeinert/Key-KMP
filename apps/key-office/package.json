@@ -1,0 +1,64 @@
+{
+  "name": "key-office",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Key office editors and shared Apache components",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/genspark-ai/genoffice.git"
+  },
+  "workspaces": [
+    "apps/docs",
+    "apps/sheets",
+    "apps/slides",
+    "apps/markdown",
+    "apps/html",
+    "packages/*",
+    "apps/key"
+  ],
+  "scripts": {
+    "postinstall": "install-electron",
+    "format": "node tools/format-changed.mjs --write",
+    "format:check": "node tools/format-changed.mjs --check",
+    "check:theme-colors": "node tools/check-theme-colors.mjs",
+    "check:english-comments": "node tools/check-english-comments.mjs",
+    "lint": "eslint .",
+    "fixtures": "npm run fixtures -w @key/docx-engine",
+    "test": "npm run test -w @key/i18n && npm run test -w @key/electron-utils && npm run test -w @key/font-metrics && npm run test -w @key/docx-engine && npm run test -w @key/html2docx && npm run test -w @key/file-parse && npm run test -w @key/pptx-engine && npm run test -w @key/pptx-render && npm run test -w @key/ai-search && npm run test -w @key/agent-core && npm run test -w @key/ai-provider && npm run test -w @key/project-store && npm run test -w @key/ui && npm run test -w @key/docs && npm run test -w @key/sheets && npm run test -w @key/slides && npm run test -w @key/markdown && npm run test -w @key/html && npm run test -w @key/electron",
+    "typecheck": "npm run typecheck -w @key/i18n && npm run typecheck -w @key/electron-utils && npm run typecheck -w @key/font-metrics && npm run typecheck -w @key/docx-engine && npm run typecheck -w @key/html2docx && npm run typecheck -w @key/file-parse && npm run typecheck -w @key/pptx-engine && npm run typecheck -w @key/pptx-render && npm run typecheck -w @key/ai-search && npm run typecheck -w @key/agent-core && npm run typecheck -w @key/ai-provider && npm run typecheck -w @key/project-store && npm run typecheck -w @key/ui && npm run typecheck -w @key/docs && npm run typecheck -w @key/sheets && npm run typecheck -w @key/slides && npm run typecheck -w @key/markdown && npm run typecheck -w @key/html && npm run typecheck -w @key/electron",
+    "predev": "node tools/build-stale-preloads.mjs",
+    "dev": "npm run dev -w @key/electron",
+    "dev:docs": "npm run dev -w @key/docs",
+    "build": "npm run build:all",
+    "build:all": "npm run build -w @key/docs && npm run build -w @key/sheets && npm run build -w @key/slides && npm run build -w @key/markdown && npm run build -w @key/html && npm run build -w @key/electron",
+    "shell": "npm run build:all && npm run start -w @key/electron",
+    "notices": "node tools/gen-third-party-notices.mjs",
+    "licenses": "node tools/check-licenses.mjs",
+    "dist:mac": "npm run notices && npm run build:all && npm run dist:mac -w @key/electron"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
+  "overrides": {
+    "nanoid@3": "^3.3.17",
+    "nanoid@5": "^5.1.16"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "concurrently": "^9.2.4",
+    "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.8.0",
+    "pixelmatch": "^7.2.0",
+    "playwright-core": "^1.61.1",
+    "pngjs": "^7.0.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.65.0"
+  }
+}

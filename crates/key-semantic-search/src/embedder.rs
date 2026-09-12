@@ -326,6 +326,11 @@ pub fn default_model_dir() -> Result<PathBuf, String> {
         if bundled.join(MODEL_FILE).is_file() {
             return Ok(bundled);
         }
+        // Electron places the host in Resources/backend rather than MacOS.
+        let bundled = contents_dir.join("models").join(MODEL_DIRECTORY_NAME);
+        if bundled.join(MODEL_FILE).is_file() {
+            return Ok(bundled);
+        }
     }
     validate_model_dir(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))

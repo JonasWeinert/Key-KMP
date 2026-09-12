@@ -1,0 +1,27 @@
+[package]
+name = "key-desktop-host"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Key research PDF reader desktop application"
+
+[workspace]
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+http = "1"
+tempfile = "3"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+key-processing = { path = "../key-processing" }
+key-library = { path = "../key-library" }
+key-pdf-core = { path = "../key-pdf-core" }
+key-pdf-runtime = { path = "../key-pdf-runtime" }
+key-pdfium = { path = "../key-pdfium" }
+key-semantic-search = { path = "../key-semantic-search" }
+key-reference = { path = "../../extensions/key-reference" }
+[features]
+semantic-onnx = ["key-semantic-search/semantic-onnx"]
+[patch.crates-io]
+pdfium-render = { path = "../../vendor/pdfium-render-tile" }

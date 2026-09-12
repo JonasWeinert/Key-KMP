@@ -1,6 +1,8 @@
 #[cfg(test)]
 use flate2::{Compression, write::ZlibEncoder};
 mod codec;
+mod workspace;
+pub use workspace::*;
 mod lease;
 mod publication;
 mod purge;
@@ -53,6 +55,7 @@ pub struct Document {
 pub struct Filter {
     #[serde(default)]
     pub removed: bool,
+    pub project_id: Option<String>,
     pub year_from: Option<i64>,
     pub year_to: Option<i64>,
     pub author: Option<String>,
@@ -237,10 +240,10 @@ impl Library {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(err)?;
-        if version > 9 {
+        if version > 11 {
             return Err("library was created by a newer Key version".into());
         }
-        if version > 0 && version < 9 {
+        if version > 0 && version < 11 {
             let backup = library
                 .root
                 .join(format!("library-before-v{version}-migration.sqlite3"));
@@ -283,6 +286,14 @@ impl Library {
         }
         if version < 9 {
             conn.execute_batch(include_str!("migrations/009_publication.sql"))
+                .map_err(err)?;
+        }
+        if version < 10 {
+            conn.execute_batch(include_str!("migrations/010_workspace.sql"))
+                .map_err(err)?;
+        }
+        if version < 11 {
+            conn.execute_batch(include_str!("migrations/011_record_path.sql"))
                 .map_err(err)?;
         }
         library.recover_publications()?;
@@ -522,48 +533,91 @@ impl Library {
         Ok(())
     }
     pub fn documents(&self, filter: &Filter) -> Result<Vec<Document>> {
+        self.document_window(filter, i64::MAX, 0)
+            .map(|(documents, _)| documents)
+    }
+    pub fn documents_page(
+        &self,
+        filter: &Filter,
+        limit: usize,
+        offset: usize,
+    ) -> Result<(Vec<Document>, usize)> {
+        self.document_window(
+            filter,
+            limit.clamp(1, 500) as i64,
+            offset.min(i64::MAX as usize) as i64,
+        )
+    }
+    fn document_window(
+        &self,
+        filter: &Filter,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(Vec<Document>, usize)> {
         let conn = self.connection()?;
-        let mut q = conn.prepare("SELECT hash,title,page_count,status,completed,total,error,updated_at,has_source,keyword_ready,year,authors FROM documents d WHERE (deleted_at IS NOT NULL)=?9 AND (?1 IS NULL OR year>=?1) AND (?2 IS NULL OR year<=?2) AND (?3 IS NULL OR EXISTS(SELECT 1 FROM document_authors a WHERE a.document_hash=d.hash AND a.name=?3 COLLATE NOCASE)) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM annotations a WHERE a.document_hash=d.hash)=?4) AND (?5 IS NULL OR hash IN (SELECT hash FROM metadata_fts WHERE metadata_fts MATCH ?5) OR hash IN (SELECT document_hash FROM comment_fts WHERE comment_fts MATCH ?5) OR hash IN (SELECT document_hash FROM extra_metadata_fts WHERE extra_metadata_fts MATCH ?5)) AND NOT EXISTS(SELECT 1 FROM json_each(?6) f WHERE NOT EXISTS(SELECT 1 FROM document_properties p WHERE p.document_hash=d.hash AND p.name=f.key AND (json_type(p.value)=f.type OR (json_type(p.value) IN ('integer','real') AND f.type IN ('integer','real'))) AND json_extract(p.value,'$') IS f.value)) AND (?7 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='tag' AND l.name=?7)) AND (?8 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='collection' AND l.name=?8)) ORDER BY updated_at DESC").map_err(err)?;
-        let rows = q
-            .query_map(
-                params![
-                    filter.year_from,
-                    filter.year_to,
-                    filter.author,
-                    filter.has_annotations,
-                    filter
-                        .metadata_text
-                        .as_ref()
-                        .filter(|s| !s.trim().is_empty())
-                        .map(|s| format!("\"{}\"", s.replace('"', "\"\""))),
-                    serde_json::to_string(&filter.properties).map_err(err)?,
-                    filter.tag,
-                    filter.collection,
-                    filter.removed
-                ],
-                |r| {
-                    let hash: String = r.get(0)?;
-                    let authors: String = r.get(11)?;
-                    Ok(Document {
-                        document_id: hash.clone(),
-                        document_hash: hash,
-                        title: r.get(1)?,
-                        page_count: r.get::<_, u32>(2)? as usize,
-                        status: r.get(3)?,
-                        completed: r.get::<_, u32>(4)? as usize,
-                        total: r.get::<_, u32>(5)? as usize,
-                        error: r.get(6)?,
-                        updated_at_ms: r.get(7)?,
-                        has_source: r.get(8)?,
-                        keyword_ready: r.get(9)?,
-                        year: r.get(10)?,
-                        authors: serde_json::from_str(&authors).unwrap_or_default(),
-                    })
-                },
+        let metadata = filter
+            .metadata_text
+            .as_ref()
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| format!("\"{}\"", s.replace('"', "\"\"")));
+        let properties = serde_json::to_string(&filter.properties).map_err(err)?;
+        let bindings = params![
+            filter.year_from,
+            filter.year_to,
+            filter.author,
+            filter.has_annotations,
+            metadata,
+            properties,
+            filter.tag,
+            filter.collection,
+            filter.removed,
+            filter.project_id
+        ];
+        let sql = "SELECT hash,title,page_count,status,completed,total,error,updated_at,has_source,keyword_ready,year,authors FROM documents d WHERE (deleted_at IS NOT NULL)=?9 AND (?10 IS NULL OR EXISTS(SELECT 1 FROM workspace_project_records pr JOIN workspace_records wr ON wr.id=pr.record_id WHERE pr.project_id=?10 AND wr.document_hash=d.hash)) AND (?1 IS NULL OR year>=?1) AND (?2 IS NULL OR year<=?2) AND (?3 IS NULL OR EXISTS(SELECT 1 FROM document_authors a WHERE a.document_hash=d.hash AND a.name=?3 COLLATE NOCASE)) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM annotations a WHERE a.document_hash=d.hash)=?4) AND (?5 IS NULL OR hash IN (SELECT hash FROM metadata_fts WHERE metadata_fts MATCH ?5) OR hash IN (SELECT document_hash FROM comment_fts WHERE comment_fts MATCH ?5) OR hash IN (SELECT document_hash FROM extra_metadata_fts WHERE extra_metadata_fts MATCH ?5)) AND NOT EXISTS(SELECT 1 FROM json_each(?6) f WHERE NOT EXISTS(SELECT 1 FROM document_properties p WHERE p.document_hash=d.hash AND p.name=f.key AND (json_type(p.value)=f.type OR (json_type(p.value) IN ('integer','real') AND f.type IN ('integer','real'))) AND json_extract(p.value,'$') IS f.value)) AND (?7 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='tag' AND l.name=?7)) AND (?8 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='collection' AND l.name=?8)) ORDER BY updated_at DESC";
+        let total = if limit == i64::MAX {
+            0
+        } else {
+            conn.query_row(
+                &format!(
+                    "SELECT count(*) FROM ({})",
+                    sql.split(" ORDER BY").next().unwrap_or(sql)
+                ),
+                bindings,
+                |r| r.get::<_, i64>(0),
             )
+            .map_err(err)? as usize
+        };
+        let mut q = conn
+            .prepare(&format!("{sql} LIMIT ?11 OFFSET ?12"))
             .map_err(err)?;
-        rows.collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(err)
+        let mut page_bindings = bindings.to_vec();
+        page_bindings.push(&limit);
+        page_bindings.push(&offset);
+        let rows = q
+            .query_map(page_bindings.as_slice(), |r| {
+                let hash: String = r.get(0)?;
+                let authors: String = r.get(11)?;
+                Ok(Document {
+                    document_id: hash.clone(),
+                    document_hash: hash,
+                    title: r.get(1)?,
+                    page_count: r.get::<_, u32>(2)? as usize,
+                    status: r.get(3)?,
+                    completed: r.get::<_, u32>(4)? as usize,
+                    total: r.get::<_, u32>(5)? as usize,
+                    error: r.get(6)?,
+                    updated_at_ms: r.get(7)?,
+                    has_source: r.get(8)?,
+                    keyword_ready: r.get(9)?,
+                    year: r.get(10)?,
+                    authors: serde_json::from_str(&authors).unwrap_or_default(),
+                })
+            })
+            .map_err(err)?;
+        let documents = rows
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(err)?;
+        Ok((documents, total))
     }
     pub fn update_metadata(
         &self,

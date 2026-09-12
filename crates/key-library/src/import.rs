@@ -28,6 +28,12 @@ pub struct SourceInfo {
     pub title: String,
 }
 impl Imports {
+    pub fn is_empty(&self) -> bool {
+        self.uploads
+            .lock()
+            .map(|uploads| uploads.is_empty())
+            .unwrap_or(false)
+    }
     pub fn begin(&self, library: &Library, title: String, length: u64) -> Result<String> {
         if length == 0 {
             return Err("The PDF is empty".into());

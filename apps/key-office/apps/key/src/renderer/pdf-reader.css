@@ -1,0 +1,165 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+.key-pdf-reader {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f1f2f3;
+  color: #282a30;
+  font:
+    12px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+.key-pdf-toolbar {
+  height: 42px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  background: #fafafa;
+  border-bottom: 1px solid #e2e3e6;
+}
+.key-pdf-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.key-pdf-toolbar-end {
+  justify-content: flex-end;
+}
+.key-pdf-reader button {
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+.key-pdf-reader button:hover {
+  background: #e9eaed;
+}
+.key-pdf-reader button[aria-pressed="true"] {
+  background: #e4e5e9;
+}
+.key-pdf-reader button:focus-visible {
+  outline: 2px solid #697aaf;
+  outline-offset: 1px;
+}
+.key-pdf-page {
+  min-width: 58px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.key-pdf-page span {
+  color: #91949c;
+}
+.key-pdf-zoom {
+  min-width: 50px;
+  font-variant-numeric: tabular-nums;
+}
+.key-pdf-surface {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.key-pdf-surface > .pdfjs-benchmark.embedded {
+  height: 100%;
+  width: 100%;
+}
+.key-pdf-find,
+.key-pdf-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid #e2e3e6;
+  flex: none;
+}
+.key-pdf-find input {
+  font: inherit;
+  border: 1px solid #d8dbe0;
+  border-radius: 6px;
+  padding: 6px 9px;
+  min-width: 120px;
+  width: 220px;
+  background: white;
+  color: inherit;
+}
+.key-pdf-find span {
+  color: #858993;
+}
+.key-pdf-target {
+  background: #fff9e8;
+}
+.key-pdf-target span {
+  flex: 1;
+}
+.key-pdf-error,
+.key-pdf-loading {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font:
+    14px -apple-system,
+    sans-serif;
+  color: #656a75;
+}
+.key-pdf-error p {
+  max-width: 550px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 620px) {
+  .key-pdf-toolbar {
+    gap: 3px;
+    padding: 0 4px;
+  }
+  .key-pdf-toolbar-group {
+    gap: 0;
+  }
+  .key-pdf-reader button {
+    padding: 6px;
+  }
+  .key-pdf-toolbar-end button {
+    font-size: 11px;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .key-pdf-reader {
+    background: #25262a;
+    color: #e4e5e8;
+  }
+  .key-pdf-toolbar,
+  .key-pdf-find {
+    background: #292a2e;
+    border-color: #414249;
+  }
+  .key-pdf-reader button:hover,
+  .key-pdf-reader button[aria-pressed="true"] {
+    background: #404148;
+  }
+  .key-pdf-find input {
+    background: #222328;
+    border-color: #4a4c55;
+  }
+  .key-pdf-target {
+    background: #3d3727;
+    border-color: #5b513a;
+  }
+}
