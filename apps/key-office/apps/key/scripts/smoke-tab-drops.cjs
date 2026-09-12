@@ -47,12 +47,29 @@ const assert=require('node:assert/strict');
    }
    evidence.push({action:expected,feedback:await page.locator('.tab-drop-feedback').innerText(),splitTargets:await page.locator('.tab-drop-split').count(),swapTargets:await page.locator('.pane-drop-swap').count()});
   }
-  // Fast pass through a centre remains a reorder; grouping needs a deliberate hold.
-  await tab(alpha.id).focus();await settle();
-  const quickFrom=await tab(alpha.id).boundingBox(),quickTo=await tab(beta.id).boundingBox();
-  await page.mouse.move(quickFrom.x+quickFrom.width/2,quickFrom.y+quickFrom.height/2);await page.mouse.down();
-  await page.mouse.move(quickTo.x+quickTo.width/2,quickTo.y+quickTo.height/2,{steps:2});await page.mouse.up();await settle();
-  assert.equal(await page.locator('.tab-split-pane').count(),0);await ownership();
+  // Covering a neighbour must offer a split without moving it. Only crossing
+  // its original far edge changes the order, in either direction.
+  async function reorderPast(fromId,toId,direction) {
+    await tab(fromId).focus();await settle();
+    const start=await tab(fromId).boundingBox(),end=await tab(toId).boundingBox();
+    const original=(await page.evaluate(()=>window.key.tabs())).tabs.map(t=>t.id);
+    await page.mouse.move(start.x+start.width/2,start.y+start.height/2);await page.mouse.down();
+    const near=direction>0?end.x+3:end.x+end.width-3;
+    await page.mouse.move(near,end.y+end.height/2,{steps:8});await settle();
+    assert.equal(await tab(toId).evaluate(el=>getComputedStyle(el).transform),'none','No early neighbour rearrangement');
+    assert.equal(await page.locator('.tab-drop-split').getAttribute('data-tab-id'),toId,'Split is offered at first overlap');
+    await page.mouse.move(end.x+end.width/2,end.y+end.height/2);await settle();
+    assert(Math.abs((await tab(toId).boundingBox()).x-end.x)<1,'Split target stays at its original position');
+    assert.deepEqual((await page.evaluate(()=>window.key.tabs())).tabs.map(t=>t.id),original);
+    await page.mouse.move(direction>0?end.x+end.width+8:end.x-8,end.y+end.height/2);
+    await page.getByRole('status').filter({hasText:'Release to reorder tabs'}).waitFor();
+    assert.equal(await page.locator('.tab-drop-split').count(),0);
+    await page.mouse.up();await settle();
+    const reordered=(await ownership()).tabs.map(t=>t.id);
+    assert.equal(reordered.indexOf(fromId),original.indexOf(toId));
+  }
+  await reorderPast(alpha.id,beta.id,1);
+  await reorderPast(alpha.id,beta.id,-1);
   await drag(tab(alpha.id),tab(beta.id),'Release to split');
   assert.equal(await page.locator('.tab-drop-split').count(),1);
   await page.mouse.up();await page.waitForFunction(id=>document.querySelectorAll(`[data-tab-id="${id}"] .tab-split-pane`).length===2,beta.id);
@@ -82,7 +99,7 @@ const assert=require('node:assert/strict');
   const noteOwner=state.tabs.find(t=>t.views[0].id===b);
   await drag(tab(noteOwner.id),tab(beta.id),'Release to split');await page.mouse.up();await pane(b).waitFor();await pane(b).focus();await page.keyboard.press('Alt+Shift+ArrowDown');
   await page.waitForFunction(()=>document.querySelectorAll('.tab-split-pane').length===0);await ownership();
-  const report={ok:true,temp,evidence,ownedViews:allIds.length,verified:['quick centre pass reorders','singleton split','armed swap cancellation','selected-half swap','vertical pane detach','keyboard detach']};
+  const report={ok:true,temp,evidence,ownedViews:allIds.length,verified:['split feedback before rearrangement','original far-edge reorder in both directions','singleton split','armed swap cancellation','selected-half swap','vertical pane detach','keyboard detach']};
   await writeFile(path.join(temp,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
  }finally{await app.evaluate(({app})=>app.exit(0));}
 })().catch(error=>{console.error(error);process.exitCode=1});

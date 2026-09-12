@@ -49,15 +49,17 @@ the list instead of squeezing the result text into a small column.
 
 ## Tab gestures
 
-- Drag past a tab quickly or along its edges to reorder.
-- Hold over the centre of a single tab to arm a split.
-- Hold over a specific half of a split tab to arm a swap.
+- Drag beyond a tab’s original far edge to reorder.
+- Drag onto a single tab to immediately offer a split.
+- Drag onto a specific half of a split tab to offer a swap.
 - Drag a split half out of the bar to separate it.
 - Drag the split group badge to move the whole group.
 - Escape cancels; Alt+Shift+Down separates the focused half.
 
 The target is outlined and a chrome-level message names the pending drop operation.
-The dwell delay avoids accidental splits during normal reordering. Target geometry
+Covering a tab offers a split before any reorder; crossing its original far edge
+offers reordering. A short insertion lane lets users release before targeting the
+next tab. Target geometry
 stays stationary while armed, and feedback sits above native web contents. All
 operations preserve the single-owner invariant for views and their drafts.
 

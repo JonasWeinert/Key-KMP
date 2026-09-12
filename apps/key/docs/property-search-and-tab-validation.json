@@ -40,7 +40,7 @@
     },
     "tab_drops": {
       "ok": true,
-      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-tab-drops-7bNh7m",
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-tab-drops-ROEnaq",
       "evidence": [
         {
           "action": "Release to split",
@@ -69,13 +69,21 @@
       ],
       "ownedViews": 4,
       "verified": [
-        "quick centre pass reorders",
+        "split feedback before rearrangement",
+        "original far-edge reorder in both directions",
         "singleton split",
         "armed swap cancellation",
         "selected-half swap",
         "vertical pane detach",
         "keyboard detach"
       ]
+    },
+    "tab_release": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-tabs-dCeZ0P",
+      "frames": 30,
+      "maximumNeighbourMovementPx": 0,
+      "nativeBoundsChecks": 4
     }
   },
   "typecheck": true,

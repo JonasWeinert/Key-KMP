@@ -75,7 +75,7 @@ const assert = require("node:assert/strict");
     const first = await page.locator(".tab-item").first().boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + 12);
     await page.mouse.down();
-    await page.mouse.move(first.x + 15, box.y + 12, { steps: 18 });
+    await page.mouse.move(first.x - 8, box.y + 12, { steps: 18 });
     assert.equal(await page.locator(".drag-source").count(), 1);
     assert(
       await page
