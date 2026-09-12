@@ -68,7 +68,7 @@ fn fresh_id() -> String {
         .as_bytes(),
     )
 }
-fn record(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkspaceRecord> {
+pub(crate) fn record(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkspaceRecord> {
     let props: String = row.get(4)?;
     Ok(WorkspaceRecord {
         id: row.get(0)?,

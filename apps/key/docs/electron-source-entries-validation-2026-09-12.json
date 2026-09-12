@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-nSTBQE",
+  "sourceTypes": [
+    "dataset",
+    "note"
+  ],
+  "customPropertyPersisted": true,
+  "searchHighlight": true,
+  "providerConfiguredWithoutNetworkCall": true,
+  "screenshots": [
+    "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-nSTBQE/note-editor.png",
+    "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-nSTBQE/entry-search.png",
+    "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-nSTBQE/provider-config.png"
+  ],
+  "packaged": true,
+  "checkboxLayoutValidated": true
+}

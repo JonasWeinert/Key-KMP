@@ -30,7 +30,7 @@ import type {
   ScientificReference,
 } from '../engines/types';
 import { Icon } from '../ui/Icon';
-import { MarkdownEditor } from '../ui/MarkdownEditor';
+import { MarkdownEditor, MarkdownContent } from '../ui/MarkdownEditor';
 import { EmptyState, IconButton, PanelShell } from '../ui/primitives';
 import {
   annotationId,
@@ -2789,7 +2789,7 @@ function PdfJsBenchmarkApp({
           {status}
         </span>
       </div>
-      {context && (
+      {context && !commentDraft && (
         <div
           className="pdfjs-selection-toolbar"
           role="toolbar"
@@ -3131,6 +3131,44 @@ function PdfJsBenchmarkApp({
           )}
         </PanelShell>
       )}
+      {activePanel === 'comments' && (
+        <PanelShell
+          title="Comments"
+          detail={`${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}`}
+          icon="comments"
+          onClose={() => setActivePanel(null)}
+          className="pdfjs-reader-panel"
+        >
+          {comments.length ? (
+            <div className="pdfjs-comment-list" aria-label="Document comments">
+              {comments.map(comment => (
+                <button
+                  key={comment.id}
+                  type="button"
+                  className={activeAnnotation?.id === comment.id ? 'active' : ''}
+                  onClick={() => void openAnnotationEditor(comment)}
+                >
+                  <span
+                    className={`pdfjs-comment-swatch color-${comment.color}`}
+                    style={{ background: `rgb(${HIGHLIGHT_COLOR_RGB[comment.color]})` }}
+                  />
+                  <span>
+                    <small>Page {comment.range.start.page + 1}</small>
+                    <MarkdownContent markdown={comment.comment ?? ''} />
+                    <small title={comment.text}>{comment.text}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon="comments"
+              title="No comments yet"
+              detail="Select text in the PDF and choose Add note to start a comment."
+            />
+          )}
+        </PanelShell>
+      )}
       {activePanel === 'outline' && (
         <PanelShell
           title="Document outline"
@@ -3460,27 +3498,23 @@ function PdfJsBenchmarkApp({
           </div>
         )}
       {commentDraft && commentAnchorRect && (
-        <div
+        <LiveAnchoredCard
           className={`pdfjs-comment-anchor-card ${
             commentEditorExpanded ? 'expanded' : ''
           }`}
-          style={{
-            left: Math.max(
-              12,
-              Math.min(
-                window.innerWidth - (commentEditorExpanded ? 390 : 220),
-                commentAnchorRect.left,
-              ),
-            ),
-            top:
-              commentAnchorRect.bottom + (commentEditorExpanded ? 300 : 52) <
-              window.innerHeight
-                ? commentAnchorRect.bottom + 8
-                : Math.max(
-                    52,
-                    commentAnchorRect.top -
-                      (commentEditorExpanded ? 292 : 48),
-                  ),
+          role="dialog"
+          aria-label="Comment editor"
+          resolveAnchor={() =>
+            overlayRef.current?.viewportRectForRange(commentDraft.range) ??
+            commentAnchorRect ?? undefined
+          }
+          onKeyDown={event => {
+            if (event.key === 'Escape') {
+              event.stopPropagation();
+              setCommentDraft(null);
+              setCommentAnchorRect(null);
+              setCommentEditorExpanded(false);
+            }
           }}
         >
           {!commentEditorExpanded ? (
@@ -3530,7 +3564,7 @@ function PdfJsBenchmarkApp({
               </div>
             </div>
           )}
-        </div>
+        </LiveAnchoredCard>
       )}
     </main>
   );

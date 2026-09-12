@@ -3045,11 +3045,15 @@ impl Host {
                 let mut filter: key_library::Filter = arg::<Option<key_library::Filter>>(args, "filter")?.unwrap_or_default();
                 if filter.project_id.is_none() { filter.project_id = arg(args,"projectId")?; }
                 filter.removed = arg::<Option<bool>>(args,"removed")?.unwrap_or(filter.removed);
+                filter.sort = arg::<Option<String>>(args,"sort")?.or(filter.sort);
+                filter.statuses = arg::<Option<Vec<String>>>(args,"statuses")?.or(filter.statuses);
+                filter.document_hashes = arg::<Option<Vec<String>>>(args,"documentHashes")?.or(filter.document_hashes);
+                let counts = self.search.library().document_status_counts(filter.project_id.as_deref())?;
                 let limit = arg::<Option<usize>>(args,"limit")?.unwrap_or(100).clamp(1,500);
                 let offset = arg::<Option<usize>>(args,"offset")?.unwrap_or(0);
                 let (documents,total) = self.search.library().documents_page(&filter,limit,offset)?;
                 let next_offset = offset.saturating_add(documents.len());
-                json_output(serde_json::json!({"documents":documents,"total":total,"nextOffset":if next_offset<total {Some(next_offset)}else{None}}))
+                json_output(serde_json::json!({"documents":documents,"total":total,"counts":counts,"nextOffset":if next_offset<total {Some(next_offset)}else{None}}))
             }
             "semantic_library" => {
                 let mut filter: key_library::Filter =
@@ -3099,6 +3103,8 @@ impl Host {
                 arg(args, "hash")?,
                 arg(args, "removed")?,
             )?),
+            "library_tags" => json_output(self.search.library().library_tags(arg::<Option<usize>>(args,"offset")?.unwrap_or(0),arg::<Option<usize>>(args,"limit")?.unwrap_or(200))?),
+            "library_retag" => json_output(self.search.library().library_retag(&arg::<Vec<String>>(args,"from")?,arg::<Option<String>>(args,"to")?.as_deref())?),
             "library_metadata_details" => json_output(library_metadata_details(
                 HostState(&self.search),
                 arg(args, "hash")?,
@@ -3260,6 +3266,17 @@ impl Host {
             "benchmark_fixture_at" => json_output(benchmark_fixture_at(arg(args, "index")?)?),
             "benchmark_phase" => json_output(benchmark_phase(arg(args, "name")?)),
             "benchmark_report" => json_output(benchmark_report(arg(args, "payload")?)),
+            "workspace_save_entry" => json_output(self.search.library().save_source_entry(arg::<Option<String>>(args,"id")?.as_deref(), &arg::<String>(args,"sourceType")?, &arg::<String>(args,"title")?, arg::<Option<String>>(args,"url")?.as_deref(), &arg::<Option<String>>(args,"content")?.unwrap_or_default(), &arg::<Option<serde_json::Value>>(args,"properties")?.unwrap_or(serde_json::json!({})), arg(args,"expectedRevision")?, arg::<Option<String>>(args,"projectId")?.as_deref())?),
+            "workspace_entries" => json_output(self.search.library().source_entries(arg::<Option<String>>(args,"projectId")?.as_deref(),arg::<Option<String>>(args,"query")?.as_deref(),arg::<Option<usize>>(args,"limit")?.unwrap_or(50),arg::<Option<usize>>(args,"offset")?.unwrap_or(0))?),
+            "workspace_entry" => json_output(self.search.library().source_entry(&arg::<String>(args,"id")?)?),
+            "workspace_attributes" => json_output(self.search.library().workspace_attributes()?),
+            "workspace_save_attribute" => json_output(self.search.library().save_workspace_attribute(&arg::<String>(args,"name")?,&arg::<serde_json::Value>(args,"config")?)?),
+            "workspace_delete_attribute" => json_output(self.search.library().delete_workspace_attribute(&arg::<String>(args,"name")?,arg::<Option<bool>>(args,"deleteValues")?.unwrap_or(false))?),
+            "workspace_agent_property" => json_output(self.search.library().agent_property(&arg::<String>(args,"name")?)?),
+            "workspace_save_agent_property" => json_output(self.search.library().save_agent_property(&arg::<String>(args,"name")?,&arg::<serde_json::Value>(args,"config")?)?),
+            "workspace_fill_known_property" => json_output(self.search.library().fill_known_property(&arg::<Vec<String>>(args,"hashes")?,&arg::<String>(args,"name")?,&arg::<String>(args,"input")?)?),
+            "workspace_agent_context" => json_output(self.search.library().agent_context(&arg::<String>(args,"hash")?,&arg::<Vec<String>>(args,"inputs")?)?),
+            "workspace_apply_property_proposal" => json_output(self.search.library().apply_property_proposal(&arg::<String>(args,"hash")?,&arg::<String>(args,"name")?,&arg::<serde_json::Value>(args,"value")?,&arg::<serde_json::Value>(args,"expectedValue")?,&arg::<serde_json::Value>(args,"provenance")?)?),
             "workspace_initialize" => json_output(self.search.library().initialize_workspace(
                 &arg::<String>(args, "name")?,
                 &arg::<PathBuf>(args, "workspaceRoot")?,
@@ -3326,6 +3343,7 @@ impl Host {
             }
             "library_import_file" => {
                 use std::io::Read;
+                let expected: Option<String> = arg(args, "expectedHash")?;
                 let path: PathBuf = arg(args, "path")?;
                 let mut file = File::open(&path).map_err(|e| e.to_string())?;
                 if !file.metadata().map_err(|e| e.to_string())?.is_file() {
@@ -3348,7 +3366,7 @@ impl Host {
                         }
                         offset = self.imports.append(&id, offset, &buffer[..count])?;
                     }
-                    self.imports.finish(self.search.library(), &id)
+                    self.imports.finish_expected(self.search.library(), &id, expected.as_deref())
                 })();
                 if result.is_err() {
                     let _ = self.imports.cancel(&id);

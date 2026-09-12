@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import "./tabbar.css";
 export interface TabSummary {
@@ -7,7 +7,7 @@ export interface TabSummary {
   kind: "home" | "docs" | "sheets" | "slides" | "pdf" | "markdown" | "html";
   active: boolean;
   closable: boolean;
-  views: { id: string; title: string; kind: string }[];
+  views: { id: string; title: string; kind: string; active?: boolean }[];
 }
 export interface TabsApi {
   list(): Promise<TabSummary[]>;
@@ -190,6 +190,7 @@ export function TabBar({ api }: { api: TabsApi }) {
   // its neighbours slide aside live; the final order is committed on release.
   interface DragInfo {
     pointerId: number;
+    viewId?: string;
     id: string;
     from: number;
     startX: number;
@@ -208,11 +209,24 @@ export function TabBar({ api }: { api: TabsApi }) {
     width: number;
   } | null>(null);
 
+  const [settling, setSettling] = useState(false);
+  useLayoutEffect(() => {
+    if (!settling) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setSettling(false));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [settling]);
   const finishDrag = (pointerId: number, commit: boolean) => {
     const drag = dragRef.current;
     if (!drag || pointerId !== drag.pointerId) return;
     dragRef.current = null;
     if (!drag.started) {
+      if (drag.viewId) api.focusView?.(drag.viewId);
       // plain click: the in-view scroll was suppressed while the press was
       // held (dragRef was set), so honor it now that the press is over
       stripRef.current
@@ -220,6 +234,7 @@ export function TabBar({ api }: { api: TabsApi }) {
         ?.scrollIntoView({ inline: "nearest", block: "nearest" });
       return;
     }
+    setSettling(true);
     setDragVisual(null);
     if (commit && drag.target !== drag.from) {
       // optimistic local reorder so clearing the transforms causes no flash;
@@ -239,8 +254,19 @@ export function TabBar({ api }: { api: TabsApi }) {
   };
 
   useEffect(() => {
-    void api.list().then(setTabs);
-    return api.onChanged(setTabs);
+    let changed = false;
+    let alive = true;
+    const stop = api.onChanged((tabs) => {
+      changed = true;
+      if (alive) setTabs(tabs);
+    });
+    void api.list().then((tabs) => {
+      if (alive && !changed) setTabs(tabs);
+    });
+    return () => {
+      alive = false;
+      stop();
+    };
   }, [api]);
 
   // document tabs are sibling WebContentsViews: they see neither this press
@@ -293,7 +319,7 @@ export function TabBar({ api }: { api: TabsApi }) {
     <div className="tab-bar">
       <div className="tab-bar-drag-spacer" />
       <div
-        className={dragVisual ? "tab-strip dragging" : "tab-strip"}
+        className={`tab-strip ${dragVisual ? "dragging" : ""} ${settling ? "settling" : ""}`}
         ref={stripRef}
         role="tablist"
         aria-label="Workspace tabs"
@@ -356,6 +382,9 @@ export function TabBar({ api }: { api: TabsApi }) {
                 );
                 dragRef.current = {
                   pointerId: event.pointerId,
+                  viewId: (event.target as HTMLElement).closest<HTMLElement>(
+                    "[data-view-id]",
+                  )?.dataset.viewId,
                   id: tab.id,
                   from: index,
                   startX: event.clientX,
@@ -401,13 +430,13 @@ export function TabBar({ api }: { api: TabsApi }) {
                 const draggedLeft = drag.lefts[drag.from] + dx;
                 const draggedRight = draggedLeft + drag.widths[drag.from];
                 let target = drag.from;
-                for (let i = 0; i < drag.from; i++) {
+                for (let i = 0; dx < 0 && i < drag.from; i++) {
                   if (draggedLeft < drag.lefts[i] + drag.widths[i] / 2) {
                     target = i;
                     break;
                   }
                 }
-                for (let i = last; i > drag.from; i--) {
+                for (let i = last; dx > 0 && i > drag.from; i--) {
                   if (draggedRight > drag.lefts[i] + drag.widths[i] / 2) {
                     target = i;
                     break;
@@ -432,12 +461,16 @@ export function TabBar({ api }: { api: TabsApi }) {
               <span className="tab-plate" aria-hidden="true" />
               {tab.views.length > 1 ? (
                 <span className="tab-split-content">
-                  <span className="tab-split-badge" title="Split view">
+                  <span
+                    className="tab-split-badge"
+                    title="Split group — drag to move both documents"
+                  >
                     ◫
                   </span>
                   {tab.views.map((view, i) => (
                     <span
-                      className="tab-split-pane"
+                      className={`tab-split-pane ${view.active ? "pane-active" : ""}`}
+                      data-view-id={view.id}
                       key={view.id}
                       title={view.title}
                     >

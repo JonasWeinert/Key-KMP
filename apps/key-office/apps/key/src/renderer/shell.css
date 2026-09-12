@@ -399,6 +399,16 @@ textarea:focus-visible {
   border-radius: 5px;
   padding: 8px;
 }
+.key-shell-dialog label:has(> input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+}
+.key-shell-dialog input[type="checkbox"] {
+  width: auto;
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0;
+}
 .key-shell-dialog > div {
   display: flex;
   justify-content: flex-end;
@@ -505,4 +515,75 @@ textarea:focus-visible {
 .key-record-editor .key-record-projects summary {
   cursor: pointer;
   color: var(--text-secondary, #606366);
+}
+
+.key-shell-body {
+  background: var(--surface-subtle, #f6f7f9);
+}
+.key-sidebar-slot {
+  width: 240px;
+  flex: none;
+  position: relative;
+  overflow: hidden;
+  transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.key-sidebar-slot.collapsed {
+  width: 64px;
+}
+.key-sidebar-slot .key-sidebar {
+  position: absolute;
+  inset: 8px;
+  bottom: 10px;
+  width: 224px;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  box-shadow: 0 3px 14px #00000008;
+  transition:
+    opacity 100ms,
+    transform 180ms;
+}
+.key-sidebar-slot.collapsed .key-sidebar {
+  opacity: 0;
+  transform: translateX(-12px);
+  pointer-events: none;
+}
+.key-sidebar-rail {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 48px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  box-shadow: 0 3px 14px #00000008;
+}
+.key-sidebar-rail[hidden] {
+  display: none;
+}
+.key-sidebar-rail button,
+.key-sidebar-toggle {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 18px;
+  line-height: 20px;
+}
+.key-sidebar-rail button:hover,
+.key-sidebar-toggle:hover {
+  background: var(--surface-hover, #eef0f4);
+}
+.key-shell-content {
+  background: var(--surface, #fff);
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-sidebar-slot,
+  .key-sidebar-slot .key-sidebar {
+    transition: none;
+  }
 }

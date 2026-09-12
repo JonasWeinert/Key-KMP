@@ -48,7 +48,11 @@ const api = () =>
         workspaces: () => Promise<Workspace[]>;
         addWorkspace: () => Promise<Workspace | null>;
         openSources: (workspaceId?: string) => Promise<void>;
-        openSource: (source: LibrarySource, hit?: LibraryHit) => Promise<void>;
+        openSource: (
+          source: LibrarySource,
+          hit?: LibraryHit,
+          results?: LibraryHit[],
+        ) => Promise<void>;
         tabs: () => Promise<TabState>;
         tabAction: (
           action: string,
@@ -197,14 +201,20 @@ const tabSummary = (state: TabState): TabSummary[] =>
     kind: (tab.views[0]?.kind as TabSummary["kind"]) || "home",
     active: tab.id === state.activeTabId,
     closable: true,
-    views: tab.views,
+    views: tab.views.map((view) => ({
+      ...view,
+      active: view.id === state.activeViewId,
+    })),
   }));
 const officeTabs: TabsApi = {
   list: () => api().tabs().then(tabSummary),
   onChanged: (callback) =>
-    api().on("tabs-changed", () => {
-      void api().tabs().then(tabSummary).then(callback);
-    }),
+    api().on("tabs-changed", (state) =>
+      callback(tabSummary(state as TabState)),
+    ),
+  focusView: (viewId) => {
+    void api().tabAction("focus", { viewId });
+  },
   activate: (tabId) => api().tabAction("activate", { tabId }),
   close: (tabId) => api().tabAction("close", { tabId }),
   reorder: (tabId, index) => api().tabAction("reorder", { tabId, index }),
@@ -235,11 +245,40 @@ export default function App() {
     [refreshKey, setRefreshKey] = useState(0);
   const splitFrame = useRef<number | null>(null);
   const splitPending = useRef(0.5);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem("key.sidebar.collapsed") === "true",
+  );
+  const sidebarSlot = useRef<HTMLDivElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(sidebarCollapsed ? 64 : 240);
+  useEffect(() => {
+    localStorage.setItem("key.sidebar.collapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+  useEffect(() => {
+    const node = sidebarSlot.current;
+    if (!node) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const width = Math.round(node.getBoundingClientRect().width);
+        setSidebarWidth(width);
+        void api().tabAction("sidebar-width", { width });
+      });
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
   const [dragRatio, setDragRatio] = useState<number>();
   const resizeSplit = (x: number) => {
     const ratio = Math.max(
       0.2,
-      Math.min(0.8, (x - 224) / Math.max(1, window.innerWidth - 224)),
+      Math.min(
+        0.8,
+        (x - sidebarWidth) / Math.max(1, window.innerWidth - sidebarWidth),
+      ),
     );
     setDragRatio(ratio);
     splitPending.current = ratio;
@@ -446,6 +485,15 @@ export default function App() {
     <div className="key-shell">
       <TabBar api={officeTabs} />
       <header className="key-navbar">
+        <button
+          className="key-sidebar-toggle"
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!sidebarCollapsed}
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={() => setSidebarCollapsed((v) => !v)}
+        >
+          ◧
+        </button>
         <select
           aria-label="Workspace"
           value={workspaceId || ""}
@@ -513,148 +561,200 @@ export default function App() {
         </div>
       </header>
       <div className="key-shell-body">
-        <aside className="key-sidebar">
-          <div className="key-sidebar-caption">
-            {selectedWorkspace?.name || "Overview"}
-          </div>
-          <button
-            className={section === "sources" ? "selected" : ""}
-            onClick={() => {
-              if (discard()) {
-                revealHome();
-                setSection("sources");
-                setRecord(undefined);
-                setDirty(false);
-              }
-            }}
+        <div
+          ref={sidebarSlot}
+          className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
+        >
+          <nav
+            className="key-sidebar-rail"
+            aria-label="Collapsed navigation"
+            hidden={!sidebarCollapsed}
           >
-            ▤ <span>Sources</span>
-          </button>
-          <button
-            disabled={!workspaceId}
-            className={section === "records" ? "selected" : ""}
-            onClick={() => {
-              if (discard()) {
-                revealHome();
-                setSection("records");
-                setRecord(undefined);
-                setDirty(false);
-              }
-            }}
-          >
-            ▦ <span>All items & linked files</span>
-          </button>
-          <div className="key-sidebar-section">
-            <span>Projects</span>
             <button
-              aria-label="New project"
-              disabled={!workspaceId}
+              title="Expand sidebar"
+              aria-label="Expand sidebar navigation"
+              onClick={() => setSidebarCollapsed(false)}
+            >
+              ◧
+            </button>
+            <button
+              title="Sources"
+              aria-label="Sources"
               onClick={() => {
-                setDialog("project");
-                setDialogValue("");
+                if (discard()) {
+                  revealHome();
+                  setSection("sources");
+                  setRecord(undefined);
+                  setDirty(false);
+                }
               }}
             >
-              ＋
+              ▤
             </button>
-          </div>
-          {workspaceId ? (
-            <>
-              <button
-                className={!projectId ? "scope-current" : ""}
-                onClick={() => chooseScope(workspaceId)}
-              >
-                ⌂ <span>Entire workspace</span>
-              </button>
-              {projects.map((p) => (
-                <button
-                  key={p.id}
-                  className={projectId === p.id ? "scope-current" : ""}
-                  onClick={() => chooseScope(workspaceId, p.id)}
-                  title={p.folder}
-                >
-                  ▱ <span>{p.name}</span>
-                </button>
-              ))}
-            </>
-          ) : (
-            <p className="key-sidebar-hint">
-              Choose a workspace to browse its projects and pages.
-            </p>
-          )}
-          <div className="key-sidebar-section">
-            <span>Pages & documents</span>
+            <button
+              title="All items and linked files"
+              aria-label="All items and linked files"
+              onClick={() => {
+                if (discard()) {
+                  revealHome();
+                  setSection("records");
+                  setRecord(undefined);
+                  setDirty(false);
+                }
+              }}
+            >
+              ▦
+            </button>
+          </nav>
+          <aside
+            className="key-sidebar"
+            inert={sidebarCollapsed}
+            aria-hidden={sidebarCollapsed}
+          >
+            <div className="key-sidebar-caption">
+              {selectedWorkspace?.name || "Overview"}
+            </div>
+            <button
+              className={section === "sources" ? "selected" : ""}
+              onClick={() => {
+                if (discard()) {
+                  revealHome();
+                  setSection("sources");
+                  setRecord(undefined);
+                  setDirty(false);
+                }
+              }}
+            >
+              ▤ <span>Sources</span>
+            </button>
             <button
               disabled={!workspaceId}
-              aria-label="Create item"
-              onClick={() => setCreateMenu(!createMenu)}
+              className={section === "records" ? "selected" : ""}
+              onClick={() => {
+                if (discard()) {
+                  revealHome();
+                  setSection("records");
+                  setRecord(undefined);
+                  setDirty(false);
+                }
+              }}
             >
-              ＋
+              ▦ <span>All items & linked files</span>
             </button>
-          </div>
-          {createMenu && (
-            <div className="key-create-menu">
-              {["note", "page", "database"].map((kind) => (
-                <button key={kind} onClick={() => createRecord(kind)}>
-                  New {kind}
-                </button>
-              ))}
-              {["docs", "sheets", "slides", "markdown", "html"].map((kind) => (
-                <button
-                  key={kind}
-                  onClick={() => {
-                    setCreateMenu(false);
-                    action("create-office", { kind, workspaceId });
-                  }}
-                >
-                  New {kind === "docs" ? "document" : kind}
-                </button>
-              ))}
+            <div className="key-sidebar-section">
+              <span>Projects</span>
+              <button
+                aria-label="New project"
+                disabled={!workspaceId}
+                onClick={() => {
+                  setDialog("project");
+                  setDialogValue("");
+                }}
+              >
+                ＋
+              </button>
             </div>
-          )}
-          {records
-            .filter((r) => r.kind !== "source")
-            .map((r) => (
-              <button
-                key={r.id}
-                className={record?.id === r.id ? "selected" : ""}
-                onClick={() =>
-                  r.documentHash
-                    ? void task(() =>
-                        api().openSource({
-                          documentId: r.documentHash!,
-                          documentHash: r.documentHash!,
-                          title: r.title,
-                          status: "indexed",
-                          pageCount: 0,
-                          completed: 0,
-                          total: 0,
-                          workspaceId,
-                        }),
-                      )
-                    : selectRecord(r)
-                }
-              >
-                <span>{r.kind === "note" ? "≡" : "▱"}</span>
-                <span>{r.title}</span>
-              </button>
-            ))}
-          <div className="key-sidebar-footer">
-            {projectId && (
-              <button
-                onClick={() =>
-                  action("link-folder", { workspaceId, projectId })
-                }
-              >
-                ＋ Link folder
-              </button>
+            {workspaceId ? (
+              <>
+                <button
+                  className={!projectId ? "scope-current" : ""}
+                  onClick={() => chooseScope(workspaceId)}
+                >
+                  ⌂ <span>Entire workspace</span>
+                </button>
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    className={projectId === p.id ? "scope-current" : ""}
+                    onClick={() => chooseScope(workspaceId, p.id)}
+                    title={p.folder}
+                  >
+                    ▱ <span>{p.name}</span>
+                  </button>
+                ))}
+              </>
+            ) : (
+              <p className="key-sidebar-hint">
+                Choose a workspace to browse its projects and pages.
+              </p>
             )}
-            <small>
-              {selectedWorkspace
-                ? "Local workspace · saved on this Mac"
-                : `${workspaces.length} local workspaces`}
-            </small>
-          </div>
-        </aside>
+            <div className="key-sidebar-section">
+              <span>Pages & documents</span>
+              <button
+                disabled={!workspaceId}
+                aria-label="Create item"
+                onClick={() => setCreateMenu(!createMenu)}
+              >
+                ＋
+              </button>
+            </div>
+            {createMenu && (
+              <div className="key-create-menu">
+                {["note", "page", "database"].map((kind) => (
+                  <button key={kind} onClick={() => createRecord(kind)}>
+                    New {kind}
+                  </button>
+                ))}
+                {["docs", "sheets", "slides", "markdown", "html"].map(
+                  (kind) => (
+                    <button
+                      key={kind}
+                      onClick={() => {
+                        setCreateMenu(false);
+                        action("create-office", { kind, workspaceId });
+                      }}
+                    >
+                      New {kind === "docs" ? "document" : kind}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+            {records
+              .filter((r) => r.kind !== "source")
+              .map((r) => (
+                <button
+                  key={r.id}
+                  className={record?.id === r.id ? "selected" : ""}
+                  onClick={() =>
+                    r.documentHash
+                      ? void task(() =>
+                          api().openSource({
+                            documentId: r.documentHash!,
+                            documentHash: r.documentHash!,
+                            title: r.title,
+                            status: "indexed",
+                            pageCount: 0,
+                            completed: 0,
+                            total: 0,
+                            workspaceId,
+                          }),
+                        )
+                      : selectRecord(r)
+                  }
+                >
+                  <span>{r.kind === "note" ? "≡" : "▱"}</span>
+                  <span>{r.title}</span>
+                </button>
+              ))}
+            <div className="key-sidebar-footer">
+              {projectId && (
+                <button
+                  onClick={() =>
+                    action("link-folder", { workspaceId, projectId })
+                  }
+                >
+                  ＋ Link folder
+                </button>
+              )}
+              <small>
+                {selectedWorkspace
+                  ? "Local workspace · saved on this Mac"
+                  : `${workspaces.length} local workspaces`}
+              </small>
+            </div>
+          </aside>
+        </div>
         <main className="key-shell-content">
           {error && (
             <div className="key-shell-error" role="alert">
@@ -902,8 +1002,8 @@ export default function App() {
                       "Choose a destination workspace before adding PDFs.",
                     )
               }
-              onOpenSource={(source, hit) =>
-                void task(() => api().openSource(source, hit))
+              onOpenSource={(source, hit, results) =>
+                void task(() => api().openSource(source, hit, results))
               }
               refreshKey={refreshKey}
             />
@@ -929,7 +1029,7 @@ export default function App() {
           )}
           tabIndex={0}
           style={{
-            left: `calc(224px + (100vw - 224px) * ${dragRatio ?? tabs.splitRatio ?? 0.5} - 3px)`,
+            left: `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) * ${dragRatio ?? tabs.splitRatio ?? 0.5} - 3px)`,
           }}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);

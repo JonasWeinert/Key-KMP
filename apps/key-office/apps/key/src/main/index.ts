@@ -10,6 +10,8 @@ import {
 import { join, resolve, basename, extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { setUiLang, normalizeLang } from "@key/i18n";
+import { AgentFill } from "./agent-fill";
+import { downloadPdf } from "./download-pdf";
 import { Registry } from "./workspaces";
 import {
   configureOfficeEditors,
@@ -39,6 +41,13 @@ type OwnedView = {
   path?: string;
   source?: any;
   searchTarget?: any;
+  searchResults?: {
+    id: string;
+    documentHash: string;
+    documentTitle?: string;
+    workspaceId: string;
+  }[];
+  searchIndex?: number;
   viewState?: any;
   view?: WebContentsView;
   lastUsed: number;
@@ -47,6 +56,8 @@ type OwnedView = {
 };
 let window: BrowserWindow;
 let registry: Registry;
+let agentFill: AgentFill;
+let sidebarWidth = 240;
 const views = new Map<string, OwnedView>();
 const readerCalls = new Map<number, Set<Promise<unknown>>>();
 const readerReleases = new Map<string, Promise<void>>();
@@ -162,20 +173,12 @@ function attach(record: OwnedView) {
     return { action: "deny" };
   });
 }
-function layout() {
+function placeViews() {
   if (!window || window.isDestroyed()) return;
   const tab = activeWorkspaceTab(state);
-  const visible = new Set(tab?.viewIds ?? []);
   const [width, height] = window.getContentSize();
-  for (const record of views.values()) {
-    if (visible.has(record.id)) {
-      record.lastUsed = Date.now();
-      attach(record);
-    }
-    if (record.view) record.view.setVisible(visible.has(record.id));
-  }
   const ids = tab?.viewIds ?? [];
-  const left = 224,
+  const left = sidebarWidth,
     top = 96,
     available = Math.max(0, width - left);
   const first = Math.round(available * (tab?.splitRatio ?? 0.5));
@@ -190,6 +193,19 @@ function layout() {
       height: Math.max(0, height - top),
     }),
   );
+}
+function layout() {
+  if (!window || window.isDestroyed()) return;
+  const tab = activeWorkspaceTab(state);
+  const visible = new Set(tab?.viewIds ?? []);
+  for (const record of views.values()) {
+    if (visible.has(record.id)) {
+      record.lastUsed = Date.now();
+      attach(record);
+    }
+    if (record.view) record.view.setVisible(visible.has(record.id));
+  }
+  placeViews();
   // Only the two most recently used PDF renderers retain their raster/GPU caches.
   const pdfs = [...views.values()].filter((v) => v.kind === "pdf" && v.view);
   const keep = Math.max(0, 2 - pdfs.filter((v) => visible.has(v.id)).length);
@@ -278,7 +294,7 @@ function openPath(path: string, workspaceId?: string) {
   office(kind, path, workspaceId);
   return true;
 }
-async function sourceOpen(source: any, hit?: any) {
+async function sourceOpen(source: any, hit?: any, results?: any[]) {
   const workspaceId =
     source.workspaceId ?? hit?.workspaceId ?? (await registry.list())[0]?.id;
   if (!workspaceId) throw Error("Choose a workspace");
@@ -296,11 +312,31 @@ async function sourceOpen(source: any, hit?: any) {
         workspaceId,
       )
     : undefined;
+  const searchResults =
+    hit && Array.isArray(results)
+      ? results
+          .slice(0, 1000)
+          .map((h) => ({
+            id: h.id,
+            documentHash: h.documentHash,
+            documentTitle: h.documentTitle,
+            workspaceId: h.workspaceId ?? workspaceId,
+          }))
+      : undefined;
+  const searchIndex = searchResults?.findIndex(
+    (h) => h.id === hit.id && h.workspaceId === workspaceId,
+  );
   const existing = views.get(id);
   if (existing) {
     existing.searchTarget = target;
+    existing.searchResults = searchResults;
+    existing.searchIndex = searchIndex;
     focus(id);
     if (target) existing.view?.webContents.send("search-target", target);
+    existing.view?.webContents.send("search-navigation", {
+      index: searchIndex ?? -1,
+      total: searchResults?.length ?? 0,
+    });
     return;
   }
   add({
@@ -310,6 +346,8 @@ async function sourceOpen(source: any, hit?: any) {
     workspaceId,
     source: info,
     searchTarget: target,
+    searchResults,
+    searchIndex,
     lastUsed: Date.now(),
   });
 }
@@ -418,6 +456,10 @@ else
             ? join(process.resourcesPath, "backend/libpdfium.dylib")
             : join(root, "vendor/pdfium/lib/libpdfium.dylib")),
       });
+      agentFill = new AgentFill(
+        registry,
+        join(app.getPath("userData"), "ai-settings.json"),
+      );
       await registry.list();
       window = new BrowserWindow({
         width: 1440,
@@ -504,10 +546,46 @@ else
       };
       ipcMain.handle(
         "key:invoke",
-        (event, command, args, workspaceId, options) => {
+        async (event, command, args, workspaceId, options) => {
           const record = bound(event.sender.id);
           if (!record && event.sender.id !== window.webContents.id)
             throw Error("Unknown view");
+          const targetWorkspace = record?.workspaceId ?? workspaceId;
+          if (command === "agent_fill_status") return agentFill.status();
+          if (command === "agent_fill_configure")
+            return agentFill.configure(args);
+          if (command === "agent_tag_suggestions")
+            return agentFill.suggestTags(
+              args.tags,
+              args.instruction ??
+                "Merge synonyms and spelling variants without losing meaningful distinctions.",
+            );
+          if (command === "library_download_pdf") {
+            if (record) throw Error("Download requires the library view");
+            const info = await downloadPdf(registry, targetWorkspace, args.url);
+            emit("library-changed");
+            return info;
+          }
+          if (command === "library_relink") {
+            if (record) throw Error("Relink requires the library view");
+            const selected = await dialog.showOpenDialog(window, {
+              title: "Relink original PDF — content must match",
+              properties: ["openFile"],
+              filters: [{ name: "PDF", extensions: ["pdf"] }],
+            });
+            if (selected.canceled) return { canceled: true };
+            const result = await registry.invoke(
+              "library_import_file",
+              { path: selected.filePaths[0], expectedHash: args.hash },
+              targetWorkspace,
+            );
+            emit("library-changed");
+            return result;
+          }
+          if (command === "agent_fill_propose")
+            return agentFill.propose(targetWorkspace, args);
+          if (command === "agent_fill_apply")
+            return agentFill.apply(targetWorkspace, args.ids);
           const operation = registry.invoke(
             command,
             args,
@@ -559,9 +637,22 @@ else
         shell(event.sender.id);
         return importSources(id);
       });
-      ipcMain.handle("key:open-source", (event, source, hit) => {
+      ipcMain.handle("key:open-source", (event, source, hit, results) => {
         shell(event.sender.id);
-        return sourceOpen(source, hit);
+        return sourceOpen(source, hit, results);
+      });
+      ipcMain.handle("key:reader-result", (event, direction) => {
+        const v = bound(event.sender.id);
+        if (
+          v?.kind !== "pdf" ||
+          !v.searchResults ||
+          ![-1, 1].includes(direction)
+        )
+          throw Error("Invalid search navigation");
+        const index = (v.searchIndex ?? -1) + direction;
+        const hit = v.searchResults[index];
+        if (!hit) return;
+        return sourceOpen(hit, hit, v.searchResults);
       });
       ipcMain.handle("key:reader-ready", (event) => {
         const v = bound(event.sender.id);
@@ -570,6 +661,10 @@ else
           source: v.source,
           viewState: v.viewState,
           searchTarget: v.searchTarget,
+          searchNavigation: {
+            index: v.searchIndex ?? -1,
+            total: v.searchResults?.length ?? 0,
+          },
         };
       });
       ipcMain.on("key:reader-state", (event, value) => {
@@ -582,6 +677,17 @@ else
           case "new":
             home();
             break;
+          case "open-url": {
+            const url = new URL(p.url);
+            if (!["https:", "http:", "mailto:"].includes(url.protocol))
+              throw Error("Unsupported link");
+            await systemShell.openExternal(url.toString());
+            return snapshot();
+          }
+          case "sidebar-width":
+            sidebarWidth = Math.max(56, Math.min(320, Number(p.width) || 240));
+            placeViews();
+            return snapshot();
           case "reorder":
             state = reorderWorkspaceTab(state, p.tabId, Number(p.index));
             emit("tabs-changed", snapshot());

@@ -96,6 +96,10 @@ impl Imports {
         Ok(())
     }
     pub fn finish(&self, library: &Library, id: &str) -> Result<SourceInfo> {
+        self.finish_expected(library, id, None)
+    }
+    /// Verify a relink against the completed stream before publishing any source or metadata.
+    pub fn finish_expected(&self, library: &Library, id: &str, expected: Option<&str>) -> Result<SourceInfo> {
         let mut uploads = self.uploads.lock().map_err(|_| "Import lock poisoned")?;
         if uploads.get(id).ok_or("Import no longer exists")?.received != uploads[id].length {
             return Err("PDF import is incomplete".into());
@@ -103,6 +107,9 @@ impl Imports {
         let u = uploads.remove(id).unwrap();
         drop(uploads);
         let hash = format!("{:x}", u.digest.finalize());
+        if expected.is_some_and(|expected| expected != hash) {
+            return Err("This PDF has different content. Choose the original PDF; existing annotations and indexes were not changed.".into());
+        }
         library.prepare_reimport(&hash)?;
         u.file.as_file().sync_all().map_err(|e| e.to_string())?;
         let path = library.root.join("sources").join(format!("{hash}.pdf"));
@@ -203,5 +210,23 @@ mod tests {
         let id = imports.begin(&lib, "Cancel".into(), 1).unwrap();
         imports.cancel(&id).unwrap();
         assert!(imports.append(&id, 0, b"x").is_err());
+    }
+    #[test]
+    fn relink_rejects_mismatched_content_without_publishing() {
+        let temp = tempfile::tempdir().unwrap();
+        let lib = Library::open(temp.path()).unwrap();
+        let expected = crate::content_hash(b"original");
+        lib.register(&expected, "My title", 4).unwrap();
+        let imports = Imports::default();
+        let id = imports.begin(&lib, "Wrong PDF".into(), 5).unwrap();
+        imports.append(&id, 0, b"wrong").unwrap();
+        assert!(imports.finish_expected(&lib, &id, Some(&expected)).is_err());
+        assert_eq!(lib.documents(&crate::Filter::default()).unwrap().len(), 1);
+        assert!(!temp.path().join("sources").join(format!("{}.pdf", crate::content_hash(b"wrong"))).exists());
+        let id = imports.begin(&lib, "New filename".into(), 8).unwrap();
+        imports.append(&id, 0, b"original").unwrap();
+        imports.finish_expected(&lib, &id, Some(&expected)).unwrap();
+        assert_eq!(lib.source_info(&expected).unwrap().title, "My title");
+        lib.verify_source(&expected).unwrap();
     }
 }

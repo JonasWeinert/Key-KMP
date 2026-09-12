@@ -1,6 +1,9 @@
+mod tags;
+mod attributes;
 #[cfg(test)]
 use flate2::{Compression, write::ZlibEncoder};
 mod codec;
+mod entries;
 mod workspace;
 pub use workspace::*;
 mod lease;
@@ -44,6 +47,8 @@ pub struct Document {
     pub total: usize,
     pub error: Option<String>,
     pub updated_at_ms: i64,
+    #[serde(default)]
+    pub added_at_ms: Option<i64>,
     pub has_source: bool,
     pub keyword_ready: bool,
     pub year: Option<i64>,
@@ -56,6 +61,10 @@ pub struct Filter {
     #[serde(default)]
     pub removed: bool,
     pub project_id: Option<String>,
+    /// Bounded listing order; absent preserves newest-update-first behavior.
+    pub sort: Option<String>,
+    pub statuses: Option<Vec<String>>,
+    pub document_hashes: Option<Vec<String>>,
     pub year_from: Option<i64>,
     pub year_to: Option<i64>,
     pub author: Option<String>,
@@ -240,10 +249,10 @@ impl Library {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(err)?;
-        if version > 11 {
+        if version > 12 {
             return Err("library was created by a newer Key version".into());
         }
-        if version > 0 && version < 11 {
+        if version > 0 && version < 12 {
             let backup = library
                 .root
                 .join(format!("library-before-v{version}-migration.sqlite3"));
@@ -294,6 +303,10 @@ impl Library {
         }
         if version < 11 {
             conn.execute_batch(include_str!("migrations/011_record_path.sql"))
+                .map_err(err)?;
+        }
+        if version < 12 {
+            conn.execute_batch(include_str!("migrations/012_source_entries.sql"))
                 .map_err(err)?;
         }
         library.recover_publications()?;
@@ -561,6 +574,8 @@ impl Library {
             .filter(|s| !s.trim().is_empty())
             .map(|s| format!("\"{}\"", s.replace('"', "\"\"")));
         let properties = serde_json::to_string(&filter.properties).map_err(err)?;
+        let statuses = filter.statuses.as_ref().map(serde_json::to_string).transpose().map_err(err)?;
+        let hashes = filter.document_hashes.as_ref().map(serde_json::to_string).transpose().map_err(err)?;
         let bindings = params![
             filter.year_from,
             filter.year_to,
@@ -571,9 +586,17 @@ impl Library {
             filter.tag,
             filter.collection,
             filter.removed,
-            filter.project_id
+            filter.project_id,
+            statuses,
+            hashes
         ];
-        let sql = "SELECT hash,title,page_count,status,completed,total,error,updated_at,has_source,keyword_ready,year,authors FROM documents d WHERE (deleted_at IS NOT NULL)=?9 AND (?10 IS NULL OR EXISTS(SELECT 1 FROM workspace_project_records pr JOIN workspace_records wr ON wr.id=pr.record_id WHERE pr.project_id=?10 AND wr.document_hash=d.hash)) AND (?1 IS NULL OR year>=?1) AND (?2 IS NULL OR year<=?2) AND (?3 IS NULL OR EXISTS(SELECT 1 FROM document_authors a WHERE a.document_hash=d.hash AND a.name=?3 COLLATE NOCASE)) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM annotations a WHERE a.document_hash=d.hash)=?4) AND (?5 IS NULL OR hash IN (SELECT hash FROM metadata_fts WHERE metadata_fts MATCH ?5) OR hash IN (SELECT document_hash FROM comment_fts WHERE comment_fts MATCH ?5) OR hash IN (SELECT document_hash FROM extra_metadata_fts WHERE extra_metadata_fts MATCH ?5)) AND NOT EXISTS(SELECT 1 FROM json_each(?6) f WHERE NOT EXISTS(SELECT 1 FROM document_properties p WHERE p.document_hash=d.hash AND p.name=f.key AND (json_type(p.value)=f.type OR (json_type(p.value) IN ('integer','real') AND f.type IN ('integer','real'))) AND json_extract(p.value,'$') IS f.value)) AND (?7 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='tag' AND l.name=?7)) AND (?8 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='collection' AND l.name=?8)) ORDER BY updated_at DESC";
+        let sql = "SELECT hash,title,page_count,status,completed,total,error,updated_at,has_source,keyword_ready,year,authors,added_at FROM documents d WHERE (deleted_at IS NOT NULL)=?9 AND (?10 IS NULL OR EXISTS(SELECT 1 FROM workspace_project_records pr JOIN workspace_records wr ON wr.id=pr.record_id WHERE pr.project_id=?10 AND wr.document_hash=d.hash)) AND (?1 IS NULL OR year>=?1) AND (?2 IS NULL OR year<=?2) AND (?3 IS NULL OR EXISTS(SELECT 1 FROM document_authors a WHERE a.document_hash=d.hash AND a.name=?3 COLLATE NOCASE)) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM annotations a WHERE a.document_hash=d.hash)=?4) AND (?5 IS NULL OR hash IN (SELECT hash FROM metadata_fts WHERE metadata_fts MATCH ?5) OR hash IN (SELECT document_hash FROM comment_fts WHERE comment_fts MATCH ?5) OR hash IN (SELECT document_hash FROM extra_metadata_fts WHERE extra_metadata_fts MATCH ?5)) AND NOT EXISTS(SELECT 1 FROM json_each(?6) f WHERE NOT EXISTS(SELECT 1 FROM document_properties p WHERE p.document_hash=d.hash AND p.name=f.key AND (json_type(p.value)=f.type OR (json_type(p.value) IN ('integer','real') AND f.type IN ('integer','real'))) AND json_extract(p.value,'$') IS f.value)) AND (?7 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='tag' AND l.name=?7)) AND (?8 IS NULL OR EXISTS(SELECT 1 FROM document_labels l WHERE l.document_hash=d.hash AND l.kind='collection' AND l.name=?8)) AND (?11 IS NULL OR d.status IN (SELECT value FROM json_each(?11))) AND (?12 IS NULL OR d.hash IN (SELECT value FROM json_each(?12)))";
+        let order = match filter.sort.as_deref() {
+            Some("title") => "title COLLATE NOCASE ASC, hash ASC",
+            Some("year") => "year DESC, title COLLATE NOCASE ASC, hash ASC",
+            Some("updated") | None => "updated_at DESC, hash ASC",
+            Some(_) => return Err("Unsupported document sort".into()),
+        };
         let total = if limit == i64::MAX {
             0
         } else {
@@ -588,7 +611,7 @@ impl Library {
             .map_err(err)? as usize
         };
         let mut q = conn
-            .prepare(&format!("{sql} LIMIT ?11 OFFSET ?12"))
+            .prepare(&format!("{sql} ORDER BY {order} LIMIT ?13 OFFSET ?14"))
             .map_err(err)?;
         let mut page_bindings = bindings.to_vec();
         page_bindings.push(&limit);
@@ -607,6 +630,7 @@ impl Library {
                     total: r.get::<_, u32>(5)? as usize,
                     error: r.get(6)?,
                     updated_at_ms: r.get(7)?,
+                    added_at_ms: r.get(12)?,
                     has_source: r.get(8)?,
                     keyword_ready: r.get(9)?,
                     year: r.get(10)?,
@@ -618,6 +642,25 @@ impl Library {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(err)?;
         Ok((documents, total))
+    }
+    /// Counts cover the entire workspace/project, independently of a page or status tab.
+    pub fn document_status_counts(&self, project_id: Option<&str>) -> Result<serde_json::Value> {
+        let conn = self.connection()?;
+        let mut query = conn.prepare("SELECT status,deleted_at IS NOT NULL,count(*) FROM documents d WHERE (?1 IS NULL OR EXISTS(SELECT 1 FROM workspace_project_records pr JOIN workspace_records wr ON wr.id=pr.record_id WHERE pr.project_id=?1 AND wr.document_hash=d.hash)) GROUP BY status,deleted_at IS NOT NULL").map_err(err)?;
+        let rows = query.query_map([project_id], |r| Ok((r.get::<_,String>(0)?,r.get::<_,bool>(1)?,r.get::<_,i64>(2)?))).map_err(err)?;
+        let (mut all,mut removed,mut searchable,mut processing,mut attention)=(0i64,0i64,0i64,0i64,0i64);
+        for row in rows {
+            let (status,is_removed,count)=row.map_err(err)?;
+            if is_removed { removed+=count; continue; }
+            all+=count;
+            match status.as_str() {
+                "indexed" => searchable+=count,
+                "queued"|"processing"|"indexing" => processing+=count,
+                "failed"|"paused"|"needs_source"|"no_text" => attention+=count,
+                _=>{}
+            }
+        }
+        Ok(serde_json::json!({"all":all,"removed":removed,"searchable":searchable,"processing":processing,"attention":attention}))
     }
     pub fn update_metadata(
         &self,
@@ -833,6 +876,46 @@ impl Library {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn import_timestamp_is_immutable_and_historical_unknown_is_null() {
+        let dir=tempfile::tempdir().unwrap();
+        let lib=Library::open(dir.path()).unwrap();
+        let hash=lib.store_source(b"added-time","Original",1).unwrap();
+        let timestamp=lib.documents(&Filter::default()).unwrap()[0].added_at_ms;
+        assert!(timestamp.is_some_and(|time|time>0));
+        lib.update_metadata(&hash,"Renamed",Some(2026),&[]).unwrap();
+        assert_eq!(lib.documents(&Filter::default()).unwrap()[0].added_at_ms,timestamp);
+        // Simulate a row created before migration12; future metadata edits do not invent history.
+        lib.connection().unwrap().execute("UPDATE documents SET added_at=NULL WHERE hash=?1",[&hash]).unwrap();
+        lib.update_metadata(&hash,"Historical",None,&[]).unwrap();
+        assert_eq!(lib.documents(&Filter::default()).unwrap()[0].added_at_ms,None);
+    }
+    #[test]
+    fn document_page_sorts_and_filters_before_limit_with_project_counts() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = Library::open(&dir.path().join(".key")).unwrap();
+        lib.initialize_workspace("Test",dir.path()).unwrap();
+        let z=lib.store_source(b"sort-z","Zebra",1).unwrap();
+        let a=lib.store_source(b"sort-a","alpha",1).unwrap();
+        let m=lib.store_source(b"sort-m","Middle",1).unwrap();
+        lib.update_metadata(&z,"Zebra",Some(2025),&[]).unwrap();
+        lib.update_metadata(&a,"alpha",Some(2020),&[]).unwrap();
+        lib.connection().unwrap().execute("UPDATE documents SET status='failed' WHERE hash=?1",[&a]).unwrap();
+        let filter=Filter{sort:Some("title".into()),..Filter::default()};
+        let (first,total)=lib.documents_page(&filter,1,0).unwrap();
+        assert_eq!(total,3); assert_eq!(first[0].document_hash,a);
+        assert_eq!(lib.documents_page(&filter,1,1).unwrap().0[0].document_hash,m);
+        assert_eq!(lib.documents_page(&Filter{sort:Some("year".into()),..Filter::default()},1,0).unwrap().0[0].document_hash,z);
+        assert_eq!(lib.documents_page(&Filter{statuses:Some(vec!["failed".into()]),..Filter::default()},1,0).unwrap().1,1);
+        assert_eq!(lib.documents_page(&Filter{document_hashes:Some(vec![]),..Filter::default()},1,0).unwrap().1,0);
+        assert_eq!(lib.documents_page(&Filter{document_hashes:Some(vec![z.clone()]),..Filter::default()},1,0).unwrap().0[0].document_hash,z);
+        let project=lib.create_project("One").unwrap();
+        lib.set_project_membership(&project.id,&format!("source:{a}"),true).unwrap();
+        let counts=lib.document_status_counts(Some(&project.id)).unwrap();
+        assert_eq!(counts["all"],1);assert_eq!(counts["attention"],1);
+        assert_eq!(lib.document_status_counts(None).unwrap()["all"],3);
+        assert!(lib.documents_page(&Filter{sort:Some("bad SQL".into()),..Filter::default()},1,0).is_err());
+    }
     #[test]
     fn bundled_sqlite_includes_wal_locking_and_reset_fixes() {
         assert!(

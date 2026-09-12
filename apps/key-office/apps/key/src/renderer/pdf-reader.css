@@ -15,7 +15,7 @@ body,
   font:
     12px -apple-system,
     BlinkMacSystemFont,
-    "Segoe UI",
+    'Segoe UI',
     sans-serif;
 }
 .key-pdf-toolbar {
@@ -38,7 +38,7 @@ body,
 .key-pdf-toolbar-end {
   justify-content: flex-end;
 }
-.key-pdf-reader button {
+:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button {
   font: inherit;
   cursor: pointer;
   color: inherit;
@@ -48,13 +48,13 @@ body,
   padding: 6px 8px;
   white-space: nowrap;
 }
-.key-pdf-reader button:hover {
+:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button:hover {
   background: #e9eaed;
 }
-.key-pdf-reader button[aria-pressed="true"] {
+:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button[aria-pressed='true'] {
   background: #e4e5e9;
 }
-.key-pdf-reader button:focus-visible {
+:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button:focus-visible {
   outline: 2px solid #697aaf;
   outline-offset: 1px;
 }
@@ -133,7 +133,7 @@ body,
   .key-pdf-toolbar-group {
     gap: 0;
   }
-  .key-pdf-reader button {
+  :is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button {
     padding: 6px;
   }
   .key-pdf-toolbar-end button {
@@ -150,8 +150,8 @@ body,
     background: #292a2e;
     border-color: #414249;
   }
-  .key-pdf-reader button:hover,
-  .key-pdf-reader button[aria-pressed="true"] {
+  :is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button:hover,
+  :is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button[aria-pressed='true'] {
     background: #404148;
   }
   .key-pdf-find input {
@@ -162,4 +162,64 @@ body,
     background: #3d3727;
     border-color: #5b513a;
   }
+}
+
+/* The embedded reader does not mount the former Tauri design-system provider. */
+.key-pdf-reader {
+  --key-space: 4px;
+  --key-border-width: 1px;
+  --key-radius-floating: 12px;
+  --key-radius-medium: 8px;
+  --key-radius-pill: 6px;
+  --key-material-floating-opacity: 1;
+  --key-backdrop-blur: 0px;
+  --key-motion-short: 120ms;
+  --key-motion-medium: 180ms;
+  --key-text-tertiary: #858993;
+  --text: var(--key-text);
+  --panel: rgb(var(--key-surface));
+  --hover: var(--key-hover);
+}
+.key-pdf-reader .pdfjs-comment-anchor-card {
+  border: 1px solid var(--key-hairline-strong);
+}
+.key-pdf-reader .pdfjs-comment-editor blockquote {
+  color: var(--key-text-secondary);
+  background: var(--key-hover);
+}
+.key-pdf-reader .markdown-editor-surface {
+  background: rgb(var(--key-surface));
+  color: var(--key-text);
+  border-color: var(--key-hairline-strong);
+}
+.key-pdf-reader .pdfjs-comment-actions button {
+  color: var(--key-text);
+  background: rgb(var(--key-surface));
+  border-color: var(--key-hairline-strong);
+}
+.key-pdf-reader .pdfjs-comment-actions button.primary {
+  color: white;
+  background: var(--key-accent);
+}
+.key-pdf-reader .pdfjs-comment-list button {
+  color: var(--key-text);
+  font: inherit;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.key-pdf-reader .pdfjs-comment-list small {
+  color: var(--key-text-secondary);
+}
+.key-pdf-reader .pdfjs-comment-list .markdown-content {
+  line-height: 1.5;
+}
+/* Measured anchors must not animate from the hidden measurement position. */
+.key-pdf-reader .pdfjs-comment-anchor-card {
+  transition: none;
+  animation: none;
+}
+.key-pdf-reader .key-panel-shell {
+  background: rgb(var(--key-floating));
+  border: 1px solid var(--key-hairline);
+  backdrop-filter: none;
 }

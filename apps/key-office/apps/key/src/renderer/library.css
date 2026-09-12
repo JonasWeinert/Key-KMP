@@ -519,3 +519,211 @@
   font-size: 11px;
   color: var(--text-secondary, #606366);
 }
+.key-library-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 0;
+  font-size: 12px;
+}
+.key-library-tools strong {
+  margin-left: 8px;
+}
+.key-library-tools input {
+  width: 120px;
+}
+.key-column-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--surface-subtle, #f6f7f9);
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.key-column-controls > div {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 5px;
+  background: var(--surface, #fff);
+  border-radius: 5px;
+}
+.key-column-controls label {
+  flex-direction: row;
+  align-items: center;
+}
+.key-column-controls button {
+  font-size: 11px;
+  padding: 3px 6px;
+}
+.key-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.key-filter-chips:not(:empty) {
+  padding: 5px 0 10px;
+}
+.key-filter-chips button {
+  background: var(--surface-subtle, #f6f7f9);
+  font-size: 11px;
+  padding: 4px 7px;
+}
+.key-source-grid {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+.key-source-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 10px;
+  text-align: left;
+  background: var(--surface, #fff);
+  color: var(--text-secondary, #606366);
+  font-size: 11px;
+  font-weight: 400;
+  border-bottom: 1px solid var(--border, #e3e6ea);
+}
+.key-source-grid td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-subtle, #efefef);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--surface, #fff);
+}
+.key-source-grid tr:hover td {
+  background: var(--hover, #f5f5f5);
+}
+.key-source-grid tr.selected td {
+  background: var(--bg-hover-accent, #e0e4ea);
+}
+.key-source-grid small {
+  display: block;
+  color: var(--text-secondary, #606366);
+  margin-top: 5px;
+}
+.key-source-grid td > button {
+  border: 0;
+  background: transparent;
+  padding: 2px 3px;
+}
+.key-source-grid .key-grid-select {
+  position: sticky;
+  left: 0;
+  width: 42px;
+  z-index: 2;
+  text-align: center;
+}
+.key-source-grid th.key-grid-select {
+  z-index: 5;
+}
+.key-source-grid input[type="checkbox"] {
+  accent-color: var(--color-brand-secondary, #0f7fff);
+}
+.key-column-resize {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  border-right: 1px solid var(--border-subtle, #efefef);
+}
+.key-column-resize:hover,
+.key-column-resize:focus-visible {
+  border-right: 2px solid var(--color-brand-secondary, #0f7fff);
+}
+.key-source-grid progress {
+  width: 100%;
+  height: 3px;
+  display: block;
+  margin-top: 6px;
+  accent-color: var(--color-brand-secondary, #0f7fff);
+}
+.key-attribute-dialog {
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.key-attribute-dialog h2 {
+  font-size: 19px;
+}
+.key-library-hit mark {
+  background: var(--search-hit-bg, #ffe28a);
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+.key-tag-editor > span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary, #606366);
+  margin-bottom: 6px;
+}
+.key-tag-editor > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border: 1px solid var(--border, #e3e6ea);
+  border-radius: 6px;
+  padding: 6px;
+}
+.key-tag-editor button {
+  font-size: 11px;
+  background: var(--surface-subtle, #f6f7f9);
+  padding: 3px 5px;
+}
+.key-tag-editor input:not([type="hidden"]) {
+  border: 0;
+  flex: 1;
+  min-width: 90px;
+  width: 100px;
+  padding: 3px;
+}
+.key-attribute-dialog small {
+  line-height: 1.5;
+  color: var(--text-secondary, #606366);
+}
+.key-activity-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border, #e3e6ea);
+}
+.key-activity-item button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 0;
+  text-align: left;
+  padding: 0;
+}
+.key-activity-item progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--color-brand-secondary, #0f7fff);
+}
+.key-inline-edit input,
+.key-inline-edit select {
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+}
+.key-inline-edit small {
+  color: var(--danger, #d13438);
+  white-space: normal;
+}
+.key-library-detail mark {
+  background: var(--search-hit-bg, #ffe28a);
+  color: inherit;
+}
+.key-library-results h2 small {
+  font-weight: 400;
+  color: var(--text-secondary, #606366);
+}

@@ -410,3 +410,24 @@ body.vib .tab-bar-drag-spacer {
     transition: none !important;
   }
 }
+
+/* Reordering changes layout and removes temporary transforms in one paint.
+   Never animate that coordinate-system reset: it otherwise reverses in-flight neighbours. */
+.tab-strip.settling .tab-item {
+  transition: none !important;
+}
+.tab-item.tab-split .tab-plate {
+  box-shadow: inset 0 -2px 0 var(--color-brand-secondary, #3276cd);
+}
+.tab-split-pane {
+  border-radius: 4px;
+  padding: 2px 3px;
+}
+.tab-split-pane.pane-active {
+  background: color-mix(
+    in srgb,
+    var(--color-brand-secondary, #3276cd) 12%,
+    transparent
+  );
+  font-weight: 600;
+}

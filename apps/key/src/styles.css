@@ -2068,7 +2068,7 @@ button { color: inherit; }
 .pdfjs-comment-anchor-card.expanded {
   width: min(378px, calc(100vw - 24px));
   max-height: min(410px, calc(100vh - 80px));
-  min-height: 270px;
+  min-height: min(270px, calc(100vh - 80px));
   padding: 0;
 }
 

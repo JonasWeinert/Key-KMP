@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import "./library.css";
+import { AddEntryDialog, AgentPropertyDialog, EntriesList } from "./EntryTools";
+import TagManagerDialog from "./TagManagerDialog";
+import TagChips from "./TagChips";
+import { evaluatePropertyFormula } from "./property-formula";
+import LibraryTable, {
+  defaultColumns,
+  LiteralMatches,
+  type SourceColumn,
+} from "./LibraryTable";
 
 export interface LibrarySource {
   documentId: string;
@@ -14,6 +23,7 @@ export interface LibrarySource {
   total: number;
   error?: string;
   updatedAtMs?: number;
+  addedAtMs?: number | null;
   workspaceId?: string;
 }
 export interface LibraryHit {
@@ -37,7 +47,11 @@ export interface LibraryHomeProps {
   projectId?: string;
   scopeLabel?: string;
   openDocumentIds?: ReadonlySet<string>;
-  onOpenSource: (source: LibrarySource, hit?: LibraryHit) => void;
+  onOpenSource: (
+    source: LibrarySource,
+    hit?: LibraryHit,
+    hits?: LibraryHit[],
+  ) => void;
   onOpenItem?: (item: unknown) => void;
   onAddSources: () => void;
   refreshKey?: number;
@@ -47,6 +61,13 @@ interface LibraryPage {
   documents: LibrarySource[];
   nextOffset: number | null;
   total: number;
+  counts?: {
+    all: number;
+    removed: number;
+    searchable: number;
+    processing: number;
+    attention: number;
+  };
 }
 interface Metadata {
   tags: string[];
@@ -94,10 +115,86 @@ export default function LibraryHome({
 }: LibraryHomeProps) {
   const activeRef = useRef(active);
   activeRef.current = active;
+  const [sourceKind, setSourceKind] = useState("pdf"),
+    [entryDialog, setEntryDialog] = useState(false),
+    [agentDialog, setAgentDialog] = useState(false),
+    [agentProperty, setAgentProperty] = useState("");
+  const [previewHit, setPreviewHit] = useState<LibraryHit>();
+  const [counts, setCounts] = useState<LibraryPage["counts"]>();
+  const [metadataRevision, setMetadataRevision] = useState(0);
+  const [columns, setColumns] = useState<SourceColumn[]>(defaultColumns);
+  const [tagManager, setTagManager] = useState(false),
+    [activity, setActivity] = useState(false);
+  const [showColumns, setShowColumns] = useState(false),
+    [checked, setChecked] = useState<Set<string>>(new Set());
+  const [attribute, setAttribute] = useState(false),
+    [attributeName, setAttributeName] = useState(""),
+    [attributeType, setAttributeType] = useState("text"),
+    [attributeValue, setAttributeValue] = useState("");
+  const [bulkTag, setBulkTag] = useState(""),
+    [attributeOptions, setAttributeOptions] = useState(""),
+    [attributeFormula, setAttributeFormula] = useState("");
+  const liveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const searchRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(`key:library-columns:${workspaceId || "all"}`) ||
+          "null",
+      );
+      setColumns(
+        Array.isArray(saved) &&
+          saved.every(
+            (c) =>
+              typeof c.id === "string" &&
+              typeof c.label === "string" &&
+              Number.isFinite(c.width),
+          )
+          ? saved
+          : defaultColumns,
+      );
+    } catch {
+      setColumns(defaultColumns);
+    }
+  }, [workspaceId]);
+  const updateColumns = (next: SourceColumn[]) => {
+    setColumns(next);
+    try {
+      localStorage.setItem(
+        `key:library-columns:${workspaceId || "all"}`,
+        JSON.stringify(next),
+      );
+    } catch {}
+  };
   const [documents, setDocuments] = useState<LibrarySource[]>([]);
   const [scope, setScope] = useState("all");
   const [view, setView] = useState("table");
   const [sort, setSort] = useState("title");
+  const openKeys = [...openDocumentIds].sort();
+  const openSignature = scope === "open" ? openKeys.join("|") : "";
+  const pageFilters = {
+    sort,
+    statuses:
+      scope === "attention"
+        ? ["failed", "paused", "needs_source", "no_text"]
+        : null,
+    documentHashes:
+      scope === "open"
+        ? openKeys
+            .filter(
+              (key) =>
+                !workspaceId ||
+                !key.includes(":") ||
+                key.startsWith(`${workspaceId}:`),
+            )
+            .map((key) => key.split(":").pop()!)
+            .filter((key) => /^[a-f0-9]{64}$/i.test(key))
+        : null,
+    documentKeys: scope === "open" ? openKeys : null,
+  };
+
   const [offset, setOffset] = useState(0),
     [nextOffset, setNextOffset] = useState<number | null>(null),
     [total, setTotal] = useState(0);
@@ -127,21 +224,59 @@ export default function LibraryHome({
     args: Record<string, unknown> = {},
     source?: LibrarySource,
   ) => invoke<T>(command, args, source?.workspaceId || workspaceId);
+  useEffect(() => {
+    if (!workspaceId) return;
+    let cancelled = false;
+    void invoke<
+      { name: string; type?: string; formula?: string; options?: string[] }[]
+    >("workspace_attributes", {}, workspaceId)
+      .then((definitions) => {
+        if (cancelled) return;
+        setColumns((previous) => {
+          const merged = [...previous];
+          for (const definition of definitions) {
+            const index = merged.findIndex(
+              (c) => c.property === definition.name,
+            );
+            const column = {
+              id: `property:${definition.name}`,
+              label: definition.name,
+              width: 150,
+              property: definition.name,
+              ...definition,
+            };
+            if (index >= 0) merged[index] = { ...merged[index], ...definition };
+            else merged.push(column);
+          }
+          return merged;
+        });
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoke, workspaceId]);
   const refresh = async () => {
     const page = await call<LibraryPage>("semantic_library_page", {
       projectId: projectId || null,
       offset,
       limit: 200,
       removed: scope === "removed",
+      ...pageFilters,
     });
     setDocuments(page.documents);
     setNextOffset(page.nextOffset);
     setTotal(page.total);
+    setCounts(page.counts);
   };
   useEffect(() => {
     const generation = ++context.current;
     ++request.current;
+    setChecked(new Set());
     setSelected(undefined);
+    setPreviewHit(undefined);
     setDetails(undefined);
     setSubmitted("");
     setHits([]);
@@ -151,7 +286,10 @@ export default function LibraryHome({
     setLoading(true);
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      if (!activeRef.current) { timer = setTimeout(poll, 2000); return; }
+      if (!activeRef.current) {
+        timer = setTimeout(poll, 2000);
+        return;
+      }
       try {
         const page = await invoke<LibraryPage>(
           "semantic_library_page",
@@ -160,6 +298,7 @@ export default function LibraryHome({
             offset,
             limit: 200,
             removed: scope === "removed",
+            ...pageFilters,
           },
           workspaceId,
         );
@@ -168,6 +307,7 @@ export default function LibraryHome({
         setDocuments(next);
         setNextOffset(page.nextOffset);
         setTotal(page.total);
+        setCounts(page.counts);
         setSelected((previous) =>
           previous
             ? next.find((d) => identity(d) === identity(previous))
@@ -192,10 +332,19 @@ export default function LibraryHome({
       ++request.current;
       clearTimeout(timer);
     };
-  }, [invoke, workspaceId, projectId, scope, refreshKey, offset]);
+  }, [
+    invoke,
+    workspaceId,
+    projectId,
+    scope,
+    refreshKey,
+    offset,
+    sort,
+    openSignature,
+  ]);
   useEffect(() => {
     setOffset(0);
-  }, [workspaceId, projectId, scope]);
+  }, [workspaceId, projectId, scope, sort]);
   useEffect(() => {
     setDetails(undefined);
     setSourceRecordId(undefined);
@@ -211,7 +360,11 @@ export default function LibraryHome({
         );
         if (cancelled) return;
         setProjects(list);
-        const source = await call<{id:string} | null>('workspace_record', {id:`source:${selected.documentHash}`}, selected);
+        const source = await call<{ id: string } | null>(
+          "workspace_record",
+          { id: `source:${selected.documentHash}` },
+          selected,
+        );
         if (!cancelled) setSourceRecordId(source?.id);
       } catch (e) {
         if (!cancelled) setError(String(e));
@@ -236,27 +389,7 @@ export default function LibraryHome({
     openDocumentIds.has(d.documentId) ||
     openDocumentIds.has(d.documentHash) ||
     openDocumentIds.has(identity(d));
-  const visible = useMemo(
-    () =>
-      documents
-        .filter((d) =>
-          scope === "open"
-            ? isOpen(d)
-            : scope === "attention"
-              ? ["failed", "needs_source", "paused", "no_text"].includes(
-                  d.status,
-                )
-              : true,
-        )
-        .sort((a, b) =>
-          sort === "year"
-            ? (b.year || 0) - (a.year || 0)
-            : sort === "updated"
-              ? (b.updatedAtMs || 0) - (a.updatedAtMs || 0)
-              : a.title.localeCompare(b.title),
-        ),
-    [documents, scope, sort, openDocumentIds],
-  );
+  const visible = documents;
   const groups = useMemo(() => {
     const map = new Map<string, LibraryHit[]>();
     for (const h of hits) {
@@ -276,6 +409,7 @@ export default function LibraryHome({
       if (generation === context.current) {
         await refresh();
         setMessage(success);
+        setMetadataRevision((n) => n + 1);
       }
     } catch (e) {
       if (generation === context.current) setError(String(e));
@@ -284,6 +418,7 @@ export default function LibraryHome({
     }
   };
   const search = async (next: string | null = null) => {
+    clearTimeout(liveTimer.current);
     if (!query.trim()) return;
     const yearFrom = filter.yearFrom ? Number(filter.yearFrom) : null,
       yearTo = filter.yearTo ? Number(filter.yearTo) : null;
@@ -314,7 +449,11 @@ export default function LibraryHome({
     const seq = ++request.current;
     setSearching(true);
     setError("");
-    if (!next) setSubmitted(query.trim());
+    if (!next) {
+      setSubmitted(query.trim());
+      setHits([]);
+      setCursor(null);
+    }
     try {
       const searchArgs =
         next && submittedArgs.current
@@ -365,6 +504,177 @@ export default function LibraryHome({
       if (seq === request.current) setSearching(false);
     }
   };
+  searchRef.current = () => {
+    void search();
+  };
+  useEffect(() => {
+    ++request.current;
+    clearTimeout(liveTimer.current);
+    if (!active) return;
+    if (!query.trim()) {
+      setSubmitted("");
+      setHits([]);
+      setCursor(null);
+      setSearching(false);
+      return;
+    }
+    liveTimer.current = setTimeout(() => searchRef.current(), 250);
+    return () => clearTimeout(liveTimer.current);
+  }, [query, filter, workspaceId, projectId, active]);
+  const bulk = async (action: string) => {
+    const targets = documents.filter((d) => checked.has(identity(d)));
+    if (!targets.length || busy) return;
+    setBusy(true);
+    setError("");
+    let completed = 0;
+    try {
+      for (const d of targets) {
+        if (action === "tag") {
+          const meta = await call<Metadata>(
+            "library_metadata_details",
+            { hash: d.documentHash },
+            d,
+          );
+          await call(
+            "library_set_labels",
+            {
+              hash: d.documentHash,
+              tags: [...new Set([...meta.tags, bulkTag.trim()])],
+              collections: meta.collections,
+            },
+            d,
+          );
+        } else if (action === "remove" || action === "restore") {
+          await call(
+            "library_set_removed",
+            { hash: d.documentHash, removed: action === "remove" },
+            d,
+          );
+        } else
+          await call(
+            "library_processing_control",
+            { hash: d.documentHash, action },
+            d,
+          );
+        completed++;
+        setMessage(`${completed} of ${targets.length} updated`);
+      }
+      setChecked(new Set());
+      await refresh();
+    } catch (e) {
+      setError(`${completed} of ${targets.length} updated. ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const applyAttribute = async () => {
+    const name = attributeName.trim();
+    if (!name) return;
+    let value: unknown = attributeValue;
+    const options = attributeOptions
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (attributeType === "select" && !options.includes(attributeValue)) {
+      setError("Choose a value from the select options.");
+      return;
+    }
+    if (attributeType === "number") {
+      if (!attributeValue.trim() || !Number.isFinite(Number(value))) {
+        setError("Enter a finite number.");
+        return;
+      }
+      value = Number(value);
+    }
+    if (attributeType === "boolean") {
+      if (!["true", "false"].includes(attributeValue)) {
+        setError("Choose true or false.");
+        return;
+      }
+      value = attributeValue === "true";
+    }
+    const targets = checked.size
+      ? documents.filter((d) => checked.has(identity(d)))
+      : selected
+        ? [selected]
+        : [];
+    if (!workspaceId) {
+      setError("Choose a workspace to define an attribute.");
+      return;
+    }
+    await run(
+      async () => {
+        const config = {
+          type: attributeType,
+          ...(attributeType === "select" ? { options } : {}),
+          ...(attributeType === "formula" ? { formula: attributeFormula } : {}),
+        };
+        const calculated = [];
+        for (const d of targets) {
+          let next = value;
+          if (attributeType === "formula") {
+            const meta = await call<Metadata>(
+              "library_metadata_details",
+              { hash: d.documentHash },
+              d,
+            );
+            next = evaluatePropertyFormula(attributeFormula, {
+              ...meta.properties,
+              title: d.title,
+              year: d.year ?? null,
+              pages: d.pageCount,
+              authors: d.authors?.join("; ") || "",
+            });
+          }
+          calculated.push({ d, value: next });
+        }
+        await call("workspace_save_attribute", { name, config });
+        for (const item of calculated)
+          await call(
+            "library_set_property",
+            { hash: item.d.documentHash, name, value: item.value },
+            item.d,
+          );
+        const column = {
+          id: `property:${name}`,
+          label: name,
+          width: 150,
+          property: name,
+          ...config,
+        };
+        updateColumns(
+          columns.some((c) => c.property === name)
+            ? columns.map((c) =>
+                c.property === name ? { ...c, ...column } : c,
+              )
+            : [...columns, column],
+        );
+        setAttribute(false);
+        if (selected)
+          setDetails(
+            await call<Metadata>(
+              "library_metadata_details",
+              { hash: selected.documentHash },
+              selected,
+            ),
+          );
+      },
+      `Attribute saved${targets.length ? ` on ${targets.length} sources` : ""}`,
+    );
+  };
+  const openHit = (hit: LibraryHit) => {
+    const source = documents.find((d) => identity(d) === identity(hit)) || {
+      documentId: hit.documentId,
+      documentHash: hit.documentHash,
+      title: hit.documentTitle || "Document",
+      workspaceId: hit.workspaceId,
+      pageCount: hit.page + 1,
+      status: "indexed",
+      completed: 0,
+      total: 0,
+    };
+    onOpenSource(source, hit, hits);
+  };
   const saveMetadata = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selected) return;
@@ -404,10 +714,12 @@ export default function LibraryHome({
             <h1>{scopeLabel}</h1>
             <p>
               {total} documents ·{" "}
-              {documents.filter((d) => d.status === "indexed").length}{" "}
-              searchable ·{" "}
-              {documents.filter((d) => activeStates.has(d.status)).length}{" "}
-              processing on this page
+              {counts?.searchable ??
+                documents.filter((d) => d.status === "indexed").length}{" "}
+              fully indexed ·{" "}
+              {counts?.processing ??
+                documents.filter((d) => activeStates.has(d.status)).length}{" "}
+              processing
             </p>
           </div>
           <button onClick={() => setRoadmap(true)}>
@@ -430,341 +742,574 @@ export default function LibraryHome({
             </button>
           ))}
         </nav>
-        <div className="key-library-toolbar">
-          <div className="key-view-switch">
-            {["table", "list"].map((v) => (
-              <button
-                key={v}
-                aria-pressed={view === v}
-                onClick={() => setView(v)}
-              >
-                {v === "table" ? "▤ Table" : "☷ List"}
-              </button>
-            ))}
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void search();
-            }}
-          >
-            <input
-              aria-label="Search passages"
-              placeholder="Search passages · keyword or describe an idea"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <button disabled={searching || !query.trim()}>Search</button>
-          </form>
+        <nav className="key-library-scopes" aria-label="Source types">
           <button
-            aria-expanded={showFilters}
-            onClick={() => setShowFilters(!showFilters)}
+            aria-pressed={sourceKind === "pdf"}
+            onClick={() => setSourceKind("pdf")}
           >
-            Filter
+            PDFs
           </button>
-          <select
-            aria-label="Sort library"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
+          <button
+            aria-pressed={sourceKind === "other"}
+            onClick={() => setSourceKind("other")}
           >
-            <option value="title">Title</option>
-            <option value="year">Year</option>
-            <option value="updated">Last updated</option>
-          </select>
-          <button className="key-primary" onClick={onAddSources}>
-            ＋ Add PDFs
+            References, web & media
           </button>
-        </div>
-        {showFilters && (
-          <form
-            className="key-library-filters"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void search();
-            }}
-          >
-            {[
-              ["author", "Author"],
-              ["yearFrom", "Year from"],
-              ["yearTo", "Year to"],
-              ["tag", "Tag"],
-              ["collection", "Collection"],
-              ["metadataText", "Metadata or comments"],
-              ["property", "Property name"],
-              ["value", "Property value"],
-            ].map(([key, label]) => (
-              <label key={key}>
-                {label}
-                <input
-                  value={filter[key as keyof typeof filter]}
-                  onChange={(e) =>
-                    setFilter({ ...filter, [key]: e.target.value })
-                  }
-                />
-              </label>
-            ))}
-            <label>
-              Annotations
-              <select
-                value={filter.annotations}
-                onChange={(e) =>
-                  setFilter({ ...filter, annotations: e.target.value })
-                }
-              >
-                <option value="any">Any</option>
-                <option value="yes">With annotations</option>
-                <option value="no">Without annotations</option>
-              </select>
-            </label>
-            <label>
-              Property type
-              <select
-                value={filter.type}
-                onChange={(e) => setFilter({ ...filter, type: e.target.value })}
-              >
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-                <option value="boolean">True / false</option>
-              </select>
-            </label>
-            <button type="button" onClick={() => setFilter(emptyFilter)}>
-              Reset
-            </button>
-            <button disabled={searching || !query.trim()}>
-              Apply to search
-            </button>
-          </form>
+          <button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>
+            ＋ Reference / other source
+          </button>
+        </nav>
+        {sourceKind === "other" && (
+          <EntriesList
+            invoke={invoke}
+            workspaceId={workspaceId}
+            projectId={projectId}
+          />
         )}
-        {error && (
-          <div className="key-library-error" role="alert">
-            {error}
-            <button onClick={() => setError("")}>Dismiss</button>
-          </div>
-        )}
-        {message && (
-          <p className="key-library-message" role="status">
-            {message}
-          </p>
-        )}
-        {removed && (
-          <p className="key-library-message" role="status">
-            Removed “{removed.title}”.{" "}
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await call(
-                    "library_set_removed",
-                    { hash: removed.documentHash, removed: false },
-                    removed,
-                  );
-                  setRemoved(undefined);
-                }, "Restored")
-              }
-            >
-              Undo
-            </button>
-          </p>
-        )}
-        <div className="key-library-scroll">
-          {submitted ? (
-            <div className="key-library-results">
-              <header>
-                <strong>
-                  {searching ? "Searching…" : `${hits.length} matches loaded`}{" "}
-                  for “{submitted}”
-                </strong>
+        <div style={{ display: sourceKind === "pdf" ? "contents" : "none" }}>
+          <div className="key-library-toolbar">
+            <div className="key-view-switch">
+              {["table", "list"].map((v) => (
                 <button
-                  onClick={() => {
-                    ++request.current;
-                    setSearching(false);
-                    setSubmitted("");
-                    setHits([]);
-                  }}
+                  key={v}
+                  aria-pressed={view === v}
+                  onClick={() => setView(v)}
                 >
-                  Back to library
+                  {v === "table" ? "▤ Table" : "☷ List"}
                 </button>
-              </header>
-              {!searching && !hits.length && !error && (
-                <p className="key-library-empty">
-                  No matching passages. Try different words or fewer filters.
-                </p>
-              )}
-              {groups.map((group) => (
-                <article key={identity(group[0])}>
-                  <h2>
-                    {group[0].documentTitle ||
-                      documents.find((d) => identity(d) === identity(group[0]))
-                        ?.title ||
-                      "Document"}
-                  </h2>
-                  {group.map((hit) => (
+              ))}
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void search();
+              }}
+            >
+              <input
+                aria-label="Search passages"
+                placeholder="Search passages · keyword or describe an idea"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <button disabled={searching || !query.trim()}>Search</button>
+            </form>
+            <button
+              aria-expanded={showFilters}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              Filter
+            </button>
+            <select
+              aria-label="Sort library"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+            >
+              <option value="title">{workspaceId?'Title':'Title · within each workspace'}</option>
+              <option value="year">{workspaceId?'Year':'Year · within each workspace'}</option>
+              <option value="updated">{workspaceId?'Last updated':'Updated · within each workspace'}</option>
+            </select>
+            <button className="key-primary" onClick={onAddSources}>
+              ＋ Add PDFs
+            </button>
+          </div>
+          <div className="key-library-tools">
+            <button
+              disabled={!workspaceId}
+              onClick={() => {
+                setAgentProperty("");
+                setAgentDialog(true);
+              }}
+            >
+              Agentic fill
+            </button>
+            <button
+              onClick={() => {
+                setActivity(!activity);
+                setSelected(undefined);
+                setPreviewHit(undefined);
+              }}
+            >
+              Activity
+            </button>
+            <button disabled={!workspaceId} onClick={() => setTagManager(true)}>
+              PDF tags
+            </button>
+            <button
+              aria-expanded={showColumns}
+              onClick={() => setShowColumns(!showColumns)}
+            >
+              Columns
+            </button>
+            <button onClick={() => setAttribute(true)}>＋ Attribute</button>
+            {checked.size > 0 && (
+              <>
+                <strong>{checked.size} selected</strong>
+                <button disabled={busy} onClick={() => void bulk("pause")}>
+                  Pause
+                </button>
+                <button disabled={busy} onClick={() => void bulk("resume")}>
+                  Resume
+                </button>
+                <button disabled={busy} onClick={() => void bulk("retry")}>
+                  Retry
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void bulk(scope === "removed" ? "restore" : "remove")
+                  }
+                >
+                  {scope === "removed" ? "Restore" : "Remove"}
+                </button>
+                <input
+                  aria-label="Tag selected sources"
+                  placeholder="Add tag…"
+                  value={bulkTag}
+                  onChange={(e) => setBulkTag(e.target.value)}
+                />
+                <button
+                  disabled={busy || !bulkTag.trim()}
+                  onClick={() => void bulk("tag")}
+                >
+                  Apply tag
+                </button>
+                <button onClick={() => setChecked(new Set())}>
+                  Clear selection
+                </button>
+              </>
+            )}
+          </div>
+          {showColumns && (
+            <div className="key-column-controls">
+              {columns.map((c) => (
+                <div key={c.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!c.hidden}
+                      disabled={c.id === "title"}
+                      onChange={(e) =>
+                        updateColumns(
+                          columns.map((x) =>
+                            x.id === c.id
+                              ? { ...x, hidden: !e.target.checked }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                    {c.label}
+                  </label>
+                  <button
+                    aria-pressed={Boolean(c.pinned)}
+                    onClick={() =>
+                      updateColumns(
+                        columns.map((x) =>
+                          x.id === c.id ? { ...x, pinned: !x.pinned } : x,
+                        ),
+                      )
+                    }
+                  >
+                    {c.pinned ? "Unpin" : "Pin"}
+                  </button>
+                  {c.property && !c.property.startsWith("@") && (
                     <button
-                      className="key-library-hit"
-                      key={`${identity(hit)}:${hit.id}`}
                       onClick={() => {
-                        const source = documents.find(
-                          (d) => identity(d) === identity(hit),
-                        ) || {
-                          documentId: hit.documentId,
-                          documentHash: hit.documentHash,
-                          title: hit.documentTitle || "Document",
-                          workspaceId: hit.workspaceId,
-                          pageCount: hit.page + 1,
-                          status: "indexed",
-                          completed: 0,
-                          total: 0,
-                        };
-                        onOpenSource(source, hit);
+                        setAttributeName(c.property!);
+                        setAttributeType(c.type || "text");
+                        setAttributeOptions(c.options?.join("; ") || "");
+                        setAttributeFormula(c.formula || "");
+                        setAttributeValue(
+                          String(details?.properties[c.property!] ?? ""),
+                        );
+                        setAttribute(true);
                       }}
                     >
-                      <span>
-                        Page {hit.page + 1} <span>Open passage ↗</span>
-                      </span>
-                      <p>{hit.targetText || hit.text}</p>
+                      Edit
                     </button>
-                  ))}
-                </article>
-              ))}
-              {cursor && (
-                <button
-                  disabled={searching}
-                  onClick={() => void search(cursor)}
-                >
-                  Load more results
-                </button>
-              )}
-              {capped && (
-                <p>
-                  Showing up to 1,000 candidate passages. Narrow your search for
-                  more specific results.
-                </p>
-              )}
-            </div>
-          ) : loading ? (
-            <p className="key-library-empty" role="status">
-              Loading sources…
-            </p>
-          ) : !visible.length ? (
-            <div className="key-library-empty">
-              <h2>
-                {scope === "all"
-                  ? "Your sources live here"
-                  : "No documents in this view"}
-              </h2>
-              <p>
-                Add PDFs to read immediately. Search indexing happens in the
-                background.
-              </p>
-              <button onClick={onAddSources}>Add PDFs</button>
-            </div>
-          ) : (
-            <table className={`key-source-table ${view}`}>
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Authors</th>
-                  <th>Year</th>
-                  <th>Pages</th>
-                  <th>Search readiness</th>
-                  <th>
-                    <span className="key-sr-only">Open</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((d) => (
-                  <tr
-                    key={identity(d)}
-                    className={
-                      selected && identity(selected) === identity(d)
-                        ? "selected"
-                        : ""
-                    }
-                    tabIndex={0}
-                    onClick={() => setSelected(d)}
-                    onDoubleClick={() => {
-                      if (scope !== "removed") onOpenSource(d);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.target === e.currentTarget && e.key === "Enter") {
-                        e.preventDefault();
-                        if (scope !== "removed") onOpenSource(d);
-                      }
+                  )}
+                  {c.id.startsWith('property:')&&<button disabled={busy||!workspaceId} onClick={()=>{if(window.confirm(`Delete attribute “${c.label}” and its stored values from this workspace? To keep the values, hide the column instead.`))void run(async()=>{await call('workspace_delete_attribute',{name:c.property,deleteValues:true});updateColumns(columns.filter(column=>column.id!==c.id));},'Attribute and stored values deleted');}}>Delete</button>}
+                  <button
+                    aria-label={`Move ${c.label} left`}
+                    disabled={columns.indexOf(c) === 0}
+                    onClick={() => {
+                      const next = [...columns],
+                        i = next.indexOf(c);
+                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                      updateColumns(next);
                     }}
                   >
-                    <td>
-                      <span className="key-source-title" title={d.title}>
-                        ▱ {d.title}
-                      </span>
-                      {isOpen(d) && (
-                        <span className="key-open-badge">Open</span>
-                      )}
-                      {view === "list" && (
-                        <small>
-                          {d.authors?.join(", ") || "Unknown author"} ·{" "}
-                          {d.year || "—"} · {d.pageCount} pages
-                        </small>
-                      )}
-                    </td>
-                    <td>{d.authors?.join("; ") || "—"}</td>
-                    <td>{d.year || "—"}</td>
-                    <td>{d.pageCount}</td>
-                    <td>
-                      <span className={`key-source-status ${d.status}`}>
-                        {statusText(d)}
-                      </span>
-                      {activeStates.has(d.status) && d.total > 0 && (
-                        <progress
-                          max={d.total}
-                          value={d.completed}
-                          aria-label={`${d.title} processing`}
-                        />
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        aria-label={`Details for ${d.title}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelected(d);
-                        }}
-                      >
-                        •••
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {!submitted && (offset > 0 || nextOffset !== null) && (
-            <div className="key-library-pagination">
-              <button
-                disabled={loading || offset === 0}
-                onClick={() => setOffset(Math.max(0, offset - 200))}
-              >
-                Previous 200
-              </button>
-              <span>
-                Sources {Math.min(offset + 1, total)}–
-                {Math.min(offset + documents.length, total)} of {total}
-                {scope === "open" || scope === "attention"
-                  ? " · view filters apply to this page"
-                  : ""}
-              </span>
-              <button
-                disabled={loading || nextOffset === null}
-                onClick={() => {
-                  if (nextOffset !== null) setOffset(nextOffset);
-                }}
-              >
-                Next 200 sources
+                    ←
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => updateColumns(defaultColumns)}>
+                Reset columns
               </button>
             </div>
           )}
+          <div className="key-filter-chips">
+            {Object.entries(filter)
+              .filter(
+                ([key, value]) =>
+                  value &&
+                  key !== "type" &&
+                  !(key === "annotations" && value === "any") &&
+                  key !== "value",
+              )
+              .map(([key, value]) => (
+                <button
+                  key={key}
+                  onClick={() =>
+                    setFilter({
+                      ...filter,
+                      [key]: key === "annotations" ? "any" : "",
+                    })
+                  }
+                >
+                  {key}: {value} ×
+                </button>
+              ))}
+          </div>
+          {showFilters && (
+            <form
+              className="key-library-filters"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void search();
+              }}
+            >
+              {[
+                ["author", "Author"],
+                ["yearFrom", "Year from"],
+                ["yearTo", "Year to"],
+                ["tag", "Tag"],
+                ["collection", "Collection"],
+                ["metadataText", "Metadata or comments"],
+                ["property", "Property name"],
+                ["value", "Property value"],
+              ].map(([key, label]) => (
+                <label key={key}>
+                  {label}
+                  <input
+                    value={filter[key as keyof typeof filter]}
+                    onChange={(e) =>
+                      setFilter({ ...filter, [key]: e.target.value })
+                    }
+                  />
+                </label>
+              ))}
+              <label>
+                Annotations
+                <select
+                  value={filter.annotations}
+                  onChange={(e) =>
+                    setFilter({ ...filter, annotations: e.target.value })
+                  }
+                >
+                  <option value="any">Any</option>
+                  <option value="yes">With annotations</option>
+                  <option value="no">Without annotations</option>
+                </select>
+              </label>
+              <label>
+                Property type
+                <select
+                  value={filter.type}
+                  onChange={(e) =>
+                    setFilter({ ...filter, type: e.target.value })
+                  }
+                >
+                  <option value="text">Text</option>
+                  <option value="number">Number</option>
+                  <option value="boolean">True / false</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => setFilter(emptyFilter)}>
+                Reset
+              </button>
+              <button disabled={searching || !query.trim()}>
+                Apply to search
+              </button>
+            </form>
+          )}
+          {error && (
+            <div className="key-library-error" role="alert">
+              {error}
+              <button onClick={() => setError("")}>Dismiss</button>
+            </div>
+          )}
+          {message && (
+            <p className="key-library-message" role="status">
+              {message}
+            </p>
+          )}
+          {removed && (
+            <p className="key-library-message" role="status">
+              Removed “{removed.title}”.{" "}
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await call(
+                      "library_set_removed",
+                      { hash: removed.documentHash, removed: false },
+                      removed,
+                    );
+                    setRemoved(undefined);
+                  }, "Restored")
+                }
+              >
+                Undo
+              </button>
+            </p>
+          )}
+          <div className="key-library-scroll">
+            {submitted ? (
+              <div className="key-library-results">
+                <header>
+                  <strong>
+                    {searching ? "Searching…" : `${hits.length} matches loaded`}{" "}
+                    for “{submitted}”
+                  </strong>
+                  <button
+                    onClick={() => {
+                      ++request.current;
+                      setSearching(false);
+                      setSubmitted("");
+                      setHits([]);
+                    }}
+                  >
+                    Back to library
+                  </button>
+                </header>
+                {!searching && !hits.length && !error && (
+                  <p className="key-library-empty">
+                    No matching passages. Try different words or fewer filters.
+                  </p>
+                )}
+                {groups.map((group) => (
+                  <article key={identity(group[0])}>
+                    <h2>
+                      {group[0].documentTitle ||
+                        documents.find(
+                          (d) => identity(d) === identity(group[0]),
+                        )?.title ||
+                        "Document"}{" "}
+                      <small>· {group.length} passages</small>
+                    </h2>
+                    {group.map((hit) => (
+                      <button
+                        className="key-library-hit"
+                        key={`${identity(hit)}:${hit.id}`}
+                        onClick={() => {
+                          setPreviewHit(hit);
+                          setSelected(undefined);
+                          setActivity(false);
+                        }}
+                        onDoubleClick={() => {
+                          const source = documents.find(
+                            (d) => identity(d) === identity(hit),
+                          ) || {
+                            documentId: hit.documentId,
+                            documentHash: hit.documentHash,
+                            title: hit.documentTitle || "Document",
+                            workspaceId: hit.workspaceId,
+                            pageCount: hit.page + 1,
+                            status: "indexed",
+                            completed: 0,
+                            total: 0,
+                          };
+                          onOpenSource(source, hit, hits);
+                        }}
+                      >
+                        <span>
+                          Page {hit.page + 1} <span>Preview passage →</span>
+                        </span>
+                        <p>
+                          <LiteralMatches
+                            text={hit.targetText || hit.text}
+                            query={submitted}
+                          />
+                        </p>
+                      </button>
+                    ))}
+                  </article>
+                ))}
+                {cursor && (
+                  <button
+                    disabled={searching}
+                    onClick={() => void search(cursor)}
+                  >
+                    Load more results
+                  </button>
+                )}
+                {capped && (
+                  <p>
+                    Showing up to 1,000 candidate passages. Narrow your search
+                    for more specific results.
+                  </p>
+                )}
+              </div>
+            ) : loading ? (
+              <p className="key-library-empty" role="status">
+                Loading sources…
+              </p>
+            ) : !visible.length ? (
+              <div className="key-library-empty">
+                <h2>
+                  {scope === "all"
+                    ? "Your sources live here"
+                    : "No documents in this view"}
+                </h2>
+                <p>
+                  Add PDFs to read immediately. Search indexing happens in the
+                  background.
+                </p>
+                <button onClick={onAddSources}>Add PDFs</button>
+              </div>
+            ) : (
+              <LibraryTable onSort={setSort}
+                saveProperty={async (d, c, raw) => {
+                  let value: unknown = raw;
+                  if (c.type === "number") {
+                    if (!raw.trim() || !Number.isFinite(Number(raw)))
+                      throw Error("Enter a finite number");
+                    value = Number(raw);
+                  }
+                  if (c.type === "boolean") {
+                    if (!["true", "false"].includes(raw))
+                      throw Error("Choose true or false");
+                    value = raw === "true";
+                  }
+                  await call(
+                    "library_set_property",
+                    { hash: d.documentHash, name: c.property, value },
+                    d,
+                  );
+                  setMetadataRevision((n) => n + 1);
+                }}
+                revision={metadataRevision}
+                documents={visible}
+                columns={columns}
+                setColumns={updateColumns}
+                view={view}
+                selected={selected}
+                checked={checked}
+                setChecked={setChecked}
+                onSelect={setSelected}
+                onOpen={(d) => {
+                  if (scope !== "removed") onOpenSource(d);
+                }}
+                isOpen={isOpen}
+                status={statusText}
+                metadata={(d) =>
+                  call<Metadata>(
+                    "library_metadata_details",
+                    { hash: d.documentHash },
+                    d,
+                  )
+                }
+              />
+            )}
+            {!submitted && (offset > 0 || nextOffset !== null) && (
+              <div className="key-library-pagination">
+                <button
+                  disabled={loading || offset === 0}
+                  onClick={() => setOffset(Math.max(0, offset - 200))}
+                >
+                  Previous 200
+                </button>
+                <span>
+                  Sources {Math.min(offset + 1, total)}–
+                  {Math.min(offset + documents.length, total)} of {total}
+                  {scope === "open" || scope === "attention" ? "" : ""}
+                </span>
+                <button
+                  disabled={loading || nextOffset === null}
+                  onClick={() => {
+                    if (nextOffset !== null) setOffset(nextOffset);
+                  }}
+                >
+                  Next 200 sources
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+      {previewHit && !selected && (
+        <aside className="key-library-detail" aria-label="Passage preview">
+          <header>
+            <strong>Passage preview</strong>
+            <button
+              aria-label="Close passage preview"
+              onClick={() => setPreviewHit(undefined)}
+            >
+              ×
+            </button>
+          </header>
+          <h2>{previewHit.documentTitle || documents.find(d=>identity(d)===identity(previewHit))?.title || "Document"}</h2>
+          <p>Page {previewHit.page + 1}</p>
+          <p>
+            <LiteralMatches
+              text={previewHit.targetText || previewHit.text}
+              query={submitted}
+            />
+          </p>
+          <button className="key-primary" onClick={() => openHit(previewHit)}>
+            Open and highlight in reader ↗
+          </button>
+          <div className="key-detail-actions">
+            <button
+              disabled={hits.indexOf(previewHit) <= 0}
+              onClick={() => setPreviewHit(hits[hits.indexOf(previewHit) - 1])}
+            >
+              Previous result
+            </button>
+            <button
+              disabled={hits.indexOf(previewHit) >= hits.length - 1}
+              onClick={() => setPreviewHit(hits[hits.indexOf(previewHit) + 1])}
+            >
+              Next result
+            </button>
+          </div>
+        </aside>
+      )}
+      {activity && !selected && !previewHit && (
+        <aside className="key-library-detail" aria-label="Processing activity">
+          <header>
+            <strong>Activity</strong>
+            <button
+              onClick={() => setActivity(false)}
+              aria-label="Close activity"
+            >
+              ×
+            </button>
+          </header>
+          <p>
+            Processing status for the {documents.length} sources on this page.
+          </p>
+          {documents
+            .filter(
+              (d) =>
+                activeStates.has(d.status) ||
+                ["failed", "paused", "needs_source"].includes(d.status),
+            )
+            .map((d) => (
+              <div className="key-activity-item" key={identity(d)}>
+                <button onClick={() => setSelected(d)}>{d.title}</button>
+                <p>{statusText(d)}</p>
+                {d.total > 0 && <progress max={d.total} value={d.completed} />}
+              </div>
+            ))}
+          {!documents.some(
+            (d) =>
+              activeStates.has(d.status) ||
+              ["failed", "paused", "needs_source"].includes(d.status),
+          ) && <p>No processing tasks need attention on this page.</p>}
+        </aside>
+      )}
       {selected && (
         <aside className="key-library-detail" aria-label="Document details">
           <header>
@@ -784,7 +1329,13 @@ export default function LibraryHome({
                 className="key-primary"
                 onClick={() =>
                   selected.status === "needs_source"
-                    ? onAddSources()
+                    ? void run(async () => {
+                        await call(
+                          "library_relink",
+                          { hash: selected.documentHash },
+                          selected,
+                        );
+                      }, "Source relinked")
                     : onOpenSource(selected)
                 }
               >
@@ -876,21 +1427,12 @@ export default function LibraryHome({
                   }, "Labels saved");
                 }}
               >
-                <label>
-                  Tags
-                  <input
-                    name="tags"
-                    defaultValue={details.tags.join("; ")}
-                    placeholder="Separate tags with ;"
-                  />
-                </label>
-                <label>
-                  Collections
-                  <input
-                    name="collections"
-                    defaultValue={details.collections.join("; ")}
-                  />
-                </label>
+                <TagChips name="tags" label="Tags" initial={details.tags} />
+                <TagChips
+                  name="collections"
+                  label="Collections"
+                  initial={details.collections}
+                />
                 <button disabled={busy}>Save labels</button>
               </form>
               <h3>Properties</h3>
@@ -1005,8 +1547,13 @@ export default function LibraryHome({
               ))}
             </details>
           )}
-          <button onClick={() => setRoadmap(true)}>
-            Formulas & agentic fill{" "}
+          <button
+            onClick={() => {
+              setAgentProperty("");
+              setAgentDialog(true);
+            }}
+          >
+            Configure agentic fill{" "}
             <span className="key-mock-badge">Preview</span>
           </button>
           <div className="key-detail-danger">
@@ -1072,6 +1619,167 @@ export default function LibraryHome({
           </div>
         </aside>
       )}
+      {entryDialog && (
+        <AddEntryDialog
+          invoke={invoke}
+          workspaceId={workspaceId}
+          projectId={projectId}
+          onClose={() => setEntryDialog(false)}
+          onSaved={() => {
+            setEntryDialog(false);
+            setSourceKind("other");
+          }}
+        />
+      )}
+      {agentDialog && (
+        <AgentPropertyDialog
+          invoke={invoke}
+          workspaceId={workspaceId}
+          projectId={projectId}
+          hashes={
+            checked.size
+              ? documents
+                  .filter((d) => checked.has(identity(d)))
+                  .map((d) => d.documentHash)
+              : selected
+                ? [selected.documentHash]
+                : []
+          }
+          propertyName={agentProperty}
+          onClose={() => setAgentDialog(false)}
+          onSaved={() => {
+            void refresh();
+            setMetadataRevision((n) => n + 1);
+          }}
+        />
+      )}
+      {tagManager && (
+        <TagManagerDialog
+          invoke={invoke}
+          workspaceId={workspaceId}
+          onClose={() => setTagManager(false)}
+          onSaved={() => {
+            void refresh();
+            setMetadataRevision((n) => n + 1);
+          }}
+        />
+      )}
+      {attribute && (
+        <div className="key-roadmap-backdrop">
+          <form
+            className="key-roadmap key-attribute-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add attribute"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void applyAttribute();
+            }}
+          >
+            <header>
+              <h2>Add attribute</h2>
+              <button
+                type="button"
+                onClick={() => setAttribute(false)}
+                aria-label="Close attribute dialog"
+              >
+                ×
+              </button>
+            </header>
+            <p>
+              Save a typed value on {checked.size || Number(Boolean(selected))}{" "}
+              selected source(s). The attribute becomes a table column.
+            </p>
+            <label>
+              Name
+              <input
+                required
+                value={attributeName}
+                onChange={(e) => setAttributeName(e.target.value)}
+              />
+            </label>
+            <label>
+              Type
+              <select
+                value={attributeType}
+                onChange={(e) => {
+                  setAttributeType(e.target.value);
+                  setAttributeValue(e.target.value === "boolean" ? "true" : "");
+                }}
+              >
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="boolean">True / false</option>
+                <option value="select">Select</option>
+                <option value="formula">Formula</option>
+              </select>
+            </label>
+            {attributeType === "select" && (
+              <label>
+                Options (separated by ;)
+                <input
+                  value={attributeOptions}
+                  onChange={(e) => setAttributeOptions(e.target.value)}
+                />
+              </label>
+            )}
+            {attributeType === "formula" ? (
+              <label>
+                Formula
+                <input
+                  required
+                  placeholder="[year] + 1"
+                  value={attributeFormula}
+                  onChange={(e) => setAttributeFormula(e.target.value)}
+                />
+                <small>
+                  Use [property] or &#123;Property&#125;, arithmetic, if,
+                  concat, upper, lower, length, round, contains, coalesce.
+                  Displayed results are computed locally. Save recomputes stored
+                  values for selected sources; filters use those stored values
+                  until you save again.
+                </small>
+              </label>
+            ) : (
+              <label>
+                Value
+                {attributeType === "select" ? (
+                  <select
+                    value={attributeValue}
+                    onChange={(e) => setAttributeValue(e.target.value)}
+                  >
+                    <option value="">Choose…</option>
+                    {attributeOptions
+                      .split(";")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                      .map((option) => (
+                        <option key={option}>{option}</option>
+                      ))}
+                  </select>
+                ) : attributeType === "boolean" ? (
+                  <select
+                    value={attributeValue}
+                    onChange={(e) => setAttributeValue(e.target.value)}
+                  >
+                    <option>true</option>
+                    <option>false</option>
+                  </select>
+                ) : (
+                  <input
+                    required
+                    type={attributeType === "number" ? "number" : "text"}
+                    step="any"
+                    value={attributeValue}
+                    onChange={(e) => setAttributeValue(e.target.value)}
+                  />
+                )}
+              </label>
+            )}
+            <button disabled={busy || !workspaceId}>Save attribute</button>
+          </form>
+        </div>
+      )}
       {roadmap && (
         <div className="key-roadmap-backdrop" onClick={() => setRoadmap(false)}>
           <section
@@ -1091,31 +1799,10 @@ export default function LibraryHome({
               </button>
             </header>
             <p>
-              These design concepts are previews. They do not process or change
-              your sources.
+              The available controls use your real library. The items below
+              identify remaining integration limits.
             </p>
-            <ul>
-              <li>
-                <strong>Flexible databases:</strong> select properties,
-                relations, formulas, rollups and saved views.
-              </li>
-              <li>
-                <strong>Agentic properties:</strong> editable prompts and chosen
-                inputs, with per-cell or batch filling.
-              </li>
-              <li>
-                <strong>Bibliographic enrichment:</strong> metadata extraction,
-                DOI/BibTeX/RIS reference import and open-access PDF lookup.
-              </li>
-              <li>
-                <strong>More source types:</strong> video and podcast
-                transcripts, web snapshots and image descriptions.
-              </li>
-              <li>
-                <strong>Organization:</strong> tag consolidation, bulk edits and
-                pinnable/resizable columns.
-              </li>
-            </ul>
+            <ul><li><strong>Formula dependencies:</strong> automatic propagation and relation rollups. Derived column displays recalculate locally; stored filter values update when you explicitly save/recompute.</li><li><strong>Automatic media processing:</strong> web page capture, OCR, audio/video transcription, image understanding and timestamp-aware media navigation. Manually supplied text and metadata can already be saved and searched.</li></ul>
             <p>
               PDF import, search, processing controls, scalar properties and
               metadata editing use the real library.

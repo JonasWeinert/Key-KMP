@@ -1,0 +1,466 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { evaluatePropertyFormula } from "./property-formula";
+import type { LibrarySource } from "./LibraryHome";
+export interface SourceColumn {
+  id: string;
+  label: string;
+  width: number;
+  pinned?: boolean;
+  hidden?: boolean;
+  property?: string;
+  type?: string;
+  formula?: string;
+  options?: string[];
+}
+export const defaultColumns: SourceColumn[] = [
+  { id: "title", label: "Title", width: 330, pinned: true },
+  { id: "authors", label: "Authors", width: 180 },
+  { id: "year", label: "Year", width: 70 },
+  { id: "pages", label: "Pages", width: 70 },
+  { id: "status", label: "Search readiness", width: 210 },
+  { id: "type", label: "Item type", width: 100, hidden: true },
+  {id:"added",label:"Date added",width:140,hidden:true},
+  {
+    id: "publication",
+    label: "Publication",
+    width: 180,
+    property: "publication",
+    hidden: true,
+  },
+  { id: "tags", label: "Tags", width: 170, property: "@tags", hidden: true },
+  {
+    id: "collections",
+    label: "Collection",
+    width: 170,
+    property: "@collections",
+    hidden: true,
+  },
+];
+export function LiteralMatches({
+  text,
+  query,
+}: {
+  text: string;
+  query: string;
+}) {
+  const terms = [
+    ...new Set(
+      (query.match(/"[^"]+"|[\p{L}\p{N}]+/gu) || [])
+        .map((s) => s.replace(/^"|"$/g, ""))
+        .filter((s) => s.length > 0),
+    ),
+  ]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 30);
+  if (!terms.length) return <>{text}</>;
+  const expression = new RegExp(
+    `(?<![\\p{L}\\p{N}])(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\p{N}])`,
+    "giu",
+  );
+  const children: ReactNode[] = [];
+  let from = 0;
+  for (const match of text.matchAll(expression)) {
+    const at = match.index!;
+    children.push(text.slice(from, at), <mark key={at}>{match[0]}</mark>);
+    from = at + match[0].length;
+  }
+  children.push(text.slice(from));
+  return <>{children}</>;
+}
+interface Props {
+  onSort:(field:string)=>void;
+  saveProperty: (
+    d: LibrarySource,
+    column: SourceColumn,
+    value: string,
+  ) => Promise<void>;
+  revision?: number;
+  documents: LibrarySource[];
+  columns: SourceColumn[];
+  setColumns: (columns: SourceColumn[]) => void;
+  view: string;
+  selected?: LibrarySource;
+  checked: Set<string>;
+  setChecked: (ids: Set<string>) => void;
+  onSelect: (d: LibrarySource) => void;
+  onOpen: (d: LibrarySource) => void;
+  isOpen: (d: LibrarySource) => boolean;
+  status: (d: LibrarySource) => string;
+  metadata: (
+    d: LibrarySource,
+  ) => Promise<{
+    tags: string[];
+    collections: string[];
+    properties: Record<string, unknown>;
+  }>;
+}
+const keyOf = (d: LibrarySource) => `${d.workspaceId || ""}:${d.documentHash}`;
+export default function LibraryTable({
+  onSort,
+  saveProperty,
+  revision,
+  documents,
+  columns,
+  setColumns,
+  view,
+  selected,
+  checked,
+  setChecked,
+  onSelect,
+  onOpen,
+  isOpen,
+  status,
+  metadata,
+}: Props) {
+  const [editing, setEditing] = useState<{
+    key: string;
+    column: string;
+    value: string;
+    error?: string;
+  }>();
+  const [saving, setSaving] = useState(false);
+  const commit = async (d: LibrarySource, c: SourceColumn) => {
+    if (!editing || saving) return;
+    setSaving(true);
+    try {
+      await saveProperty(d, c, editing.value);
+      setEditing(undefined);
+    } catch (e) {
+      setEditing({ ...editing, error: String(e) });
+    } finally {
+      setSaving(false);
+    }
+  };
+  const [extra, setExtra] = useState<
+    Record<
+      string,
+      {
+        tags: string[];
+        collections: string[];
+        properties: Record<string, unknown>;
+      }
+    >
+  >({});
+  const custom = columns
+    .filter((c) => !c.hidden && c.property)
+    .map((c) => c.property)
+    .join("|");
+  useEffect(() => {
+    let cancel = false;
+    setExtra({});
+    if (!custom) return;
+    let next = 0;
+    const run = async () => {
+      while (next < documents.length && !cancel) {
+        const d = documents[next++];
+        try {
+          const result = await metadata(d);
+          if (!cancel)
+            setExtra((previous) => ({ ...previous, [keyOf(d)]: result }));
+        } catch {
+          /* Details panel reports metadata failures; cells remain unavailable. */
+        }
+      }
+    };
+    void Promise.all(
+      Array.from({ length: Math.min(4, documents.length) }, run),
+    );
+    return () => {
+      cancel = true;
+    };
+  }, [documents.map(keyOf).join("|"), custom, revision]);
+  const visible = columns.filter(
+    (c) =>
+      !c.hidden &&
+      (view !== "list" || ["title", "status"].includes(c.id) || c.property),
+  );
+  const ordered = [
+    ...visible.filter((c) => c.pinned),
+    ...visible.filter((c) => !c.pinned),
+  ];
+  const left = (col: SourceColumn) =>
+    42 +
+    ordered
+      .slice(
+        0,
+        ordered.findIndex((c) => c.id === col.id),
+      )
+      .filter((c) => c.pinned)
+      .reduce((sum, c) => sum + c.width, 0);
+  const toggle = (d: LibrarySource) => {
+    const next = new Set(checked);
+    next.has(keyOf(d)) ? next.delete(keyOf(d)) : next.add(keyOf(d));
+    setChecked(next);
+  };
+  const resize = (id: string, width: number) =>
+    setColumns(
+      columns.map((c) =>
+        c.id === id ? { ...c, width: Math.max(60, Math.min(700, width)) } : c,
+      ),
+    );
+  return (
+    <table
+      className="key-source-grid"
+      style={{
+        width: ordered.reduce((n, c) => n + c.width, 84),
+        minWidth: "100%",
+      }}
+    >
+      <colgroup>
+        <col style={{ width: 42 }} />
+        {ordered.map((c) => (
+          <col key={c.id} style={{ width: c.width }} />
+        ))}
+        <col style={{ width: 42 }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="key-grid-select">
+            <input
+              type="checkbox"
+              aria-label="Select all sources on this page"
+              checked={
+                documents.length > 0 &&
+                documents.every((d) => checked.has(keyOf(d)))
+              }
+              onChange={(e) =>
+                setChecked(
+                  e.target.checked ? new Set(documents.map(keyOf)) : new Set(),
+                )
+              }
+            />
+          </th>
+          {ordered.map((c) => (
+            <th
+              key={c.id}
+              style={
+                c.pinned
+                  ? { position: "sticky", left: left(c), zIndex: 4 }
+                  : undefined
+              }
+            >
+              <span role={['title','year'].includes(c.id)?'button':undefined} tabIndex={['title','year'].includes(c.id)?0:undefined} onClick={()=>{if(['title','year'].includes(c.id))onSort(c.id);}} onKeyDown={e=>{if(e.key==='Enter'&&['title','year'].includes(c.id))onSort(c.id);}}
+                title={
+                  c.formula
+                    ? `Derived display: ${c.formula}. Save the attribute to refresh stored filter values.`
+                    : c.label
+                }
+              >
+                {c.type === "formula" ? "ƒ " : ""}
+                {c.pinned ? "⌖ " : ""}
+                {c.label}
+              </span>
+              <span
+                className="key-column-resize"
+                role="separator"
+                tabIndex={0}
+                aria-label={`Resize ${c.label} column`}
+                aria-orientation="vertical"
+                onKeyDown={(e) => {
+                  if (["ArrowLeft", "ArrowRight"].includes(e.key)) {
+                    e.preventDefault();
+                    resize(c.id, c.width + (e.key === "ArrowLeft" ? -20 : 20));
+                  }
+                }}
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  e.currentTarget.dataset.start = String(e.clientX);
+                  e.currentTarget.dataset.width = String(c.width);
+                }}
+                onPointerMove={(e) => {
+                  if (e.currentTarget.hasPointerCapture(e.pointerId))
+                    resize(
+                      c.id,
+                      Number(e.currentTarget.dataset.width) +
+                        e.clientX -
+                        Number(e.currentTarget.dataset.start),
+                    );
+                }}
+                onPointerUp={(e) => {
+                  if (e.currentTarget.hasPointerCapture(e.pointerId))
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                }}
+              />
+            </th>
+          ))}
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        {documents.map((d) => (
+          <tr
+            key={keyOf(d)}
+            className={
+              selected && keyOf(selected) === keyOf(d) ? "selected" : ""
+            }
+            tabIndex={0}
+            onClick={() => onSelect(d)}
+            onDoubleClick={() => onOpen(d)}
+            onKeyDown={(e) => {
+              if (e.target === e.currentTarget && e.key === "Enter") onOpen(d);
+            }}
+          >
+            <td
+              className="key-grid-select"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                aria-label={`Select ${d.title}`}
+                checked={checked.has(keyOf(d))}
+                onChange={() => toggle(d)}
+              />
+            </td>
+            {ordered.map((c) => (
+              <td
+                key={c.id}
+                onDoubleClick={(e) => {
+                  if (
+                    c.property &&
+                    !c.property.startsWith("@") &&
+                    c.type !== "formula"
+                  ) {
+                    e.stopPropagation();
+                    setEditing({
+                      key: keyOf(d),
+                      column: c.id,
+                      value: String(
+                        extra[keyOf(d)]?.properties[c.property] ?? "",
+                      ),
+                    });
+                  }
+                }}
+                style={
+                  c.pinned
+                    ? { position: "sticky", left: left(c), zIndex: 1 }
+                    : undefined
+                }
+              >
+                {editing?.key === keyOf(d) && editing.column === c.id ? (
+                  <div
+                    className="key-inline-edit"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {c.type === "select" || c.type === "boolean" ? (
+                      <select
+                        autoFocus
+                        disabled={saving}
+                        value={editing.value}
+                        onChange={(e) =>
+                          setEditing({ ...editing, value: e.target.value })
+                        }
+                        onBlur={() => void commit(d, c)}
+                      >
+                        {(c.type === "boolean"
+                          ? ["true", "false"]
+                          : c.options || []
+                        ).map((option) => (
+                          <option key={option}>{option}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        autoFocus
+                        aria-label={`Edit ${c.label} for ${d.title}`}
+                        disabled={saving}
+                        value={editing.value}
+                        onChange={(e) =>
+                          setEditing({ ...editing, value: e.target.value })
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void commit(d, c);
+                          }
+                          if (e.key === "Escape") setEditing(undefined);
+                        }}
+                        onBlur={() => void commit(d, c)}
+                      />
+                    )}{" "}
+                    {editing.error && (
+                      <small role="alert">{editing.error}</small>
+                    )}
+                  </div>
+                ) : c.id === "title" ? (
+                  <>
+                    <span className="key-source-title" title={d.title}>
+                      ▱ {d.title}
+                    </span>
+                    {isOpen(d) && <span className="key-open-badge">Open</span>}
+                    {view === "list" && (
+                      <small>
+                        {d.authors?.join(", ") || "Unknown author"} ·{" "}
+                        {d.year || "—"} · {d.pageCount} pages
+                      </small>
+                    )}
+                  </>
+                ) : c.id === "authors" ? (
+                  d.authors?.join("; ") || "—"
+                ) : c.id === "year" ? (
+                  d.year || "—"
+                ) : c.id === "pages" ? (
+                  d.pageCount
+                ) : c.id === "added" ? (d.addedAtMs?new Date(d.addedAtMs).toLocaleDateString():"—") : c.id === "type" ? (
+                  "PDF"
+                ) : c.id === "tags" ? (
+                  extra[keyOf(d)]?.tags.join(", ") || "—"
+                ) : c.id === "collections" ? (
+                  extra[keyOf(d)]?.collections.join(", ") || "—"
+                ) : c.id === "status" ? (
+                  <>
+                    <span className={`key-source-status ${d.status}`}>
+                      {status(d)}
+                    </span>
+                    {["queued", "processing", "indexing"].includes(d.status) &&
+                      d.total > 0 && (
+                        <progress max={d.total} value={d.completed} />
+                      )}
+                  </>
+                ) : (
+                  <span>
+                    {extra[keyOf(d)]
+                      ? formulaValue(c, d, extra[keyOf(d)].properties)
+                      : "…"}
+                  </span>
+                )}
+              </td>
+            ))}
+            <td>
+              <button
+                aria-label={`Details for ${d.title}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(d);
+                }}
+              >
+                •••
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function formulaValue(
+  column: SourceColumn,
+  document: LibrarySource,
+  properties: Record<string, unknown>,
+) {
+  try {
+    return String(
+      column.type === "formula" && column.formula
+        ? evaluatePropertyFormula(column.formula, {
+            ...properties,
+            title: document.title,
+            year: document.year ?? null,
+            pages: document.pageCount,
+            authors: document.authors?.join("; ") || "",
+          })
+        : (properties[column.property!] ?? "—"),
+    );
+  } catch (e) {
+    return `⚠ ${String(e).replace(/^Error: /, "")}`;
+  }
+}

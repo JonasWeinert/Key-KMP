@@ -23,12 +23,14 @@ interface Ready {
   source: ManagedSource;
   viewState?: PdfJsViewState;
   searchTarget?: Target;
+  searchNavigation?: { index: number; total: number };
 }
 interface ReaderBridge {
   readerReady(): Promise<Ready>;
   readerState(state: PdfJsViewState): void;
   on(event: string, listener: (payload: unknown) => void): () => void;
   readerBack?(): void;
+  readerResult?(direction: number): Promise<void>;
 }
 const bridge = () => (window as unknown as { key: ReaderBridge }).key;
 
@@ -38,6 +40,9 @@ export default function PdfReader() {
   const [error, setError] = useState("");
   const [chrome, setChrome] = useState<PdfReaderChromeState>();
   const [target, setTarget] = useState<Target>();
+  const [navigation, setNavigation] = useState({ index: -1, total: 0 });
+  const [navigating, setNavigating] = useState(false);
+  const [navigationError, setNavigationError] = useState("");
   const [page, setPage] = useState(1);
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState("");
@@ -49,6 +54,9 @@ export default function PdfReader() {
     let alive = true;
     const stop = bridge().on("search-target", (payload) => {
       if (alive) setTarget(payload as Target);
+    });
+    const stopNavigation = bridge().on("search-navigation", (payload) => {
+      if (alive) setNavigation(payload as { index: number; total: number });
     });
     void bridge()
       .readerReady()
@@ -64,6 +72,7 @@ export default function PdfReader() {
         registerManagedSource(file, initial.source);
         setDocument({ file, initial });
         setTarget((current) => current ?? initial.searchTarget);
+        if (initial.searchNavigation) setNavigation(initial.searchNavigation);
         setPage((initial.viewState?.pageIndex ?? 0) + 1);
       })
       .catch((error) => {
@@ -72,6 +81,7 @@ export default function PdfReader() {
     return () => {
       alive = false;
       stop();
+      stopNavigation();
       clearTimeout(stateTimer.current);
       if (latestState.current) bridge().readerState(latestState.current);
     };
@@ -82,6 +92,17 @@ export default function PdfReader() {
     bridge().readerState(state);
   }, []);
   const panel = (name: PdfReaderPanel) => reader.current?.togglePanel(name);
+  const navigate = async (direction: number) => {
+    setNavigating(true);
+    setNavigationError("");
+    try {
+      await bridge().readerResult?.(direction);
+    } catch (e) {
+      setNavigationError(String(e));
+    } finally {
+      setNavigating(false);
+    }
+  };
   const closeSearch = () => {
     reader.current?.closeSearch();
     setShowSearch(false);
@@ -214,6 +235,28 @@ export default function PdfReader() {
             </button>
           )}
           <span>Search passage · page {target.page + 1}</span>
+          {navigation.total > 0 && (
+            <>
+              <button
+                disabled={navigating || navigation.index <= 0}
+                onClick={() => void navigate(-1)}
+              >
+                Previous result
+              </button>
+              <span>
+                {navigation.index + 1} / {navigation.total} loaded results
+              </span>
+              <button
+                disabled={
+                  navigating || navigation.index >= navigation.total - 1
+                }
+                onClick={() => void navigate(1)}
+              >
+                Next result
+              </button>
+            </>
+          )}
+          {navigationError && <span role="alert">{navigationError}</span>}
           <button
             onClick={() => {
               setTarget(undefined);
