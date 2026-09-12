@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("key", {
       ![
         "tabs-changed",
         "save-content",
+        "property-definitions-changed",
         "library-changed",
         "search-target",
         "search-navigation",

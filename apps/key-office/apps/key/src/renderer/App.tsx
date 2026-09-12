@@ -1,3 +1,4 @@
+import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type LibrarySource, type LibraryHit } from "./LibraryHome";
@@ -27,6 +28,7 @@ interface RecordItem {
   workspaceId?: string;
 }
 interface TabState {
+  searchPreview?: SearchPreviewState;
   tabs: {
     id: string;
     title: string;
@@ -99,6 +101,7 @@ const officeTabs: TabsApi = {
   reorder: (tabId, index) => api().tabAction("reorder", { tabId, index }),
   showNewMenu: () => api().tabAction("new"),
   showMenu: (x, y) => api().tabAction("tab-menu", { x, y }),
+  dropView: (drop) => api().tabAction("drop-view", drop),
   notifyChromePressed: () => {
     void api().tabAction("chrome-pressed");
   },
@@ -525,6 +528,7 @@ export default function App() {
           </aside>
         </div>
         <div className="key-content-panes">
+          {tabs.searchPreview && <SearchPreviewBar preview={tabs.searchPreview} action={action}/>}
           {tabs.tabs
             .flatMap((t) => t.views)
             .filter((v) => v.content)
@@ -548,6 +552,7 @@ export default function App() {
                       action("focus", { viewId: v.id });
                   }}
                   style={{
+                    top: tabs.searchPreview ? 40 : 0,
                     left:
                       split && index === 1 ? `calc(${ratio * 100}% + 3px)` : 0,
                     width: split
@@ -587,6 +592,7 @@ export default function App() {
           )}
           tabIndex={0}
           style={{
+            top: tabs.searchPreview ? 80 : 40,
             left: `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) * ${dragRatio ?? tabs.splitRatio ?? 0.5} - 3px)`,
           }}
           onPointerDown={(e) => {

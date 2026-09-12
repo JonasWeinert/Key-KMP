@@ -1,5 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { parseReferences } from "./reference-import";
+import {
+  agentInputs,
+  defaultInstruction,
+  resolveAgentRecipe,
+  withAgentRecipe,
+  type AgentInput,
+  type AgentAttribute,
+} from "./agent-recipe";
 import type { LibraryHomeProps } from "./LibraryHome";
 type Invoke = LibraryHomeProps["invoke"];
 export interface SourceEntry {
@@ -45,11 +53,13 @@ function Frame({
   onClose,
   children,
   embedded = false,
+  className = "",
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   embedded?: boolean;
+  className?: string;
 }) {
   if (embedded)
     return (
@@ -61,7 +71,7 @@ function Frame({
   return (
     <div className="key-dialog-backdrop">
       <section
-        className="key-shell-dialog"
+        className={`key-shell-dialog ${className}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -743,10 +753,11 @@ export function AgentPropertyDialog({
   const [clearKey, setClearKey] = useState(false);
   const [selectedProposals, setSelectedProposals] = useState<string[]>([]);
   const [name, setName] = useState(propertyName);
-  const [prompt, setPrompt] = useState(
-    "Extract the requested property from the selected source inputs. Return null if unsupported.",
-  );
-  const [inputs, setInputs] = useState(["title", "pdfText"]);
+  const [prompt, setPrompt] = useState(defaultInstruction);
+  const [inputs, setInputs] = useState<AgentInput[]>(["title", "pdfText"]);
+  const [enabled, setEnabled] = useState(true);
+  const [attribute, setAttribute] = useState<AgentAttribute>();
+  const [loadingRecipe, setLoadingRecipe] = useState(false);
   const [type, setType] = useState("text");
   const [options, setOptions] = useState("");
   const [status, setStatus] = useState<{
@@ -762,22 +773,51 @@ export function AgentPropertyDialog({
     void invoke<any>("agent_fill_status", {}, workspaceId)
       .then(setStatus)
       .catch((e) => setMessage(String(e)));
-    if (propertyName)
-      void invoke<any>(
-        "workspace_agent_property",
-        { name: propertyName },
-        workspaceId,
-      )
-        .then((c) => {
-          if (c) {
-            setPrompt(c.prompt);
-            setInputs(c.inputs);
-            setType(c.type ?? "text");
-            setOptions((c.options ?? []).join("; "));
-          }
+  }, [workspaceId]);
+  useEffect(() => {
+    let active = true;
+    setLoadingRecipe(true);
+    const timer = setTimeout(() => {
+      if (!workspaceId) {
+        setLoadingRecipe(false);
+        return;
+      }
+      void Promise.all([
+        invoke<AgentAttribute[]>("workspace_attributes", {}, workspaceId),
+        name.trim()
+          ? invoke<Record<string, unknown> | null>(
+              "workspace_agent_property",
+              { name: name.trim() },
+              workspaceId,
+            )
+          : Promise.resolve(null),
+      ])
+        .then(([attributes, legacy]) => {
+          if (!active) return;
+          const found = attributes.find((a) => a.name === name.trim());
+          const recipe = resolveAgentRecipe(found, legacy ?? undefined);
+          setAttribute(found);
+          setPrompt(recipe.instruction);
+          setInputs(recipe.inputs);
+          setEnabled(recipe.enabled);
+          setType(recipe.type);
+          setOptions(recipe.options.join("; "));
+          setProposals([]);
+          setSelectedProposals([]);
+          setLoadingRecipe(false);
         })
-        .catch((e) => setMessage(String(e)));
-  }, [workspaceId, propertyName]);
+        .catch((e) => {
+          if (active)
+            setMessage(
+              `Could not load the property recipe. Close and reopen to retry: ${String(e)}`,
+            );
+        });
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [workspaceId, name]);
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setMessage("");
@@ -799,7 +839,7 @@ export function AgentPropertyDialog({
       .filter(Boolean),
   };
   return (
-    <Frame title="Fill a property" onClose={onClose}>
+    <Frame title="Fill a property" onClose={onClose} className="key-agent-fill-dialog">
       <p>
         {hashes.length} selected PDFs. Select up to 25 PDFs per batch. Choose
         the inputs sent to your configured AI provider. Results require review
@@ -807,11 +847,23 @@ export function AgentPropertyDialog({
       </p>
       <label>
         Property name
-        <input value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          value={name}
+          disabled={!!propertyName || busy}
+          maxLength={128}
+          onChange={(e) => setName(e.target.value)}
+        />
       </label>
       <label>
         Value type
-        <select value={type} onChange={(e) => setType(e.target.value)}>
+        <select
+          value={type}
+          disabled={!!attribute?.type || loadingRecipe}
+          onChange={(e) => setType(e.target.value)}
+        >
+          {type === "formula" && (
+            <option value="formula">Formula · calculated locally</option>
+          )}
           {["text", "number", "boolean", "select"].map((t) => (
             <option key={t}>{t}</option>
           ))}
@@ -820,16 +872,42 @@ export function AgentPropertyDialog({
       {type === "select" && (
         <label>
           Options separated by semicolons
-          <input value={options} onChange={(e) => setOptions(e.target.value)} />
+          <input
+            value={options}
+            disabled={!!attribute?.type || loadingRecipe}
+            onChange={(e) => setOptions(e.target.value)}
+          />
         </label>
+      )}
+      <label>
+        <input
+          type="checkbox"
+          style={{ width: "auto", marginRight: 8 }}
+          checked={enabled}
+          disabled={loadingRecipe || busy}
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
+        Enable agent fill for this property
+      </label>
+      <p>
+        Enabling saves a reusable recipe. Nothing runs automatically: Generate
+        sends only the checked inputs, and confirmed proposals are saved after
+        review.
+      </p>
+      {attribute?.type && (
+        <small>
+          Value type and select options follow the workspace property
+          definition.
+        </small>
       )}
       <fieldset>
         <legend>Inputs</legend>
-        {["title", "authors", "year", "pageCount", "pdfText"].map((input) => (
+        {agentInputs.map((input) => (
           <label key={input}>
             <input
               type="checkbox"
               style={{ width: "auto", marginRight: 8 }}
+              disabled={loadingRecipe || busy}
               checked={inputs.includes(input)}
               onChange={(e) =>
                 setInputs((old) =>
@@ -850,19 +928,54 @@ export function AgentPropertyDialog({
         <textarea
           rows={4}
           value={prompt}
+          maxLength={8192}
+          disabled={loadingRecipe || busy}
           onChange={(e) => setPrompt(e.target.value)}
         />
       </label>
       <button
-        disabled={busy || !workspaceId || !name.trim() || !inputs.length}
+        disabled={
+          busy ||
+          loadingRecipe ||
+          !workspaceId ||
+          !name.trim() ||
+          !inputs.length ||
+          type === "formula"
+        }
         onClick={() =>
           void action(async () => {
-            await invoke(
-              "workspace_save_agent_property",
-              { name, config },
+            const attributes = await invoke<AgentAttribute[]>(
+              "workspace_attributes",
+              {},
               workspaceId,
             );
-            setMessage("Instructions saved");
+            const current = attributes.find((a) => a.name === name.trim());
+            if (
+              current?.type &&
+              (current.type !== type ||
+                JSON.stringify(current.options ?? []) !==
+                  JSON.stringify(attribute?.options ?? []))
+            )
+              throw Error(
+                "Property definition changed. Reopen agent fill before saving.",
+              );
+            const saved = withAgentRecipe(
+              current,
+              name.trim(),
+              type,
+              config.options,
+              { inputs, instruction: prompt, enabled },
+            );
+            await invoke(
+              "workspace_save_attribute",
+              { name: name.trim(), config: saved },
+              workspaceId,
+            );
+            setAttribute({ name: name.trim(), ...saved });
+            onSaved();
+            setMessage(
+              "Recipe saved for this property. No inputs have been sent.",
+            );
           })
         }
       >
@@ -940,6 +1053,9 @@ export function AgentPropertyDialog({
           busy ||
           !workspaceId ||
           !status?.available ||
+          loadingRecipe ||
+          !enabled ||
+          type === "formula" ||
           !hashes.length ||
           hashes.length > 25 ||
           !name.trim() ||
@@ -949,7 +1065,7 @@ export function AgentPropertyDialog({
           void action(async () => {
             const r = await invoke<any>(
               "agent_fill_propose",
-              { hashes, name, ...config },
+              { hashes, name: name.trim(), ...config },
               workspaceId,
             );
             setProposals(r.proposals);

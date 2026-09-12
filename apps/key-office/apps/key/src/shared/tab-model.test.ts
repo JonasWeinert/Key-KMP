@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   reorderWorkspaceTab,
+  applyWorkspaceViewDrop,
   activateWorkspaceTab,
   closeWorkspaceView,
   separateWorkspaceTab,
@@ -105,4 +106,59 @@ it("moves complete split groups without changing ownership, focus or ratios", ()
   expect(reorderWorkspaceTab(moved, "missing", 0)).toBe(moved);
   expect(reorderWorkspaceTab(moved, group.id, NaN)).toBe(moved);
   expect(reorderWorkspaceTab(moved, group.id, -1).tabs[0]).toBe(group);
+});
+
+describe("spatial tab drops", () => {
+  it("moves a singleton into the target preserving the target identity", () => {
+    const before=initial(),target=before.tabs[1];
+    const next=applyWorkspaceViewDrop(before,{kind:"split",viewId:"a",targetTabId:target.id});
+    invariant(next,["a","b","c","d"]);
+    expect(next.tabs.find(t=>t.id===target.id)?.viewIds).toEqual(["b","a"]);
+    expect(next.activeTabId).toBe(target.id);
+    expect(before.tabs).toHaveLength(4);
+  });
+  it("detaches either pane at an insertion position without closing its sibling", () => {
+    const before=initial();const split=splitWithTab(before,before.tabs[0].id,before.tabs[1].id);
+    for(const viewId of ["a","b"]) {
+      const next=applyWorkspaceViewDrop(split,{kind:"detach",viewId,index:0});
+      invariant(next,["a","b","c","d"]);
+      expect(next.tabs[0].viewIds).toEqual([viewId]);
+      expect(next.activeTabId).toBe(next.tabs[0].id);
+      expect(next.tabs.find(t=>t.id===split.tabs[0].id)?.viewIds).toEqual([viewId==="a"?"b":"a"]);
+    }
+  });
+  it("swaps a singleton with exactly the chosen split half", () => {
+    const before=initial();const split=splitWithTab(before,before.tabs[1].id,before.tabs[2].id);
+    const next=applyWorkspaceViewDrop(split,{kind:"swap",viewId:"a",targetViewId:"c"});
+    invariant(next,["a","b","c","d"]);
+    expect(next.tabs[0].viewIds).toEqual(["c"]);
+    expect(next.tabs[1].viewIds).toEqual(["b","a"]);
+    expect(next.tabs[1].activeViewId).toBe("a");
+  });
+  it("moves between groups and exchanges halves inside one group", () => {
+    let state=initial();state=splitWithTab(state,state.tabs[0].id,state.tabs[1].id);
+    state=applyWorkspaceViewDrop(state,{kind:"split",viewId:"b",targetTabId:state.tabs[1].id});
+    invariant(state,["a","b","c","d"]);
+    const swapped=applyWorkspaceViewDrop(state,{kind:"swap",viewId:"c",targetViewId:"b"});
+    invariant(swapped,["a","b","c","d"]);
+    expect(swapped.tabs.find(t=>t.viewIds.includes("b"))?.viewIds).toEqual(["b","c"]);
+  });
+  it("exchanges panes between two split groups while retaining their geometry", () => {
+    const before=initial();
+    let state=splitWithTab(before,before.tabs[0].id,before.tabs[1].id);
+    state=splitWithTab(state,before.tabs[2].id,before.tabs[3].id);
+    state=setWorkspaceSplitRatio(state,before.tabs[0].id,.3);
+    state=setWorkspaceSplitRatio(state,before.tabs[2].id,.7);
+    const next=applyWorkspaceViewDrop(state,{kind:"swap",viewId:"b",targetViewId:"c"});
+    invariant(next,["a","b","c","d"]);
+    expect(next.tabs[0].viewIds).toEqual(["a","c"]);
+    expect(next.tabs[1].viewIds).toEqual(["b","d"]);
+    expect(next.tabs.map(t=>t.splitRatio)).toEqual([.3,.7]);
+  });
+  it("ignores stale targets and invalid detach requests", () => {
+    const state=initial();
+    expect(applyWorkspaceViewDrop(state,{kind:"split",viewId:"a",targetTabId:"missing"})).toBe(state);
+    expect(applyWorkspaceViewDrop(state,{kind:"swap",viewId:"a",targetViewId:"b"})).toBe(state);
+    expect(applyWorkspaceViewDrop(state,{kind:"detach",viewId:"a",index:NaN})).toBe(state);
+  });
 });

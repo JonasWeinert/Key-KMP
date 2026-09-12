@@ -773,3 +773,70 @@ textarea:focus-visible {
 .key-content-pane .key-shell-dialog {
   max-width: calc(100% - 24px);
 }
+
+.key-search-session { position:absolute; top:0; left:0; right:0; height:40px; display:flex; align-items:center; gap:12px; padding:0 12px; box-sizing:border-box; background:#fff2c7; border-bottom:1px solid #e8d69b; color:#5b4923; font-size:12px; z-index:4; }
+.key-search-session button { border:0; background:transparent; color:inherit; border-radius:5px; padding:4px 7px; cursor:pointer; }
+.key-search-session button:hover { background:#b0801820; }
+.key-search-session button:disabled { opacity:.35; cursor:default; }
+.key-search-session-origin { max-width:25%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.key-search-session-document { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.key-search-session-controls { display:flex; gap:5px; align-items:center; white-space:nowrap; }
+.key-search-session-controls > button { font-size:17px; }
+@media(max-width:1000px) { .key-search-session-loaded { display:none; } }
+@media(prefers-color-scheme:dark) { .key-search-session { background:#423821; color:#f6dfa4; border-bottom-color:#66512c; } }
+
+.key-content-pane { container-type:inline-size; }
+
+.key-content-pane .key-dialog-backdrop {
+  position: absolute;
+  padding: 20px;
+  box-sizing: border-box;
+}
+.key-agent-fill-dialog {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.key-agent-fill-dialog > label {
+  margin: 16px 0;
+}
+.key-agent-fill-dialog > small {
+  display: block;
+  color: var(--text-secondary, #737373);
+  line-height: 1.5;
+  font-size: 11px;
+  margin-bottom: 14px;
+}
+.key-agent-fill-dialog fieldset {
+  border: 1px solid var(--border, #e5e5e5);
+  border-radius: 8px;
+  padding: 10px 14px 14px;
+  margin: 16px 0;
+  display: grid;
+  gap: 10px;
+  background: var(--surface-subtle, #fafafa);
+}
+.key-agent-fill-dialog legend {
+  color: var(--text-secondary, #737373);
+  font-size: 11px;
+  padding: 0 5px;
+}
+.key-agent-fill-dialog input,
+.key-agent-fill-dialog select,
+.key-agent-fill-dialog textarea {
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e5e5);
+  border-radius: 6px;
+  padding: 9px 10px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.key-agent-fill-dialog textarea { resize: vertical; line-height: 1.6; }
+.key-agent-fill-dialog input[type="checkbox"] { accent-color: var(--text-primary, #333); }
+.key-agent-fill-dialog details { margin: 14px 0; font-size: 12px; }
+.key-agent-fill-dialog summary { cursor: pointer; color: var(--text-secondary, #666); }
+.key-agent-fill-dialog button { cursor: pointer; font: inherit; font-size: 12px; }
+.key-agent-fill-dialog button:disabled { cursor: default; opacity: .45; }
+.key-agent-fill-dialog button:hover:not(:disabled) { background: var(--surface-subtle, #f4f4f5); }

@@ -171,3 +171,41 @@ export function reorderWorkspaceTab(
   tabs.splice(Math.min(tabs.length, Math.max(0, Math.trunc(index))), 0, moved);
   return { ...state, tabs };
 }
+
+export type WorkspaceViewDrop =
+  | { kind: "split"; viewId: string; targetTabId: string }
+  | { kind: "swap"; viewId: string; targetViewId: string }
+  | { kind: "detach"; viewId: string; index: number };
+
+/** Atomic ownership transfer: no view is closed or duplicated during a drag. */
+export function applyWorkspaceViewDrop(state: WorkspaceTabsState, drop: WorkspaceViewDrop): WorkspaceTabsState {
+  const source = state.tabs.find(tab => tab.viewIds.includes(drop.viewId));
+  if (!source) return state;
+  if (drop.kind === "swap") {
+    const target = state.tabs.find(tab => tab.viewIds.includes(drop.targetViewId));
+    if (!target || target.viewIds.length !== 2 || drop.viewId === drop.targetViewId) return state;
+    const exchange = (id: string) => id === drop.viewId ? drop.targetViewId : id === drop.targetViewId ? drop.viewId : id;
+    return {
+      tabs: state.tabs.map(tab => tab.id === source.id || tab.id === target.id ? {
+        ...tab,
+        viewIds: tab.viewIds.map(exchange) as WorkspaceTab["viewIds"],
+        activeViewId: tab.id === target.id ? drop.viewId : exchange(tab.activeViewId),
+      } : tab),
+      activeTabId: target.id,
+    };
+  }
+  if (drop.kind === "detach" && (source.viewIds.length !== 2 || !Number.isFinite(drop.index))) return state;
+  const target = drop.kind === "split" ? state.tabs.find(tab => tab.id === drop.targetTabId) : undefined;
+  if (drop.kind === "split" && (!target || target.id === source.id || target.viewIds.length !== 1)) return state;
+  const survivor = source.viewIds.find(id => id !== drop.viewId);
+  const tabs = state.tabs.flatMap(tab => tab.id !== source.id ? [tab] : survivor ? [{...tab, viewIds: [survivor] as [string], activeViewId: survivor, splitRatio: 0.5}] : []);
+  if (drop.kind === "detach") {
+    const detached = singleWorkspaceTab(drop.viewId);
+    tabs.splice(Math.max(0, Math.min(tabs.length, Math.trunc(drop.index))), 0, detached);
+    return {tabs, activeTabId: detached.id};
+  }
+  return {
+    tabs: tabs.map(tab => tab.id === target!.id ? {...tab, viewIds: [tab.viewIds[0], drop.viewId], activeViewId: drop.viewId, splitRatio: 0.5} : tab),
+    activeTabId: target!.id,
+  };
+}

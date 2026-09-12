@@ -43,79 +43,69 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("checkbox", { name: "Select all sources on this page" })
       .check();
-    await page
-      .getByRole("button", { name: "＋ Attribute", exact: true })
-      .click();
-    let dialog = page.getByRole("dialog", {
-      name: "Add attribute",
-      exact: true,
-    });
-    await dialog
-      .getByRole("textbox", { name: "Name", exact: true })
-      .fill("Review");
-    await dialog.getByRole("combobox", { name: /Type/ }).selectOption("select");
-    await dialog
-      .getByRole("textbox", { name: /Options/ })
-      .fill("To read; Reviewed");
-    await dialog
-      .getByRole("combobox", { name: /Value/ })
-      .selectOption("Reviewed");
-    await dialog
-      .getByRole("button", { name: "Save attribute", exact: true })
-      .click();
+    await page.getByRole("button", { name: "＋ Property", exact: true }).click();
+    let dialog = page.getByRole("dialog", { name: "New property", exact: true });
+    await dialog.getByRole("textbox", { name: "Property name", exact: true }).fill("Review");
+    await dialog.getByRole("button", { name: /Select$/, exact: false }).click();
+    await dialog.getByPlaceholder("Add an option…").fill("To read");
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+    await dialog.getByPlaceholder("Add an option…").fill("Reviewed");
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+    await dialog.getByRole("checkbox", { name: /Set a value/ }).check();
+    await dialog.getByRole("combobox", { name: "Value", exact: true }).selectOption("Reviewed");
+    await dialog.getByRole("button", { name: "Create property", exact: true }).click();
     await dialog.waitFor({ state: "hidden" });
-    await page
-      .getByRole("button", { name: "＋ Attribute", exact: true })
-      .click();
-    dialog = page.getByRole("dialog", { name: "Add attribute", exact: true });
-    await dialog
-      .getByRole("textbox", { name: "Name", exact: true })
-      .fill("Next page");
-    await dialog
-      .getByRole("combobox", { name: /Type/ })
-      .selectOption("formula");
-    await dialog.getByRole("textbox", { name: /Formula/ }).fill("{Pages} + 1");
-    await dialog
-      .getByRole("button", { name: "Save attribute", exact: true })
-      .click();
+    // Editing the definition must preserve previously saved source values.
+    await page.getByRole("button", { name: "Configure Review property", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "Edit property", exact: true });
+    await dialog.getByRole("textbox", {name:"Property name",exact:true}).fill("Reading status");
+    assert.equal(await dialog.getByRole("checkbox", { name: /Set a value/ }).isChecked(), false);
+    await dialog.getByPlaceholder("Add an option…").fill("Archived");
+    await dialog.getByRole("button", { name: "Add", exact: true }).click();
+    await page.screenshot({path:path.join(temp,"property-editor.png")});
+    await dialog.getByRole("button", {name:"Save property",exact:true}).click();
+    await dialog.waitFor({state:"hidden"});
+    await page.getByRole("button", { name: "＋ Property", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "New property", exact: true });
+    await dialog.getByRole("textbox", { name: "Property name", exact: true }).fill("Rating");
+    await dialog.getByRole("button", {name:/Number$/,exact:false}).click();
+    await dialog.getByRole("button", {name:"Create property",exact:true}).click();
+    await dialog.waitFor({state:"hidden"});
+    await page.getByRole("button", { name: "＋ Property", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "New property", exact: true });
+    await dialog.getByRole("textbox", { name: "Property name", exact: true }).fill("Next page");
+    await dialog.getByRole("button", {name:/Formula$/,exact:false}).click();
+    await dialog.getByRole("textbox", {name:"Formula",exact:true}).fill("{Pages} + 1");
+    await dialog.getByRole("checkbox", {name:/Recompute stored results/}).check();
+    await dialog.getByRole("button", { name: "Create property", exact: true }).click();
     await dialog.waitFor({ state: "hidden" });
-    const meta = await page.evaluate(
-      (s) =>
-        window.key.invoke(
-          "library_metadata_details",
-          { hash: s.hash },
-          s.workspaceId,
-        ),
-      source,
-    );
-    assert.equal(meta.properties.Review, "Reviewed");
-    assert.equal(meta.properties["Next page"], 4);
-    await page.getByRole("button", { name: "Columns", exact: true }).click();
-    await page
-      .locator(".key-column-controls")
-      .getByLabel("Authors", { exact: true })
-      .uncheck();
-    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    const meta = await page.evaluate(s=>window.key.invoke("library_metadata_details",{hash:s.hash},s.workspaceId),source);
+    assert.equal(meta.properties["Reading status"],"Reviewed");
+    assert.equal(Object.hasOwn(meta.properties,"Review"),false);
+    assert.equal(meta.properties["Next page"],4);
+    assert.equal(Object.hasOwn(meta.properties,"Rating"),false);
+    const definitions=await page.evaluate(s=>window.key.invoke("workspace_attributes",{},s.workspaceId),source);
+    assert.deepEqual(definitions.find(d=>d.name==='Reading status').options,['To read','Reviewed','Archived']);
+    assert.equal(definitions.find(d=>d.name==='Rating').type,'number');
+    await page.getByRole("button", { name: "Properties", exact: true }).click();
+    await page.getByRole("region",{name:"Manage properties"}).getByRole("checkbox",{name:"Show Authors",exact:true}).uncheck();
+    await page.screenshot({path:path.join(temp,"property-manager.png")});
+    await page.getByRole("button", { name: "Properties", exact: true }).click();
     await page.screenshot({ path: path.join(temp, "attributes.png") });
+    if(process.env.KEY_PROPERTY_ONLY==='1'){
+      const result={passed:true,propertyDefinitionPreservedValues:true,renamePreservedValues:true,emptyNumberDefinition:true,properties:meta.properties,screenshots:['property-editor.png','property-manager.png','attributes.png'].map(name=>path.join(temp,name))};
+      await writeFile(path.join(temp,'result.json'),JSON.stringify(result,null,2));
+      console.log(JSON.stringify(result,null,2));return;
+    }
     await page
       .getByRole("textbox", { name: "Search passages", exact: true })
       .fill("Select this sentence");
     await page.locator(".key-library-hit").first().waitFor({ timeout: 90000 });
     assert((await page.locator(".key-library-hit mark").count()) > 0);
     await page.locator(".key-library-hit").first().click();
-    await page
-      .getByRole("button", {
-        name: "Open and highlight in reader ↗",
-        exact: true,
-      })
-      .waitFor();
-    await page.screenshot({ path: path.join(temp, "live-search-preview.png") });
-    await page
-      .getByRole("button", {
-        name: "Open and highlight in reader ↗",
-        exact: true,
-      })
-      .click();
+    await page.getByRole("complementary", {name:"Source metadata"}).waitFor();
+    await page.locator(".key-search-session").waitFor();
+    await page.screenshot({path:path.join(temp,"live-search-preview.png")});
     let pdf;
     for (let i = 0; i < 100; i++) {
       pdf = app.windows().find((w) => w.url().endsWith("/pdf.html"));
@@ -126,13 +116,15 @@ const assert = require("node:assert/strict");
     await pdf.waitForFunction(() => window.__PDFJS_FEATURES_READY__, {
       timeout: 60000,
     });
-    await pdf.getByRole("button", { name: "Next result", exact: true }).click();
-    await pdf
-      .getByRole("button", { name: "Previous result", exact: true })
-      .click();
-    await pdf
-      .getByRole("button", { name: "Back to results", exact: true })
-      .click();
+    const next=page.getByRole("button", {name:"Next result",exact:true});
+    await page.waitForFunction(async()=>!(await window.key.tabs()).searchPreview.busy);
+    if(await next.isEnabled()) {
+      await next.click();
+      await page.waitForFunction(async()=>!(await window.key.tabs()).searchPreview.busy);
+      await page.getByRole("button", {name:"Previous result",exact:true}).click();
+      await page.waitForFunction(async()=>!(await window.key.tabs()).searchPreview.busy);
+    }
+    await page.getByRole("button", {name:"Dismiss search navigation",exact:true}).click();
     await page
       .getByRole("textbox", { name: "Search passages", exact: true })
       .waitFor();

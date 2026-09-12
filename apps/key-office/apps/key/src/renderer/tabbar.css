@@ -428,3 +428,41 @@ body.vib .tab-bar-drag-spacer {
   );
   font-weight: 600;
 }
+
+.tab-item.tab-drop-split .tab-plate {
+  background: color-mix(in srgb, var(--color-brand-secondary, #3276cd) 18%, var(--tab-bg, #fff));
+  outline: 2px solid var(--color-brand-secondary, #3276cd);
+  outline-offset: -2px;
+}
+.tab-split-pane.pane-drop-swap {
+  background: color-mix(in srgb, var(--color-brand-secondary, #3276cd) 22%, transparent);
+  outline: 2px solid var(--color-brand-secondary, #3276cd);
+}
+.tab-split-pane.pane-drag-source { opacity: .45; cursor: grabbing; }
+.tab-split-pane { cursor: grab; }
+.tab-split-pane:focus-visible { outline: 2px solid var(--color-brand-secondary, #3276cd); }
+.tab-split-badge { cursor: grab; }
+.tab-drop-feedback {
+  position: fixed;
+  /* Native document views begin at y=40; feedback must stay in chrome. */
+  top: 2px;
+  z-index: 2000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 9px;
+  border: 1px solid var(--color-brand-secondary, #3276cd);
+  border-radius: 8px;
+  background: var(--tab-active-bg, #fff);
+  color: var(--tab-text, #25262a);
+  box-shadow: 0 4px 16px #0002;
+  font: 11px/1.2 system-ui, sans-serif;
+}
+.tab-drop-feedback small { opacity: .65; font-size: 10px; }
+@media(prefers-color-scheme:dark) {
+  .tab-drop-feedback { background: #27282d; color: #eee; }
+}
+
+/* Centre targets use their original geometry, not animated reorder slots. */
+.tab-strip.targeting .tab-item { transition: none !important; }

@@ -1,3 +1,4 @@
+import { placeSearchPreview } from "../shared/search-preview-model";
 import {
   app,
   BrowserWindow,
@@ -23,6 +24,7 @@ import {
 } from "./office-editors";
 import {
   reorderWorkspaceTab,
+  applyWorkspaceViewDrop,
   singleWorkspaceTab,
   activeWorkspaceTab,
   activateWorkspaceTab,
@@ -46,6 +48,8 @@ type OwnedView = {
   };
   contentKey?: string;
   returnViewId?: string;
+  searchPreviewOwner?: string;
+  sharedSearchNavigation?: boolean;
   dirty?: boolean;
   workspaceId?: string;
   path?: string;
@@ -104,11 +108,162 @@ function disposePdf(record: OwnedView) {
 }
 let state: WorkspaceTabsState = { tabs: [], activeTabId: null };
 let quitting = false;
+type SearchResultRef = {
+  id: string;
+  documentHash: string;
+  documentTitle?: string;
+  workspaceId: string;
+  page: number;
+};
+type SearchPreviewSession = {
+  sourceViewId: string;
+  previewViewId?: string;
+  hits: SearchResultRef[];
+  index: number;
+  query: string;
+  busy: boolean;
+  error?: string;
+  sequence: number;
+  dismissed: boolean;
+};
+const searchPreviews = new Map<string, SearchPreviewSession>();
+function activeSearchPreview() {
+  const group = activeWorkspaceTab(state);
+  return [...searchPreviews.values()].find(
+    (session) =>
+      !session.dismissed &&
+      group?.viewIds.includes(session.sourceViewId) &&
+      (session.previewViewId
+        ? group.viewIds.includes(session.previewViewId)
+        : session.busy || Boolean(session.error)),
+  );
+}
+function searchPreviewSnapshot() {
+  const session = activeSearchPreview();
+  if (!session) return undefined;
+  return {
+    sourceViewId: session.sourceViewId,
+    previewViewId: session.previewViewId,
+    index: session.index,
+    total: session.hits.length,
+    query: session.query,
+    busy: session.busy,
+    error: session.error,
+    hit: session.hits[session.index],
+  };
+}
+async function showSearchPreview(session: SearchPreviewSession, index: number) {
+  const hit = session.hits[index];
+  if (!hit || !views.has(session.sourceViewId)) return;
+  const sequence = ++session.sequence;
+  session.busy = true;
+  session.error = undefined;
+  session.dismissed = false;
+  layout();
+  try {
+    const cachedSource = views.get(
+      `pdf:${hit.workspaceId}:${hit.documentHash}`,
+    )?.source;
+    const [info, target] = await Promise.all([
+      cachedSource
+        ? Promise.resolve(cachedSource)
+        : registry.invoke(
+            "library_source_info",
+            { hash: hit.documentHash },
+            hit.workspaceId,
+          ),
+      registry.invoke("resolve_search_target", { id: hit.id }, hit.workspaceId),
+    ]);
+    if (
+      session.sequence !== sequence ||
+      session.dismissed ||
+      !views.has(session.sourceViewId)
+    )
+      return;
+    if (!activeWorkspaceTab(state)?.viewIds.includes(session.sourceViewId)) {
+      session.busy = false;
+      session.dismissed = true;
+      return;
+    }
+    const id = `pdf:${hit.workspaceId}:${hit.documentHash}`;
+    let preview = views.get(id);
+    if (!preview) {
+      preview = {
+        id,
+        kind: "pdf",
+        title: hit.documentTitle || (info as any).title,
+        workspaceId: hit.workspaceId,
+        source: info,
+        lastUsed: Date.now(),
+        searchPreviewOwner: session.sourceViewId,
+      };
+      views.set(id, preview);
+    }
+    const old = views.get(session.previewViewId || "");
+    const replaceable =
+      old?.searchPreviewOwner === session.sourceViewId ? old.id : undefined;
+    const foreground =
+      state.tabs.find((t) => t.viewIds.includes(session.sourceViewId))?.id ===
+      state.activeTabId;
+    const activeId = state.activeTabId;
+    state = placeSearchPreview(state, session.sourceViewId, id, replaceable);
+    if (!foreground) state = { ...state, activeTabId: activeId };
+    if (
+      old &&
+      old.id !== id &&
+      replaceable &&
+      !state.tabs.some((t) => t.viewIds.includes(old.id))
+    ) {
+      disposePdf(old);
+      views.delete(old.id);
+    }
+    preview.searchTarget = target;
+    preview.returnViewId = session.sourceViewId;
+    preview.sharedSearchNavigation = true;
+    preview.searchResults = session.hits;
+    preview.searchIndex = index;
+    session.hits[index] = {
+      ...hit,
+      documentTitle: preview.title,
+      page: (target as any).page,
+    };
+    session.previewViewId = id;
+    session.index = index;
+    session.busy = false;
+    preview.view?.webContents.send("search-target", target);
+    preview.view?.webContents.send("search-navigation", {
+      index,
+      total: session.hits.length,
+      shared: true,
+    });
+    layout();
+  } catch (e) {
+    if (session.sequence !== sequence) return;
+    session.busy = false;
+    session.error = String(e);
+    layout();
+  }
+}
+function dismissSearchPreview(sourceViewId: string) {
+  const session = searchPreviews.get(sourceViewId);
+  if (!session) return;
+  session.dismissed = true;
+  session.busy = false;
+  ++session.sequence;
+  const preview = views.get(session.previewViewId || "");
+  if (preview) {
+    preview.searchTarget = undefined;
+    preview.searchPreviewOwner = undefined;
+    preview.view?.webContents.send("search-target", undefined);
+  }
+  layout();
+}
 const preload = join(__dirname, "../preload/index.js");
 const renderer = join(__dirname, "../renderer");
 function snapshot() {
   return {
     splitRatio: activeWorkspaceTab(state)?.splitRatio ?? 0.5,
+    searchPreview: searchPreviewSnapshot(),
     tabs: state.tabs.map((t) => ({
       id: t.id,
       title: t.viewIds
@@ -203,7 +358,7 @@ function placeViews() {
   const [width, height] = window.getContentSize();
   const ids = tab?.viewIds ?? [];
   const left = sidebarWidth,
-    top = 40,
+    top = 40 + (activeSearchPreview() ? 40 : 0),
     available = Math.max(0, width - left);
   const first = Math.round(available * (tab?.splitRatio ?? 0.5));
   ids.forEach((id, index) =>
@@ -310,6 +465,12 @@ async function closeTab(id: string) {
         record.view.webContents.close();
     }
     views.delete(viewId);
+    if (searchPreviews.has(viewId)) {
+      const session = searchPreviews.get(viewId)!;
+      session.dismissed = true;
+      ++session.sequence;
+      searchPreviews.delete(viewId);
+    }
     state = closeWorkspaceView(state, viewId);
   }
   if (!state.tabs.length) home();
@@ -378,6 +539,7 @@ async function sourceOpen(source: any, hit?: any, results?: any[]) {
   );
   const existing = views.get(id);
   if (existing) {
+    existing.sharedSearchNavigation = false;
     existing.returnViewId = returnViewId ?? existing.returnViewId;
     existing.searchTarget = target;
     existing.searchResults = searchResults;
@@ -385,6 +547,7 @@ async function sourceOpen(source: any, hit?: any, results?: any[]) {
     focus(id);
     if (target) existing.view?.webContents.send("search-target", target);
     existing.view?.webContents.send("search-navigation", {
+      shared: false,
       index: searchIndex ?? -1,
       total: searchResults?.length ?? 0,
     });
@@ -549,7 +712,9 @@ else
               "native_open_buffer",
               { id },
               workspaceId,
-              { binary: bytes },
+              {
+                binary: bytes,
+              },
             );
             for (let page = 0; page < doc.pages.length; page++) {
               const value: any = await registry.invoke(
@@ -669,6 +834,21 @@ else
           const result = await operation;
           if (
             [
+              "workspace_save_attribute",
+              "workspace_delete_attribute",
+              "workspace_rename_attribute",
+            ].includes(command)
+          )
+            emit("property-definitions-changed", {
+              workspaceId: targetWorkspace,
+              name: args?.name,
+              newName:
+                command === "workspace_rename_attribute"
+                  ? args?.newName
+                  : undefined,
+            });
+          if (
+            [
               "workspace_save_record",
               "workspace_save_entry",
               "workspace_set_project_membership",
@@ -736,6 +916,7 @@ else
           viewState: v.viewState,
           searchTarget: v.searchTarget,
           searchNavigation: {
+            shared: v.sharedSearchNavigation,
             index: v.searchIndex ?? -1,
             total: v.searchResults?.length ?? 0,
           },
@@ -748,6 +929,67 @@ else
       ipcMain.handle("key:tab-action", async (event, action, p = {}) => {
         shell(event.sender.id);
         switch (action) {
+          case "preview-result": {
+            const source = views.get(p.sourceViewId);
+            if (!source?.content || !p.hit?.id || !p.hit?.documentHash)
+              throw Error("Invalid search preview");
+            const hitWorkspace =
+              p.hit.workspaceId ?? p.source?.workspaceId ?? source.workspaceId;
+            if (!hitWorkspace) throw Error("Choose a workspace");
+            const all = (Array.isArray(p.results) ? p.results : []).map(
+              (h: any) => ({
+                id: h.id,
+                documentHash: h.documentHash,
+                documentTitle: h.documentTitle,
+                workspaceId: h.workspaceId ?? hitWorkspace,
+                page: h.page,
+              }),
+            );
+            const selected = all.findIndex(
+              (h: SearchResultRef) =>
+                h.id === p.hit.id && h.workspaceId === hitWorkspace,
+            );
+            const start = selected >= 1000 ? selected - 500 : 0;
+            const hits: SearchResultRef[] = all.slice(start, start + 1000);
+            let index = hits.findIndex(
+              (h) => h.id === p.hit.id && h.workspaceId === hitWorkspace,
+            );
+            if (index < 0) {
+              hits.unshift({ ...p.hit, workspaceId: hitWorkspace });
+              index = 0;
+            }
+            const previous = searchPreviews.get(source.id);
+            if (previous) ++previous.sequence;
+            const session: SearchPreviewSession = {
+              sourceViewId: source.id,
+              previewViewId: previous?.previewViewId,
+              hits,
+              index,
+              query: String(p.query || ""),
+              busy: false,
+              sequence: 0,
+              dismissed: false,
+            };
+            searchPreviews.set(source.id, session);
+            await showSearchPreview(session, index);
+            return snapshot();
+          }
+          case "preview-step": {
+            const session = activeSearchPreview();
+            if (session && !session.busy && [-1, 1].includes(p.direction))
+              await showSearchPreview(session, session.index + p.direction);
+            return snapshot();
+          }
+          case "preview-dismiss":
+            dismissSearchPreview(
+              p.sourceViewId ?? activeSearchPreview()?.sourceViewId,
+            );
+            return snapshot();
+          case "preview-focus-list": {
+            const session = activeSearchPreview();
+            if (session) focus(session.sourceViewId);
+            return snapshot();
+          }
           case "new":
             home();
             break;
@@ -874,6 +1116,10 @@ else
               ? Math.max(0, Math.min(320, Number(p.width)))
               : 240;
             placeViews();
+            return snapshot();
+          case "drop-view":
+            state = applyWorkspaceViewDrop(state, p);
+            layout();
             return snapshot();
           case "reorder":
             state = reorderWorkspaceTab(state, p.tabId, Number(p.index));

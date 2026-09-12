@@ -1,4 +1,6 @@
+import type { SearchPreviewState } from "./SearchPreviewBar";
 import { EntryDetails } from "./EntryTools";
+import { RecordProperties } from "./RecordProperties";
 import { useCallback, useEffect, useRef, useState } from "react";
 import LibraryHome, {
   type LibrarySource,
@@ -29,6 +31,7 @@ export interface RecordItem {
   workspaceId?: string;
 }
 interface TabState {
+  searchPreview?: SearchPreviewState;
   tabs: {
     id: string;
     title: string;
@@ -363,6 +366,63 @@ export default function WorkspaceContent({
       setBusy(false);
     }
   };
+  const renameProperty = async (name: string, newName: string) => {
+    if (!workspaceId || !record || busy)
+      throw new Error("This item is busy. Try again shortly.");
+    if (
+      Object.prototype.hasOwnProperty.call(JSON.parse(propertiesText), newName)
+    ) {
+      throw new Error(
+        "This draft already has that property. Choose a different name.",
+      );
+    }
+    setBusy(true);
+    try {
+      const result = await invoke<{
+        attribute?: {
+          type?: string;
+          options?: string[];
+          formula?: string;
+        } | null;
+      }>("workspace_rename_attribute", { name, newName }, workspaceId);
+      // Rebase only the revision caused by this rename, never unrelated concurrent edits.
+      if (record.id) {
+        const fresh = await invoke<RecordItem>(
+          "workspace_record",
+          { id: record.id },
+          workspaceId,
+        );
+        const affected =
+          Object.prototype.hasOwnProperty.call(record.properties, name) ||
+          (record.kind === "database" &&
+            (record.properties.view as DatabaseView | undefined)?.property ===
+              name);
+        if (!fresh || fresh.revision !== record.revision + (affected ? 1 : 0)) {
+          throw new Error(
+            "Property renamed, but this item also changed elsewhere. Your draft is preserved; reopen the item before saving it.",
+          );
+        }
+        setRecord(fresh);
+      }
+      setPropertiesText((text) => {
+        const next = JSON.parse(text);
+        if (Object.prototype.hasOwnProperty.call(next, name)) {
+          next[newName] = next[name];
+          delete next[name];
+        }
+        if (next.view?.property === name)
+          next.view = { ...next.view, property: newName };
+        return JSON.stringify(next);
+      });
+      setDatabaseView((view) =>
+        view.property === name ? { ...view, property: newName } : view,
+      );
+      setMessage("Property renamed");
+      return result;
+    } finally {
+      setBusy(false);
+    }
+  };
   const selectedWorkspace = workspaces.find((w) => w.id === workspaceId),
     selectedProject = projects.find((p) => p.id === projectId);
   const openIds = new Set(
@@ -519,8 +579,9 @@ export default function WorkspaceContent({
                 />
               )}
               <p className="key-sidebar-hint">
-                A saved database is a filtered view of workspace items. Formulas
-                and relation rollups are planned.
+                A saved database is a filtered view of workspace items. Formula
+                properties can be calculated explicitly; relation rollups are
+                planned.
               </p>
             </>
           ) : (
@@ -534,27 +595,17 @@ export default function WorkspaceContent({
               }}
             />
           )}
-          <details className="key-record-projects">
-            <summary>Custom properties</summary>
-            <p>
-              Properties are saved on this item. Enter a JSON object with your
-              own names and values.
-            </p>
-            <textarea
-              style={{
-                height: 160,
-                minHeight: 100,
-                fontFamily: "monospace",
-                fontSize: 12,
-              }}
-              aria-label="Custom properties JSON"
-              value={propertiesText}
-              onChange={(e) => {
-                setPropertiesText(e.target.value);
-                setDirty(true);
-              }}
-            />
-          </details>
+          <RecordProperties
+            value={JSON.parse(propertiesText)}
+            workspaceId={workspaceId}
+            invoke={invoke}
+            disabled={busy}
+            onRename={renameProperty}
+            onChange={(next) => {
+              setPropertiesText(JSON.stringify(next));
+              setDirty(true);
+            }}
+          />
           <div className="key-record-status" role="status">
             {dirty
               ? "Unsaved changes"
@@ -657,8 +708,26 @@ export default function WorkspaceContent({
                 : setError("Choose a destination workspace before adding PDFs.")
             }
             onOpenItem={(item) => selectRecord(item as RecordItem)}
-            onOpenSource={(source, hit, results) =>
-              void task(() => api().openSource(source, hit, results))
+            activePreview={
+              tabs.searchPreview?.sourceViewId === viewId
+                ? tabs.searchPreview.hit
+                : undefined
+            }
+            onDismissSearch={() =>
+              action("preview-dismiss", { sourceViewId: viewId })
+            }
+            onOpenSource={(source, hit, results, query) =>
+              void task(() =>
+                hit
+                  ? api().tabAction("preview-result", {
+                      sourceViewId: viewId,
+                      source,
+                      hit,
+                      results,
+                      query,
+                    })
+                  : api().openSource(source),
+              )
             }
             refreshKey={refreshKey}
           />

@@ -1,0 +1,91 @@
+{
+  "date": "2026-09-13",
+  "platform": "macOS arm64 Electron",
+  "unit_tests": {
+    "frontend": 46,
+    "attribute_backend": 4,
+    "passed": true
+  },
+  "checks": {
+    "search_preview_packaged": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-search-preview-BauSFE",
+      "tabCount": 2,
+      "native": [
+        {
+          "x": 843,
+          "y": 80,
+          "width": 597,
+          "height": 808
+        }
+      ],
+      "queryRetained": true,
+      "previewReplaced": true
+    },
+    "record_properties_packaged": {
+      "passed": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-piZTz2",
+      "noteId": "015de9dc034932c5e2bdb656b09ba875c3101beec2ca327ddbc7417778a066a2",
+      "typedProperties": true,
+      "canonicalReopen": true,
+      "renamePreservesUnsavedDraft": true,
+      "formulaExplicitMaterialization": true,
+      "agentRecipeRestored": true,
+      "providerRequests": 0,
+      "errors": [],
+      "screenshots": [
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-piZTz2/typed-record.png",
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-piZTz2/saved-agent-recipe.png"
+      ]
+    },
+    "tab_drops": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-tab-drops-7bNh7m",
+      "evidence": [
+        {
+          "action": "Release to split",
+          "feedback": "\u25eb Release to split side by side\nEsc to cancel",
+          "splitTargets": 1,
+          "swapTargets": 0
+        },
+        {
+          "action": "Release to swap",
+          "feedback": "\u21c4 Release to swap with this pane\nEsc to cancel",
+          "splitTargets": 0,
+          "swapTargets": 1
+        },
+        {
+          "action": "Release to swap",
+          "feedback": "\u21c4 Release to swap with this pane\nEsc to cancel",
+          "splitTargets": 0,
+          "swapTargets": 1
+        },
+        {
+          "action": "Release to split",
+          "feedback": "\u25eb Release to split side by side\nEsc to cancel",
+          "splitTargets": 1,
+          "swapTargets": 0
+        }
+      ],
+      "ownedViews": 4,
+      "verified": [
+        "quick centre pass reorders",
+        "singleton split",
+        "armed swap cancellation",
+        "selected-half swap",
+        "vertical pane detach",
+        "keyboard detach"
+      ]
+    }
+  },
+  "typecheck": true,
+  "build": true,
+  "packaged": true,
+  "visual_review": [
+    "Property editor and manager",
+    "Agent recipe spacing and controls",
+    "Source metadata and independently scrolling results",
+    "Shared navigation and highlighted native PDF",
+    "Drag target outline and native-safe chrome hint"
+  ]
+}

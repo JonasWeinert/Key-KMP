@@ -71,7 +71,7 @@ const assert = require("node:assert/strict");
     );
     const source = page.locator(`[data-tab-id="${group.id}"]`);
     await source.waitFor();
-    const box = await source.boundingBox();
+    const box = await source.locator(".tab-split-badge").boundingBox();
     const first = await page.locator(".tab-item").first().boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + 12);
     await page.mouse.down();

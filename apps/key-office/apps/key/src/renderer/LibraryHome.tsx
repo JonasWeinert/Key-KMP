@@ -1,8 +1,13 @@
+import SearchSourceMetadata from "./SearchSourceMetadata";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import "./library.css";
 import { AddEntryDialog, AgentPropertyDialog, EntriesList } from "./EntryTools";
 import TagManagerDialog from "./TagManagerDialog";
 import TagChips from "./TagChips";
+import { mergePropertyColumns, type PropertyDefinition } from "./property-columns";
+import { preparePropertyDraft } from "./property-draft";
+import PropertyManager from "./PropertyManager";
+import PropertyEditor, { type PropertyDraft } from "./PropertyEditor";
 import { evaluatePropertyFormula } from "./property-formula";
 import LibraryTable, {
   defaultColumns,
@@ -51,8 +56,11 @@ export interface LibraryHomeProps {
     source: LibrarySource,
     hit?: LibraryHit,
     hits?: LibraryHit[],
+    query?: string,
   ) => void;
   onOpenItem?: (item: unknown) => void;
+  onDismissSearch?: () => void;
+  activePreview?: {id:string;workspaceId:string;documentHash:string;page:number;documentTitle?:string};
   onAddSources: () => void;
   refreshKey?: number;
   active?: boolean;
@@ -109,11 +117,14 @@ export default function LibraryHome({
   scopeLabel = "Library",
   openDocumentIds = new Set<string>(),
   onOpenSource,
+  onDismissSearch,
+  activePreview,
   onOpenItem,
   onAddSources,
   refreshKey,
   active = true,
 }: LibraryHomeProps) {
+  const libraryRoot = useRef<HTMLElement>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
   const [sourceKind, setSourceKind] = useState("pdf"),
@@ -128,6 +139,11 @@ export default function LibraryHome({
     [activity, setActivity] = useState(false);
   const [showColumns, setShowColumns] = useState(false),
     [checked, setChecked] = useState<Set<string>>(new Set());
+  const [attributeContext, setAttributeContext] = useState<{workspaceId?:string;targets:LibrarySource[];properties:Record<string,unknown>;title?:string}>();
+  const [agentSelection, setAgentSelection] = useState<{workspaceId?:string;hashes:string[]}>();
+  useEffect(()=>{setAttribute(false);setAgentDialog(false);setAgentSelection(undefined);},[workspaceId,projectId]);
+  useEffect(()=>{if(agentDialog&&!agentSelection)setAgentSelection({workspaceId,hashes:checked.size?documents.filter(d=>checked.has(identity(d))).map(d=>d.documentHash):selected?[selected.documentHash]:[]});},[agentDialog]);
+  const [attributeApply, setAttributeApply] = useState(false);
   const [attribute, setAttribute] = useState(false),
     [attributeName, setAttributeName] = useState(""),
     [attributeType, setAttributeType] = useState("text"),
@@ -200,6 +216,7 @@ export default function LibraryHome({
     [nextOffset, setNextOffset] = useState<number | null>(null),
     [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<LibrarySource>();
+  const selectedRef = useRef(selected); selectedRef.current = selected;
   const [details, setDetails] = useState<Metadata>();
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [sourceRecordId, setSourceRecordId] = useState<string>();
@@ -227,37 +244,24 @@ export default function LibraryHome({
   ) => invoke<T>(command, args, source?.workspaceId || workspaceId);
   useEffect(() => {
     if (!workspaceId) return;
-    let cancelled = false;
-    void invoke<
-      { name: string; type?: string; formula?: string; options?: string[] }[]
-    >("workspace_attributes", {}, workspaceId)
-      .then((definitions) => {
-        if (cancelled) return;
-        setColumns((previous) => {
-          const merged = [...previous];
-          for (const definition of definitions) {
-            const index = merged.findIndex(
-              (c) => c.property === definition.name,
-            );
-            const column = {
-              id: `property:${definition.name}`,
-              label: definition.name,
-              width: 150,
-              property: definition.name,
-              ...definition,
-            };
-            if (index >= 0) merged[index] = { ...merged[index], ...definition };
-            else merged.push(column);
-          }
-          return merged;
-        });
-      })
-      .catch((e) => {
-        if (!cancelled) setError(String(e));
-      });
-    return () => {
-      cancelled = true;
+    let cancelled = false, request = 0;
+    let pendingRename: {name:string;newName:string}|undefined;
+    const loadDefinitions = async (rename?:{name:string;newName:string}) => {
+      if(rename)pendingRename=rename;
+      const current = ++request;
+      try {
+        const definitions = await invoke<PropertyDefinition[]>("workspace_attributes", {}, workspaceId);
+        if(cancelled || current!==request)return;
+        const resolvedRename=pendingRename;pendingRename=undefined;
+        setColumns(previous=>{const merged=mergePropertyColumns(previous,definitions,resolvedRename);try{localStorage.setItem(`key:library-columns:${workspaceId}`,JSON.stringify(merged));}catch{}return merged;});
+        setMetadataRevision(n=>n+1);
+        const source=selectedRef.current;
+        if(source){const metadata=await invoke<Metadata>("library_metadata_details",{hash:source.documentHash},source.workspaceId||workspaceId);if(!cancelled&&current===request&&selectedRef.current&&identity(selectedRef.current)===identity(source))setDetails(metadata);}
+      } catch(e){if(!cancelled&&current===request)setError(String(e));}
     };
+    void loadDefinitions();
+    const unsubscribe=(window as unknown as {key?:{on?:(event:string,callback:(payload:any)=>void)=>()=>void}}).key?.on?.('property-definitions-changed',payload=>{if(payload?.workspaceId===workspaceId)void loadDefinitions(payload.name&&payload.newName?{name:payload.name,newName:payload.newName}:undefined);});
+    return ()=>{cancelled=true;unsubscribe?.();};
   }, [invoke, workspaceId]);
   const refresh = async () => {
     const page = await call<LibraryPage>("semantic_library_page", {
@@ -391,6 +395,23 @@ export default function LibraryHome({
     openDocumentIds.has(d.documentHash) ||
     openDocumentIds.has(identity(d));
   const visible = documents;
+  useEffect(() => {
+    if(!activePreview) return;
+    const found=hits.find(hit=>hit.id===activePreview.id && (hit.workspaceId || workspaceId)===activePreview.workspaceId);
+    if(found) {setPreviewHit(found);setSelected(undefined);setActivity(false);}
+  },[activePreview?.id,activePreview?.workspaceId]);
+  useEffect(() => {
+    if(!activePreview) return;
+    const frame=requestAnimationFrame(()=> {
+      const scroll=libraryRoot.current?.querySelector<HTMLElement>('.key-library-scroll');
+      const hit=scroll?.querySelector<HTMLElement>('[aria-current="true"].key-library-hit');
+      if (!scroll || !hit) return;
+      const bounds=scroll.getBoundingClientRect(), target=hit.getBoundingClientRect();
+      const delta=target.top<bounds.top ? target.top-bounds.top : target.bottom>bounds.bottom ? target.bottom-bounds.bottom : 0;
+      if(delta) scroll.scrollBy({top:delta,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    });
+    return ()=>cancelAnimationFrame(frame);
+  },[previewHit?.id,previewHit?.workspaceId]);
   const groups = useMemo(() => {
     const map = new Map<string, LibraryHit[]>();
     for (const h of hits) {
@@ -568,48 +589,27 @@ export default function LibraryHome({
       setBusy(false);
     }
   };
-  const applyAttribute = async () => {
-    const name = attributeName.trim();
-    if (!name) return;
-    let value: unknown = attributeValue;
-    const options = attributeOptions
-      .split(";")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (attributeType === "select" && !options.includes(attributeValue)) {
-      setError("Choose a value from the select options.");
-      return;
-    }
-    if (attributeType === "number") {
-      if (!attributeValue.trim() || !Number.isFinite(Number(value))) {
-        setError("Enter a finite number.");
-        return;
-      }
-      value = Number(value);
-    }
-    if (attributeType === "boolean") {
-      if (!["true", "false"].includes(attributeValue)) {
-        setError("Choose true or false.");
-        return;
-      }
-      value = attributeValue === "true";
-    }
-    const targets = checked.size
-      ? documents.filter((d) => checked.has(identity(d)))
-      : selected
-        ? [selected]
-        : [];
-    if (!workspaceId) {
-      setError("Choose a workspace to define an attribute.");
-      return;
-    }
+  const capturePropertyContext = (single = false) => {
+    const targets = single && selected ? [selected] : checked.size ? documents.filter(d=>checked.has(identity(d))) : selected ? [selected] : [];
+    setAttributeContext({workspaceId,targets:targets.map(d=>({...d,workspaceId:d.workspaceId||workspaceId})),title:selected?.title,properties:{Title:selected?.title??null,Year:selected?.year??null,Pages:selected?.pageCount??null,Authors:selected?.authors?.join('; ')??null,...Object.fromEntries(columns.filter(c=>c.property&&!c.property.startsWith('@')).map(c=>[c.property!,null])),...details?.properties}});
+  };
+  const newProperty = () => { capturePropertyContext(); setError(""); setAttributeApply(false); setAttributeName(""); setAttributeType("text"); setAttributeValue(""); setAttributeOptions(""); setAttributeFormula(""); setAttribute(true); };
+  const editProperty = (c: SourceColumn, apply = false) => { capturePropertyContext(apply); setError(""); setAttributeApply(apply); setAttributeName(c.property || c.label); setAttributeType(c.type || "text"); setAttributeOptions(c.options?.join('; ') || ''); setAttributeFormula(c.formula || ''); setAttributeValue(String(details?.properties[c.property || c.label] ?? '')); setAttribute(true); };
+  const applyAttribute = async (draft: PropertyDraft, configureAgent = false) => {
+    let prepared: ReturnType<typeof preparePropertyDraft>;
+    try { prepared = preparePropertyDraft(draft); } catch(e) { setError(String(e)); return; }
+    const { name, value, config } = prepared;
+    if (!attributeName && columns.some(c=>c.id===`property:${name}`)) { setError("A property with this name already exists. Edit it from Properties instead."); return; }
+    const originalName = attributeName;
+    const renaming = Boolean(originalName && originalName !== name);
+    if(renaming && draft.type==='formula' && draft.formula.trim()!==attributeFormula.trim()){setError("Save your formula changes before renaming this property.");return;}
+    const attributeType = draft.type, formulaToCalculate = draft.formula;
+    const propertyGeneration = context.current;
+    const targetWorkspace = attributeContext?.workspaceId;
+    const targets = draft.applyValues ? attributeContext?.targets || [] : [];
+    if (!targetWorkspace) { setError("Choose a workspace to define a property."); return; }
     await run(
       async () => {
-        const config = {
-          type: attributeType,
-          ...(attributeType === "select" ? { options } : {}),
-          ...(attributeType === "formula" ? { formula: attributeFormula } : {}),
-        };
         const calculated = [];
         for (const d of targets) {
           let next = value;
@@ -619,7 +619,7 @@ export default function LibraryHome({
               { hash: d.documentHash },
               d,
             );
-            next = evaluatePropertyFormula(attributeFormula, {
+            next = evaluatePropertyFormula(formulaToCalculate, {
               ...meta.properties,
               title: d.title,
               year: d.year ?? null,
@@ -629,36 +629,32 @@ export default function LibraryHome({
           }
           calculated.push({ d, value: next });
         }
-        await call("workspace_save_attribute", { name, config });
+        if(renaming){
+          const renamed=await invoke<{attribute?:{formula?:string}}>("workspace_rename_attribute",{name:originalName,newName:name},targetWorkspace);
+          if(config.type==='formula' && renamed.attribute?.formula)config.formula=renamed.attribute.formula;
+          if(propertyGeneration===context.current)setAttributeName(name);
+        }
+        const definitions = await invoke<Array<Record<string, unknown> & {name:string}>>("workspace_attributes", {}, targetWorkspace);
+        const previousDefinition: Record<string, unknown> = definitions.find(definition=>definition.name===name) || {};
+        const {name: _key, type: _type, options: _options, formula: _formula, ...retained} = previousDefinition;
+        await invoke("workspace_save_attribute", { name, config: {...retained, ...config} }, targetWorkspace);
         for (const item of calculated)
           await call(
             "library_set_property",
             { hash: item.d.documentHash, name, value: item.value },
             item.d,
           );
-        const column = {
-          id: `property:${name}`,
-          label: name,
-          width: 150,
-          property: name,
-          ...config,
-        };
-        updateColumns(
-          columns.some((c) => c.property === name)
-            ? columns.map((c) =>
-                c.property === name ? { ...c, ...column } : c,
-              )
-            : [...columns, column],
-        );
+        if (propertyGeneration !== context.current) return;
+        const currentDefinitions = await invoke<PropertyDefinition[]>("workspace_attributes", {}, targetWorkspace);
+        if(propertyGeneration!==context.current)return;
+        setColumns(previous=>{const merged=mergePropertyColumns(previous,currentDefinitions,renaming?{name:originalName,newName:name}:undefined);try{localStorage.setItem(`key:library-columns:${targetWorkspace}`,JSON.stringify(merged));}catch{}return merged;});
         setAttribute(false);
-        if (selected)
-          setDetails(
-            await call<Metadata>(
-              "library_metadata_details",
-              { hash: selected.documentHash },
-              selected,
-            ),
-          );
+        setMetadataRevision(n => n + 1);
+        if(configureAgent) { setAgentSelection({workspaceId:targetWorkspace,hashes:(attributeContext?.targets||[]).map(d=>d.documentHash)}); setAgentProperty(name); setAgentDialog(true); }
+        if (selected) {
+          const refreshed = await call<Metadata>("library_metadata_details", {hash:selected.documentHash}, selected);
+          if (selectedRef.current && identity(selectedRef.current)===identity(selected) && propertyGeneration===context.current) setDetails(refreshed);
+        }
       },
       `Attribute saved${targets.length ? ` on ${targets.length} sources` : ""}`,
     );
@@ -674,7 +670,7 @@ export default function LibraryHome({
       completed: 0,
       total: 0,
     };
-    onOpenSource(source, hit, hits);
+    onOpenSource(source, hit, hits, submitted);
   };
   const saveMetadata = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -707,7 +703,7 @@ export default function LibraryHome({
     }, "Metadata saved");
   };
   return (
-    <section className="key-library" aria-label="Library">
+    <section ref={libraryRoot} className={`key-library ${previewHit && !selected ? "has-search-metadata" : ""}`} aria-label="Library">
       <div className="key-library-main">
         <header className="key-library-heading">
           <div>
@@ -842,9 +838,9 @@ export default function LibraryHome({
               aria-expanded={showColumns}
               onClick={() => setShowColumns(!showColumns)}
             >
-              Columns
+              Properties
             </button>
-            <button onClick={() => setAttribute(true)}>＋ Attribute</button>
+            <button disabled={!workspaceId} title={!workspaceId ? "Choose a workspace to manage properties" : "Create a typed workspace property"} onClick={newProperty}>＋ Property</button>
             {checked.size > 0 && (
               <>
                 <strong>{checked.size} selected</strong>
@@ -883,75 +879,7 @@ export default function LibraryHome({
               </>
             )}
           </div>
-          {showColumns && (
-            <div className="key-column-controls">
-              {columns.map((c) => (
-                <div key={c.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={!c.hidden}
-                      disabled={c.id === "title"}
-                      onChange={(e) =>
-                        updateColumns(
-                          columns.map((x) =>
-                            x.id === c.id
-                              ? { ...x, hidden: !e.target.checked }
-                              : x,
-                          ),
-                        )
-                      }
-                    />
-                    {c.label}
-                  </label>
-                  <button
-                    aria-pressed={Boolean(c.pinned)}
-                    onClick={() =>
-                      updateColumns(
-                        columns.map((x) =>
-                          x.id === c.id ? { ...x, pinned: !x.pinned } : x,
-                        ),
-                      )
-                    }
-                  >
-                    {c.pinned ? "Unpin" : "Pin"}
-                  </button>
-                  {c.property && !c.property.startsWith("@") && (
-                    <button
-                      onClick={() => {
-                        setAttributeName(c.property!);
-                        setAttributeType(c.type || "text");
-                        setAttributeOptions(c.options?.join("; ") || "");
-                        setAttributeFormula(c.formula || "");
-                        setAttributeValue(
-                          String(details?.properties[c.property!] ?? ""),
-                        );
-                        setAttribute(true);
-                      }}
-                    >
-                      Edit
-                    </button>
-                  )}
-                  {c.id.startsWith('property:')&&<button disabled={busy||!workspaceId} onClick={()=>{if(window.confirm(`Delete attribute “${c.label}” and its stored values from this workspace? To keep the values, hide the column instead.`))void run(async()=>{await call('workspace_delete_attribute',{name:c.property,deleteValues:true});updateColumns(columns.filter(column=>column.id!==c.id));},'Attribute and stored values deleted');}}>Delete</button>}
-                  <button
-                    aria-label={`Move ${c.label} left`}
-                    disabled={columns.indexOf(c) === 0}
-                    onClick={() => {
-                      const next = [...columns],
-                        i = next.indexOf(c);
-                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                      updateColumns(next);
-                    }}
-                  >
-                    ←
-                  </button>
-                </div>
-              ))}
-              <button onClick={() => updateColumns(defaultColumns)}>
-                Reset columns
-              </button>
-            </div>
-          )}
+          {showColumns && <PropertyManager columns={columns} onChange={updateColumns} disabled={busy||!workspaceId} onAdd={newProperty} onEdit={editProperty} onFill={c=>{setAgentProperty(c.property!);setAgentDialog(true);}} onDelete={(c,deleteValues)=>void run(async()=>{await call('workspace_delete_attribute',{name:c.property,deleteValues});updateColumns(columns.filter(x=>x.id!==c.id));setMetadataRevision(n=>n+1);if(selected)setDetails(await call<Metadata>('library_metadata_details',{hash:selected.documentHash},selected));},deleteValues?'Property and values deleted':'Property definition removed; values retained')} />}
           <div className="key-filter-chips">
             {Object.entries(filter)
               .filter(
@@ -1082,6 +1010,7 @@ export default function LibraryHome({
                       setSearching(false);
                       setSubmitted("");
                       setHits([]);
+                      onDismissSearch?.();
                     }}
                   >
                     Back to library
@@ -1104,31 +1033,19 @@ export default function LibraryHome({
                     </h2>
                     {group.map((hit) => (
                       <button
-                        className="key-library-hit"
+                        className={`key-library-hit ${previewHit?.id === hit.id && identity(previewHit) === identity(hit) ? "preview-active" : ""}`}
+                        aria-current={previewHit?.id === hit.id && identity(previewHit) === identity(hit) ? "true" : undefined}
                         key={`${identity(hit)}:${hit.id}`}
                         onClick={() => {
                           setPreviewHit(hit);
                           setSelected(undefined);
                           setActivity(false);
+                          openHit(hit);
                         }}
-                        onDoubleClick={() => {
-                          const source = documents.find(
-                            (d) => identity(d) === identity(hit),
-                          ) || {
-                            documentId: hit.documentId,
-                            documentHash: hit.documentHash,
-                            title: hit.documentTitle || "Document",
-                            workspaceId: hit.workspaceId,
-                            pageCount: hit.page + 1,
-                            status: "indexed",
-                            completed: 0,
-                            total: 0,
-                          };
-                          onOpenSource(source, hit, hits);
-                        }}
+
                       >
                         <span>
-                          Page {hit.page + 1} <span>Preview passage →</span>
+                          Page {hit.page + 1} <span>Open beside results →</span>
                         </span>
                         <p>
                           <LiteralMatches
@@ -1174,6 +1091,8 @@ export default function LibraryHome({
               </div>
             ) : (
               <LibraryTable onSort={setSort}
+                onProperty={c=>{if(c)editProperty(c);else newProperty();}}
+                onFillProperty={(c,d)=>{setChecked(new Set([identity(d)]));setAgentProperty(c.property!);setAgentDialog(true);}}
                 saveProperty={async (d, c, raw) => {
                   let value: unknown = raw;
                   if (c.type === "number") {
@@ -1242,44 +1161,7 @@ export default function LibraryHome({
           </div>
         </div>
       </div>
-      {previewHit && !selected && (
-        <aside className="key-library-detail" aria-label="Passage preview">
-          <header>
-            <strong>Passage preview</strong>
-            <button
-              aria-label="Close passage preview"
-              onClick={() => setPreviewHit(undefined)}
-            >
-              ×
-            </button>
-          </header>
-          <h2>{previewHit.documentTitle || documents.find(d=>identity(d)===identity(previewHit))?.title || "Document"}</h2>
-          <p>Page {previewHit.page + 1}</p>
-          <p>
-            <LiteralMatches
-              text={previewHit.targetText || previewHit.text}
-              query={submitted}
-            />
-          </p>
-          <button className="key-primary" onClick={() => openHit(previewHit)}>
-            Open and highlight in reader ↗
-          </button>
-          <div className="key-detail-actions">
-            <button
-              disabled={hits.indexOf(previewHit) <= 0}
-              onClick={() => setPreviewHit(hits[hits.indexOf(previewHit) - 1])}
-            >
-              Previous result
-            </button>
-            <button
-              disabled={hits.indexOf(previewHit) >= hits.length - 1}
-              onClick={() => setPreviewHit(hits[hits.indexOf(previewHit) + 1])}
-            >
-              Next result
-            </button>
-          </div>
-        </aside>
-      )}
+      {previewHit && !selected && <SearchSourceMetadata hit={previewHit} invoke={invoke} workspaceId={workspaceId} onClose={()=>setPreviewHit(undefined)} onEdit={setSelected}/>}
       {activity && !selected && !previewHit && (
         <aside className="key-library-detail" aria-label="Processing activity">
           <header>
@@ -1440,68 +1322,8 @@ export default function LibraryHome({
                 <button disabled={busy}>Save labels</button>
               </form>
               <h3>Properties</h3>
-              {Object.entries(details.properties).map(([key, value]) => (
-                <p key={key}>
-                  {key}: {String(value)}
-                </p>
-              ))}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const data = new FormData(e.currentTarget);
-                  const name = String(data.get("name")).trim(),
-                    raw = String(data.get("value")),
-                    type = data.get("type");
-                  if (
-                    !name ||
-                    (type === "number" &&
-                      (!raw.trim() || !Number.isFinite(Number(raw)))) ||
-                    (type === "boolean" && !["true", "false"].includes(raw))
-                  ) {
-                    setError("Enter a property name and valid typed value.");
-                    return;
-                  }
-                  const value =
-                    type === "number"
-                      ? Number(raw)
-                      : type === "boolean"
-                        ? raw === "true"
-                        : raw;
-                  const source = selected;
-                  void run(async () => {
-                    await call(
-                      "library_set_property",
-                      { hash: source.documentHash, name, value },
-                      source,
-                    );
-                    setDetails(
-                      await call<Metadata>(
-                        "library_metadata_details",
-                        { hash: source.documentHash },
-                        source,
-                      ),
-                    );
-                  }, "Property saved");
-                }}
-              >
-                <label>
-                  Property name
-                  <input name="name" required />
-                </label>
-                <label>
-                  Type
-                  <select name="type">
-                    <option value="text">Text</option>
-                    <option value="number">Number</option>
-                    <option value="boolean">True / false</option>
-                  </select>
-                </label>
-                <label>
-                  Value
-                  <input name="value" required />
-                </label>
-                <button disabled={busy}>Save property</button>
-              </form>
+              <div className="key-source-property-rows">{Array.from(new Set([...columns.filter(c=>c.id.startsWith('property:')).map(c=>c.property!),...Object.keys(details.properties)])).map(name=>{const column=columns.find(c=>c.property===name)||{id:`property:${name}`,property:name,label:name,width:150,type:typeof details.properties[name]==='number'?'number':typeof details.properties[name]==='boolean'?'boolean':'text'};let value=details.properties[name];if(column.type==='formula'){try{value=evaluatePropertyFormula(column.formula||'', {...details.properties,Title:selected.title,Year:selected.year??null,Pages:selected.pageCount});}catch(e){value=String(e);}}return <div key={name}><button disabled={!workspaceId} onClick={()=>editProperty(column)}>{column.type==='formula'?'ƒ ':column.type==='number'?'# ':'Aa '}{name}</button><button title="Edit property and apply a value to this source" disabled={!workspaceId} onClick={()=>{setChecked(new Set());editProperty(column,true);}}>{value===undefined||value===null||value===''?'Empty':String(value)}</button>{column.type!=='formula'&&<button title={`Fill ${name} for this source`} disabled={!workspaceId} onClick={()=>{setChecked(new Set());setAgentProperty(name);setAgentDialog(true);}}>✧</button>}</div>;})}</div>
+              <button disabled={!workspaceId} onClick={newProperty}>＋ Add a property</button>
             </>
           )}
           {projects.length > 0 && (
@@ -1638,19 +1460,19 @@ export default function LibraryHome({
       {agentDialog && (
         <AgentPropertyDialog
           invoke={invoke}
-          workspaceId={workspaceId}
+          workspaceId={agentSelection?.workspaceId || workspaceId}
           projectId={projectId}
           hashes={
-            checked.size
+            agentSelection?.hashes || (checked.size
               ? documents
                   .filter((d) => checked.has(identity(d)))
                   .map((d) => d.documentHash)
               : selected
                 ? [selected.documentHash]
-                : []
+                : [])
           }
           propertyName={agentProperty}
-          onClose={() => setAgentDialog(false)}
+          onClose={() => {setAgentDialog(false);setAgentSelection(undefined);}}
           onSaved={() => {
             void refresh();
             setMetadataRevision((n) => n + 1);
@@ -1668,122 +1490,12 @@ export default function LibraryHome({
           }}
         />
       )}
-      {attribute && (
-        <div className="key-roadmap-backdrop">
-          <form
-            className="key-roadmap key-attribute-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Add attribute"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void applyAttribute();
-            }}
-          >
-            <header>
-              <h2>Add attribute</h2>
-              <button
-                type="button"
-                onClick={() => setAttribute(false)}
-                aria-label="Close attribute dialog"
-              >
-                ×
-              </button>
-            </header>
-            <p>
-              Save a typed value on {checked.size || Number(Boolean(selected))}{" "}
-              selected source(s). The attribute becomes a table column.
-            </p>
-            <label>
-              Name
-              <input
-                required
-                value={attributeName}
-                onChange={(e) => setAttributeName(e.target.value)}
-              />
-            </label>
-            <label>
-              Type
-              <select
-                value={attributeType}
-                onChange={(e) => {
-                  setAttributeType(e.target.value);
-                  setAttributeValue(e.target.value === "boolean" ? "true" : "");
-                }}
-              >
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-                <option value="boolean">True / false</option>
-                <option value="select">Select</option>
-                <option value="formula">Formula</option>
-              </select>
-            </label>
-            {attributeType === "select" && (
-              <label>
-                Options (separated by ;)
-                <input
-                  value={attributeOptions}
-                  onChange={(e) => setAttributeOptions(e.target.value)}
-                />
-              </label>
-            )}
-            {attributeType === "formula" ? (
-              <label>
-                Formula
-                <input
-                  required
-                  placeholder="[year] + 1"
-                  value={attributeFormula}
-                  onChange={(e) => setAttributeFormula(e.target.value)}
-                />
-                <small>
-                  Use [property] or &#123;Property&#125;, arithmetic, if,
-                  concat, upper, lower, length, round, contains, coalesce.
-                  Displayed results are computed locally. Save recomputes stored
-                  values for selected sources; filters use those stored values
-                  until you save again.
-                </small>
-              </label>
-            ) : (
-              <label>
-                Value
-                {attributeType === "select" ? (
-                  <select
-                    value={attributeValue}
-                    onChange={(e) => setAttributeValue(e.target.value)}
-                  >
-                    <option value="">Choose…</option>
-                    {attributeOptions
-                      .split(";")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                      .map((option) => (
-                        <option key={option}>{option}</option>
-                      ))}
-                  </select>
-                ) : attributeType === "boolean" ? (
-                  <select
-                    value={attributeValue}
-                    onChange={(e) => setAttributeValue(e.target.value)}
-                  >
-                    <option>true</option>
-                    <option>false</option>
-                  </select>
-                ) : (
-                  <input
-                    required
-                    type={attributeType === "number" ? "number" : "text"}
-                    step="any"
-                    value={attributeValue}
-                    onChange={(e) => setAttributeValue(e.target.value)}
-                  />
-                )}
-              </label>
-            )}
-            <button disabled={busy || !workspaceId}>Save attribute</button>
-          </form>
-        </div>
-      )}
+      {attribute && <PropertyEditor
+        initial={{name:attributeName,type:attributeType,value:attributeValue,options:attributeOptions.split(';').map(s=>s.trim()).filter(Boolean),formula:attributeFormula,applyValues:attributeApply}}
+        editing={columns.some(c=>c.id===`property:${attributeName}`)}
+        busy={busy} error={error || undefined} targetCount={attributeContext?.targets.length || 0}
+        properties={attributeContext?.properties || {}} previewTitle={attributeContext?.title} onClose={()=>setAttribute(false)} onSave={(draft,agent)=>void applyAttribute(draft,agent)}
+      />}
       {roadmap && (
         <div className="key-roadmap-backdrop" onClick={() => setRoadmap(false)}>
           <section

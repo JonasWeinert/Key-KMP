@@ -68,6 +68,8 @@ export function LiteralMatches({
   return <>{children}</>;
 }
 interface Props {
+  onProperty?:(column?:SourceColumn)=>void;
+  onFillProperty?:(column:SourceColumn,source:LibrarySource)=>void;
   onSort:(field:string)=>void;
   saveProperty: (
     d: LibrarySource,
@@ -96,6 +98,7 @@ interface Props {
 }
 const keyOf = (d: LibrarySource) => `${d.workspaceId || ""}:${d.documentHash}`;
 export default function LibraryTable({
+  onProperty, onFillProperty,
   onSort,
   saveProperty,
   revision,
@@ -250,6 +253,7 @@ export default function LibraryTable({
                 {c.pinned ? "⌖ " : ""}
                 {c.label}
               </span>
+              {c.id.startsWith('property:') && onProperty && <button className="key-property-header-edit" aria-label={`Configure ${c.label} property`} onClick={()=>onProperty(c)}>⌄</button>}
               <span
                 className="key-column-resize"
                 role="separator"
@@ -283,7 +287,7 @@ export default function LibraryTable({
               />
             </th>
           ))}
-          <th />
+          <th>{onProperty&&<button aria-label="Add a property" onClick={()=>onProperty()}>＋</button>}</th>
         </tr>
       </thead>
       <tbody>
@@ -314,6 +318,9 @@ export default function LibraryTable({
             {ordered.map((c) => (
               <td
                 key={c.id}
+                tabIndex={c.id.startsWith('property:') ? 0 : undefined}
+                onKeyDown={e=>{if(e.key==='Enter'&&c.id.startsWith('property:')&&c.type!=='formula'){e.preventDefault();e.stopPropagation();setEditing({key:keyOf(d),column:c.id,value:String(extra[keyOf(d)]?.properties[c.property!]??(c.type==='boolean'?'false':''))});}}}
+                onClick={e=>{if(c.id.startsWith('property:')&&c.type!=='formula'){e.stopPropagation();if(!editing)setEditing({key:keyOf(d),column:c.id,value:String(extra[keyOf(d)]?.properties[c.property!]??(c.type==='boolean'?'false':''))});}}}
                 onDoubleClick={(e) => {
                   if (
                     c.property &&
@@ -343,6 +350,8 @@ export default function LibraryTable({
                   >
                     {c.type === "select" || c.type === "boolean" ? (
                       <select
+                        aria-label={`Edit ${c.label} for ${d.title}`}
+                        onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();setEditing(undefined);}if(e.key==='Enter'){e.preventDefault();void commit(d,c);}}}
                         autoFocus
                         disabled={saving}
                         value={editing.value}
@@ -351,6 +360,7 @@ export default function LibraryTable({
                         }
                         onBlur={() => void commit(d, c)}
                       >
+                        {c.type==='select'&&<option value="" disabled>Choose…</option>}
                         {(c.type === "boolean"
                           ? ["true", "false"]
                           : c.options || []
@@ -377,6 +387,7 @@ export default function LibraryTable({
                         onBlur={() => void commit(d, c)}
                       />
                     )}{" "}
+                    {onFillProperty && <button type="button" title={`Review agent proposals for ${c.label}`} onClick={()=>{setEditing(undefined);onFillProperty(c,d);}}>✧ Fill</button>}
                     {editing.error && (
                       <small role="alert">{editing.error}</small>
                     )}

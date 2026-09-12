@@ -3271,6 +3271,7 @@ impl Host {
             "workspace_entry" => json_output(self.search.library().source_entry(&arg::<String>(args,"id")?)?),
             "workspace_attributes" => json_output(self.search.library().workspace_attributes()?),
             "workspace_save_attribute" => json_output(self.search.library().save_workspace_attribute(&arg::<String>(args,"name")?,&arg::<serde_json::Value>(args,"config")?)?),
+            "workspace_rename_attribute" => json_output(self.search.library().rename_workspace_attribute(&arg::<String>(args,"name")?,&arg::<String>(args,"newName")?)?),
             "workspace_delete_attribute" => json_output(self.search.library().delete_workspace_attribute(&arg::<String>(args,"name")?,arg::<Option<bool>>(args,"deleteValues")?.unwrap_or(false))?),
             "workspace_agent_property" => json_output(self.search.library().agent_property(&arg::<String>(args,"name")?)?),
             "workspace_save_agent_property" => json_output(self.search.library().save_agent_property(&arg::<String>(args,"name")?,&arg::<serde_json::Value>(args,"config")?)?),

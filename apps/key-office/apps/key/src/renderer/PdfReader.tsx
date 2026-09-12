@@ -23,7 +23,7 @@ interface Ready {
   source: ManagedSource;
   viewState?: PdfJsViewState;
   searchTarget?: Target;
-  searchNavigation?: { index: number; total: number };
+  searchNavigation?: { index: number; total: number; shared?:boolean };
 }
 interface ReaderBridge {
   readerReady(): Promise<Ready>;
@@ -40,7 +40,7 @@ export default function PdfReader() {
   const [error, setError] = useState("");
   const [chrome, setChrome] = useState<PdfReaderChromeState>();
   const [target, setTarget] = useState<Target>();
-  const [navigation, setNavigation] = useState({ index: -1, total: 0 });
+  const [navigation, setNavigation] = useState<{index:number;total:number;shared?:boolean}>({ index: -1, total: 0 });
   const [navigating, setNavigating] = useState(false);
   const [navigationError, setNavigationError] = useState("");
   const [page, setPage] = useState(1);
@@ -53,10 +53,10 @@ export default function PdfReader() {
   useEffect(() => {
     let alive = true;
     const stop = bridge().on("search-target", (payload) => {
-      if (alive) setTarget(payload as Target);
+      if (alive) {setTarget(payload as Target | undefined); if(!payload) reader.current?.closeSearch();}
     });
     const stopNavigation = bridge().on("search-navigation", (payload) => {
-      if (alive) setNavigation(payload as { index: number; total: number });
+      if (alive) setNavigation(payload as { index: number; total: number; shared?:boolean });
     });
     void bridge()
       .readerReady()
@@ -227,7 +227,7 @@ export default function PdfReader() {
           </button>
         </form>
       )}
-      {target && (
+      {target && !navigation.shared && (
         <div className="key-pdf-target" role="status">
           {bridge().readerBack && (
             <button onClick={() => bridge().readerBack?.()}>

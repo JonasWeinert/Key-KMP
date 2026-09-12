@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import "./tabbar.css";
+import type { WorkspaceViewDrop } from "../shared/tab-model";
 export interface TabSummary {
   id: string;
   title: string;
@@ -28,6 +29,7 @@ export interface TabsApi {
   activate(id: string): Promise<unknown>;
   close(id: string): Promise<unknown>;
   reorder(id: string, index: number): Promise<unknown>;
+  dropView?(drop: WorkspaceViewDrop): Promise<unknown>;
   showNewMenu(x: number, y: number): Promise<unknown>;
   showMenu(x: number, y: number): Promise<unknown>;
   notifyChromePressed?(): void;
@@ -221,6 +223,12 @@ export function TabBar({
     id: string;
     from: number;
     startX: number;
+    startY: number;
+    pane: boolean;
+    drop?: WorkspaceViewDrop;
+    pendingDrop?: WorkspaceViewDrop;
+    stripTop: number;
+    stripBottom: number;
     /** viewport-x left edge + width of every tab, sampled at drag start */
     lefts: number[];
     widths: number[];
@@ -228,12 +236,18 @@ export function TabBar({
     started: boolean;
   }
   const dragRef = useRef<DragInfo | null>(null);
+  const dropTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(dropTimer.current), []);
   const [dragVisual, setDragVisual] = useState<{
     id: string;
     dx: number;
     from: number;
     target: number;
     width: number;
+    pane?: string;
+    drop?: WorkspaceViewDrop;
+    pendingDrop?: WorkspaceViewDrop;
+    pointerX: number;
   } | null>(null);
 
   const [settling, setSettling] = useState(false);
@@ -252,6 +266,7 @@ export function TabBar({
     const drag = dragRef.current;
     if (!drag || pointerId !== drag.pointerId) return;
     dragRef.current = null;
+    clearTimeout(dropTimer.current);
     if (!drag.started) {
       if (drag.viewId) api.focusView?.(drag.viewId);
       // plain click: the in-view scroll was suppressed while the press was
@@ -263,6 +278,11 @@ export function TabBar({
     }
     setSettling(true);
     setDragVisual(null);
+    if (commit && drag.drop && api.dropView) {
+      void api.dropView(drag.drop);
+      return;
+    }
+    if (drag.pane) return;
     if (commit && drag.target !== drag.from) {
       // optimistic local reorder so clearing the transforms causes no flash;
       // the main-process broadcast arrives with the identical order
@@ -347,7 +367,7 @@ export function TabBar({
       <div className="tab-bar-drag-spacer" />
       {chromeControl}
       <div
-        className={`tab-strip ${dragVisual ? "dragging" : ""} ${settling ? "settling" : ""}`}
+        className={`tab-strip ${dragVisual ? "dragging" : ""} ${settling ? "settling" : ""} ${dragVisual?.drop || dragVisual?.pendingDrop ? "targeting" : ""}`}
         ref={stripRef}
         role="tablist"
         aria-label="Workspace tabs"
@@ -356,7 +376,7 @@ export function TabBar({
           // live transforms: the grabbed tab tracks the pointer; tabs between
           // the origin and the current target slide aside by the grabbed width
           let dragStyle: CSSProperties | undefined;
-          if (dragVisual) {
+          if (dragVisual && !dragVisual.pane && !dragVisual.drop && !dragVisual.pendingDrop) {
             if (dragVisual.id === tab.id) {
               dragStyle = { transform: `translateX(${dragVisual.dx}px)` };
             } else if (dragVisual.target <= index && index < dragVisual.from) {
@@ -368,7 +388,7 @@ export function TabBar({
           return (
             <div
               key={tab.id}
-              className={`tab-item ${tab.views.length > 1 ? "tab-split" : ""} ${tab.active ? "active" : ""} ${dragVisual?.id === tab.id ? "drag-source" : ""}`}
+              className={`tab-item ${tab.views.length > 1 ? "tab-split" : ""} ${tab.active ? "active" : ""} ${dragVisual?.id === tab.id && !dragVisual.pane ? "drag-source" : ""} ${dragVisual?.drop?.kind === "split" && dragVisual.drop.targetTabId === tab.id ? "tab-drop-split" : ""}`}
               // long file names ellipsize in the strip — hover reveals the
               // full title (the close button's own tooltip still wins there)
               role="tab"
@@ -379,6 +399,17 @@ export function TabBar({
               tabIndex={tab.active ? 0 : -1}
               data-tab-id={tab.id}
               onKeyDown={(event) => {
+                if (event.key === "Escape" && dragRef.current) {
+                  event.preventDefault();
+                  finishDrag(dragRef.current.pointerId, false);
+                  return;
+                }
+                if (event.altKey && event.shiftKey && event.key === "ArrowDown" && tab.views.length === 2) {
+                  event.preventDefault();
+                  const viewId = (event.target as HTMLElement).closest<HTMLElement>("[data-view-id]")?.dataset.viewId ?? tab.views.find(view => view.active)?.id ?? tab.views[0].id;
+                  void api.dropView?.({kind:"detach",viewId,index:index+1});
+                  return;
+                }
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   void api.activate(tab.id);
@@ -408,11 +439,15 @@ export function TabBar({
                   strip.querySelectorAll<HTMLElement>(".tab-item"),
                   (el) => el.getBoundingClientRect(),
                 );
+                const paneViewId = (event.target as HTMLElement).closest<HTMLElement>("[data-view-id]")?.dataset.viewId;
+                const stripRect = strip.getBoundingClientRect();
                 dragRef.current = {
                   pointerId: event.pointerId,
-                  viewId: (event.target as HTMLElement).closest<HTMLElement>(
-                    "[data-view-id]",
-                  )?.dataset.viewId,
+                  viewId: paneViewId ?? (tab.views.length === 1 ? tab.views[0].id : undefined),
+                  pane: Boolean(paneViewId && tab.views.length === 2),
+                  startY: event.clientY,
+                  stripTop: stripRect.top,
+                  stripBottom: stripRect.bottom,
                   id: tab.id,
                   from: index,
                   startX: event.clientX,
@@ -429,7 +464,7 @@ export function TabBar({
                 let dx = event.clientX - drag.startX;
                 // 4px dead zone so plain clicks never wiggle the tab
                 if (!drag.started) {
-                  if (Math.abs(dx) < 4) return;
+                  if (Math.hypot(dx, event.clientY-drag.startY) < 5) return;
                   // re-sample geometry the moment the drag really starts — the
                   // pointer-down activation re-renders and could have moved tabs
                   const strip = stripRef.current;
@@ -470,6 +505,44 @@ export function TabBar({
                     break;
                   }
                 }
+                let drop: WorkspaceViewDrop | undefined;
+                if (api.dropView && drag.viewId) {
+                  const hitIndex = drag.lefts.findIndex((left,i) => event.clientX >= left && event.clientX < left + drag.widths[i]);
+                  const insideY = event.clientY >= drag.stripTop && event.clientY <= drag.stripBottom + 8;
+                  const hit = tabs[hitIndex];
+                  const fraction = hitIndex < 0 ? -1 : (event.clientX-drag.lefts[hitIndex])/drag.widths[hitIndex];
+                  // The outer 20% stays a reorder/insertion lane; centres act on views.
+                  if (insideY && hit && fraction > .2 && fraction < .8) {
+                    if (hit.views.length === 2) {
+                      const targetViewId = hit.views[fraction < .5 ? 0 : 1].id;
+                      if (targetViewId !== drag.viewId) drop = {kind:"swap",viewId:drag.viewId,targetViewId};
+                    } else if (hit.id !== drag.id) drop = {kind:"split",viewId:drag.viewId,targetTabId:hit.id};
+                  }
+                  if (drag.pane && !drop && (!insideY || hit?.id !== drag.id)) {
+                    const insertion = drag.lefts.findIndex((left,i)=>event.clientX < left+drag.widths[i]/2);
+                    drop = {kind:"detach",viewId:drag.viewId,index:insertion<0?tabs.length:insertion};
+                  }
+                }
+                // A brief centre hold avoids accidental regrouping while passing
+                // across tabs during a quick reorder. Leaving the target disarms it.
+                if (drop && drop.kind !== "detach") {
+                  if (JSON.stringify(drop) !== JSON.stringify(drag.pendingDrop)) {
+                    clearTimeout(dropTimer.current);
+                    drag.pendingDrop = drop;
+                    drag.drop = undefined;
+                    const candidate = drop;
+                    dropTimer.current = setTimeout(() => {
+                      if (dragRef.current !== drag || drag.pendingDrop !== candidate) return;
+                      drag.drop = candidate;
+                      setDragVisual(visual => visual ? {...visual, drop: candidate, pendingDrop: undefined} : visual);
+                    }, 260);
+                  }
+                  drop = drag.drop;
+                } else {
+                  clearTimeout(dropTimer.current);
+                  drag.pendingDrop = undefined;
+                  drag.drop = drop;
+                }
                 drag.target = target;
                 setDragVisual({
                   id: drag.id,
@@ -477,6 +550,10 @@ export function TabBar({
                   from: drag.from,
                   target,
                   width: drag.widths[drag.from],
+                  pane: drag.pane ? drag.viewId : undefined,
+                  drop,
+                  pendingDrop: drop ? undefined : drag.pendingDrop,
+                  pointerX: event.clientX,
                 });
               }}
               onPointerUp={(event) => finishDrag(event.pointerId, true)}
@@ -497,10 +574,12 @@ export function TabBar({
                   </span>
                   {tab.views.map((view, i) => (
                     <span
-                      className={`tab-split-pane ${view.active ? "pane-active" : ""}`}
+                      className={`tab-split-pane ${view.active ? "pane-active" : ""} ${dragVisual?.pane === view.id ? "pane-drag-source" : ""} ${dragVisual?.drop?.kind === "swap" && dragVisual.drop.targetViewId === view.id ? "pane-drop-swap" : ""}`}
+                      tabIndex={0}
+                      aria-label={`${view.title}. Drag to move this pane; Alt Shift Down to separate.`}
                       data-view-id={view.id}
                       key={view.id}
-                      title={view.title}
+                      title={`${view.title} · Drag this pane to separate or swap`}
                     >
                       <span className="tab-icon">
                         {KIND_ICON[view.kind as TabSummary["kind"]] ||
@@ -560,6 +639,19 @@ export function TabBar({
         </button>
       </div>
       {trailingControls}
+      {dragVisual && (
+        <div className="tab-drop-feedback" role="status" aria-live="polite"
+          style={{left: Math.max(12,Math.min(window.innerWidth-280,dragVisual.pointerX-110))}}>
+          {dragVisual.drop?.kind === "split" ? "◫ Release to split side by side"
+            : dragVisual.drop?.kind === "swap" ? "⇄ Release to swap with this pane"
+            : dragVisual.drop?.kind === "detach" ? "↗ Release to separate into a tab"
+            : dragVisual.pendingDrop?.kind === "split" ? "Hold to split side by side…"
+            : dragVisual.pendingDrop?.kind === "swap" ? "Hold to swap with this pane…"
+            : dragVisual.pane ? "Drag outside the group to separate"
+            : "↔ Release at an edge to reorder"}
+          <small>Esc to cancel</small>
+        </div>
+      )}
       <button
         className="tab-overflow-btn"
         title={t("tabList")}
