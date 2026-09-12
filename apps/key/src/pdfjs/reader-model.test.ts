@@ -7,10 +7,12 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke }));
 
 import {
   closeNativeCompanion,
+  localMatches,
   DEFAULT_HIGHLIGHT_COLOR,
   harmonizeBounds,
   loadReaderAnnotations,
   openNativeCompanion,
+  registerManagedSource,
   searchReaderDocument,
   upsertAnnotationComment,
 } from './reader-model';
@@ -46,6 +48,7 @@ describe('PDF.js reader search source selection', () => {
       type: 'application/pdf',
       lastModified: 1,
     });
+    registerManagedSource(file, { hash: file.name, size: file.size, title: file.name });
     const companion = await openNativeCompanion(
       file,
       new Uint8Array([1, 2, 3]),
@@ -85,6 +88,7 @@ describe('PDF.js reader search source selection', () => {
       type: 'application/pdf',
       lastModified: 2,
     });
+    registerManagedSource(file, { hash: file.name, size: file.size, title: file.name });
     const companion = await openNativeCompanion(
       file,
       new Uint8Array([4, 5, 6]),
@@ -103,6 +107,48 @@ describe('PDF.js reader search source selection', () => {
       id: companion.id,
     });
     expect(invoke).toHaveBeenCalledWith('native_close', { id: companion.id });
+  });
+});
+
+describe('bounded canonical imports', () => {
+  beforeEach(() => { invoke.mockReset(); vi.stubGlobal('window', { __TAURI_INTERNALS__: {} }); });
+  it('uploads sequential chunks without reading the complete file', async () => {
+    const file = new File([new Uint8Array(5 * 1024 * 1024)], 'large.pdf');
+    const wholeFileRead = vi.spyOn(file, 'arrayBuffer').mockRejectedValue(new Error('whole-file read'));
+    let offset = 0;
+    invoke.mockImplementation(async (command, args, options) => {
+      if (command === 'library_import_begin') return 'upload';
+      if (command === 'library_import_chunk') {
+        expect(args).toBeInstanceOf(Uint8Array); expect(args.byteLength).toBeLessThanOrEqual(4 * 1024 * 1024);
+        expect(Number(options.headers['x-key-offset'])).toBe(offset); offset += args.byteLength; return offset;
+      }
+      if (command === 'library_import_finish') return { hash: 'hash', size: file.size, title: file.name };
+      if (command === 'begin_pdfjs_companion_managed') return { document: { pages: [] }, hasNativeText: false };
+    });
+    const result = await openNativeCompanion(file);
+    expect(result.id).toBe('hash'); expect(offset).toBe(file.size); expect(wholeFileRead).not.toHaveBeenCalled();
+    expect(invoke.mock.calls.filter(call => call[0] === 'library_import_chunk')).toHaveLength(2);
+    await closeNativeCompanion(result.id);
+  });
+  it('queues ten files with at most two active uploads', async () => {
+    let active = 0; let peak = 0;
+    invoke.mockImplementation(async (command, args) => {
+      if (command === 'library_import_begin') { peak = Math.max(peak, ++active); return args.title; }
+      if (command === 'library_import_chunk') { await new Promise(resolve => setTimeout(resolve, 1)); return 3; }
+      if (command === 'library_import_finish') { --active; return { hash: args.id, size: 3, title: args.id }; }
+      if (command === 'begin_pdfjs_companion_managed') return { document: { pages: [] }, hasNativeText: false };
+    });
+    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => openNativeCompanion(new File(['pdf'], `queued-${i}.pdf`))));
+    expect(results).toHaveLength(10); expect(peak).toBe(2); expect(active).toBe(0);
+    await Promise.all(results.map(result => closeNativeCompanion(result.id)));
+  });
+  it('cancels staging after a failed write', async () => {
+    invoke.mockImplementation(async command => {
+      if (command === 'library_import_begin') return 'failed-upload';
+      if (command === 'library_import_chunk') throw new Error('disk full');
+    });
+    await expect(openNativeCompanion(new File(['pdf'], 'failed.pdf'))).rejects.toThrow('disk full');
+    expect(invoke).toHaveBeenCalledWith('library_import_cancel', { id: 'failed-upload' });
   });
 });
 
@@ -232,4 +278,14 @@ describe('annotation comments', () => {
     expect(loadReaderAnnotations('document-1').map(annotation => annotation.color))
       .toEqual(['orange', 'orange']);
   });
+});
+
+it('maps Unicode search offsets back to PDF character indices', () => {
+  const matches = localMatches(new Map([[0, textPage('🦀 İ needle')]]), 'needle');
+  expect(matches).toHaveLength(1);
+  expect(matches[0].start).toBe(4);
+  expect(matches[0].end).toBe(9);
+  const expanded = localMatches(new Map([[0, textPage('İx')]]), 'i');
+  expect(expanded[0].start).toBe(0);
+  expect(expanded[0].end).toBe(0);
 });

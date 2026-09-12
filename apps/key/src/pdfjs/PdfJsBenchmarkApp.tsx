@@ -1,3 +1,5 @@
+import { ManagedPdfTransport } from './managed-pdf-source';
+import { managedSourceFor } from './reader-model';
 import {
   forwardRef,
   type ComponentPropsWithoutRef,
@@ -38,10 +40,10 @@ import {
   HIGHLIGHT_COLOR_RGB,
   hasNativeCompanionText,
   isTauri,
-  loadReaderAnnotations,
+  loadCanonicalAnnotations,
   openNativeCompanion,
   releaseNativeCompanionText,
-  saveReaderAnnotations,
+  saveCanonicalAnnotations,
   searchReaderDocument,
   upsertAnnotationComment,
   watchNativeCompanion,
@@ -52,7 +54,7 @@ import {
   type TextRange,
 } from './reader-model';
 import { PdfJsTextOverlayManager } from './text-overlays';
-import { readerHorizontalGeometry } from './reader-layout';
+import { readerHorizontalGeometry, readerPageWindow } from './reader-layout';
 import {
   preprocessedScholarlyEntries,
   type ScholarlyEntry,
@@ -112,6 +114,7 @@ let pdfJsDestructionBarrier: Promise<void> = Promise.resolve();
 
 interface PageState {
   index: number;
+  left: number;
   page: PDFPageProxy;
   baseWidth: number;
   baseHeight: number;
@@ -205,6 +208,7 @@ export interface PdfJsBenchmarkResult {
 
 declare global {
   interface Window {
+    __PDFJS_RUN_BENCHMARK__?: () => Promise<void>;
     __PDFJS_READY__?: boolean;
     __PDFJS_ERROR__?: string;
     __PDFJS_BENCHMARK_RESULT__?: PdfJsBenchmarkResult;
@@ -229,10 +233,24 @@ const percentile = (values: number[], fraction: number) => {
 };
 
 export class PdfJsTileController {
+  private static readonly controllers = new Set<PdfJsTileController>();
+  private static rebalanceBudgets() {
+    const active = [...this.controllers].filter(c => !c.destroyed && !c.suspended);
+    for (const controller of active) {
+      controller.maxRenderBytes = Math.max(
+        Math.min(controller.configuredRenderBytes, MAX_RENDER_BYTES / Math.max(1, active.length)),
+        controller.viewportTileBytes(),
+      );
+      controller.evict();
+    }
+  }
   private readonly scroll: HTMLDivElement;
   private readonly content: HTMLDivElement;
   private readonly document: PDFDocumentProxy;
   private readonly pages: PageState[];
+  private readonly pageLoads = new Map<number, Promise<PDFPageProxy>>();
+  private readonly loadedPages = new Set<number>();
+  private readonly mountedPages = new Set<number>();
   private readonly dpr: number;
   private readonly configuredRenderBytes: number;
   private maxRenderBytes: number;
@@ -295,9 +313,10 @@ export class PdfJsTileController {
     this.pages = sourcePages.map(({ page, width, height }, pageIndex) => {
       const element = documentElement('div', 'pdfjs-page');
       element.dataset.pageIndex = String(pageIndex);
-      this.content.append(element);
       return {
         index: pageIndex,
+        left: 0,
+        getPage: () => this.loadPage(pageIndex),
         page,
         baseWidth: width,
         baseHeight: height,
@@ -317,6 +336,7 @@ export class PdfJsTileController {
     this.scroll.addEventListener('pointermove', this.onPointerMove);
     this.scroll.addEventListener('pointerup', this.onPointerEnd);
     this.scroll.addEventListener('pointercancel', this.onPointerEnd);
+    PdfJsTileController.controllers.add(this);
     this.updateLayout();
     this.replaceDemand();
     if (typeof ResizeObserver !== 'undefined') {
@@ -333,6 +353,28 @@ export class PdfJsTileController {
       this.resizeObserver.observe(this.scroll);
     }
   }
+
+  private loadPage(index: number): Promise<PDFPageProxy> {
+    const host = this.pages[index];
+    if (this.loadedPages.has(index)) return Promise.resolve(host.page);
+    let pending = this.pageLoads.get(index);
+    if (!pending) {
+      pending = this.document.getPage(index + 1).then(page => {
+        if (this.destroyed) return page;
+        const state = this.currentViewState();
+        const viewport = page.getViewport({ scale: 1 });
+        const changed = host.baseWidth !== viewport.width || host.baseHeight !== viewport.height;
+        host.page = page; host.baseWidth = viewport.width; host.baseHeight = viewport.height;
+        this.loadedPages.add(index);
+        if (changed) { this.updateLayout(); this.restoreViewState(state); }
+        return page;
+      }).finally(() => this.pageLoads.delete(index));
+      this.pageLoads.set(index, pending);
+    }
+    return pending;
+  }
+
+  preparePage(index: number) { return this.loadPage(index); }
 
   pageCount() {
     return this.pages.length;
@@ -571,6 +613,7 @@ export class PdfJsTileController {
       budgetBytes: this.maxRenderBytes,
       residentBytes: this.residentBytes,
       residentTiles: this.cache.size,
+      mountedPages: this.mountedPages.size,
       peakResidentBytes: this.peakResidentBytes,
       peakResidentTiles: this.peakResidentTiles,
       fallbackBytes: this.fallbackBytes,
@@ -581,6 +624,7 @@ export class PdfJsTileController {
 
   suspendRaster(keepFallback: boolean) {
     this.suspended = true;
+    PdfJsTileController.rebalanceBudgets();
     this.revision += 1;
     this.cancelPending();
     for (const task of this.fallbackTasks.values()) task.cancel();
@@ -611,6 +655,8 @@ export class PdfJsTileController {
 
   async destroy() {
     this.destroyed = true;
+    PdfJsTileController.controllers.delete(this);
+    PdfJsTileController.rebalanceBudgets();
     this.scroll.removeEventListener('scroll', this.onScroll);
     this.scroll.removeEventListener('wheel', this.onWheel);
     this.scroll.removeEventListener('touchstart', this.onTouchStart);
@@ -635,7 +681,17 @@ export class PdfJsTileController {
     await this.document.loadingTask.destroy();
   }
 
+  private lastInteractionReport = -Infinity;
+  private reportInteraction() {
+    const now = performance.now();
+    if (isTauri() && now - this.lastInteractionReport >= 250) {
+      this.lastInteractionReport = now;
+      void invoke('processing_interaction').catch(() => undefined);
+    }
+  }
+
   private readonly onScroll = () => {
+    this.reportInteraction();
     // Capture navigation state while the pane is still attached. React runs
     // passive unmount cleanup after removing the old DOM, at which point
     // WebKit reports scrollTop as zero.
@@ -648,6 +704,7 @@ export class PdfJsTileController {
   };
 
   private readonly onWheel = (event: WheelEvent) => {
+    this.reportInteraction();
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     const currentTarget = this.wheelZoomTarget ?? this.zoom;
@@ -754,7 +811,7 @@ export class PdfJsTileController {
   private updateLayout() {
     // The budget follows the window: a fixed constant is either wasteful on a
     // small window or below the visible set on a large one.
-    this.maxRenderBytes = Math.max(this.configuredRenderBytes, this.viewportTileBytes());
+    PdfJsTileController.rebalanceBudgets();
     const widest = Math.max(1, ...this.pages.map(page => page.baseWidth));
     this.fitScale = Math.max(
       0.05,
@@ -773,15 +830,44 @@ export class PdfJsTileController {
       page.width = page.baseWidth * scale;
       page.height = page.baseHeight * scale;
       page.top = top;
-      page.element.style.width = `${page.width}px`;
-      page.element.style.height = `${page.height}px`;
-      page.element.style.setProperty('--page-height', `${page.height}px`);
-      page.element.style.top = `${top}px`;
-      page.element.style.left = `${geometry.pageLeft(page.width)}px`;
+      page.left = geometry.pageLeft(page.width);
+      if (this.mountedPages.has(page.index)) this.placePageShell(page);
       top += page.height + PAGE_GAP_CSS_PX;
     }
     this.content.style.height = `${Math.max(this.scroll.clientHeight, top + PAGE_PADDING_CSS_PX)}px`;
     this.content.style.minWidth = `${geometry.contentWidth}px`;
+  }
+
+  private placePageShell(page: PageState) {
+    page.element.style.width = `${page.width}px`;
+    page.element.style.height = `${page.height}px`;
+    page.element.style.setProperty('--page-height', `${page.height}px`);
+    page.element.style.top = `${page.top}px`;
+    page.element.style.left = `${page.left}px`;
+  }
+
+  private mountPageWindow(first: number, last: number) {
+    for (const index of this.mountedPages) {
+      if (index < first || index >= last) {
+        this.pages[index].element.remove();
+        this.mountedPages.delete(index);
+      }
+    }
+    for (let index = first; index < last; index += 1) {
+      if (!this.mountedPages.has(index)) {
+        const page = this.pages[index];
+        this.placePageShell(page);
+        this.content.append(page.element);
+        this.mountedPages.add(index);
+      }
+    }
+  }
+
+  private cleanOffscreenPages() {
+    for (const index of this.loadedPages) {
+      if (this.mountedPages.has(index) || this.fallbackTasks.has(index) || this.pageLoads.has(index)) continue;
+      this.pages[index].page.cleanup();
+    }
   }
 
   private replaceDemand() {
@@ -796,10 +882,12 @@ export class PdfJsTileController {
     const viewportRight = viewportLeft + this.scroll.clientWidth;
     const specs: TileSpec[] = [];
 
-    for (let pageIndex = 0; pageIndex < this.pages.length; pageIndex += 1) {
+    const overscanCss = TILE_PHYSICAL_PX / this.dpr;
+    const [firstPage, lastPage] = readerPageWindow(this.pages, viewportTop - overscanCss, viewportBottom + overscanCss);
+    this.mountPageWindow(firstPage, lastPage);
+    for (let pageIndex = firstPage; pageIndex < lastPage; pageIndex += 1) {
       const page = this.pages[pageIndex];
-      const pageLeft = page.element.offsetLeft;
-      const overscanCss = TILE_PHYSICAL_PX / this.dpr;
+      const pageLeft = page.left;
       const left = Math.max(pageLeft, viewportLeft - overscanCss);
       const right = Math.min(pageLeft + page.width, viewportRight + overscanCss);
       const top = Math.max(page.top, viewportTop - overscanCss);
@@ -868,6 +956,11 @@ export class PdfJsTileController {
       ...new Set(specs.filter(spec => spec.visible).map(spec => spec.pageIndex)),
     ];
     this.currentVisiblePages = new Set(visiblePages);
+    // Old zoom grids only protect pages that remain visible. Otherwise rapid
+    // zoom/scroll could pin old canvases outside the eviction budget forever.
+    for (const key of this.fallbackKeys) {
+      if (!this.currentVisiblePages.has(Number(key.split(':')[0]))) this.fallbackKeys.delete(key);
+    }
     const fallbackNow = performance.now();
     for (const pageIndex of visiblePages) {
       this.pages[pageIndex].fallbackLastUsed = fallbackNow;
@@ -888,6 +981,7 @@ export class PdfJsTileController {
     this.evict();
     this.pump(revision);
     this.warmFallbackWhenIdle();
+    this.cleanOffscreenPages();
   }
 
   private pump(revision: number) {
@@ -906,6 +1000,13 @@ export class PdfJsTileController {
   private async render(spec: TileSpec, revision: number) {
     const pageState = this.pages[spec.pageIndex];
     if (!pageState) return;
+    if (!this.loadedPages.has(spec.pageIndex)) {
+      this.activeRenders += 1;
+      try { await this.loadPage(spec.pageIndex); }
+      catch (error) { console.error("PDF page load failed", error); this.suspended = true; }
+      finally { this.activeRenders -= 1; if (!this.destroyed) this.replaceDemand(); }
+      return;
+    }
     const canvas = document.createElement('canvas');
     canvas.width = spec.width;
     canvas.height = spec.height;
@@ -956,10 +1057,11 @@ export class PdfJsTileController {
       canvas.width = 0;
       canvas.height = 0;
     } finally {
-      this.pending.delete(spec.key);
+      if (this.pending.get(spec.key)?.revision === revision) this.pending.delete(spec.key);
       this.activeRenders = Math.max(0, this.activeRenders - 1);
       this.pump(this.revision);
       this.warmFallbackWhenIdle();
+      this.cleanOffscreenPages();
     }
   }
 
@@ -1039,6 +1141,7 @@ export class PdfJsTileController {
     ) {
       return;
     }
+    if (!this.loadedPages.has(pageIndex)) { await this.loadPage(pageIndex); if (this.destroyed || this.suspended) return; }
     // About 0.35 MiB for an A4/Letter page: deliberately soft while scaled,
     // but large enough that page structure remains recognizable during pinch.
     const rasterWidth = 256;
@@ -1320,6 +1423,8 @@ interface PdfJsBenchmarkAppProps {
   initialViewState?: PdfJsViewState;
   onViewStateChange?: (state: PdfJsViewState) => void;
   onReady?: () => void;
+  onDocumentIdentity?: (hash: string) => void;
+  searchTarget?: { id: string; documentHash: string; page: number; rects: number[][]; targetText: string };
   rasterMode?: 'active' | 'parsed';
   visibilityMode?: 'visible' | 'standby' | 'parsed';
   previewUrl?: string;
@@ -1375,6 +1480,8 @@ export interface PdfReaderHandle {
 const PdfJsBenchmarkApp = forwardRef<PdfReaderHandle, PdfJsBenchmarkAppProps>(
 function PdfJsBenchmarkApp({
   initialFile,
+  onDocumentIdentity,
+  searchTarget,
   embedded = false,
   paneTitle = 'PDF.js reader',
   keyboardShortcuts = true,
@@ -1395,6 +1502,7 @@ function PdfJsBenchmarkApp({
   const overlayRef = useRef<PdfJsTextOverlayManager | null>(null);
   const companionWatchRef = useRef<(() => void) | null>(null);
   const documentIdRef = useRef<string | null>(null);
+  const [readerIdentity, setReaderIdentity] = useState<string | null>(null);
   const searchRevisionRef = useRef(0);
   const fixtureRequestedRef = useRef(false);
   const autoRunBenchmarkRef = useRef(false);
@@ -1404,9 +1512,13 @@ function PdfJsBenchmarkApp({
   const [status, setStatus] = useState('Choose a PDF');
   const [ready, setReady] = useState(false);
   const [running, setRunning] = useState(false);
-  const [loadMs, setLoadMs] = useState(0);
+  const loadMsRef = useRef(0);
+  const loadGenerationRef = useRef(0);
+  const loadingTaskRef = useRef<ReturnType<typeof getDocument> | null>(null);
   const [zoom, setZoom] = useState(1);
   const [annotations, setAnnotations] = useState<ReaderAnnotation[]>([]);
+  const annotationSnapshotRef = useRef<ReaderAnnotation[]>([]);
+  const deletedAnnotationsRef = useRef(new Set<string>());
   const [selection, setSelection] = useState<SelectionSnapshot | null>(null);
   const [activeAnnotation, setActiveAnnotation] = useState<ReaderAnnotation | null>(null);
   const [contextRect, setContextRect] = useState<DOMRect | null>(null);
@@ -1478,6 +1590,9 @@ function PdfJsBenchmarkApp({
 
   useEffect(
     () => () => {
+      ++loadGenerationRef.current;
+      const pendingTask = loadingTaskRef.current;
+      loadingTaskRef.current = null;
       linkHoverBridgeRef.current?.dispose();
       if (lastViewStateRef.current) {
         onViewStateChangeRef.current?.(lastViewStateRef.current);
@@ -1493,7 +1608,8 @@ function PdfJsBenchmarkApp({
       pdfJsDestructionBarrier = pdfJsDestructionBarrier
         .catch(() => undefined)
         .then(async () => {
-          await controller?.destroy();
+          if (controller) await controller.destroy();
+          else await pendingTask?.destroy();
           if (documentId) await closeNativeCompanion(documentId);
         });
     },
@@ -1501,10 +1617,11 @@ function PdfJsBenchmarkApp({
   );
 
   const load = useCallback(async (file: File) => {
+    const generation = ++loadGenerationRef.current;
     await pdfJsDestructionBarrier.catch(() => undefined);
     const scroll = scrollRef.current;
     const content = contentRef.current;
-    if (!scroll || !content) return;
+    if (!scroll || !content || generation !== loadGenerationRef.current) return;
     setReady(false);
     setAnalysis(null);
     cancelLinkHoverExit();
@@ -1527,30 +1644,39 @@ function PdfJsBenchmarkApp({
     companionWatchRef.current?.();
     companionWatchRef.current = null;
     if (controllerRef.current) await controllerRef.current.destroy();
+    else await loadingTaskRef.current?.destroy();
     if (documentIdRef.current) await closeNativeCompanion(documentIdRef.current);
     documentIdRef.current = null;
     content.replaceChildren();
     const start = performance.now();
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      sourceBytesRef.current = bytes.byteLength;
-      const companionPromise = openNativeCompanion(
-        file,
-        bytes.slice(),
-        false,
-      );
-      const documentProxy = await getDocument({ data: bytes.slice() }).promise;
-      const sourcePages = await Promise.all(
-        Array.from({ length: documentProxy.numPages }, async (_, index) => {
-          const page = await documentProxy.getPage(index + 1);
-          const viewport = page.getViewport({ scale: 1 });
-          return { page, width: viewport.width, height: viewport.height };
-        }),
-      );
-      const companion = await companionPromise;
-      setAnalysis(companion.analysis ?? null);
-      setScholarly(preprocessedScholarlyEntries(companion.analysis));
-      documentIdRef.current = companion.id;
+      if (generation !== loadGenerationRef.current) return;
+      const managed = managedSourceFor(file);
+      sourceBytesRef.current = managed?.size ?? file.size;
+      const companionPromise = openNativeCompanion(file, undefined, false).then(companion => {
+        if (generation !== loadGenerationRef.current) void closeNativeCompanion(companion.id);
+        return companion;
+      });
+      // Attach a handler immediately: painting and import proceed independently.
+      void companionPromise.catch(() => undefined);
+      let objectUrl: string | undefined;
+      const transport = managed ? new ManagedPdfTransport(managed, error => {
+        setStatus(`PDF source read failed: ${String(error)}`);
+        window.__PDFJS_ERROR__ = String(error);
+        void loadingTask.destroy();
+      }) : undefined;
+      const loadingTask = transport
+        ? getDocument({ range: transport, rangeChunkSize: 256 * 1024, disableAutoFetch: true, disableStream: true })
+        : getDocument({ url: (objectUrl = URL.createObjectURL(file)) });
+      loadingTaskRef.current = loadingTask;
+      let documentProxy;
+      try { documentProxy = await loadingTask.promise; }
+      finally { if (objectUrl) URL.revokeObjectURL(objectUrl); }
+      if (generation !== loadGenerationRef.current) return;
+      const firstPage = await documentProxy.getPage(1);
+      if (generation !== loadGenerationRef.current) return;
+      const firstViewport = firstPage.getViewport({ scale: 1 });
+      const sourcePages = Array.from({ length: documentProxy.numPages }, () => ({ page: firstPage, width: firstViewport.width, height: firstViewport.height }));
       const controller = new PdfJsTileController(
         scroll,
         content,
@@ -1580,8 +1706,16 @@ function PdfJsBenchmarkApp({
       controller.onPreviewChange(preview => {
         onPreviewChangeRef.current?.(preview);
       });
+      setReady(true);
+      const companion = await companionPromise;
+      if (generation !== loadGenerationRef.current) return;
+      setAnalysis(companion.analysis ?? null);
+      setScholarly(preprocessedScholarlyEntries(companion.analysis));
+      documentIdRef.current = companion.id;
+      onDocumentIdentity?.(companion.id);
       const overlay = new PdfJsTextOverlayManager(companion.id, controller.pageHosts());
       overlayRef.current = overlay;
+      setReaderIdentity(companion.id);
       overlay.setLinks(
         companion.analysis?.document.links ?? companion.document?.links ?? [],
       );
@@ -1601,8 +1735,11 @@ function PdfJsBenchmarkApp({
           }
         },
       );
-      const restored = loadReaderAnnotations(companion.id);
+      const restored = await loadCanonicalAnnotations(companion.id);
+      if (generation !== loadGenerationRef.current) return;
       setAnnotations(restored);
+      annotationSnapshotRef.current = restored;
+      deletedAnnotationsRef.current.clear();
       overlay.setAnnotations(restored);
       overlay.onSelection(snapshot => {
         setSelection(snapshot);
@@ -1696,8 +1833,9 @@ function PdfJsBenchmarkApp({
       // stranded a perfectly readable document behind the blur veil.
       const settled = await controller.waitForExact();
       await overlay.ensurePage(0);
+      if (generation !== loadGenerationRef.current) return;
       const duration = performance.now() - start;
-      setLoadMs(duration);
+      loadMsRef.current = duration;
       setZoom(controller.currentZoom());
       setSelection(null);
       setActiveAnnotation(null);
@@ -1719,6 +1857,7 @@ function PdfJsBenchmarkApp({
       onReadyRef.current?.();
       if (isTauri()) void invoke('benchmark_phase', { name: 'load-ready' });
     } catch (error) {
+      if (generation !== loadGenerationRef.current) return;
       const message = error instanceof Error ? error.message : String(error);
       window.__PDFJS_ERROR__ = message;
       setStatus(`PDF.js failed: ${message}`);
@@ -1884,6 +2023,12 @@ function PdfJsBenchmarkApp({
   }, [activeAnnotation, commentDraft, selection]);
 
   useEffect(() => {
+    if (isTauri() && ready && readerIdentity && visibilityMode === 'visible') {
+      void invoke('library_prioritize', { hash: readerIdentity }).catch(() => undefined);
+    }
+  }, [ready, readerIdentity, visibilityMode]);
+
+  useEffect(() => {
     const controller = controllerRef.current;
     if (!ready || !controller) return;
     if (rasterMode === 'parsed') {
@@ -1925,8 +2070,23 @@ function PdfJsBenchmarkApp({
   const updateAnnotations = useCallback((next: ReaderAnnotation[]) => {
     const documentId = documentIdRef.current;
     if (!documentId) return;
+    next = next.map(annotation => {
+      if (annotation.anchor) return annotation;
+      const pages: Array<{ page: number; bounds: NativeBounds[] }> = [];
+      for (let page = annotation.range.start.page; page <= annotation.range.end.page; page += 1) {
+        const text = overlayRef.current?.textPages.get(page);
+        if (!text) return annotation;
+        pages.push({ page, bounds: boundsForRange(text, annotation.range) });
+      }
+      return { ...annotation, anchor: { version: 1 as const, pages } };
+    });
+    const nextIds = new Set(next.map(a => a.id));
+    for (const a of annotationSnapshotRef.current) if (!nextIds.has(a.id)) deletedAnnotationsRef.current.add(a.id);
+    for (const id of nextIds) deletedAnnotationsRef.current.delete(id);
+    annotationSnapshotRef.current = next;
     setAnnotations(next);
-    saveReaderAnnotations(documentId, next);
+    setStatus('Saving annotation…');
+    void saveCanonicalAnnotations(documentId, next, [...deletedAnnotationsRef.current]).then(() => { if (documentIdRef.current === documentId) setStatus('Annotation saved'); }).catch(error => { if (documentIdRef.current === documentId) setStatus(`Annotation not saved: ${String(error)}`); });
     overlayRef.current?.setAnnotations(next);
   }, []);
 
@@ -2113,10 +2273,9 @@ function PdfJsBenchmarkApp({
       }
       setSearching(true);
       try {
-        if (!isTauri() || !hasNativeCompanionText(documentId)) {
-          await overlay.ensureAllPages();
-        }
-        const matches = await searchReaderDocument(documentId, trimmed, overlay.textPages);
+        const matches = isTauri() && hasNativeCompanionText(documentId)
+          ? await searchReaderDocument(documentId, trimmed, overlay.textPages)
+          : await overlay.search(trimmed, () => revision !== searchRevisionRef.current);
         if (revision !== searchRevisionRef.current) return [];
         setSearchMatches(matches);
         if (navigate) activateSearch(matches, 0);
@@ -2255,7 +2414,6 @@ function PdfJsBenchmarkApp({
     setStatus('Preparing text, search, and overlays');
     if (isTauri()) void invoke('benchmark_phase', { name: 'feature-start' });
     const featureStart = performance.now();
-    if (!isTauri()) await overlay.ensureAllPages();
     const benchmarkMatches = await runSearch('the', false);
     const featureSetupMs = performance.now() - featureStart;
     if (isTauri()) {
@@ -2307,7 +2465,7 @@ function PdfJsBenchmarkApp({
       startedAt,
       pageCount: controller.pageCount(),
       sourceBytes: sourceBytesRef.current,
-      loadMs,
+      loadMs: loadMsRef.current,
       featureSetupMs,
       interactionMs: performance.now() - start,
       frameIntervals: {
@@ -2331,7 +2489,7 @@ function PdfJsBenchmarkApp({
     setStatus(
       `Done · ${benchmarkMatches.length} search hits · ${Math.round(result.interactionMs)} ms · p95 ${result.frameIntervals.p95.toFixed(1)} ms`,
     );
-  }, [loadMs, runSearch, running]);
+  }, [runSearch, running]);
 
   const setReaderZoom = useCallback((next: number) => {
     controllerRef.current?.setZoom(next);
@@ -2343,6 +2501,23 @@ function PdfJsBenchmarkApp({
     () => annotations.filter(annotation => annotation.comment),
     [annotations],
   );
+
+  useEffect(() => {
+    if (!ready || !searchTarget || readerIdentity !== searchTarget.documentHash) return;
+    const controller = controllerRef.current;
+    const overlay = overlayRef.current;
+    if (!controller || !overlay) return;
+    let cancelled = false;
+    const bounds = searchTarget.rects.map(([x, y, width, height]) => ({ left: x / 65535, top: y / 65535, right: (x + width) / 65535, bottom: (y + height) / 65535 }));
+    const match: ReaderSearchMatch = { id: searchTarget.id, page: searchTarget.page, start: 0, end: 0, preview: searchTarget.targetText, bounds };
+    void controller.preparePage(searchTarget.page).then(() => {
+      if (cancelled) return;
+      controller.scrollToBounds(searchTarget.page, bounds[0]);
+      overlay.setResultTarget(match);
+      void overlay.ensurePage(searchTarget.page).catch(error => setStatus(String(error)));
+    }).catch(error => { if (!cancelled) setStatus(`Could not open result: ${error}`); });
+    return () => { cancelled = true; overlay.setResultTarget(null); };
+  }, [ready, readerIdentity, searchTarget]);
 
   useImperativeHandle(
     ref,
@@ -2432,6 +2607,14 @@ function PdfJsBenchmarkApp({
     status,
     zoom,
   ]);
+
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('benchmark')) return;
+    window.__PDFJS_RUN_BENCHMARK__ = benchmark;
+    return () => {
+      if (window.__PDFJS_RUN_BENCHMARK__ === benchmark) delete window.__PDFJS_RUN_BENCHMARK__;
+    };
+  }, [benchmark]);
 
   useEffect(() => {
     if (!ready || !autoRunBenchmarkRef.current || running) return;

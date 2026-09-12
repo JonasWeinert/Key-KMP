@@ -1,3 +1,5 @@
+import { registerManagedSource, type ManagedSource } from './reader-model';
+import { invoke } from '@tauri-apps/api/core';
 import {
   useCallback,
   useEffect,
@@ -19,11 +21,12 @@ import PdfJsBenchmarkApp, {
   type PdfReaderHandle,
   type PdfReaderPanel,
 } from './PdfJsBenchmarkApp';
-import GlobalSearchHome from './GlobalSearchHome';
+import GlobalSearchHome, { type SearchHit } from './GlobalSearchHome';
 import {
   activateWorkspaceTab,
   activeWorkspaceTab,
   closeWorkspaceView,
+  LIBRARY_VIEW_ID,
   separateWorkspaceTab,
   setWorkspaceSplitRatio,
   singleWorkspaceTab,
@@ -52,6 +55,7 @@ import {
 interface OpenDocument {
   id: string;
   file: File;
+  hash?: string;
 }
 
 const EMPTY_CHROME: PdfReaderChromeState = {
@@ -75,6 +79,10 @@ const EMPTY_CHROME: PdfReaderChromeState = {
 
 function documentId(file: File) {
   return `${crypto.randomUUID()}:${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function semanticDocumentId(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
 function unique(values: Array<string | null | undefined>) {
@@ -113,10 +121,14 @@ export default function PdfJsWorkspaceApp() {
   const previewRef = useRef(new Map<string, PdfJsPreview>());
   const chromeStateRef = useRef(new Map<string, PdfReaderChromeState>());
   const [documents, setDocuments] = useState<OpenDocument[]>([]);
-  const [workspace, setWorkspace] = useState<WorkspaceTabsState>({
-    tabs: [],
-    activeTabId: null,
+  const [workspace, setWorkspace] = useState<WorkspaceTabsState>(() => {
+    const library = singleWorkspaceTab(LIBRARY_VIEW_ID);
+    return { tabs: [library], activeTabId: library.id };
   });
+  const [searchTarget, setSearchTarget] = useState<{ id: string; documentHash: string; page: number; rects: number[][]; targetText: string } | null>(null);
+  const [navigationStatus, setNavigationStatus] = useState('');
+  const [resultHits, setResultHits] = useState<SearchHit[]>([]);
+  const navigationToken = useRef(0);
   const [recentViews, setRecentViews] = useState<string[]>([]);
   const [chromeRevision, setChromeRevision] = useState(0);
   const [appSidebarOpen, setAppSidebarOpen] = useState(false);
@@ -129,6 +141,10 @@ export default function PdfJsWorkspaceApp() {
   const measuredTabStripWidth = useElementWidth(tabStripRef, tabsVisible);
   const activeViewId = activeTab?.activeViewId ?? null;
   const activeDocument = documents.find(document => document.id === activeViewId) ?? null;
+  const openDocumentIds = useMemo(
+    () => new Set(documents.map(document => document.hash ?? semanticDocumentId(document.file))),
+    [documents],
+  );
   const chromeState = activeViewId
     ? chromeStateRef.current.get(activeViewId) ?? {
         ...EMPTY_CHROME,
@@ -150,6 +166,53 @@ export default function PdfJsWorkspaceApp() {
     },
     [touchRecent, workspace.tabs],
   );
+
+  const openLibraryTab = useCallback(() => {
+    setWorkspace(current => {
+      const existing = current.tabs.find(tab => tab.activeViewId === LIBRARY_VIEW_ID);
+      if (existing) return { ...current, activeTabId: existing.id };
+      const library = singleWorkspaceTab(LIBRARY_VIEW_ID);
+      return {
+        tabs: [...current.tabs, library],
+        activeTabId: library.id,
+      };
+    });
+    setSplitMenuOpen(false);
+    setControlMode(null);
+  }, []);
+
+  const activateDocument = useCallback((documentId: string) => {
+    const document = documents.find(candidate => (candidate.hash ?? semanticDocumentId(candidate.file)) === documentId);
+    if (!document) return;
+    const owner = workspace.tabs.find(tab => tab.viewIds.includes(document.id));
+    if (owner) activateTab(owner.id, document.id);
+  }, [activateTab, documents, workspace.tabs]);
+
+  const openSearchResult = async (hit: SearchHit) => {
+    const token = ++navigationToken.current;
+    setNavigationStatus(`Opening page ${hit.page + 1}…`);
+    try {
+      const target = await invoke<{ id: string; documentHash: string; page: number; rects: number[][]; targetText: string }>('resolve_search_target', { id: hit.id });
+      if (token !== navigationToken.current) return;
+      let document = documents.find(candidate => candidate.hash === hit.documentHash);
+      if (!document) {
+        const source = await invoke<ManagedSource>('library_source_info', { hash: hit.documentHash });
+        if (token !== navigationToken.current) return;
+        const title = hit.documentTitle || hit.documentHash.slice(0, 12);
+        const file = new File([], /\.pdf$/i.test(title) ? title : `${title}.pdf`, { type: 'application/pdf', lastModified: 0 });
+        registerManagedSource(file, source);
+        document = { id: `library:${hit.documentHash}`, file, hash: hit.documentHash };
+        const tab = singleWorkspaceTab(document.id);
+        setDocuments(current => [...current, document!]);
+        setWorkspace(current => ({ tabs: [...current.tabs, tab], activeTabId: tab.id }));
+      } else {
+        const owner = workspace.tabs.find(tab => tab.viewIds.includes(document!.id));
+        if (owner) activateTab(owner.id, document.id);
+      }
+      setSearchTarget(target);
+      setNavigationStatus('');
+    } catch (error) { if (token === navigationToken.current) setNavigationStatus(String(error)); }
+  };
 
   const openFiles = useCallback((files: File[]) => {
     const pdfs = files.filter(
@@ -306,7 +369,7 @@ export default function PdfJsWorkspaceApp() {
     };
   }, [activeReader, activeTab]);
 
-  const visibleViewIds = activeTab?.viewIds ?? [];
+  const visibleViewIds = (activeTab?.viewIds ?? []).filter(id => id !== LIBRARY_VIEW_ID);
   // Exactly two readers stay resident and keep their visible tiles: the two
   // panes of a split, or the active document plus the most recently used other
   // one. Everything beyond that unmounts and re-parses on demand.
@@ -314,7 +377,7 @@ export default function PdfJsWorkspaceApp() {
   const residentIds = unique([
     ...visibleViewIds,
     ...recentViews,
-    ...workspace.tabs.flatMap(tab => tab.viewIds),
+    ...workspace.tabs.flatMap(tab => tab.viewIds).filter(id => id !== LIBRARY_VIEW_ID),
   ]).slice(0, RESIDENT_READERS);
   // Membership follows recency, but render order must not: re-ordering the
   // list would make React move live canvases around for no reason. Panes are
@@ -322,7 +385,7 @@ export default function PdfJsWorkspaceApp() {
   const fullyWarmIds = [...residentIds].sort();
   const parsedWarmId = unique([
     ...recentViews,
-    ...workspace.tabs.flatMap(tab => tab.viewIds),
+    ...workspace.tabs.flatMap(tab => tab.viewIds).filter(id => id !== LIBRARY_VIEW_ID),
   ]).find(id => !residentIds.includes(id));
   const tabLeadingInset = workspaceUtilitiesInTabs
     ? chrome.utility_controls_leading_inset
@@ -351,11 +414,9 @@ export default function PdfJsWorkspaceApp() {
       context?.measureText(text).width ?? text.length * caption.size_rem * 8;
     return new Map(
       workspace.tabs.map(tab => {
-        const titles = tab.viewIds.map(
-          viewId =>
-            documents.find(document => document.id === viewId)?.file.name ??
-            'Untitled PDF',
-        );
+        const titles = tab.viewIds.map(viewId => viewId === LIBRARY_VIEW_ID
+          ? 'Library'
+          : documents.find(document => document.id === viewId)?.file.name ?? 'Untitled PDF');
         return [
           tab.id,
           readableTabWidth(
@@ -401,6 +462,8 @@ export default function PdfJsWorkspaceApp() {
           else readerRefs.current.delete(viewId);
         }}
         initialFile={document.file}
+        onDocumentIdentity={hash => setDocuments(current => current.map(item => item.id === viewId && item.hash !== hash ? { ...item, hash } : item))}
+        searchTarget={searchTarget && searchTarget.documentHash === document.hash ? searchTarget : undefined}
         embedded
         paneTitle={paneIndex === 1 ? 'Right' : 'Left'}
         keyboardShortcuts={visible && activeViewId === viewId}
@@ -504,7 +567,7 @@ export default function PdfJsWorkspaceApp() {
                   icon="split"
                   label="Split view management"
                   selected={Boolean(activeTab && activeTab.viewIds.length === 2)}
-                  disabled={!activeTab}
+                  disabled={!activeTab || activeViewId === LIBRARY_VIEW_ID}
                   onClick={() => setSplitMenuOpen(open => !open)}
                 />
               </div>
@@ -542,6 +605,7 @@ export default function PdfJsWorkspaceApp() {
                   >
                     {tab.viewIds.map((viewId, index) => {
                       const document = documents.find(candidate => candidate.id === viewId);
+                      const libraryView = viewId === LIBRARY_VIEW_ID;
                       const focused = isActive && tab.activeViewId === viewId;
                       return (
                         <button
@@ -552,14 +616,14 @@ export default function PdfJsWorkspaceApp() {
                             event.stopPropagation();
                             activateTab(tab.id, viewId);
                           }}
-                          title={document?.file.name}
+                          title={libraryView ? 'Library' : document?.file.name}
                         >
-                          <span className="pdfjs-workspace-pdf"><Icon name="document" /></span>
-                          <span>{document?.file.name ?? `PDF ${index + 1}`}</span>
+                          <span className="pdfjs-workspace-pdf"><Icon name={libraryView ? 'search' : 'document'} /></span>
+                          <span>{libraryView ? 'Library' : document?.file.name ?? `PDF ${index + 1}`}</span>
                           <span
                             className="pdfjs-workspace-tab-close"
                             role="button"
-                            aria-label={`Close ${document?.file.name ?? 'PDF'}`}
+                            aria-label={`Close ${libraryView ? 'Library' : document?.file.name ?? 'PDF'}`}
                             onClick={event => {
                               event.stopPropagation();
                               closeView(viewId);
@@ -578,13 +642,13 @@ export default function PdfJsWorkspaceApp() {
               <IconButton
                 className="pdfjs-workspace-add"
                 icon="add"
-                label="Open PDFs"
+                label="New library tab"
                 style={{
                   width: chrome.new_tab_button_size,
                   minWidth: chrome.new_tab_button_size,
                   height: chrome.new_tab_button_size,
                 }}
-                onClick={() => inputRef.current?.click()}
+                onClick={openLibraryTab}
               />
             )}
           </div>
@@ -595,7 +659,7 @@ export default function PdfJsWorkspaceApp() {
           sidebarOpen={appSidebarOpen}
           onToggleSidebar={() => setAppSidebarOpen(open => !open)}
           splitActive={Boolean(activeTab && activeTab.viewIds.length === 2)}
-          splitEnabled={Boolean(activeTab)}
+          splitEnabled={Boolean(activeTab && activeViewId !== LIBRARY_VIEW_ID)}
           onToggleSplit={() => setSplitMenuOpen(open => !open)}
           showWorkspaceUtilities={!workspaceUtilitiesInTabs}
           onOpenPdf={() => inputRef.current?.click()}
@@ -653,7 +717,7 @@ export default function PdfJsWorkspaceApp() {
         />
       </header>
 
-      {splitMenuOpen && activeTab && (
+      {splitMenuOpen && activeTab && activeViewId !== LIBRARY_VIEW_ID && (
         <div className="pdfjs-split-menu">
           <strong>{activeTab.viewIds.length === 2 ? 'Split view' : 'Split with'}</strong>
           {activeTab.viewIds.length === 2 ? (
@@ -670,7 +734,7 @@ export default function PdfJsWorkspaceApp() {
           ) : (
             <>
               {workspace.tabs
-                .filter(tab => tab.id !== activeTab.id && tab.viewIds.length === 1)
+                .filter(tab => tab.id !== activeTab.id && tab.viewIds.length === 1 && tab.activeViewId !== LIBRARY_VIEW_ID)
                 .map(tab => {
                   const document = documents.find(candidate => candidate.id === tab.activeViewId);
                   return (
@@ -714,7 +778,7 @@ export default function PdfJsWorkspaceApp() {
           </aside>
         )}
 
-        {activeTab ? (
+          {activeTab && activeViewId !== LIBRARY_VIEW_ID ? (
           <div
             className={`pdfjs-workspace-panes ${
               activeTab.viewIds.length === 2 ? 'split' : ''
@@ -774,7 +838,24 @@ export default function PdfJsWorkspaceApp() {
               />
             )}
           </div>
-        ) : <GlobalSearchHome onOpenFile={() => inputRef.current?.click()} />}
+        ) : null}
+        <div style={{ display: activeDocument ? 'none' : 'contents' }}>
+          <GlobalSearchHome
+            openDocumentIds={openDocumentIds}
+            onActivateDocument={activateDocument}
+            onActivateResult={openSearchResult}
+            onResults={setResultHits}
+            onOpenFile={() => inputRef.current?.click()}
+          />
+        </div>
+        {navigationStatus && <div className="search-navigation-status" role="status">{navigationStatus}</div>}
+        {searchTarget && activeDocument && <div className="search-navigation-controls" aria-label="Search result navigation">
+          <button onClick={openLibraryTab}>Back to results</button>
+          <button disabled={resultHits.findIndex(h => h.id === searchTarget.id) <= 0} onClick={() => { const i = resultHits.findIndex(h => h.id === searchTarget.id); if (i > 0) void openSearchResult(resultHits[i - 1]); }}>Previous result</button>
+          <span>Page {searchTarget.page + 1}</span>
+          <button disabled={resultHits.findIndex(h => h.id === searchTarget.id) < 0 || resultHits.findIndex(h => h.id === searchTarget.id) >= resultHits.length - 1} onClick={() => { const i = resultHits.findIndex(h => h.id === searchTarget.id); if (i >= 0 && i + 1 < resultHits.length) void openSearchResult(resultHits[i + 1]); }}>Next result</button>
+          <button onClick={() => { ++navigationToken.current; setSearchTarget(null); }}>Dismiss highlight</button>
+        </div>}
       </div>
     </main>
   );

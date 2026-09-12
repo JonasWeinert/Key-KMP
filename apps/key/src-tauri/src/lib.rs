@@ -1,3 +1,4 @@
+mod native_process;
 use key_pdf_core::{
     PdfLink, PdfLinkTarget, PixelRect, RasterSize, ScientificAnalysis, ScientificAnalyzer,
     SearchPageOutcome, SearchQuery, TextBounds, TextChar, TextLayer, TileKey, search_page,
@@ -11,23 +12,22 @@ use key_reference::{
     ReferenceExecutor, ReferenceExecutorConfig, ScholarlyFetcher, ScholarlyMetadata,
     ScholarlyMetadataState, ScholarlySession, detect_doi,
 };
-mod semantic_analysis;
-mod semantic_chunks;
-mod semantic_search;
-use semantic_analysis::SemanticDocumentDto;
-use semantic_search::{SemanticSearchHitDto, SemanticSearchService};
+pub use key_semantic_search::maybe_run_helper as maybe_run_semantic_helper;
+use key_semantic_search::{
+    SemanticDocumentDto, SemanticLibraryDocument, SemanticSearchHitDto, SemanticSearchService,
+};
+pub use native_process::maybe_run_interactive_helper;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     env,
     fs::File,
-    hash::{Hash, Hasher},
     io::BufWriter,
     path::{Path, PathBuf},
     process::Command,
     sync::{
-        Arc, Condvar, Mutex, OnceLock,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicU64, Ordering},
         mpsc::{self, Receiver, Sender},
     },
@@ -197,6 +197,7 @@ struct DiskPreprocessingSidecar {
 struct CompanionSnapshotDto {
     generation: u64,
     revision: u64,
+    analysis_revision: u64,
     stage: String,
     document: DocumentDto,
     analysis: Option<PaperPreprocessingDto>,
@@ -216,6 +217,7 @@ struct CompanionSnapshotDto {
 struct CompanionRecord {
     generation: u64,
     revision: u64,
+    analysis_revision: u64,
     stage: String,
     document: DocumentDto,
     analysis: Option<PaperPreprocessingDto>,
@@ -226,26 +228,32 @@ struct CompanionRecord {
     semantic_total: usize,
     semantic_error: Option<String>,
     text_pages: Vec<TextPageDto>,
+    native_text_ready: bool,
     completed_references: usize,
     total_references: usize,
     error: Option<String>,
 }
 
 impl CompanionRecord {
-    fn snapshot(&self) -> CompanionSnapshotDto {
+    fn snapshot(&self, after_analysis_revision: Option<u64>) -> CompanionSnapshotDto {
         CompanionSnapshotDto {
             generation: self.generation,
             revision: self.revision,
+            analysis_revision: self.analysis_revision,
             stage: self.stage.clone(),
             document: self.document.clone(),
-            analysis: self.analysis.clone(),
+            analysis: if after_analysis_revision == Some(self.analysis_revision) {
+                None
+            } else {
+                self.analysis.clone()
+            },
             semantic: self.semantic.clone(),
             document_hash: self.document_hash.clone(),
             semantic_status: self.semantic_status.clone(),
             semantic_completed: self.semantic_completed,
             semantic_total: self.semantic_total,
             semantic_error: self.semantic_error.clone(),
-            has_native_text: !self.text_pages.is_empty(),
+            has_native_text: self.native_text_ready,
             completed_references: self.completed_references,
             total_references: self.total_references,
             error: self.error.clone(),
@@ -255,12 +263,17 @@ impl CompanionRecord {
 
 /// Runtime storage boundary for staged PDF companions.
 ///
-/// The current implementation is deliberately in-memory. A SQLite-backed
-/// implementation can replace it later without changing Tauri commands or the
-/// PDF.js reader's snapshot protocol.
+/// Only lightweight live progress lives in memory; canonical page data is in SQLite.
 trait CompanionStorage: Send + Sync {
     fn begin(&self, id: String, document: DocumentDto) -> u64;
-    fn snapshot(&self, id: &str) -> Result<CompanionSnapshotDto, String>;
+    fn snapshot(&self, id: &str) -> Result<CompanionSnapshotDto, String> {
+        self.snapshot_since(id, None)
+    }
+    fn snapshot_since(
+        &self,
+        id: &str,
+        after_analysis_revision: Option<u64>,
+    ) -> Result<CompanionSnapshotDto, String>;
     fn list(&self) -> Vec<CompanionSnapshotDto>;
     fn set_document_hash(&self, id: &str, generation: u64, document_hash: String);
     fn set_semantic_progress(
@@ -278,12 +291,7 @@ trait CompanionStorage: Send + Sync {
         analysis: PaperPreprocessingDto,
         text_pages: Vec<TextPageDto>,
     ) -> bool;
-    fn install_semantic_analysis(
-        &self,
-        id: &str,
-        generation: u64,
-        semantic: SemanticDocumentDto,
-    ) -> bool;
+    fn install_semantic_analysis(&self, id: &str, generation: u64) -> bool;
     fn update_reference(
         &self,
         id: &str,
@@ -293,7 +301,6 @@ trait CompanionStorage: Send + Sync {
     fn finish(&self, id: &str, generation: u64);
     fn fail(&self, id: &str, generation: u64, error: String);
     fn page(&self, id: &str, page: usize) -> Result<TextPageDto, String>;
-    fn pages(&self, id: &str) -> Result<Vec<TextPageDto>, String>;
     fn release(&self, id: &str);
 }
 
@@ -301,6 +308,7 @@ trait CompanionStorage: Send + Sync {
 struct MemoryCompanionStorage {
     records: Mutex<HashMap<String, CompanionRecord>>,
     next_generation: AtomicU64,
+    library: Option<key_library::Library>,
 }
 
 impl CompanionStorage for MemoryCompanionStorage {
@@ -314,6 +322,7 @@ impl CompanionStorage for MemoryCompanionStorage {
                 CompanionRecord {
                     generation,
                     revision: 1,
+                    analysis_revision: 0,
                     stage: "analyzing".to_owned(),
                     document,
                     analysis: None,
@@ -324,6 +333,7 @@ impl CompanionStorage for MemoryCompanionStorage {
                     semantic_total: 0,
                     semantic_error: None,
                     text_pages: Vec::new(),
+                    native_text_ready: false,
                     completed_references: 0,
                     total_references: 0,
                     error: None,
@@ -332,19 +342,28 @@ impl CompanionStorage for MemoryCompanionStorage {
         generation
     }
 
-    fn snapshot(&self, id: &str) -> Result<CompanionSnapshotDto, String> {
+    fn snapshot_since(
+        &self,
+        id: &str,
+        after_analysis_revision: Option<u64>,
+    ) -> Result<CompanionSnapshotDto, String> {
         self.records
             .lock()
             .map_err(|_| "companion storage is poisoned".to_owned())?
             .get(id)
-            .map(CompanionRecord::snapshot)
+            .map(|r| r.snapshot(after_analysis_revision))
             .ok_or_else(|| format!("companion {id} is unavailable"))
     }
 
     fn list(&self) -> Vec<CompanionSnapshotDto> {
         self.records
             .lock()
-            .map(|records| records.values().map(CompanionRecord::snapshot).collect())
+            .map(|records| {
+                records
+                    .values()
+                    .map(|r| r.snapshot(Some(r.analysis_revision)))
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
@@ -386,6 +405,29 @@ impl CompanionStorage for MemoryCompanionStorage {
         analysis: PaperPreprocessingDto,
         text_pages: Vec<TextPageDto>,
     ) -> bool {
+        let snapshot = match self.snapshot(id) {
+            Ok(s) if s.generation == generation => s,
+            _ => return false,
+        };
+        let hash = snapshot.document_hash;
+        if let Some(library) = &self.library {
+            let persisted = (|| -> Result<(), String> {
+                for page in &text_pages {
+                    library.put(
+                        &hash,
+                        "native-page",
+                        "pdfium-v4",
+                        &page.page.to_string(),
+                        page,
+                    )?;
+                }
+                library.put(&hash, "analysis", "pdfium-v4", "document", &analysis)
+            })();
+            if let Err(error) = persisted {
+                self.fail(id, generation, error);
+                return false;
+            }
+        }
         let Ok(mut records) = self.records.lock() else {
             return false;
         };
@@ -402,8 +444,13 @@ impl CompanionStorage for MemoryCompanionStorage {
             .iter()
             .filter(|reference| reference.metadata.is_some() || reference.metadata_error.is_some())
             .count();
+        record.native_text_ready = !text_pages.is_empty()
+            || (self.library.is_some() && !analysis.document.pages.is_empty());
         record.analysis = Some(analysis);
-        record.text_pages = text_pages;
+        record.analysis_revision += 1;
+        if self.library.is_none() {
+            record.text_pages = text_pages;
+        }
         record.stage = if record.total_references == 0 {
             "ready".to_owned()
         } else {
@@ -414,12 +461,7 @@ impl CompanionStorage for MemoryCompanionStorage {
         true
     }
 
-    fn install_semantic_analysis(
-        &self,
-        id: &str,
-        generation: u64,
-        semantic: SemanticDocumentDto,
-    ) -> bool {
+    fn install_semantic_analysis(&self, id: &str, generation: u64) -> bool {
         let Ok(mut records) = self.records.lock() else {
             return false;
         };
@@ -429,7 +471,8 @@ impl CompanionStorage for MemoryCompanionStorage {
         else {
             return false;
         };
-        record.semantic = Some(semantic);
+        // Search passages and geometry are persisted once, never copied into progress polls.
+        record.semantic = None;
         record.semantic_status = "ready".to_owned();
         record.semantic_completed = record.semantic_total;
         record.semantic_error = None;
@@ -462,6 +505,7 @@ impl CompanionStorage for MemoryCompanionStorage {
         };
         let was_complete = target.metadata.is_some() || target.metadata_error.is_some();
         *target = reference;
+        record.analysis_revision += 1;
         let is_complete = target.metadata.is_some() || target.metadata_error.is_some();
         if !was_complete && is_complete {
             record.completed_references += 1;
@@ -494,6 +538,12 @@ impl CompanionStorage for MemoryCompanionStorage {
     }
 
     fn page(&self, id: &str, page: usize) -> Result<TextPageDto, String> {
+        if let Some(library) = &self.library {
+            let hash = self.snapshot(id)?.document_hash;
+            return library
+                .get(&hash, "native-page", "pdfium-v4", &page.to_string())?
+                .ok_or_else(|| format!("PDFium text page {page} is unavailable for {id}"));
+        }
         self.records
             .lock()
             .map_err(|_| "companion storage is poisoned".to_owned())?
@@ -503,18 +553,18 @@ impl CompanionStorage for MemoryCompanionStorage {
             .ok_or_else(|| format!("PDFium text page {page} is unavailable for {id}"))
     }
 
-    fn pages(&self, id: &str) -> Result<Vec<TextPageDto>, String> {
-        self.records
-            .lock()
-            .map_err(|_| "companion storage is poisoned".to_owned())?
-            .get(id)
-            .map(|record| record.text_pages.clone())
-            .ok_or_else(|| format!("PDFium text is unavailable for {id}"))
-    }
-
     fn release(&self, id: &str) {
         if let Ok(mut records) = self.records.lock() {
-            records.remove(id);
+            // Closing a tab must not cancel durable indexing. Finished records can
+            // be released; active records are tiny and finish independently.
+            if records.get(id).is_some_and(|r| {
+                matches!(
+                    r.semantic_status.as_str(),
+                    "ready" | "indexed" | "failed" | "no_text"
+                ) && matches!(r.stage.as_str(), "ready" | "failed")
+            }) {
+                records.remove(id);
+            }
         }
     }
 }
@@ -522,49 +572,26 @@ impl CompanionStorage for MemoryCompanionStorage {
 #[derive(Clone)]
 struct CompanionStore {
     storage: Arc<dyn CompanionStorage>,
+    reader_ids: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
 impl Default for CompanionStore {
     fn default() -> Self {
         Self {
             storage: Arc::new(MemoryCompanionStorage::default()),
+            reader_ids: Arc::default(),
         }
     }
 }
 
-struct AnalysisGate {
-    active: Mutex<usize>,
-    wake: Condvar,
+fn enrichment_scheduler() -> &'static key_processing::Scheduler {
+    static SCHEDULER: OnceLock<key_processing::Scheduler> = OnceLock::new();
+    SCHEDULER.get_or_init(|| key_processing::Scheduler::new(1))
 }
 
-struct AnalysisPermit(&'static AnalysisGate);
-
-impl Drop for AnalysisPermit {
-    fn drop(&mut self) {
-        if let Ok(mut active) = self.0.active.lock() {
-            *active = active.saturating_sub(1);
-            self.0.wake.notify_one();
-        }
-    }
-}
-
-fn acquire_analysis_permit() -> AnalysisPermit {
-    const MAX_CONCURRENT_ANALYSES: usize = 2;
-    static GATE: OnceLock<AnalysisGate> = OnceLock::new();
-    let gate = GATE.get_or_init(|| AnalysisGate {
-        active: Mutex::new(0),
-        wake: Condvar::new(),
-    });
-    let mut active = gate.active.lock().expect("analysis scheduler is poisoned");
-    while *active >= MAX_CONCURRENT_ANALYSES {
-        active = gate
-            .wake
-            .wait(active)
-            .expect("analysis scheduler is poisoned");
-    }
-    *active += 1;
-    drop(active);
-    AnalysisPermit(gate)
+fn processing_scheduler() -> &'static key_processing::Scheduler {
+    static SCHEDULER: OnceLock<key_processing::Scheduler> = OnceLock::new();
+    SCHEDULER.get_or_init(|| key_processing::Scheduler::new(2))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -597,15 +624,24 @@ struct BenchmarkSidecarDto {
     elapsed_ms: f64,
 }
 
+#[derive(Serialize, Deserialize)]
 enum Request {
     Preprocess {
         id: String,
         bytes: Vec<u8>,
+        #[serde(skip, default = "native_process::discard_reply")]
+        reply: Sender<Result<Reply, String>>,
+    },
+    OpenFile {
+        id: String,
+        path: PathBuf,
+        #[serde(skip, default = "native_process::discard_reply")]
         reply: Sender<Result<Reply, String>>,
     },
     OpenBytes {
         id: String,
         bytes: Vec<u8>,
+        #[serde(skip, default = "native_process::discard_reply")]
         reply: Sender<Result<Reply, String>>,
     },
     Render {
@@ -618,29 +654,36 @@ enum Request {
         y: u32,
         rect_width: u32,
         rect_height: u32,
+        #[serde(skip)]
         cancellation: CancellationSource,
+        #[serde(skip, default = "native_process::discard_reply")]
         reply: Sender<Result<Reply, String>>,
     },
     Text {
         id: String,
         page: usize,
+        #[serde(skip, default = "native_process::discard_reply")]
         reply: Sender<Result<Reply, String>>,
     },
     Search {
         id: String,
         query: String,
+        #[serde(skip, default = "native_process::discard_reply")]
         reply: Sender<Result<Reply, String>>,
     },
     Hibernate {
         id: String,
+        #[serde(skip, default = "native_process::discard_reply")]
         reply: Sender<Result<Reply, String>>,
     },
     Close {
         id: String,
+        #[serde(skip, default = "native_process::discard_reply")]
         reply: Sender<Result<Reply, String>>,
     },
 }
 
+#[derive(Serialize, Deserialize)]
 enum Reply {
     Preprocessing(PaperPreprocessingDto),
     Document(DocumentDto),
@@ -662,20 +705,24 @@ struct NativeDocument {
 
 #[derive(Clone)]
 struct NativePdfService {
-    sender: Sender<Request>,
+    sender: mpsc::SyncSender<Request>,
+    process_input: native_process::ProcessInput,
     render_cancellations: Arc<Mutex<HashMap<u64, CancellationSource>>>,
 }
 
 impl NativePdfService {
     fn start() -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::sync_channel(32);
+        let process_input = Arc::new(Mutex::new(None));
+        let worker_input = process_input.clone();
         let render_cancellations = Arc::new(Mutex::new(HashMap::new()));
         thread::Builder::new()
-            .name("tauri-pdfium-owner".to_owned())
-            .spawn(move || run_pdfium_owner(receiver))
+            .name("key-interactive-pdf-bridge".to_owned())
+            .spawn(move || native_process::run_bridge(receiver, worker_input))
             .expect("failed to start the PDFium owner thread");
         Self {
             sender,
+            process_input,
             render_cancellations,
         }
     }
@@ -704,6 +751,7 @@ impl NativePdfService {
 
     fn cancel_render(&self, request_id: u64) {
         self.render_cancellation(request_id).cancel();
+        native_process::cancel(&self.process_input, request_id);
     }
 
     fn finish_render(&self, request_id: u64) {
@@ -737,7 +785,7 @@ fn run_pdfium_owner(receiver: Receiver<Request>) {
                 let started = Instant::now();
                 let result = open_document(&mut engine, id, bytes).and_then(
                     |(id, mut document, descriptor)| {
-                        document.text_cache_limit = usize::MAX;
+                        document.text_cache_limit = 12;
                         let analysis = analyze_paper(&mut document)?;
                         let output = preprocessing_dto(
                             descriptor,
@@ -748,6 +796,16 @@ fn run_pdfium_owner(receiver: Receiver<Request>) {
                         Ok(Reply::Preprocessing(output))
                     },
                 );
+                let _ = reply.send(result);
+            }
+            Request::OpenFile { id, path, reply } => {
+                let result =
+                    open_document_source(&mut engine, id, PdfiumDocumentSource::file(path)).map(
+                        |(id, document, dto)| {
+                            documents.insert(id, document);
+                            Reply::Document(dto)
+                        },
+                    );
                 let _ = reply.send(result);
             }
             Request::OpenBytes { id, bytes, reply } => {
@@ -839,10 +897,17 @@ fn open_document(
     id: String,
     bytes: Vec<u8>,
 ) -> Result<(String, NativeDocument, DocumentDto), String> {
+    open_document_source(engine, id, PdfiumDocumentSource::bytes(bytes))
+}
+fn open_document_source(
+    engine: &mut PdfiumEngine,
+    id: String,
+    source: PdfiumDocumentSource,
+) -> Result<(String, NativeDocument, DocumentDto), String> {
     let mut sessions = DocumentSessionManager::new();
     let session = sessions.begin().map_err(|error| error.to_string())?;
     let document = engine
-        .open(PdfiumDocumentSource::bytes(bytes), &session.cancellation())
+        .open(source, &session.cancellation())
         .map_err(|error| error.to_string())?;
     let descriptor = document.descriptor();
     let page_count = descriptor.page_count();
@@ -1005,6 +1070,9 @@ fn render(
     rect: PixelRect,
     operation_cancellation: &CancellationToken,
 ) -> Result<Vec<u8>, String> {
+    if u64::from(rect.width) * u64::from(rect.height) * 4 > 32 * 1024 * 1024 {
+        return Err("Native render exceeds the 32 MiB tile budget".into());
+    }
     let demand = document
         .session
         .render_demand(
@@ -1144,20 +1212,29 @@ async fn preprocess_paper(
 
 #[tauri::command]
 async fn preprocess_paper_disposable(
+    search: tauri::State<'_, SemanticSearchService>,
     store: tauri::State<'_, CompanionStore>,
     id: String,
     bytes: Vec<u8>,
     include_text: Option<bool>,
 ) -> Result<serde_json::Value, String> {
+    let library = search.library().clone();
     let store = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let hash = sha256_hex(&bytes);
         let mut sidecar = load_or_create_disposable_sidecar(&id, bytes)?;
+        library.register(
+            &hash,
+            sidecar.analysis.document.title.as_deref().unwrap_or("PDF"),
+            sidecar.analysis.document.pages.len(),
+        )?;
         enrich_reference_metadata(&mut sidecar.analysis.references);
         let text_pages = sidecar.text_pages;
         let has_native_text = !text_pages.is_empty();
         let generation = store
             .storage
             .begin(id.clone(), sidecar.analysis.document.clone());
+        store.storage.set_document_hash(&id, generation, hash);
         store.storage.install_local_analysis(
             &id,
             generation,
@@ -1180,20 +1257,15 @@ async fn preprocess_paper_disposable(
 }
 
 fn load_or_create_disposable_sidecar(
-    id: &str,
+    _id: &str,
     bytes: Vec<u8>,
 ) -> Result<DiskPreprocessingSidecar, String> {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    // v4 separates local PDF analysis from network metadata enrichment.
-    4_u8.hash(&mut hasher);
-    id.hash(&mut hasher);
-    bytes.hash(&mut hasher);
-    let cache_key = hasher.finish();
+    let cache_key = format!("pdfium-v4-{}", sha256_hex(&bytes));
     let directory = env::temp_dir().join("key-sidecars").join("interactive");
     std::fs::create_dir_all(&directory)
         .map_err(|error| format!("failed to create {}: {error}", directory.display()))?;
-    let input = directory.join(format!("{cache_key:016x}.pdf"));
-    let output = directory.join(format!("{cache_key:016x}.json"));
+    let input = directory.join(format!("{cache_key}.pdf"));
+    let output = directory.join(format!("{cache_key}.json"));
 
     if !output.exists() {
         std::fs::write(&input, bytes)
@@ -1225,58 +1297,40 @@ fn load_or_create_disposable_sidecar(
 }
 
 fn load_or_create_semantic_sidecar(
+    search: &SemanticSearchService,
     document_hash: &str,
-    bytes: Vec<u8>,
+    input: &Path,
     onnx_enabled: bool,
-) -> Result<SemanticDocumentDto, String> {
-    // The content hash is deliberately independent of the tab/document id:
-    // opening the same bytes again must reuse extraction and chunking.
-    const SEMANTIC_CACHE_VERSION: &str = "semantic-v2";
-    let cache_key = format!(
-        "{SEMANTIC_CACHE_VERSION}-{document_hash}-onnx{}",
-        u8::from(onnx_enabled)
-    );
-    let directory = env::temp_dir().join("key-sidecars").join("semantic");
-    std::fs::create_dir_all(&directory)
-        .map_err(|error| format!("failed to create {}: {error}", directory.display()))?;
-    let input = directory.join(format!("{cache_key}.pdf"));
-    let output = directory.join(format!("{cache_key}.json"));
-
-    if !output.exists() {
-        std::fs::write(&input, bytes)
-            .map_err(|error| format!("failed to write {}: {error}", input.display()))?;
-        let mut helper = Command::new(env::current_exe().map_err(|error| error.to_string())?);
-        helper
-            .arg("--key-semantic-helper")
-            .arg(&input)
-            .arg(&output)
-            .arg("--hash")
-            .arg(document_hash);
-        if onnx_enabled {
-            helper.arg("--onnx");
-        }
-        let helper = helper
-            .output()
-            .map_err(|error| format!("failed to launch semantic helper: {error}"))?;
-        let _ = std::fs::remove_file(&input);
-        if !helper.status.success() {
-            let detail = String::from_utf8_lossy(&helper.stderr).trim().to_owned();
-            return Err(if detail.is_empty() {
-                format!("semantic helper exited with {}", helper.status)
-            } else {
-                format!("semantic helper exited with {}: {detail}", helper.status)
-            });
-        }
+) -> Result<key_semantic_search::PreparedChunks, String> {
+    if let Some(chunks) =
+        search.prepare_cached_chunks(document_hash, document_hash, onnx_enabled)?
+    {
+        return Ok(chunks);
     }
-
-    let sidecar = std::fs::read(&output)
-        .map_err(|error| format!("failed to read {}: {error}", output.display()))?;
-    let semantic: SemanticDocumentDto = serde_json::from_slice(&sidecar)
-        .map_err(|error| format!("invalid semantic sidecar: {error}"))?;
-    if semantic.document_hash != document_hash {
-        return Err("semantic sidecar document hash did not match its cache key".to_owned());
+    search.library().verify_source(document_hash)?;
+    let output = tempfile::NamedTempFile::new().map_err(|e| e.to_string())?;
+    let mut helper = Command::new(env::current_exe().map_err(|e| e.to_string())?);
+    helper
+        .arg("--key-semantic-helper")
+        .arg(input)
+        .arg(output.path())
+        .arg("--hash")
+        .arg(document_hash)
+        .arg("--library")
+        .arg(search.library().root())
+        .arg("--canonical");
+    if onnx_enabled {
+        helper.arg("--onnx");
     }
-    Ok(semantic)
+    key_processing::run_helper(
+        helper,
+        search.library(),
+        document_hash,
+        "semantic-extraction",
+    )?;
+    search
+        .prepare_cached_chunks(document_hash, document_hash, onnx_enabled)?
+        .ok_or_else(|| "Semantic helper did not publish all pages".into())
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -1285,28 +1339,24 @@ fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-fn begin_background_companion_analysis(
-    store: CompanionStore,
+fn schedule_semantic_analysis(
+    semantic_store: CompanionStore,
     search: SemanticSearchService,
-    id: String,
+    semantic_id: String,
     generation: u64,
-    bytes: Vec<u8>,
+    semantic_source: PathBuf,
     onnx_enabled: bool,
 ) {
-    let semantic_store = store.clone();
-    let semantic_id = id.clone();
-    let semantic_bytes = bytes.clone();
-    thread::Builder::new()
-        .name(format!("pdf-semantic-{generation}"))
-        .spawn(move || {
-            let _permit = acquire_analysis_permit();
+    processing_scheduler().submit(semantic_id.clone(), "semantic", 0, move || {
             if !matches!(
                 semantic_store.storage.snapshot(&semantic_id),
                 Ok(snapshot) if snapshot.generation == generation
             ) {
                 return;
             }
-            let document_hash = sha256_hex(&semantic_bytes);
+            let document_hash = semantic_id.clone();
+            if search.library().is_paused(&document_hash).unwrap_or(true) { return; }
+            let _ = search.set_document_progress(&document_hash,"processing",0,0,None);
             semantic_store.storage.set_semantic_progress(
                 &semantic_id,
                 generation,
@@ -1314,25 +1364,15 @@ fn begin_background_companion_analysis(
                 0,
                 0,
             );
-            match load_or_create_semantic_sidecar(&document_hash, semantic_bytes, onnx_enabled) {
-                Ok(semantic) => {
-                    let chunks = match semantic_chunks::load_or_create_sentence_context_chunks(
-                        &semantic_id,
-                        &semantic,
-                    ) {
-                        Ok(chunks) => chunks,
-                        Err(error) => {
-                            semantic_store.storage.set_semantic_progress(
-                                &semantic_id,
-                                generation,
-                                "failed",
-                                0,
-                                0,
-                            );
-                            eprintln!("semantic chunking for {semantic_id} failed: {error}");
-                            return;
-                        }
-                    };
+            let extraction=load_or_create_semantic_sidecar(&search,&document_hash,&semantic_source,onnx_enabled);
+            match extraction {
+                Ok(chunks) => {
+                    if !matches!(semantic_store.storage.snapshot(&semantic_id),Ok(s) if s.generation==generation) {return;}
+                    if chunks.is_empty() {
+                        let _=search.set_document_progress(&document_hash,"no_text",0,0,None);
+                        semantic_store.storage.set_semantic_progress(&semantic_id,generation,"no_text",0,0);
+                        return;
+                    }
                     semantic_store.storage.set_semantic_progress(
                         &semantic_id,
                         generation,
@@ -1351,16 +1391,30 @@ fn begin_background_companion_analysis(
                             total,
                         );
                     });
-                    if let Err(error) = search.index_document(chunks, progress) {
-                        semantic_store.storage.set_semantic_progress(
-                            &semantic_id,
-                            generation,
-                            "failed",
-                            0,
-                            0,
-                        );
-                        eprintln!("semantic indexing for {semantic_id} failed: {error}");
-                        return;
+                    match search.index_document(chunks, progress) {
+                        Ok(stats) => {
+                            if let Ok(stats) = serde_json::to_string(&stats) {
+                                eprintln!("[key-semantic-index-stats] {stats}");
+                            }
+                        }
+                        Err(error) => {
+                            if error == key_processing::YIELDED_TO_READER {
+                                let _ = search.set_document_progress(&document_hash, "queued", 0, 0, None);
+                                semantic_store.storage.set_semantic_progress(&semantic_id, generation, "queued", 0, 0);
+                                schedule_semantic_analysis(semantic_store, search, semantic_id, generation, semantic_source, onnx_enabled);
+                                return;
+                            }
+                            semantic_store.storage.set_semantic_progress(
+                                &semantic_id,
+                                generation,
+                                "failed",
+                                0,
+                                0,
+                            );
+                            if search.library().is_paused(&document_hash).unwrap_or(false) {semantic_store.storage.set_semantic_progress(&semantic_id,generation,"paused",0,0);}
+                            eprintln!("semantic indexing for {semantic_id} failed: {error}");
+                            return;
+                        }
                     }
                     semantic_store.storage.set_semantic_progress(
                         &semantic_id,
@@ -1380,57 +1434,273 @@ fn begin_background_companion_analysis(
                     let _ = semantic_store.storage.install_semantic_analysis(
                         &semantic_id,
                         generation,
-                        semantic,
                     );
                 }
                 Err(error) => {
-                    semantic_store.storage.set_semantic_progress(
+                    if error == key_processing::YIELDED_TO_READER {
+                                let _ = search.set_document_progress(&document_hash, "queued", 0, 0, None);
+                                semantic_store.storage.set_semantic_progress(&semantic_id, generation, "queued", 0, 0);
+                                schedule_semantic_analysis(semantic_store, search, semantic_id, generation, semantic_source, onnx_enabled);
+                                return;
+                            }
+                            semantic_store.storage.set_semantic_progress(
                         &semantic_id,
                         generation,
                         "failed",
                         0,
                         0,
                     );
+                    let _ = search.set_document_progress(
+                        &document_hash,
+                        "failed",
+                        0,
+                        0,
+                        Some(error.clone()),
+                    );
                     eprintln!("semantic analysis for {semantic_id} failed: {error}");
                 }
             }
-        })
-        .expect("failed to start semantic analysis thread");
+        });
+}
 
-    thread::Builder::new()
-        .name(format!("pdf-companion-{generation}"))
-        .spawn(move || {
-            let _permit = acquire_analysis_permit();
-            if !matches!(
-                store.storage.snapshot(&id),
-                Ok(snapshot) if snapshot.generation == generation
-            ) {
+fn begin_background_companion_analysis(
+    store: CompanionStore,
+    search: SemanticSearchService,
+    id: String,
+    generation: u64,
+    bytes: Vec<u8>,
+    onnx_enabled: bool,
+) {
+    let semantic_store = store.clone();
+    let semantic_id = id.clone();
+    // Queued work retains paths, not PDF byte buffers.
+    drop(bytes);
+    let source = match search.library().source_path(&id) {
+        Ok(path) => path,
+        Err(error) => {
+            store.storage.fail(&id, generation, error);
+            return;
+        }
+    };
+    let semantic_source = source.clone();
+    let native_library = search.library().clone();
+    schedule_semantic_analysis(
+        semantic_store,
+        search,
+        semantic_id,
+        generation,
+        semantic_source,
+        onnx_enabled,
+    );
+
+    processing_scheduler().submit(id.clone(), "native", 10, move || {
+        if !matches!(
+            store.storage.snapshot(&id),
+            Ok(snapshot) if snapshot.generation == generation
+        ) {
+            return;
+        }
+        let analysis = match load_or_create_native_analysis(&native_library, &id, &source) {
+            Ok(analysis) => analysis,
+            Err(error) => {
+                store.storage.fail(&id, generation, error);
                 return;
             }
-            let sidecar = match load_or_create_disposable_sidecar(&id, bytes) {
-                Ok(sidecar) => sidecar,
-                Err(error) => {
-                    store.storage.fail(&id, generation, error);
-                    return;
-                }
-            };
-            let mut references = sidecar.analysis.references.clone();
-            if !store.storage.install_local_analysis(
-                &id,
-                generation,
-                sidecar.analysis,
-                sidecar.text_pages,
-            ) {
-                return;
+        };
+        if let Err(error) = native_library
+            .store_relations(&id, "citation", &analysis.citations)
+            .and_then(|_| native_library.store_relations(&id, "reference", &analysis.references))
+        {
+            store.storage.fail(&id, generation, error);
+            return;
+        }
+        let mut references = analysis.references.clone();
+        if !store
+            .storage
+            .install_local_analysis(&id, generation, analysis, Vec::new())
+        {
+            return;
+        }
+        if references.is_empty() {
+            match native_library.put(&id, "native-complete", "pdfium-v4", "document", &true) {
+                Ok(()) => store.storage.finish(&id, generation),
+                Err(error) => store.storage.fail(&id, generation, error),
             }
-            if references.is_empty() {
-                store.storage.finish(&id, generation);
-                return;
-            }
+            return;
+        }
+        enrichment_scheduler().submit(id.clone(), "references", 0, move || {
             enrich_reference_metadata_streaming(&store, &id, generation, &mut references);
-            store.storage.finish(&id, generation);
-        })
-        .expect("failed to start staged PDF companion analysis");
+            let Ok(snapshot) = store.storage.snapshot(&id) else {
+                return;
+            };
+            if snapshot.generation != generation {
+                return;
+            }
+            let Some(analysis) = snapshot.analysis else {
+                return;
+            };
+            let result = (|| {
+                native_library.store_relations(&id, "reference", &analysis.references)?;
+                native_library.put(&id, "analysis", "pdfium-v4", "document", &analysis)?;
+                native_library.put(&id, "native-complete", "pdfium-v4", "document", &true)
+            })();
+            match result {
+                Ok(()) => store.storage.finish(&id, generation),
+                Err(error) => store.storage.fail(&id, generation, error),
+            }
+        });
+    });
+}
+
+#[tauri::command]
+fn library_import_begin(
+    search: tauri::State<'_, SemanticSearchService>,
+    imports: tauri::State<'_, key_library::Imports>,
+    title: String,
+    length: u64,
+) -> Result<String, String> {
+    imports.begin(search.library(), title, length)
+}
+#[tauri::command]
+fn library_import_chunk(
+    imports: tauri::State<'_, key_library::Imports>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<u64, String> {
+    let id = request
+        .headers()
+        .get("x-key-import")
+        .and_then(|v| v.to_str().ok())
+        .ok_or("missing import ID")?;
+    let offset = request
+        .headers()
+        .get("x-key-offset")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .ok_or("missing import offset")?;
+    match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => imports.append(id, offset, bytes),
+        _ => Err("Import requires binary chunks".into()),
+    }
+}
+#[tauri::command]
+fn library_import_finish(
+    search: tauri::State<'_, SemanticSearchService>,
+    imports: tauri::State<'_, key_library::Imports>,
+    id: String,
+) -> Result<key_library::SourceInfo, String> {
+    imports.finish(search.library(), &id)
+}
+#[tauri::command]
+fn library_import_cancel(
+    imports: tauri::State<'_, key_library::Imports>,
+    id: String,
+) -> Result<(), String> {
+    imports.cancel(&id)
+}
+#[tauri::command]
+async fn library_source_info(
+    search: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+) -> Result<key_library::SourceInfo, String> {
+    let library = search.library().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        library.verify_source(&hash)?;
+        library.source_info(&hash)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn library_source_range(
+    search: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    offset: u64,
+    length: usize,
+) -> Result<tauri::ipc::Response, String> {
+    let library = search.library().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        library
+            .source_range(&hash, offset, length)
+            .map(tauri::ipc::Response::new)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn begin_pdfjs_companion_managed(
+    service: tauri::State<'_, NativePdfService>,
+    store: tauri::State<'_, CompanionStore>,
+    search: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+) -> Result<CompanionSnapshotDto, String> {
+    let service = service.inner().clone();
+    let store = store.inner().clone();
+    let search = search.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        processing_scheduler().prioritize(&hash);
+        if let Ok(snapshot) = store.storage.snapshot(&hash) {
+            store
+                .reader_ids
+                .lock()
+                .map_err(|_| "Reader registry poisoned")?
+                .insert(hash.clone());
+            return Ok(snapshot);
+        }
+        search.library().verify_source(&hash)?;
+        let path = search.library().source_path(&hash)?;
+        let document = match service.request(|reply| Request::OpenFile {
+            id: hash.clone(),
+            path,
+            reply,
+        })? {
+            Reply::Document(d) => d,
+            _ => return Err("Unexpected open reply".into()),
+        };
+        let title = search.library().source_info(&hash)?.title;
+        search.register_document(hash.clone(), hash.clone(), title, document.pages.len())?;
+        search
+            .library()
+            .put(&hash, "document", "v1", "descriptor", &document)?;
+        let generation = store.storage.begin(hash.clone(), document);
+        store
+            .storage
+            .set_document_hash(&hash, generation, hash.clone());
+        let snapshot = store.storage.snapshot(&hash)?;
+        store
+            .reader_ids
+            .lock()
+            .map_err(|_| "Reader registry poisoned")?
+            .insert(hash.clone());
+        begin_background_companion_analysis(store, search, hash, generation, Vec::new(), false);
+        Ok(snapshot)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn begin_pdfjs_companion_binary(
+    service: tauri::State<'_, NativePdfService>,
+    store: tauri::State<'_, CompanionStore>,
+    search: tauri::State<'_, SemanticSearchService>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<CompanionSnapshotDto, String> {
+    let bytes = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
+        _ => return Err("PDF upload must be binary".into()),
+    };
+    let id = request
+        .headers()
+        .get("x-key-hash")
+        .and_then(|v| v.to_str().ok())
+        .ok_or("missing PDF hash")?
+        .to_owned();
+    let name = request
+        .headers()
+        .get("x-key-name")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| serde_json::from_str::<String>(v).ok());
+    begin_pdfjs_companion(service, store, search, id, name, bytes, Some(false)).await
 }
 
 #[tauri::command]
@@ -1439,6 +1709,7 @@ async fn begin_pdfjs_companion(
     store: tauri::State<'_, CompanionStore>,
     search: tauri::State<'_, SemanticSearchService>,
     id: String,
+    file_name: Option<String>,
     bytes: Vec<u8>,
     semantic_onnx: Option<bool>,
 ) -> Result<CompanionSnapshotDto, String> {
@@ -1446,6 +1717,18 @@ async fn begin_pdfjs_companion(
     let store = store.inner().clone();
     let search = search.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let document_hash = sha256_hex(&bytes);
+        if id != document_hash {
+            return Err("PDF identity does not match its bytes".into());
+        }
+        if let Ok(existing) = store.storage.snapshot(&id) {
+            store
+                .reader_ids
+                .lock()
+                .map_err(|_| "Reader registry poisoned")?
+                .insert(id.clone());
+            return Ok(existing);
+        }
         let analysis_bytes = bytes.clone();
         let document = match service.request(|reply| Request::OpenBytes {
             id: id.clone(),
@@ -1455,11 +1738,30 @@ async fn begin_pdfjs_companion(
             Reply::Document(document) => document,
             _ => return Err("native PDFium returned an unexpected open reply".to_owned()),
         };
+        let document_hash = sha256_hex(&analysis_bytes);
+        let title = document
+            .title
+            .clone()
+            .or(file_name)
+            .unwrap_or_else(|| "Untitled PDF".to_owned());
+        let page_count = document.pages.len();
+        search
+            .library()
+            .store_source(&analysis_bytes, &title, page_count)?;
+        search
+            .library()
+            .put(&id, "document", "v1", "descriptor", &document)?;
         let generation = store.storage.begin(id.clone(), document);
         store
             .storage
-            .set_document_hash(&id, generation, sha256_hex(&analysis_bytes));
+            .set_document_hash(&id, generation, document_hash.clone());
+        search.register_document(document_hash, id.clone(), title, page_count)?;
         let snapshot = store.storage.snapshot(&id)?;
+        store
+            .reader_ids
+            .lock()
+            .map_err(|_| "Reader registry poisoned")?
+            .insert(id.clone());
         begin_background_companion_analysis(
             store,
             search,
@@ -1476,10 +1778,30 @@ async fn begin_pdfjs_companion(
 
 #[tauri::command]
 fn pdfjs_companion_snapshot(
+    search: tauri::State<'_, SemanticSearchService>,
     store: tauri::State<'_, CompanionStore>,
     id: String,
+    after_analysis_revision: Option<u64>,
 ) -> Result<CompanionSnapshotDto, String> {
-    store.storage.snapshot(&id)
+    let snapshot = store.storage.snapshot_since(&id, after_analysis_revision)?;
+    if snapshot.semantic_status == "processing" {
+        if let Some((completed, total)) = search
+            .library()
+            .extraction_progress(&snapshot.document_hash)?
+        {
+            if completed != snapshot.semantic_completed || total != snapshot.semantic_total {
+                store.storage.set_semantic_progress(
+                    &id,
+                    snapshot.generation,
+                    "processing",
+                    completed,
+                    total,
+                );
+                return store.storage.snapshot_since(&id, after_analysis_revision);
+            }
+        }
+    }
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -1488,14 +1810,265 @@ fn pdfjs_companion_list(store: tauri::State<'_, CompanionStore>) -> Vec<Companio
 }
 
 #[tauri::command]
+fn processing_interaction() {
+    key_processing::mark_interaction();
+}
+
+#[tauri::command]
+fn library_prioritize(hash: String) {
+    processing_scheduler().prioritize(&hash);
+}
+
+#[tauri::command]
+fn semantic_library(
+    service: tauri::State<'_, SemanticSearchService>,
+) -> Result<Vec<SemanticLibraryDocument>, String> {
+    service.library_documents()
+}
+
+fn resume_library_document(
+    store: CompanionStore,
+    search: SemanticSearchService,
+    native: NativePdfService,
+    hash: String,
+) -> Result<(), String> {
+    let document =
+        match search
+            .library()
+            .get::<DocumentDto>(&hash, "document", "v1", "descriptor")?
+        {
+            Some(document) => document,
+            None => {
+                search.library().verify_source(&hash)?;
+                let descriptor_id = format!("descriptor:{hash}");
+                let path = search.library().source_path(&hash)?;
+                let reply = native.request(|reply| Request::OpenFile {
+                    id: descriptor_id.clone(),
+                    path,
+                    reply,
+                })?;
+                let Reply::Document(mut document) = reply else {
+                    return Err("Unexpected PDF descriptor response".into());
+                };
+                let _ = native.request(|reply| Request::Close {
+                    id: descriptor_id,
+                    reply,
+                });
+                document.id = hash.clone();
+                search
+                    .library()
+                    .put(&hash, "document", "v1", "descriptor", &document)?;
+                document
+            }
+        };
+    let generation = store.storage.begin(hash.clone(), document);
+    store
+        .storage
+        .set_document_hash(&hash, generation, hash.clone());
+    begin_background_companion_analysis(store, search, hash, generation, Vec::new(), false);
+    Ok(())
+}
+#[tauri::command]
+fn library_processing_control(
+    native: tauri::State<'_, NativePdfService>,
+    store: tauri::State<'_, CompanionStore>,
+    search: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    action: String,
+) -> Result<(), String> {
+    match action.as_str() {
+        "pause" => {
+            search.library().pause(&hash, true)?;
+            if let Ok(snapshot) = store.storage.snapshot(&hash) {
+                store.storage.set_semantic_progress(
+                    &hash,
+                    snapshot.generation,
+                    "paused",
+                    snapshot.semantic_completed,
+                    snapshot.semantic_total,
+                );
+            }
+            Ok(())
+        }
+        "resume" | "retry" => {
+            search.library().pause(&hash, false)?;
+            resume_library_document(
+                store.inner().clone(),
+                search.inner().clone(),
+                native.inner().clone(),
+                hash,
+            )
+        }
+        _ => Err("Unknown processing action".into()),
+    }
+}
+#[tauri::command]
+fn library_removed_documents(
+    search: tauri::State<'_, SemanticSearchService>,
+) -> Result<Vec<key_library::Document>, String> {
+    search.library().documents(&key_library::Filter {
+        removed: true,
+        ..Default::default()
+    })
+}
+#[tauri::command]
+async fn library_purge(
+    search: tauri::State<'_, SemanticSearchService>,
+    store: tauri::State<'_, CompanionStore>,
+    hash: String,
+) -> Result<(), String> {
+    let library = search.library().clone();
+    let readers = store.reader_ids.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if readers
+            .lock()
+            .map_err(|_| "Reader registry poisoned")?
+            .contains(&hash)
+        {
+            return Err("Close this PDF in every pane before permanently deleting it".into());
+        }
+        library.purge_document(&hash)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn library_set_removed(
+    search: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    removed: bool,
+) -> Result<(), String> {
+    search.library().set_removed(&hash, removed)
+}
+#[tauri::command]
+fn library_metadata_details(
+    search: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+) -> Result<key_library::MetadataDetails, String> {
+    search.library().metadata_details(&hash)
+}
+#[tauri::command]
+fn library_set_labels(
+    search: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    tags: Vec<String>,
+    collections: Vec<String>,
+) -> Result<(), String> {
+    search.library().set_labels(&hash, &tags, &collections)
+}
+#[tauri::command]
+fn library_update_metadata(
+    service: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    title: String,
+    year: Option<i64>,
+    authors: Vec<String>,
+) -> Result<(), String> {
+    service
+        .library()
+        .update_metadata(&hash, &title, year, &authors)
+}
+#[tauri::command]
+fn library_set_property(
+    service: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    name: String,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    service.library().set_property(&hash, &name, &value)
+}
+
+#[tauri::command]
+fn library_annotations(
+    service: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    service.library().annotations(&hash)
+}
+#[tauri::command]
+fn library_apply_annotations(
+    service: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    upserts: Vec<serde_json::Value>,
+    deleted: Vec<String>,
+) -> Result<(), String> {
+    service
+        .library()
+        .apply_annotations(&hash, &upserts, &deleted)
+}
+#[tauri::command]
+fn library_save_annotations(
+    service: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    annotations: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    service.library().save_annotations(&hash, &annotations)
+}
+#[tauri::command]
+fn library_import_annotations(
+    service: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+    legacy_id: String,
+    annotations: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    service
+        .library()
+        .import_annotations(&hash, &legacy_id, &annotations)
+}
+#[tauri::command]
+fn resolve_search_target(
+    service: tauri::State<'_, SemanticSearchService>,
+    id: String,
+) -> Result<key_library::Passage, String> {
+    service
+        .library()
+        .passage(&id)?
+        .ok_or_else(|| "This search passage is no longer available. Search again.".into())
+}
+
+#[tauri::command]
+fn library_source(
+    service: tauri::State<'_, SemanticSearchService>,
+    hash: String,
+) -> Result<tauri::ipc::Response, String> {
+    let bytes = std::fs::read(service.library().source_path(&hash)?).map_err(|e| e.to_string())?;
+    if sha256_hex(&bytes) != hash {
+        return Err("The saved PDF failed its content hash check".into());
+    }
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+async fn global_search_page(
+    service: tauri::State<'_, SemanticSearchService>,
+    sessions: tauri::State<'_, Arc<key_semantic_search::SearchSessions>>,
+    query: String,
+    filter: Option<key_library::Filter>,
+    cursor: Option<String>,
+) -> Result<key_semantic_search::SearchPage, String> {
+    let service = service.inner().clone();
+    let sessions = sessions.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        sessions.search(&service, query, filter.unwrap_or_default(), cursor)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn global_search(
     service: tauri::State<'_, SemanticSearchService>,
     query: String,
     limit: Option<usize>,
+    filter: Option<key_library::Filter>,
 ) -> Result<Vec<SemanticSearchHitDto>, String> {
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        service.search(query, limit.unwrap_or(20).min(100))
+        service.search(
+            query,
+            limit.unwrap_or(20).clamp(1, 100),
+            filter.unwrap_or_default(),
+        )
     })
     .await
     .map_err(|error| error.to_string())?
@@ -1550,30 +2123,86 @@ fn text_layer_from_dto(page: &TextPageDto) -> TextLayer {
         .into()
 }
 
+fn cached_or_repaired_text_page(
+    store: &CompanionStore,
+    native: &NativePdfService,
+    library: &key_library::Library,
+    id: &str,
+    page: usize,
+) -> Result<TextPageDto, String> {
+    let snapshot = store.storage.snapshot(id)?;
+    if page >= snapshot.document.pages.len() {
+        return Err("PDF page is out of range".into());
+    }
+    let hash = snapshot.document_hash;
+    if let Some(text) = library.get(&hash, "native-page", "pdfium-v4", &page.to_string())? {
+        return Ok(text);
+    }
+    // A missing/corrupt derived page is recoverable directly from its managed source.
+    // Unique handles keep concurrent search and overlay repairs independent.
+    static REPAIR_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let repair_id = format!(
+        "repair:{}",
+        REPAIR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    );
+    library.verify_source(&hash)?;
+    let path = library.source_path(&hash)?;
+    native.request(|reply| Request::OpenFile {
+        id: repair_id.clone(),
+        path,
+        reply,
+    })?;
+    let result = native.request(|reply| Request::Text {
+        id: repair_id.clone(),
+        page,
+        reply,
+    });
+    let _ = native.request(|reply| Request::Close {
+        id: repair_id,
+        reply,
+    });
+    let Reply::Text(text) = result? else {
+        return Err("Unexpected PDF text response".into());
+    };
+    library.put(&hash, "native-page", "pdfium-v4", &page.to_string(), &text)?;
+    Ok(text)
+}
+
 #[tauri::command]
 async fn disposable_text_page(
     store: tauri::State<'_, CompanionStore>,
+    native: tauri::State<'_, NativePdfService>,
+    search: tauri::State<'_, SemanticSearchService>,
     id: String,
     page: usize,
 ) -> Result<TextPageDto, String> {
     let store = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || store.storage.page(&id, page))
-        .await
-        .map_err(|error| error.to_string())?
+    let native = native.inner().clone();
+    let library = search.library().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        cached_or_repaired_text_page(&store, &native, &library, &id, page)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
 async fn disposable_search(
     store: tauri::State<'_, CompanionStore>,
+    native: tauri::State<'_, NativePdfService>,
+    search: tauri::State<'_, SemanticSearchService>,
     id: String,
     query: String,
 ) -> Result<Vec<SearchMatchDto>, String> {
     let store = store.inner().clone();
+    let native = native.inner().clone();
+    let library = search.library().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let query = SearchQuery::new(&query).map_err(|error| error.to_string())?;
-        let pages = store.storage.pages(&id)?;
+        let count = store.storage.snapshot(&id)?.document.pages.len();
         let mut output = Vec::new();
-        for page in pages {
+        for page_index in 0..count {
+            let page = cached_or_repaired_text_page(&store, &native, &library, &id, page_index)?;
             let remaining = 20_000usize.saturating_sub(output.len());
             if remaining == 0 {
                 break;
@@ -1600,6 +2229,9 @@ async fn disposable_search(
 
 #[tauri::command]
 fn release_disposable_document(store: tauri::State<'_, CompanionStore>, id: String) {
+    if let Ok(mut readers) = store.reader_ids.lock() {
+        readers.remove(&id);
+    }
     store.storage.release(&id);
 }
 
@@ -1944,6 +2576,64 @@ fn benchmark_fixture_paths() -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
+fn load_or_create_native_analysis(
+    library: &key_library::Library,
+    hash: &str,
+    source: &Path,
+) -> Result<PaperPreprocessingDto, String> {
+    if let Some(analysis) = library.get(hash, "analysis", "pdfium-v4", "document")? {
+        return Ok(analysis);
+    }
+    let mut command = Command::new(env::current_exe().map_err(|e| e.to_string())?);
+    command
+        .arg("--key-native-library-helper")
+        .arg(source)
+        .arg(library.root())
+        .arg(hash);
+    key_processing::run_helper(command, library, hash, "native-extraction")?;
+    library
+        .get(hash, "analysis", "pdfium-v4", "document")?
+        .ok_or("Native extraction produced no analysis".into())
+}
+fn preprocess_file_to_library(input: &Path, root: &Path, hash: &str) -> Result<(), String> {
+    let library = key_library::Library::open(root)?;
+    if key_library::file_hash(input)? != hash {
+        return Err("PDF content changed before native extraction".into());
+    }
+    let mut engine = PdfiumEngine::new(pdfium_config());
+    let started = Instant::now();
+    let (_, mut document, descriptor) = open_document_source(
+        &mut engine,
+        hash.to_owned(),
+        PdfiumDocumentSource::file(input),
+    )?;
+    library.register(
+        hash,
+        descriptor.title.as_deref().unwrap_or("PDF"),
+        document.page_count,
+    )?;
+    let links = document
+        .document
+        .as_ref()
+        .ok_or("Document unavailable")?
+        .descriptor()
+        .links();
+    let mut analyzer = ScientificAnalyzer::new(document.page_count, links);
+    // Persist each page as soon as it is extracted; keep PDFium's bounded cache.
+    for page in analyzer.page_order().to_vec() {
+        let text = ensure_text(&mut document, page)?.clone();
+        analyzer.ingest_page(page, &text);
+        let dto = text_page(&mut document, page)?;
+        library.put(hash, "native-page", "pdfium-v4", &page.to_string(), &dto)?;
+    }
+    let analysis = preprocessing_dto(
+        descriptor,
+        analyzer.finish(),
+        started.elapsed().as_secs_f64() * 1000.0,
+    );
+    library.put(hash, "analysis", "pdfium-v4", "document", &analysis)
+}
+
 fn preprocess_file_to_sidecar(input: &Path, output: &Path) -> Result<(), String> {
     let bytes = std::fs::read(input)
         .map_err(|error| format!("failed to read {}: {error}", input.display()))?;
@@ -1955,7 +2645,7 @@ fn preprocess_file_to_sidecar(input: &Path, output: &Path) -> Result<(), String>
         .to_owned();
     let started = Instant::now();
     let (_, mut document, descriptor) = open_document(&mut engine, id, bytes)?;
-    document.text_cache_limit = usize::MAX;
+    document.text_cache_limit = 12;
     let analysis = analyze_paper(&mut document)?;
     let mut analysis = preprocessing_dto(descriptor, analysis, 0.0);
     analysis.processing_ms = started.elapsed().as_secs_f64() * 1_000.0;
@@ -1992,7 +2682,9 @@ fn preprocess_file_to_sidecar(input: &Path, output: &Path) -> Result<(), String>
 pub fn maybe_run_preprocess_helper() -> Option<i32> {
     let mut arguments = env::args_os();
     let _executable = arguments.next();
-    if arguments.next().as_deref() != Some(std::ffi::OsStr::new("--key-preprocess-helper")) {
+    let command = arguments.next();
+    let canonical = command.as_deref() == Some(std::ffi::OsStr::new("--key-native-library-helper"));
+    if !canonical && command.as_deref() != Some(std::ffi::OsStr::new("--key-preprocess-helper")) {
         return None;
     }
     let Some(input) = arguments.next().map(PathBuf::from) else {
@@ -2003,48 +2695,15 @@ pub fn maybe_run_preprocess_helper() -> Option<i32> {
         eprintln!("missing preprocessing output path");
         return Some(2);
     };
-    match preprocess_file_to_sidecar(&input, &output) {
-        Ok(()) => Some(0),
-        Err(error) => {
-            eprintln!("{error}");
-            Some(1)
-        }
-    }
-}
-
-pub fn maybe_run_semantic_helper() -> Option<i32> {
-    let mut arguments = env::args_os();
-    let _executable = arguments.next();
-    if arguments.next().as_deref() != Some(std::ffi::OsStr::new("--key-semantic-helper")) {
-        return None;
-    }
-    let Some(input) = arguments.next().map(PathBuf::from) else {
-        eprintln!("missing semantic input path");
-        return Some(2);
+    let result = if canonical {
+        let Some(hash) = arguments.next().and_then(|v| v.into_string().ok()) else {
+            eprintln!("missing PDF hash");
+            return Some(2);
+        };
+        preprocess_file_to_library(&input, &output, &hash)
+    } else {
+        preprocess_file_to_sidecar(&input, &output)
     };
-    let Some(output) = arguments.next().map(PathBuf::from) else {
-        eprintln!("missing semantic output path");
-        return Some(2);
-    };
-    let mut document_hash = None;
-    let mut onnx_enabled = false;
-    while let Some(argument) = arguments.next() {
-        if argument == std::ffi::OsStr::new("--onnx") {
-            onnx_enabled = true;
-        } else if argument == std::ffi::OsStr::new("--hash") {
-            document_hash = arguments.next().and_then(|value| value.into_string().ok());
-        }
-    }
-    let Some(document_hash) = document_hash else {
-        eprintln!("missing semantic document hash");
-        return Some(2);
-    };
-    let result = thread::Builder::new()
-        .name("semantic-pdfium-worker".to_owned())
-        .spawn(move || semantic_file_to_sidecar(&input, &output, &document_hash, onnx_enabled))
-        .expect("failed to start semantic helper thread")
-        .join()
-        .unwrap_or_else(|_| Err("semantic helper thread panicked".to_owned()));
     match result {
         Ok(()) => Some(0),
         Err(error) => {
@@ -2052,34 +2711,6 @@ pub fn maybe_run_semantic_helper() -> Option<i32> {
             Some(1)
         }
     }
-}
-
-fn semantic_file_to_sidecar(
-    input: &Path,
-    output: &Path,
-    document_hash: &str,
-    onnx_enabled: bool,
-) -> Result<(), String> {
-    let semantic = semantic_analysis::convert_file(input, document_hash.to_owned(), onnx_enabled)
-        .map_err(|error| format!("failed to extract semantic PDF data: {error:#}"))?;
-    if let Some(parent) = output.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
-    }
-    let temporary = output.with_extension("json.partial");
-    let writer = BufWriter::new(
-        File::create(&temporary)
-            .map_err(|error| format!("failed to create {}: {error}", temporary.display()))?,
-    );
-    serde_json::to_writer(writer, &semantic).map_err(|error| error.to_string())?;
-    std::fs::rename(&temporary, output).map_err(|error| {
-        format!(
-            "failed to move {} to {}: {error}",
-            temporary.display(),
-            output.display()
-        )
-    })?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -2243,16 +2874,124 @@ mod tests {
         assert!(storage.install_local_analysis("paper", current, analysis, Vec::new()));
         assert_eq!(storage.snapshot("paper").unwrap().stage, "ready");
     }
+    #[test]
+    fn canonical_native_pages_are_persisted_without_retaining_whole_document_text() {
+        let root = env::temp_dir().join(format!("key-native-library-test-{}", std::process::id()));
+        let library = key_library::Library::open(&root).unwrap();
+        let input =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures/interaction.pdf");
+        let bytes = std::fs::read(&input).unwrap();
+        let hash = sha256_hex(&bytes);
+        preprocess_file_to_library(&input, &root, &hash).unwrap();
+        let analysis: PaperPreprocessingDto = library
+            .get(&hash, "analysis", "pdfium-v4", "document")
+            .unwrap()
+            .unwrap();
+        let storage = MemoryCompanionStorage {
+            library: Some(library.clone()),
+            ..Default::default()
+        };
+        let generation = storage.begin(hash.clone(), analysis.document.clone());
+        storage.set_document_hash(&hash, generation, hash.clone());
+        assert!(storage.install_local_analysis(&hash, generation, analysis, Vec::new()));
+        let snapshot = storage.snapshot(&hash).unwrap();
+        assert!(snapshot.has_native_text);
+        assert!(
+            storage
+                .snapshot_since(&hash, Some(snapshot.analysis_revision))
+                .unwrap()
+                .analysis
+                .is_none()
+        );
+        assert!(storage.records.lock().unwrap()[&hash].text_pages.is_empty());
+        assert!(
+            storage
+                .page(&hash, 0)
+                .unwrap()
+                .text
+                .contains("Select this sentence")
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(NativePdfService::start())
-        .manage(CompanionStore::default())
-        .manage(SemanticSearchService::start())
+        .manage(key_library::Imports::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            let semantic_root = if env::var_os("KEY_BENCHMARK_PDF").is_some()
+                || env::var_os("KEY_BENCHMARK_PDFS").is_some()
+            {
+                env::var_os("KEY_BENCHMARK_LIBRARY")
+                    .map(PathBuf::from)
+                    .unwrap_or(app.path().app_data_dir()?.join("semantic-search"))
+            } else {
+                app.path().app_data_dir()?.join("semantic-search")
+            };
+            let search = SemanticSearchService::try_start_at(semantic_root)
+                .map_err(std::io::Error::other)?;
+            app.manage(CompanionStore {
+                reader_ids: Arc::default(),
+                storage: Arc::new(MemoryCompanionStorage {
+                    library: Some(search.library().clone()),
+                    ..Default::default()
+                }),
+            });
+            let store = app.state::<CompanionStore>().inner().clone();
+            for doc in search.library_documents().map_err(std::io::Error::other)? {
+                if doc.has_source
+                    && (matches!(doc.status.as_str(), "queued" | "processing" | "indexing")
+                        || (matches!(doc.status.as_str(), "indexed" | "no_text")
+                            && search
+                                .library()
+                                .get::<bool>(
+                                    &doc.document_hash,
+                                    "native-complete",
+                                    "pdfium-v4",
+                                    "document",
+                                )
+                                .map_err(std::io::Error::other)?
+                                != Some(true)))
+                {
+                    let native = app.state::<NativePdfService>().inner().clone();
+                    let store = store.clone();
+                    let search = search.clone();
+                    processing_scheduler().submit(
+                        doc.document_hash.clone(),
+                        "resume",
+                        10,
+                        move || {
+                            if let Err(error) = resume_library_document(
+                                store.clone(),
+                                search.clone(),
+                                native,
+                                doc.document_hash.clone(),
+                            ) {
+                                let _ = search.set_document_progress(
+                                    &doc.document_hash,
+                                    "failed",
+                                    doc.completed,
+                                    doc.total,
+                                    Some(error),
+                                );
+                            }
+                        },
+                    );
+                }
+            }
+            let maintenance = search.library().clone();
+            processing_scheduler().submit("maintenance".into(), "generations", 0, move || {
+                if let Err(error) =
+                    maintenance.collect_old_generations(Duration::from_secs(7 * 24 * 3600))
+                {
+                    eprintln!("Generation cleanup failed: {error}");
+                }
+            });
+            app.manage(Arc::new(key_semantic_search::SearchSessions::default()));
+            app.manage(search);
             let open_pdf = MenuItemBuilder::with_id("workspace.open", "Open PDF…")
                 .accelerator("CmdOrCtrl+O")
                 .build(app)?;
@@ -2344,8 +3083,34 @@ pub fn run() {
             preprocess_paper,
             preprocess_paper_disposable,
             begin_pdfjs_companion,
+            begin_pdfjs_companion_binary,
+            begin_pdfjs_companion_managed,
+            library_import_begin,
+            library_import_chunk,
+            library_import_finish,
+            library_import_cancel,
+            library_source_info,
+            library_source_range,
             pdfjs_companion_snapshot,
             pdfjs_companion_list,
+            semantic_library,
+            library_prioritize,
+            processing_interaction,
+            library_processing_control,
+            library_removed_documents,
+            library_set_removed,
+            library_purge,
+            library_metadata_details,
+            library_set_labels,
+            library_update_metadata,
+            library_set_property,
+            library_annotations,
+            library_save_annotations,
+            library_apply_annotations,
+            library_import_annotations,
+            library_source,
+            resolve_search_target,
+            global_search_page,
             global_search,
             scholarly_lookup_resource,
             disposable_text_page,

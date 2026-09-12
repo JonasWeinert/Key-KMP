@@ -145,6 +145,7 @@ export interface SemanticDocument {
 export type CompanionStage = 'analyzing' | 'enriching' | 'ready' | 'failed';
 
 export type SemanticStatus =
+  | 'no_text'
   | 'pending'
   | 'processing'
   | 'indexing'
@@ -155,6 +156,7 @@ export type SemanticStatus =
 export interface NativeCompanionSnapshot {
   generation: number;
   revision: number;
+  analysisRevision?: number;
   stage: CompanionStage;
   document: NativeDocumentInfo;
   analysis?: PaperPreprocessingResult;

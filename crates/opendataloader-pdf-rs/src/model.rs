@@ -117,7 +117,7 @@ pub struct Citation {
     pub external_urls: Vec<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct InternalLink {
     pub bbox: BBox,
     pub target_page: usize,
@@ -168,7 +168,7 @@ pub struct SemanticRegion {
     pub external_url: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct MarkedObjectGeometry {
     pub mcid: i64,
     pub bbox: BBox,

@@ -1,0 +1,716 @@
+{
+  "date": "2026-09-10",
+  "environment": {
+    "platform": "macOS 26.5.2 arm64",
+    "model": "Mac14,5",
+    "logicalCPUs": 12,
+    "physicalMemoryGiB": 96,
+    "build": "debug",
+    "browserStress": "Chromium headless 1440x900 DPR 2"
+  },
+  "storageMigration": {
+    "anchorReadP50Ms": 1.0521669999999999,
+    "anchorReadP95Ms": 1.3092920000000001,
+    "documents": 100,
+    "filterMs": 1.27375,
+    "filteredDocuments": 10,
+    "migrationMs": 1004.805875,
+    "passages": 100000,
+    "liveDatabaseBytesBefore": 60243968,
+    "liveDatabaseBytesAfter": 11124736,
+    "livePageReductionPercent": 81.5338591242861,
+    "integrity": "ok"
+  },
+  "lexicalBeforeConnectionReuse": {
+    "buildMs": 19803.598791,
+    "documents": 100,
+    "filteredP50Ms": 55.408416,
+    "filteredP95Ms": 71.66654199999999,
+    "modality": "Tantivy only; synthetic text; debug build",
+    "passages": 100000,
+    "queries": 40,
+    "unfilteredP50Ms": 497.939583,
+    "unfilteredP95Ms": 580.949792
+  },
+  "lexicalAfterConnectionReuse": {
+    "buildMs": 1.012125,
+    "documents": 100,
+    "filteredP50Ms": 25.313958,
+    "filteredP95Ms": 27.287833000000003,
+    "modality": "Tantivy only; synthetic text; debug build",
+    "passages": 100000,
+    "queries": 40,
+    "reusedCorpus": true,
+    "unfilteredP50Ms": 154.532375,
+    "unfilteredP95Ms": 317.07475
+  },
+  "interactiveProcess": {
+    "helperPid": 83818,
+    "pages": 7,
+    "textCharacters": 3642,
+    "pixelBytes": 262144,
+    "preCancelledRender": "rejected",
+    "close": "ok"
+  },
+  "embeddingRecovery": {
+    "anchorRects": 8,
+    "coldSearchMs": 1179.494083,
+    "elapsedMs": 3866.254375,
+    "embeddingRecoveryVerified": true,
+    "extractionReused": true,
+    "firstResultPage": 0,
+    "hash": "bb139ac37d68ad6a66fe13d214f4fa8e61bc21e34b8a6df6651b4a992c65bb44",
+    "index": {
+      "chunks": 127,
+      "elapsedMs": 1038.519083,
+      "embeddedChunks": 0,
+      "embeddingMs": 0.0,
+      "indexBuildMs": 0.0,
+      "modelLoadMs": 0.0,
+      "reused": true
+    },
+    "pages": 7,
+    "semanticProbeHits": 3,
+    "warmSearchMs": 14.023959000000001
+  },
+  "tenPdfJobs": {
+    "completionOrder": [
+      9,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      0
+    ],
+    "elapsedMs": 35421.840958,
+    "filteredVectorQueries": 10,
+    "jobs": 10,
+    "selectedCompletionMs": 4773.501125,
+    "selectedDocument": 9
+  },
+  "tenPdfProcessTreePeakMiB": 372.140625,
+  "embeddingServiceInstancesObserved": 1,
+  "viewerRetention": {
+    "baseline": {
+      "rssMiB": 915.203125,
+      "cpuPercent": 12.7,
+      "processCount": 7
+    },
+    "interactionRSSMiB": [
+      1171.71875,
+      1174.734375,
+      1177.875,
+      1178.859375,
+      1178.34375,
+      1182.875,
+      1183.25,
+      1183.578125,
+      1183.765625,
+      1187.328125,
+      1194.890625,
+      1195.046875,
+      1193.421875,
+      1194,
+      1194.96875,
+      1195.15625,
+      1195.234375,
+      1195,
+      1195.0625,
+      1197.78125
+    ],
+    "replacementRSSMiB": [
+      1204.859375,
+      1209.203125,
+      1197.046875,
+      1204.28125,
+      1206.3125,
+      1208.296875,
+      1198.21875,
+      1200.828125,
+      1202.09375,
+      1204.015625
+    ],
+    "lastCache": {
+      "budgetBytes": 100663296,
+      "residentBytes": 100368384,
+      "residentTiles": 114,
+      "peakResidentBytes": 101711872,
+      "peakResidentTiles": 117,
+      "fallbackBytes": 1050624,
+      "fallbackBudgetBytes": 8388608,
+      "suspended": false
+    }
+  },
+  "limitations": [
+    "Synthetic 100k-passage scale corpus measures SQLite/Tantivy, not 100k real ONNX embeddings.",
+    "Ten PDF jobs use distinct content hashes for variants of one seven-page fixture.",
+    "Debug/local measurements, with some compilation overlap; not controlled release SLO certification.",
+    "Chromium retention is not a WebKit/GPU or whole-app memory guarantee.",
+    "Full semantic reconciliation and outer chunk lists remain document-sized.",
+    "A new packaged-library directory can still reuse content-addressed temporary semantic sidecars; the desktop first run is cold for vector indexing, not guaranteed cold for extraction."
+  ],
+  "packagedDesktop": [
+    {
+      "run": 1,
+      "loadMs": 323,
+      "frameIntervals": {
+        "framesOver20Ms": 12,
+        "maximum": 160,
+        "median": 16,
+        "p95": 23
+      },
+      "exactRenderSettleMs": {
+        "maximum": 250.99999999999957,
+        "median": 152,
+        "p95": 250.99999999999957,
+        "timeouts": 0
+      },
+      "semanticIndexStats": {
+        "chunks": 127,
+        "embeddedChunks": 127,
+        "elapsedMs": 3562.212042,
+        "modelLoadMs": 1206.3612500000002,
+        "embeddingMs": 1131.824209,
+        "indexBuildMs": 179.814166,
+        "reused": false
+      },
+      "peakProcessCount": 8,
+      "sampledPeakMiB": 797.609375
+    },
+    {
+      "run": 2,
+      "loadMs": 352.0000000000002,
+      "frameIntervals": {
+        "framesOver20Ms": 12,
+        "maximum": 120,
+        "median": 16,
+        "p95": 26
+      },
+      "exactRenderSettleMs": {
+        "maximum": 250,
+        "median": 151,
+        "p95": 250,
+        "timeouts": 0
+      },
+      "semanticIndexStats": {
+        "chunks": 127,
+        "embeddedChunks": 0,
+        "elapsedMs": 1039.372375,
+        "modelLoadMs": 0,
+        "embeddingMs": 0,
+        "indexBuildMs": 0,
+        "reused": true
+      },
+      "peakProcessCount": 7,
+      "sampledPeakMiB": 521.109375
+    }
+  ],
+  "packagedDatabase": {
+    "schema": 7,
+    "integrity": "ok",
+    "documents": 1,
+    "passages": 127,
+    "activeLeases": 0,
+    "indexes": [
+      [
+        "lexical",
+        "key-arctic-xs-q-sql-tantivy-v5"
+      ],
+      [
+        "vector",
+        "key-arctic-xs-q-sql-tantivy-v5"
+      ]
+    ]
+  },
+  "controlledIndexingOverlap": {
+    "baseline": {
+      "indexing": null,
+      "indexingLog": "",
+      "schemaVersion": 1,
+      "fixture": "/Users/jonas/Documents/GitHub/GPUIPDF/tests/fixtures/PUBMED_16226083.pdf",
+      "environment": "Playwright Chromium headless, 1440x900, DPR 2",
+      "baseline": {
+        "rssMiB": 922.1875,
+        "cpuPercent": 22.299999999999997,
+        "processCount": 7
+      },
+      "afterInitialLoad": {
+        "rssMiB": 1019.1875,
+        "cpuPercent": 38.800000000000004,
+        "processCount": 7
+      },
+      "interactionCycles": [
+        {
+          "cycle": 1,
+          "resources": {
+            "rssMiB": 1185.453125,
+            "cpuPercent": 33.2,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 99713024,
+            "residentTiles": 113,
+            "peakResidentBytes": 101613568,
+            "peakResidentTiles": 116,
+            "fallbackBytes": 700416,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.699999999999818,
+            "p95": 16.799999999999727,
+            "maximum": 16.800000000000182,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 150.10000002384186,
+            "p95": 250,
+            "maximum": 250,
+            "timeouts": 0
+          },
+          "indexingActive": false,
+          "indexingResources": null
+        },
+        {
+          "cycle": 2,
+          "resources": {
+            "rssMiB": 1189.0625,
+            "cpuPercent": 31.3,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101629952,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 700416,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.699999999999818,
+            "p95": 16.700000000000728,
+            "maximum": 16.800000000000182,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 150,
+            "p95": 250,
+            "maximum": 250,
+            "timeouts": 0
+          },
+          "indexingActive": false,
+          "indexingResources": null
+        },
+        {
+          "cycle": 3,
+          "resources": {
+            "rssMiB": 1199,
+            "cpuPercent": 32,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101629952,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.69999999999891,
+            "p95": 16.700000000000728,
+            "maximum": 16.80000000000109,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 149.89999997615814,
+            "p95": 250,
+            "maximum": 250,
+            "timeouts": 0
+          },
+          "indexingActive": false,
+          "indexingResources": null
+        },
+        {
+          "cycle": 4,
+          "resources": {
+            "rssMiB": 1199.453125,
+            "cpuPercent": 31,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101629952,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.69999999999891,
+            "p95": 16.700000000000728,
+            "maximum": 16.80000000000109,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 150,
+            "p95": 249.90000000596046,
+            "maximum": 249.90000000596046,
+            "timeouts": 0
+          },
+          "indexingActive": false,
+          "indexingResources": null
+        },
+        {
+          "cycle": 5,
+          "resources": {
+            "rssMiB": 1196.890625,
+            "cpuPercent": 32.5,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101711872,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.69999999999891,
+            "p95": 16.799999999999272,
+            "maximum": 16.80000000000109,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 149.90000000596046,
+            "p95": 250.09999999403954,
+            "maximum": 250.09999999403954,
+            "timeouts": 0
+          },
+          "indexingActive": false,
+          "indexingResources": null
+        },
+        {
+          "cycle": 6,
+          "resources": {
+            "rssMiB": 1195.171875,
+            "cpuPercent": 32.2,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100630528,
+            "residentTiles": 115,
+            "peakResidentBytes": 101711872,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.700000000000728,
+            "p95": 16.700000000000728,
+            "maximum": 16.799999999999272,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 150,
+            "p95": 249.89999997615814,
+            "maximum": 249.89999997615814,
+            "timeouts": 0
+          },
+          "indexingActive": false,
+          "indexingResources": null
+        }
+      ],
+      "replacementCycles": [
+        {
+          "cycle": 1,
+          "resources": {
+            "rssMiB": 1194.09375,
+            "cpuPercent": 43.3,
+            "processCount": 7
+          }
+        },
+        {
+          "cycle": 2,
+          "resources": {
+            "rssMiB": 1196.53125,
+            "cpuPercent": 35.7,
+            "processCount": 7
+          }
+        }
+      ]
+    },
+    "indexing": {
+      "indexing": {
+        "exitCode": 0
+      },
+      "indexingLog": "{\"completionOrder\":[9,1,2,3,4,5,6,7,8,0],\"elapsedMs\":32036.037583999998,\"filteredVectorQueries\":10,\"jobs\":10,\"selectedCompletionMs\":4329.069541,\"selectedDocument\":9}\n",
+      "schemaVersion": 1,
+      "fixture": "/Users/jonas/Documents/GitHub/GPUIPDF/tests/fixtures/PUBMED_16226083.pdf",
+      "environment": "Playwright Chromium headless, 1440x900, DPR 2",
+      "baseline": {
+        "rssMiB": 919.859375,
+        "cpuPercent": 28.900000000000002,
+        "processCount": 7
+      },
+      "afterInitialLoad": {
+        "rssMiB": 1015.21875,
+        "cpuPercent": 38,
+        "processCount": 7
+      },
+      "interactionCycles": [
+        {
+          "cycle": 1,
+          "resources": {
+            "rssMiB": 1179.34375,
+            "cpuPercent": 25.1,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 99713024,
+            "residentTiles": 113,
+            "peakResidentBytes": 101613568,
+            "peakResidentTiles": 116,
+            "fallbackBytes": 700416,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.699999999999818,
+            "p95": 16.799999999999272,
+            "maximum": 16.800000000000182,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 151.80000001192093,
+            "p95": 251.59999999403954,
+            "maximum": 251.59999999403954,
+            "timeouts": 0
+          },
+          "indexingActive": true,
+          "indexingResources": {
+            "rssMiB": 85.640625,
+            "cpuPercent": 100.4,
+            "processCount": 3
+          }
+        },
+        {
+          "cycle": 2,
+          "resources": {
+            "rssMiB": 1182.703125,
+            "cpuPercent": 21.8,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101629952,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 700416,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.699999999999818,
+            "p95": 16.800000000000182,
+            "maximum": 16.800000000000182,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 149.69999998807907,
+            "p95": 249.90000000596046,
+            "maximum": 249.90000000596046,
+            "timeouts": 0
+          },
+          "indexingActive": true,
+          "indexingResources": {
+            "rssMiB": 293.28125,
+            "cpuPercent": 75,
+            "processCount": 3
+          }
+        },
+        {
+          "cycle": 3,
+          "resources": {
+            "rssMiB": 1192.84375,
+            "cpuPercent": 22.5,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101629952,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.69999999999891,
+            "p95": 16.799999999999272,
+            "maximum": 16.80000000000109,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 149.80000001192093,
+            "p95": 249.90000000596046,
+            "maximum": 249.90000000596046,
+            "timeouts": 0
+          },
+          "indexingActive": true,
+          "indexingResources": {
+            "rssMiB": 349.265625,
+            "cpuPercent": 35.3,
+            "processCount": 3
+          }
+        },
+        {
+          "cycle": 4,
+          "resources": {
+            "rssMiB": 1193.03125,
+            "cpuPercent": 24.4,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101629952,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.69999999999891,
+            "p95": 16.799999999999272,
+            "maximum": 16.80000000000109,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 150,
+            "p95": 249.39999997615814,
+            "maximum": 249.39999997615814,
+            "timeouts": 0
+          },
+          "indexingActive": true,
+          "indexingResources": {
+            "rssMiB": 332.140625,
+            "cpuPercent": 43.7,
+            "processCount": 2
+          }
+        },
+        {
+          "cycle": 5,
+          "resources": {
+            "rssMiB": 1193.25,
+            "cpuPercent": 19.8,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100368384,
+            "residentTiles": 114,
+            "peakResidentBytes": 101711872,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.69999999999891,
+            "p95": 16.799999999999272,
+            "maximum": 16.80000000000109,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 149.69999998807907,
+            "p95": 250.09999999403954,
+            "maximum": 250.09999999403954,
+            "timeouts": 0
+          },
+          "indexingActive": true,
+          "indexingResources": {
+            "rssMiB": 371.71875,
+            "cpuPercent": 109.4,
+            "processCount": 3
+          }
+        },
+        {
+          "cycle": 6,
+          "resources": {
+            "rssMiB": 1193.5625,
+            "cpuPercent": 25,
+            "processCount": 7
+          },
+          "cache": {
+            "budgetBytes": 100663296,
+            "residentBytes": 100630528,
+            "residentTiles": 115,
+            "peakResidentBytes": 101711872,
+            "peakResidentTiles": 117,
+            "fallbackBytes": 1050624,
+            "fallbackBudgetBytes": 8388608,
+            "suspended": false
+          },
+          "frameIntervals": {
+            "median": 16.700000000000728,
+            "p95": 16.700000000000728,
+            "maximum": 16.80000000000291,
+            "framesOver20Ms": 0
+          },
+          "exactRenderSettleMs": {
+            "median": 148.30000001192093,
+            "p95": 250.5,
+            "maximum": 250.5,
+            "timeouts": 0
+          },
+          "indexingActive": true,
+          "indexingResources": {
+            "rssMiB": 369.15625,
+            "cpuPercent": 105.5,
+            "processCount": 3
+          }
+        }
+      ],
+      "replacementCycles": [
+        {
+          "cycle": 1,
+          "resources": {
+            "rssMiB": 1191.671875,
+            "cpuPercent": 39,
+            "processCount": 7
+          }
+        },
+        {
+          "cycle": 2,
+          "resources": {
+            "rssMiB": 1193.9375,
+            "cpuPercent": 25.6,
+            "processCount": 7
+          }
+        }
+      ]
+    },
+    "limitations": "Six cycles on one seven-page fixture in headless Chromium, with ten distinct-content variants processed by actual native helpers. Debug on a 96 GiB machine; not packaged WebKit, large/scanned-document, low-memory or release qualification."
+  }
+}

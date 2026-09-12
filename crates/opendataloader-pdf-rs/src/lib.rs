@@ -104,19 +104,30 @@ pub fn bundled_onnx_model_path() -> std::path::PathBuf {
 
 pub fn convert(path: &Path, options: &ConvertOptions) -> Result<Document> {
     let mut profiler = None;
-    convert_internal(path, options, &mut profiler)
+    convert_internal(path, options, &mut profiler, None)
 }
 
 pub fn convert_profiled(path: &Path, options: &ConvertOptions) -> Result<(Document, Profiler)> {
     let mut profiler = Profiler::new();
-    let document = convert_internal(path, options, &mut Some(&mut profiler))?;
+    let document = convert_internal(path, options, &mut Some(&mut profiler), None)?;
     Ok((document, profiler))
+}
+
+/// Streams raw pages into reconstruction and persists resumable extraction checkpoints.
+/// Document-wide reconciliation still sees the reconstructed pages together.
+pub fn convert_with_page_cache(
+    path: &Path,
+    options: &ConvertOptions,
+    cache: &mut dyn extract::RawPageCache,
+) -> Result<Document> {
+    convert_internal(path, options, &mut None, Some(cache))
 }
 
 fn convert_internal(
     path: &Path,
     options: &ConvertOptions,
     profiler: &mut Option<&mut Profiler>,
+    cache: Option<&mut dyn extract::RawPageCache>,
 ) -> Result<Document> {
     #[cfg(not(feature = "onnx"))]
     if options.onnx_model.is_some() {
@@ -131,52 +142,56 @@ fn convert_internal(
     if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {
         profiler.record("raw_pdf_structure", before);
     }
-    let raw_pages =
-        extract::extract_document_profiled(path, options.password.as_deref(), profiler)?;
-    let number_of_pages = raw_pages.len();
     let mut pages = Vec::new();
-    for (index, raw) in raw_pages.into_iter().enumerate() {
-        let number = index + 1;
-        if options
-            .pages
-            .as_ref()
-            .is_some_and(|selected| !selected.contains(&number))
-        {
-            continue;
-        }
-        let reconstructed =
-            layout::reconstruct_page_profiled(raw.lines, &raw.rules, raw.width, profiler);
-        let page_rules = raw.rules.clone();
-        let before = profiler.as_deref().map(Profiler::start);
-        let mut images = raw.images;
-        images.extend(infer_figure_regions(
-            &reconstructed.blocks,
-            raw.width,
-            raw.height,
-        ));
-        deduplicate_regions(&mut images);
-        if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {
-            profiler.record("image_figure_region_inference", before);
-        }
-        pages.push(Page {
-            number,
-            width: raw.width,
-            height: raw.height,
-            blocks: reconstructed.blocks,
-            citations: Vec::new(),
-            note_references: Vec::new(),
-            sentences: Vec::new(),
-            semantic_regions: Vec::new(),
-            internal_links: raw.internal_links,
-            marked_objects: raw.marked_objects,
-            images,
-            // Raw lines remain available through tagged reconciliation so a
-            // semantic table can repair split geometric fragments. They are
-            // removed immediately afterwards unless explicitly requested.
-            lines: reconstructed.source_lines,
-            rules: page_rules,
-        });
-    }
+    let number_of_pages = extract::extract_document_streamed(
+        path,
+        options.password.as_deref(),
+        profiler,
+        cache,
+        |index, raw, profiler| {
+            let number = index + 1;
+            if options
+                .pages
+                .as_ref()
+                .is_some_and(|selected| !selected.contains(&number))
+            {
+                return Ok(());
+            }
+            let reconstructed =
+                layout::reconstruct_page_profiled(raw.lines, &raw.rules, raw.width, profiler);
+            let page_rules = raw.rules.clone();
+            let before = profiler.as_deref().map(Profiler::start);
+            let mut images = raw.images;
+            images.extend(infer_figure_regions(
+                &reconstructed.blocks,
+                raw.width,
+                raw.height,
+            ));
+            deduplicate_regions(&mut images);
+            if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {
+                profiler.record("image_figure_region_inference", before);
+            }
+            pages.push(Page {
+                number,
+                width: raw.width,
+                height: raw.height,
+                blocks: reconstructed.blocks,
+                citations: Vec::new(),
+                note_references: Vec::new(),
+                sentences: Vec::new(),
+                semantic_regions: Vec::new(),
+                internal_links: raw.internal_links,
+                marked_objects: raw.marked_objects,
+                images,
+                // Raw lines remain available through tagged reconciliation so a
+                // semantic table can repair split geometric fragments. They are
+                // removed immediately afterwards unless explicitly requested.
+                lines: reconstructed.source_lines,
+                rules: page_rules,
+            });
+            Ok(())
+        },
+    )?;
     let before = profiler.as_deref().map(Profiler::start);
     layout::reconcile_geometry_table_continuations(&mut pages);
     if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {

@@ -44,6 +44,7 @@ export interface ReaderAnnotation {
   range: TextRange;
   text: string;
   color: HighlightColor;
+  anchor?: { version: 1; pages: Array<{ page: number; bounds: NativeBounds[] }> };
   comment?: string;
   createdAt: string;
   updatedAt: string;
@@ -64,6 +65,7 @@ export interface ReaderSearchMatch extends NativeSearchMatch {
 
 export interface PageHost {
   page: PDFPageProxy;
+  getPage?: () => Promise<PDFPageProxy>;
   baseWidth: number;
   baseHeight: number;
   element: HTMLDivElement;
@@ -123,6 +125,22 @@ export function loadReaderAnnotations(documentId: string): ReaderAnnotation[] {
   }
 }
 
+const annotationWrites = new Map<string, Promise<void>>();
+
+export async function loadCanonicalAnnotations(documentId: string): Promise<ReaderAnnotation[]> {
+  if (!isTauri()) return loadReaderAnnotations(documentId);
+  return invoke<ReaderAnnotation[]>('library_annotations', { hash: documentId });
+}
+
+export function saveCanonicalAnnotations(documentId: string, annotations: ReaderAnnotation[], deleted: string[] = []): Promise<void> {
+  if (!isTauri()) { saveReaderAnnotations(documentId, annotations); return Promise.resolve(); }
+  const previous = annotationWrites.get(documentId) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(() => invoke<void>('library_apply_annotations', { hash: documentId, upserts: annotations, deleted }));
+  annotationWrites.set(documentId, next);
+  void next.finally(() => { if (annotationWrites.get(documentId) === next) annotationWrites.delete(documentId); }).catch(() => undefined);
+  return next;
+}
+
 export function saveReaderAnnotations(
   documentId: string,
   annotations: ReaderAnnotation[],
@@ -151,9 +169,47 @@ function nativeDocumentId(file: File) {
   return `${file.name}:${file.size}:${file.lastModified}`;
 }
 
+export interface ManagedSource { hash: string; size: number; title: string }
+const managedSources = new WeakMap<File, ManagedSource>();
+export const managedSourceFor = (file: File) => managedSources.get(file);
+export const registerManagedSource = (file: File, source: ManagedSource) => managedSources.set(file, source);
+
+const sourceImports = new WeakMap<File, Promise<ManagedSource>>();
+let activeImports = 0;
+const importWaiters: Array<() => void> = [];
+async function importManagedSource(file: File): Promise<ManagedSource> {
+  const existing = managedSourceFor(file);
+  if (existing) return existing;
+  const pending = sourceImports.get(file);
+  if (pending) return pending;
+  const task = (async () => {
+    if (activeImports >= 2) await new Promise<void>(resolve => importWaiters.push(resolve));
+    else ++activeImports;
+    let upload: string | undefined;
+    try {
+      upload = await invoke<string>('library_import_begin', { title: file.name, length: file.size });
+      for (let offset = 0; offset < file.size; offset += 4 * 1024 * 1024) {
+        const chunk = new Uint8Array(await file.slice(offset, offset + 4 * 1024 * 1024).arrayBuffer());
+        await invoke('library_import_chunk', chunk, { headers: { 'x-key-import': upload, 'x-key-offset': String(offset) } });
+      }
+      const source = await invoke<ManagedSource>('library_import_finish', { id: upload });
+      registerManagedSource(file, source);
+      return source;
+    } catch (error) {
+      if (upload) await invoke('library_import_cancel', { id: upload }).catch(() => undefined);
+      throw error;
+    } finally {
+      const next = importWaiters.shift();
+      if (next) next(); else --activeImports;
+    }
+  })();
+  sourceImports.set(file, task);
+  try { return await task; } finally { sourceImports.delete(file); }
+}
+
 export async function openNativeCompanion(
   file: File,
-  bytes: Uint8Array,
+  bytes?: Uint8Array,
   _includeText = true,
   semanticOnnx = false,
 ): Promise<{
@@ -162,13 +218,22 @@ export async function openNativeCompanion(
   analysis?: PaperPreprocessingResult;
   semantic?: SemanticDocument;
 }> {
-  const id = nativeDocumentId(file);
-  if (!isTauri()) return { id };
-  const snapshot = await invoke<NativeCompanionSnapshot>('begin_pdfjs_companion', {
-    id,
-    bytes: Array.from(bytes),
-    semanticOnnx,
-  });
+  let id: string;
+  let snapshot: NativeCompanionSnapshot;
+  if (isTauri() && !semanticOnnx) {
+    const source = await importManagedSource(file);
+    id = source.hash;
+    snapshot = await invoke<NativeCompanionSnapshot>('begin_pdfjs_companion_managed', { hash: id });
+  } else {
+    const data = bytes ?? new Uint8Array(await file.arrayBuffer());
+    const digest = await crypto.subtle.digest('SHA-256', data.slice().buffer);
+    id = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+    if (!isTauri()) return { id };
+    snapshot = await invoke<NativeCompanionSnapshot>('begin_pdfjs_companion', { id, fileName: file.name, bytes: Array.from(data), semanticOnnx });
+  }
+  const legacyId = nativeDocumentId(file);
+  const legacy = loadReaderAnnotations(legacyId);
+  if (legacy.length) await invoke('library_import_annotations', { hash: id, legacyId, annotations: legacy });
   snapshot.document.id = id;
   if (snapshot.analysis) snapshot.analysis.document.id = id;
   if (snapshot.hasNativeText) disposableNativeText.add(id);
@@ -193,14 +258,16 @@ export function watchNativeCompanion(
   let cancelled = false;
   let timer = 0;
   let revision = -1;
+  let analysisRevision: number | undefined;
   let nativeHibernated = false;
   const poll = async () => {
     try {
       const snapshot = await invoke<NativeCompanionSnapshot>(
         'pdfjs_companion_snapshot',
-        { id: documentId },
+        { id: documentId, afterAnalysisRevision: analysisRevision },
       );
       if (cancelled) return;
+      analysisRevision = snapshot.analysisRevision;
       snapshot.document.id = documentId;
       if (snapshot.analysis) snapshot.analysis.document.id = documentId;
       if (snapshot.hasNativeText) {
@@ -216,7 +283,7 @@ export function watchNativeCompanion(
         revision = snapshot.revision;
         listener(snapshot);
       }
-      if (snapshot.stage === 'ready' || snapshot.stage === 'failed') return;
+      if ((snapshot.stage === 'ready' || snapshot.stage === 'failed') && ['ready', 'indexed', 'failed', 'paused', 'no_text'].includes(snapshot.semanticStatus ?? 'pending')) return;
     } catch {
       if (cancelled) return;
     }
@@ -266,56 +333,49 @@ function pdfJsTextPage(
   pageIndex: number,
   page: PDFPageProxy,
   items: TextItem[],
-  baseWidth: number,
-  baseHeight: number,
+  styles: Record<string, { ascent?: number; descent?: number }>,
 ): NativeTextPage {
   const characters: NativeTextPage['characters'] = [];
+  const viewport = page.getViewport({ scale: 1 });
   let text = '';
   for (const item of items) {
     if (!item.str) {
-      if (item.hasEOL) {
-        text += '\n';
-        characters.push({ value: '\n' });
-      }
+      if (item.hasEOL) { text += '\n'; characters.push({ value: '\n' }); }
       continue;
     }
     const [a, b, c, d, x, y] = item.transform;
-    const horizontal = Math.abs(a) >= Math.abs(b);
-    const itemWidth = Math.max(0, item.width);
-    const itemHeight = Math.max(1, item.height || Math.hypot(c, d) || Math.hypot(a, b));
+    const baselineLength = Math.hypot(a, b) || 1;
+    const upLength = Math.hypot(c, d) || baselineLength;
+    const along = [a / baselineLength, b / baselineLength];
+    const up = [c / upLength, d / upLength];
     const values = Array.from(item.str);
-    const advance = itemWidth / Math.max(1, values.length);
+    const advance = Math.max(0, item.width) / Math.max(1, values.length);
+    const style = styles[item.fontName];
+    const ascent = style?.ascent ?? .8;
+    const descent = style?.descent ?? -.2;
+    // Compose the text axes with the viewport once per text item. The glyph
+    // loop then needs only scalar arithmetic and its output bounds object.
+    const [va, vb, vc, vd, ve, vf] = viewport.transform;
+    const originX = va * x + vc * y + ve, originY = vb * x + vd * y + vf;
+    const stepX = (va * along[0] + vc * along[1]) * advance;
+    const stepY = (vb * along[0] + vd * along[1]) * advance;
+    const upX = (va * up[0] + vc * up[1]) * upLength;
+    const upY = (vb * up[0] + vd * up[1]) * upLength;
+    const minUpX = Math.min(upX * descent, upX * ascent), maxUpX = Math.max(upX * descent, upX * ascent);
+    const minUpY = Math.min(upY * descent, upY * ascent), maxUpY = Math.max(upY * descent, upY * ascent);
     for (let offset = 0; offset < values.length; offset += 1) {
-      const value = values[offset];
-      let bounds: NativeBounds;
-      if (horizontal) {
-        const left = Math.min(x + advance * offset, x + advance * (offset + 1));
-        const right = Math.max(x + advance * offset, x + advance * (offset + 1));
-        bounds = {
-          left: left / baseWidth,
-          right: right / baseWidth,
-          top: (baseHeight - y - itemHeight) / baseHeight,
-          bottom: (baseHeight - y) / baseHeight,
-        };
-      } else {
-        const top = Math.min(y + advance * offset, y + advance * (offset + 1));
-        const bottom = Math.max(y + advance * offset, y + advance * (offset + 1));
-        bounds = {
-          left: x / baseWidth,
-          right: (x + itemHeight) / baseWidth,
-          top: top / baseHeight,
-          bottom: bottom / baseHeight,
-        };
-      }
-      text += value;
-      characters.push({ value, bounds });
+      const startX = originX + stepX * offset, endX = startX + stepX;
+      const startY = originY + stepY * offset, endY = startY + stepY;
+      const bounds: NativeBounds = {
+        left: (Math.min(startX, endX) + minUpX) / viewport.width,
+        right: (Math.max(startX, endX) + maxUpX) / viewport.width,
+        top: (Math.min(startY, endY) + minUpY) / viewport.height,
+        bottom: (Math.max(startY, endY) + maxUpY) / viewport.height,
+      };
+      const value = values[offset]; text += value; characters.push({ value, bounds });
     }
-    if (item.hasEOL) {
-      text += '\n';
-      characters.push({ value: '\n' });
-    }
+    if (item.hasEOL) { text += '\n'; characters.push({ value: '\n' }); }
   }
-  void page;
   return { page: pageIndex, text, characters };
 }
 
@@ -349,13 +409,13 @@ export async function fetchTextPage(
       // fallback below so the document remains readable.
     }
   }
-  const content = await host.page.getTextContent();
+  const pdfPage = host.getPage ? await host.getPage() : host.page;
+  const content = await pdfPage.getTextContent();
   return pdfJsTextPage(
     pageIndex,
-    host.page,
+    pdfPage,
     content.items.filter((item): item is TextItem => 'str' in item),
-    host.baseWidth,
-    host.baseHeight,
+    content.styles,
   );
 }
 
@@ -462,7 +522,7 @@ export function harmonizeBounds(bounds: NativeBounds[]): NativeBounds[] {
   return output;
 }
 
-function localMatches(
+export function localMatches(
   pages: Map<number, NativeTextPage>,
   query: string,
 ): ReaderSearchMatch[] {
@@ -471,22 +531,29 @@ function localMatches(
   const output: ReaderSearchMatch[] = [];
   for (const [page, text] of [...pages].sort(([a], [b]) => a - b)) {
     const haystack = text.characters.map(character => character.value).join('');
-    const lower = haystack.toLocaleLowerCase();
+    const lowerToCharacter: number[] = [];
+    const originalOffsets = [0];
+    const lowerParts: string[] = [];
+    text.characters.forEach((character, index) => {
+      const part = character.value.toLocaleLowerCase();
+      lowerParts.push(part);
+      for (let n = 0; n < part.length; n += 1) lowerToCharacter.push(index);
+      originalOffsets.push(originalOffsets[index] + character.value.length);
+    });
+    const lower = lowerParts.join('');
     let offset = 0;
     while (output.length < 20_000) {
-      const start = lower.indexOf(needle, offset);
-      if (start < 0) break;
-      const end = start + Array.from(query).length - 1;
+      const match = lower.indexOf(needle, offset);
+      if (match < 0) break;
+      const start = lowerToCharacter[match];
+      const end = lowerToCharacter[match + needle.length - 1];
       const range = normalizeRange({ page, index: start }, { page, index: end });
       output.push({
-        id: `${page}:${start}:${end}`,
-        page,
-        start,
-        end,
-        preview: haystack.slice(Math.max(0, start - 42), Math.min(haystack.length, end + 43)),
+        id: `${page}:${start}:${end}`, page, start, end,
+        preview: haystack.slice(Math.max(0, originalOffsets[start] - 42), Math.min(haystack.length, originalOffsets[end + 1] + 42)),
         bounds: boundsForRange(text, range),
       });
-      offset = Math.max(start + 1, end + 1);
+      offset = match + needle.length;
     }
   }
   return output;

@@ -7,21 +7,23 @@ description = "Key research PDF reader desktop application"
 
 [lib]
 name = "key_app"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# This desktop shell links through rlib. A mobile static archive is unused
+# and duplicates the complete native dependency graph in each debug build.
+crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+tempfile = "3"
+key-processing = { path = "../../../crates/key-processing" }
+key-library = { path = "../../../crates/key-library" }
 anyhow = "1"
-asupersync = { version = "0.3.10", default-features = false, features = ["proc-macros"] }
-frankensearch = { git = "https://github.com/Dicklesworthstone/frankensearch.git", rev = "b559c92e03242336614b995c562a13dfd1269eed", default-features = false, features = ["persistent", "download"] }
-frankensearch-embed = { git = "https://github.com/Dicklesworthstone/frankensearch.git", rev = "b559c92e03242336614b995c562a13dfd1269eed", default-features = false, features = ["bundled-default-models"] }
 key-pdf-core = { path = "../../../crates/key-pdf-core" }
 key-pdf-runtime = { path = "../../../crates/key-pdf-runtime" }
 key-pdfium = { path = "../../../crates/key-pdfium" }
 key-reference = { path = "../../../extensions/key-reference" }
-opendataloader-pdf = { path = "../../../crates/opendataloader-pdf-rs", default-features = false }
+key-semantic-search = { path = "../../../crates/key-semantic-search" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
@@ -34,7 +36,7 @@ tauri-plugin-dialog = "2"
 [workspace]
 
 [features]
-semantic-onnx = ["opendataloader-pdf/onnx"]
+semantic-onnx = ["key-semantic-search/semantic-onnx"]
 
 [patch.crates-io]
 pdfium-render = { path = "../../../vendor/pdfium-render-tile" }

@@ -6,6 +6,7 @@ import type {
 } from '../engines/types';
 import {
   boundsForRange,
+  localMatches,
   fetchTextPage,
   normalizeRange,
   textForRange,
@@ -99,6 +100,7 @@ export class PdfJsTextOverlayManager {
   private annotations: ReaderAnnotation[] = [];
   private searchMatches: ReaderSearchMatch[] = [];
   private activeSearchId: string | null = null;
+  private resultTarget: ReaderSearchMatch | null = null;
   private links: Array<NativeLink & { synthetic?: boolean }> = [];
   private citations: ScientificCitation[] = [];
   private liveSelection: TextRange | null = null;
@@ -176,7 +178,12 @@ export class PdfJsTextOverlayManager {
   }
 
   async ensurePage(page: number) {
-    if (this.destroyed || this.textPages.has(page)) return this.textPages.get(page);
+    if (this.destroyed) return;
+    if (this.textPages.has(page)) {
+      const cached = this.textPages.get(page)!;
+      this.textPages.delete(page); this.textPages.set(page, cached);
+      return cached;
+    }
     let request = this.pending.get(page);
     if (!request) {
       const host = this.hosts[page];
@@ -190,6 +197,17 @@ export class PdfJsTextOverlayManager {
       this.textPages.set(page, text);
       this.mountTextLayer(this.hosts[page], text);
       this.renderPage(page);
+      // Native search streams pages from SQLite; keep only a small reader working set.
+      if (!this.selectionDrag && !this.liveSelection) {
+        for (const cachedPage of this.textPages.keys()) {
+          if (this.textPages.size <= 12) break;
+          const host = this.hosts[cachedPage]; const rect = host.element.getBoundingClientRect();
+          if (cachedPage === page || (host.element.isConnected && rect.height > 0 && rect.bottom >= 0 && rect.top <= window.innerHeight)) continue;
+          this.textPages.delete(cachedPage);
+          host.element.querySelector('.pdfjs-text-layer')?.remove();
+          host.element.querySelector('.pdfjs-overlay-layer')?.replaceChildren();
+        }
+      }
       return text;
     } finally {
       this.pending.delete(page);
@@ -197,7 +215,22 @@ export class PdfJsTextOverlayManager {
   }
 
   async ensurePages(pages: Iterable<number>) {
-    await Promise.all([...new Set(pages)].map(page => this.ensurePage(page)));
+    for (const page of new Set(pages)) { if (this.destroyed) return; await this.ensurePage(page); }
+  }
+
+  async search(query: string, cancelled: () => boolean): Promise<ReaderSearchMatch[]> {
+    const matches: ReaderSearchMatch[] = [];
+    for (let page = 0; page < this.hosts.length; page += 1) {
+      if (this.destroyed || cancelled()) return [];
+      const host = this.hosts[page];
+      const text = this.textPages.get(page) ?? await fetchTextPage(this.documentId, page, host);
+      if (this.destroyed || cancelled()) return [];
+      matches.push(...localMatches(new Map([[page, text]]), query).slice(0, 20_000 - matches.length));
+      if (!host.element.isConnected) host.page.cleanup();
+      if (matches.length >= 20_000) break;
+      if (page % 8 === 7) await new Promise(resolve => window.setTimeout(resolve, 0));
+    }
+    return matches;
   }
 
   async ensureAllPages() {
@@ -206,6 +239,11 @@ export class PdfJsTextOverlayManager {
 
   setAnnotations(annotations: ReaderAnnotation[]) {
     this.annotations = annotations;
+    this.renderAll();
+  }
+
+  setResultTarget(target: ReaderSearchMatch | null) {
+    this.resultTarget = target;
     this.renderAll();
   }
 
@@ -330,8 +368,11 @@ export class PdfJsTextOverlayManager {
   private renderPage(page: number) {
     const layer = this.overlayLayer(page);
     const text = this.textPages.get(page);
-    if (!layer || !text) return;
+    if (!layer) return;
     layer.replaceChildren();
+    if (this.resultTarget?.page === page) {
+      this.paintBounds(layer, this.resultTarget.bounds, 'pdfjs-result-target', this.resultTarget.id);
+    }
     for (const annotation of this.annotations) {
       if (page < annotation.range.start.page || page > annotation.range.end.page) continue;
       const className = `pdfjs-highlight color-${annotation.color}${
@@ -339,11 +380,12 @@ export class PdfJsTextOverlayManager {
       }`;
       this.paintBounds(
         layer,
-        boundsForRange(text, annotation.range),
+        annotation.anchor?.pages.find(p => p.page === page)?.bounds ?? (text ? boundsForRange(text, annotation.range) : []),
         className,
         annotation.id,
       );
     }
+    if (!text) return;
     for (const match of this.searchMatches.filter(match => match.page === page)) {
       this.paintBounds(
         layer,
@@ -394,6 +436,7 @@ export class PdfJsTextOverlayManager {
 
   private renderAll() {
     for (const page of this.textPages.keys()) this.renderPage(page);
+    if (this.resultTarget && !this.textPages.has(this.resultTarget.page)) this.renderPage(this.resultTarget.page);
   }
 
   private publishSelection(range: TextRange | null) {

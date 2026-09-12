@@ -21,6 +21,7 @@ struct Glyph {
     explicit_space_before: bool,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct RawPage {
     pub width: f32,
     pub height: f32,
@@ -59,6 +60,26 @@ fn try_bind_pdfium() -> Result<Pdfium> {
         .context("bind PDFium (set PDFIUM_LIB_PATH if no bundled library is available)")
 }
 
+/// Write an analysis-only copy with page display rotations removed, if needed.
+/// PDFium streams the output to disk; callers keep the original content identity.
+/// Geometry can then be mapped back using these clockwise quarter-turn counts.
+pub fn normalize_page_rotations(input: &Path, output: &Path) -> Result<Vec<u16>> {
+    let document = bind_pdfium()?.load_pdf_from_file(input, None)?;
+    let mut rotations = Vec::with_capacity(document.pages().len() as usize);
+    for index in document.pages().as_range() {
+        let mut page = document.pages().get(index)?;
+        let rotation = page.rotation()?.as_degrees() as u16;
+        rotations.push(rotation);
+        if rotation != 0 {
+            page.set_rotation(PdfPageRenderRotation::None);
+        }
+    }
+    if rotations.iter().any(|rotation| *rotation != 0) {
+        document.save_to_file(output)?;
+    }
+    Ok(rotations)
+}
+
 pub fn extract_document(path: &Path, password: Option<&str>) -> Result<Vec<RawPage>> {
     let mut profiler = None;
     extract_document_profiled(path, password, &mut profiler)
@@ -69,6 +90,27 @@ pub(crate) fn extract_document_profiled(
     password: Option<&str>,
     profiler: &mut Option<&mut Profiler>,
 ) -> Result<Vec<RawPage>> {
+    let mut pages = Vec::new();
+    extract_document_streamed(path, password, profiler, None, |_, page, _| {
+        pages.push(page);
+        Ok(())
+    })?;
+    Ok(pages)
+}
+
+/// Cache identity belongs to the caller: source content hash plus extractor version.
+pub trait RawPageCache {
+    fn load(&mut self, index: usize) -> Result<Option<RawPage>>;
+    fn store(&mut self, index: usize, total: usize, page: &RawPage) -> Result<()>;
+}
+
+pub(crate) fn extract_document_streamed(
+    path: &Path,
+    password: Option<&str>,
+    profiler: &mut Option<&mut Profiler>,
+    mut cache: Option<&mut dyn RawPageCache>,
+    mut consume: impl FnMut(usize, RawPage, &mut Option<&mut Profiler>) -> Result<()>,
+) -> Result<usize> {
     let before = profiler.as_deref().map(Profiler::start);
     let marked_objects = extract_marked_object_geometry(path, password).unwrap_or_default();
     let pdfium = bind_pdfium()?;
@@ -78,8 +120,14 @@ pub(crate) fn extract_document_profiled(
     if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {
         profiler.record("pdfium_document_load", before);
     }
-    let mut pages = Vec::with_capacity(document.pages().len() as usize);
+    let count = document.pages().len() as usize;
     for index in document.pages().as_range() {
+        if let Some(cache) = cache.as_deref_mut() {
+            if let Some(raw_page) = cache.load(index as usize)? {
+                consume(index as usize, raw_page, profiler)?;
+                continue;
+            }
+        }
         let before = profiler.as_deref().map(Profiler::start);
         let page = document.pages().get(index)?;
         if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {
@@ -95,14 +143,17 @@ pub(crate) fn extract_document_profiled(
         if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {
             profiler.record("pdfium_page_release", before);
         }
-        pages.push(raw_page);
+        if let Some(cache) = cache.as_deref_mut() {
+            cache.store(index as usize, count, &raw_page)?;
+        }
+        consume(index as usize, raw_page, profiler)?;
     }
     let before = profiler.as_deref().map(Profiler::start);
     drop(document);
     if let (Some(profiler), Some(before)) = (profiler.as_deref_mut(), before) {
         profiler.record("pdfium_document_close", before);
     }
-    Ok(pages)
+    Ok(count)
 }
 
 fn extract_page(page: &PdfPage<'_>, profiler: &mut Option<&mut Profiler>) -> Result<RawPage> {

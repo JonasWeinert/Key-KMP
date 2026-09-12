@@ -1,0 +1,10 @@
+[package]
+name = "key-processing"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+[dependencies]
+key-library = { path = "../key-library" }
+tempfile = "3"
+
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }

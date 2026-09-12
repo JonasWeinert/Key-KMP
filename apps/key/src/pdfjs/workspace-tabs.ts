@@ -10,6 +10,8 @@ export interface WorkspaceTabsState {
   activeTabId: string | null;
 }
 
+export const LIBRARY_VIEW_ID = 'key:library';
+
 export function singleWorkspaceTab(viewId: string): WorkspaceTab {
   return {
     id: crypto.randomUUID(),

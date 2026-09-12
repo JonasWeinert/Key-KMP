@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/key-processing",
+    "crates/key-library",
     "experiments/gpui-pdf-reader",
     "crates/key-editor-core",
     "crates/key-editor-gpui",
@@ -14,6 +16,7 @@ members = [
     "crates/key-pdf-runtime",
     "crates/key-pdfium",
     "crates/key-safe-http",
+    "crates/key-semantic-search",
     "crates/key-sidecar-store",
     "crates/key-ui-core",
     "crates/key-ui-gpui",
