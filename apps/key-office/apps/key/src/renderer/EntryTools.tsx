@@ -44,11 +44,20 @@ function Frame({
   title,
   onClose,
   children,
+  embedded = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  embedded?: boolean;
 }) {
+  if (embedded)
+    return (
+      <section className="key-record-editor key-entry-pane">
+        <h2>{title}</h2>
+        {children}
+      </section>
+    );
   return (
     <div className="key-dialog-backdrop">
       <section
@@ -90,7 +99,13 @@ export function EntryDetails({
   onClose,
   onSaved,
   entry,
-}: Props & { entry?: SourceEntry }) {
+  embedded = false,
+  onState,
+}: Props & {
+  entry?: SourceEntry;
+  embedded?: boolean;
+  onState?: (dirty: boolean, title: string) => void;
+}) {
   const [extras, setExtras] = useState<Record<string, unknown>>({});
   const [propertyName, setPropertyName] = useState("");
   const [propertyValue, setPropertyValue] = useState("");
@@ -114,6 +129,25 @@ export function EntryDetails({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const id = workspaceId ?? entry?.workspaceId;
+  const baseline = useRef<string | undefined>(undefined);
+  const fields = JSON.stringify({
+    title,
+    url,
+    type,
+    content,
+    authors,
+    year,
+    extras,
+  });
+  const stateCallback = useRef(onState);
+  stateCallback.current = onState;
+  useEffect(() => {
+    stateCallback.current?.(
+      baseline.current !== undefined && fields !== baseline.current,
+      title,
+    );
+  }, [fields, loaded]);
+
   useEffect(() => {
     if (!entry) return;
     let live = true;
@@ -127,6 +161,19 @@ export function EntryDetails({
               ),
             ),
           );
+          baseline.current = JSON.stringify({
+            title: r.title,
+            url: String(r.properties.url ?? ""),
+            type: String(r.properties.sourceType),
+            content: r.body,
+            authors: ((r.properties.authors as string[]) ?? []).join("; "),
+            year: String(r.properties.year ?? ""),
+            extras: Object.fromEntries(
+              Object.entries(r.properties).filter(
+                ([key]) => !reservedEntryProperties.has(key),
+              ),
+            ),
+          });
           setLoaded(r);
           setContent(r.body);
           setTitle(r.title);
@@ -149,7 +196,7 @@ export function EntryDetails({
     setBusy(true);
     setError("");
     try {
-      await invoke(
+      const saved = await invoke<SourceEntry>(
         "workspace_save_entry",
         {
           id: entry?.id ?? null,
@@ -185,8 +232,11 @@ export function EntryDetails({
         },
         id,
       );
+      baseline.current = fields;
+      setLoaded(saved);
       onSaved();
-      onClose();
+      if (!embedded) onClose();
+      else setNotice("Saved");
     } catch (e) {
       setError(String(e));
     } finally {
@@ -237,7 +287,11 @@ export function EntryDetails({
     }
   }
   return (
-    <Frame title={entry ? "Edit source" : "Add source"} onClose={onClose}>
+    <Frame
+      title={entry ? "Edit source" : "Add source"}
+      onClose={onClose}
+      embedded={embedded}
+    >
       <p>Save source information and searchable text in this workspace.</p>
       {!id && <p role="alert">Choose a workspace before adding a source.</p>}
       <label>
@@ -499,6 +553,7 @@ export function EntryDetails({
       )}
       {error && <p role="alert">{error}</p>}
       <button
+        data-save-record
         disabled={!id || busy || !title.trim() || (!!entry && !loaded)}
         onClick={() => void save()}
       >
@@ -512,11 +567,15 @@ export function EntriesList({
   workspaceId,
   projectId,
   onOpen,
+  active = true,
+  refreshKey = 0,
 }: {
   invoke: Invoke;
   workspaceId?: string;
   projectId?: string;
   onOpen?: (entry: SourceEntry) => void;
+  active?: boolean;
+  refreshKey?: number;
 }) {
   const request = useRef(0);
   const [entries, setEntries] = useState<SourceEntry[]>([]);
@@ -558,11 +617,12 @@ export function EntriesList({
     return () => clearTimeout(timer);
   }, [query]);
   useEffect(() => {
+    if (!active) return;
     void load();
     return () => {
       request.current++;
     };
-  }, [workspaceId, projectId, submitted, revision]);
+  }, [workspaceId, projectId, submitted, revision, active, refreshKey]);
   const refresh = () => setRevision((r) => r + 1);
   return (
     <section aria-label="Other sources">
@@ -604,8 +664,8 @@ export function EntriesList({
               <td>
                 <button
                   onClick={() => {
-                    setEditing(e);
-                    onOpen?.(e);
+                    if (onOpen) onOpen(e);
+                    else setEditing(e);
                   }}
                 >
                   {highlight(e.title, submitted)}
@@ -618,7 +678,9 @@ export function EntriesList({
                   : "Metadata indexed"}
               </td>
               <td>
-                <button onClick={() => setEditing(e)}>Edit</button>
+                <button onClick={() => (onOpen ? onOpen(e) : setEditing(e))}>
+                  Edit
+                </button>
                 {typeof e.properties.url === "string" && e.properties.url && (
                   <button
                     onClick={() =>

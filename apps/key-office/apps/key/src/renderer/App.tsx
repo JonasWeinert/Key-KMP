@@ -1,11 +1,9 @@
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
-import LibraryHome, {
-  type LibrarySource,
-  type LibraryHit,
-} from "./LibraryHome";
+import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
+import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
 interface Workspace {
   id: string;
   name: string;
@@ -32,7 +30,13 @@ interface TabState {
   tabs: {
     id: string;
     title: string;
-    views: { id: string; title: string; kind: string }[];
+    views: {
+      id: string;
+      title: string;
+      kind: string;
+      workspaceId?: string;
+      content?: ContentSpec;
+    }[];
   }[];
   activeTabId: string;
   activeViewId: string;
@@ -47,7 +51,6 @@ const api = () =>
           args?: Record<string, unknown>,
           workspaceId?: string,
         ) => Promise<T>;
-        setDirty?: (dirty: boolean) => void;
         workspaces: () => Promise<Workspace[]>;
         addWorkspace: () => Promise<Workspace | null>;
         openSources: (workspaceId?: string) => Promise<void>;
@@ -69,133 +72,6 @@ const api = () =>
     }
   ).key;
 const emptyTabs: TabState = { tabs: [], activeTabId: "", activeViewId: "" };
-
-interface DatabaseView {
-  kind?: string;
-  query?: string;
-  property?: string;
-  value?: string;
-}
-function WorkspaceRecordTable({
-  workspaceId,
-  projectId,
-  view,
-  onSelect,
-  revision,
-}: {
-  workspaceId: string;
-  projectId?: string;
-  view: DatabaseView;
-  onSelect: (record: RecordItem) => void;
-  revision: number;
-}) {
-  const [rows, setRows] = useState<RecordItem[]>([]),
-    [offset, setOffset] = useState(0),
-    [more, setMore] = useState(false),
-    [loading, setLoading] = useState(false),
-    [error, setError] = useState("");
-  const generation = useRef(0);
-  const load = async (start: number, seq: number) => {
-    setLoading(true);
-    setError("");
-    try {
-      const page = await api().invoke<RecordItem[]>(
-        "workspace_records",
-        {
-          projectId: projectId || null,
-          query: view.query || null,
-          limit: 100,
-          offset: start,
-        },
-        workspaceId,
-      );
-      if (seq !== generation.current) return;
-      setRows((previous) => (start ? [...previous, ...page] : page));
-      setOffset(start + page.length);
-      setMore(page.length === 100);
-    } catch (e) {
-      if (seq === generation.current) setError(String(e));
-    } finally {
-      if (seq === generation.current) setLoading(false);
-    }
-  };
-  useEffect(() => {
-    const seq = ++generation.current;
-    setRows([]);
-    setMore(false);
-    const timer = setTimeout(() => void load(0, seq), 250);
-    return () => {
-      clearTimeout(timer);
-      ++generation.current;
-    };
-  }, [workspaceId, projectId, view.query, revision]);
-  const visible = rows.filter(
-    (r) =>
-      (!view.kind || r.kind === view.kind) &&
-      (!view.property ||
-        JSON.stringify(r.properties[view.property]) ===
-          JSON.stringify(parseFilterValue(view.value || ""))),
-  );
-  return (
-    <div className="key-record-browser">
-      <p>
-        {visible.length} matching items in {rows.length} loaded records
-        {more ? " · more available" : ""}
-      </p>
-      {error && <p role="alert">{error}</p>}
-      <table className="key-source-table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Type</th>
-            <th>Properties</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <button onClick={() => onSelect(r)}>{r.title}</button>
-              </td>
-              <td>{r.kind}</td>
-              <td title={JSON.stringify(r.properties)}>
-                {Object.entries(r.properties)
-                  .filter(([key]) => !["path", "view"].includes(key))
-                  .map(
-                    ([key, value]) =>
-                      `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value)}`,
-                  )
-                  .join(" · ") || "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {loading && <p role="status">Loading records…</p>}
-      {!loading && !visible.length && (
-        <p>
-          No matching items in the loaded records.
-          {more ? " Load more to continue searching this filtered view." : ""}
-        </p>
-      )}
-      {more && (
-        <button
-          disabled={loading}
-          onClick={() => void load(offset, generation.current)}
-        >
-          Load next 100 records
-        </button>
-      )}
-    </div>
-  );
-}
-function parseFilterValue(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}
 
 const tabSummary = (state: TabState): TabSummary[] =>
   state.tabs.map((tab) => ({
@@ -236,15 +112,7 @@ export default function App() {
     [tabs, setTabs] = useState<TabState>(emptyTabs);
   const [section, setSection] = useState("sources"),
     [record, setRecord] = useState<RecordItem>();
-  const [propertiesText, setPropertiesText] = useState("{}"),
-    [databaseView, setDatabaseView] = useState<DatabaseView>({}),
-    [recordQuery, setRecordQuery] = useState("");
-  const [title, setTitle] = useState(""),
-    [body, setBody] = useState(""),
-    [dirty, setDirty] = useState(false);
   const [error, setError] = useState(""),
-    [message, setMessage] = useState(""),
-    [busy, setBusy] = useState(false),
     [refreshKey, setRefreshKey] = useState(0);
   const splitFrame = useRef<number | null>(null);
   const splitPending = useRef(0.5);
@@ -294,9 +162,7 @@ export default function App() {
   const [createMenu, setCreateMenu] = useState(false),
     [dialog, setDialog] = useState<"project" | "folder" | null>(null),
     [dialogValue, setDialogValue] = useState("");
-  useEffect(() => {
-    api().setDirty?.(dirty);
-  }, [dirty]);
+
   const invoke = useCallback(
     <T,>(command: string, args?: Record<string, unknown>, id?: string) =>
       api().invoke<T>(command, args, id),
@@ -355,24 +221,16 @@ export default function App() {
       cancelled = true;
     };
   }, [invoke, workspaceId, projectId, refreshKey]);
-  const revealHome = () => {
-    const current = tabs.tabs.find((t) => t.id === tabs.activeTabId);
-    if (current?.views.some((v) => v.kind !== "home")) action("new");
-  };
-  const discard = () =>
-    !dirty || window.confirm("Discard unsaved changes to this page?");
   const chooseScope = (id?: string, project?: string) => {
-    if (!discard()) return;
-    revealHome();
     setWorkspaceId(id);
     setProjectId(project);
-    setRecord(undefined);
-    setDirty(false);
-    setSection("sources");
-    setMessage("");
+    action("open-content", {
+      section: "sources",
+      workspaceId: id,
+      projectId: project,
+    });
   };
   const selectRecord = (r: RecordItem) => {
-    if (!discard()) return;
     if (r.documentHash) {
       void task(() =>
         api().openSource({
@@ -395,15 +253,12 @@ export default function App() {
       });
       return;
     }
-    revealHome();
-    setRecord(r);
-    setTitle(r.title);
-    setBody(r.body);
-    setPropertiesText(JSON.stringify(r.properties, null, 2));
-    setDatabaseView((r.properties.view as DatabaseView) || {});
-    setDirty(false);
-    setSection("record");
-    setMessage("");
+    action("open-content", {
+      section: "record",
+      workspaceId: r.workspaceId || workspaceId,
+      projectId,
+      record: r,
+    });
   };
   const createRecord = (kind: string) => {
     setCreateMenu(false);
@@ -411,122 +266,77 @@ export default function App() {
       setError("Choose a workspace to create an item.");
       return;
     }
-    if (!discard()) return;
-    revealHome();
-    setRecord({
-      id: "",
-      kind,
-      title: "",
-      body: "",
-      properties: {},
-      revision: 0,
+    action("open-content", {
+      section: "record",
+      workspaceId,
+      projectId,
+      record: {
+        id: "",
+        kind,
+        title: "",
+        body: "",
+        properties: {},
+        revision: 0,
+      },
     });
-    setTitle("");
-    setBody("");
-    setPropertiesText("{}");
-    setDatabaseView({});
-    setDirty(false);
-    setSection("record");
-  };
-  const save = async () => {
-    if (!workspaceId || !record || busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const properties = JSON.parse(propertiesText);
-      if (
-        !properties ||
-        Array.isArray(properties) ||
-        typeof properties !== "object"
-      )
-        throw new Error("Properties must be a JSON object.");
-      if (record.kind === "database") properties.view = databaseView;
-      const saved = await invoke<RecordItem>(
-        "workspace_save_record",
-        {
-          id: record.id || null,
-          kind: record.kind,
-          title,
-          body: record.kind === "database" ? "" : body,
-          properties,
-          expectedRevision: record.id ? record.revision : null,
-        },
-        workspaceId,
-      );
-      if (projectId && !record.id)
-        await invoke(
-          "workspace_set_project_membership",
-          { projectId, recordId: saved.id, present: true },
-          workspaceId,
-        );
-      setRecord(saved);
-      setPropertiesText(JSON.stringify(saved.properties, null, 2));
-      setDirty(false);
-      setMessage("Saved");
-      setRefreshKey((k) => k + 1);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
   };
   const selectedWorkspace = workspaces.find((w) => w.id === workspaceId),
     selectedProject = projects.find((p) => p.id === projectId);
   const activeTab = tabs.tabs.find((t) => t.id === tabs.activeTabId),
     activeView = activeTab?.views.find((v) => v.id === tabs.activeViewId);
-  const home =
-    !activeTab ||
-    activeTab.views.length === 0 ||
-    activeView?.kind === "home" ||
-    activeTab.views.every((v) => v.kind === "home");
-  const openIds = new Set(
-    tabs.tabs.flatMap((t) =>
-      t.views.map((v) => (v.id.startsWith("pdf:") ? v.id.slice(4) : v.id)),
-    ),
-  );
+  useEffect(() => {
+    if (activeView?.content) {
+      setWorkspaceId(activeView.content.workspaceId);
+      setProjectId(activeView.content.projectId);
+      setSection(activeView.content.section);
+      setRecord(activeView.content.record);
+    } else if (activeView) {
+      setWorkspaceId(activeView.workspaceId);
+      setProjectId(undefined);
+      setRecord(undefined);
+      setSection("");
+    }
+  }, [activeView?.id, activeView?.content?.record?.id]);
   return (
     <div className="key-shell">
       <TabBar
         api={officeTabs}
         trailingControls={
-          !home && (
-            <div className="key-chrome-layout-controls">
-              {activeTab && activeTab.views.length > 1 && (
-                <>
-                  <button
-                    title="Swap panes"
-                    aria-label="Swap panes"
-                    onClick={() => action("swap")}
-                  >
-                    ⇄
-                  </button>
-                  <button
-                    title="Separate panes"
-                    aria-label="Separate panes"
-                    onClick={() =>
-                      action("separate", { viewId: tabs.activeViewId })
-                    }
-                  >
-                    ↗
-                  </button>
-                </>
-              )}
-              <button
-                title="Split with another tab"
-                aria-label="Split with another tab"
-                disabled={
-                  !tabs.tabs.some(
-                    (t) =>
-                      t.id !== tabs.activeTabId &&
-                      t.views.some((v) => v.kind !== "home"),
-                  )
-                }
-                onClick={() => action("split", { viewId: tabs.activeViewId })}
-              >
-                ◫
-              </button>
-            </div>
-          )
+          <div className="key-chrome-layout-controls">
+            {activeTab && activeTab.views.length > 1 && (
+              <>
+                <button
+                  title="Swap panes"
+                  aria-label="Swap panes"
+                  onClick={() => action("swap")}
+                >
+                  ⇄
+                </button>
+                <button
+                  title="Separate panes"
+                  aria-label="Separate panes"
+                  onClick={() =>
+                    action("separate", { viewId: tabs.activeViewId })
+                  }
+                >
+                  ↗
+                </button>
+              </>
+            )}
+            <button
+              title="Split with another tab"
+              aria-label="Split with another tab"
+              disabled={
+                activeTab?.views.length === 2 ||
+                !tabs.tabs.some(
+                  (t) => t.id !== tabs.activeTabId && t.views.length === 1,
+                )
+              }
+              onClick={() => action("split-menu")}
+            >
+              ◫
+            </button>
+          </div>
         }
         chromeControl={
           <button
@@ -577,28 +387,26 @@ export default function App() {
             />
             <button
               className={section === "sources" ? "selected" : ""}
-              onClick={() => {
-                if (discard()) {
-                  revealHome();
-                  setSection("sources");
-                  setRecord(undefined);
-                  setDirty(false);
-                }
-              }}
+              onClick={() =>
+                action("open-content", {
+                  section: "sources",
+                  workspaceId,
+                  projectId,
+                })
+              }
             >
               ▤ <span>Sources</span>
             </button>
             <button
               disabled={!workspaceId}
               className={section === "records" ? "selected" : ""}
-              onClick={() => {
-                if (discard()) {
-                  revealHome();
-                  setSection("records");
-                  setRecord(undefined);
-                  setDirty(false);
-                }
-              }}
+              onClick={() =>
+                action("open-content", {
+                  section: "records",
+                  workspaceId,
+                  projectId,
+                })
+              }
             >
               ▦ <span>All items & linked files</span>
             </button>
@@ -716,268 +524,57 @@ export default function App() {
             </div>
           </aside>
         </div>
-        <main className="key-shell-content">
+        <div className="key-content-panes">
+          {tabs.tabs
+            .flatMap((t) => t.views)
+            .filter((v) => v.content)
+            .map((v) => {
+              const index =
+                activeTab?.views.findIndex((p) => p.id === v.id) ?? -1;
+              const split = activeTab?.views.length === 2;
+              const ratio = dragRatio ?? tabs.splitRatio ?? 0.5;
+              return (
+                <div
+                  key={v.id}
+                  data-content-view={v.id}
+                  className="key-content-pane"
+                  hidden={index < 0}
+                  onPointerDownCapture={() => {
+                    if (tabs.activeViewId !== v.id)
+                      action("focus", { viewId: v.id });
+                  }}
+                  onFocusCapture={() => {
+                    if (tabs.activeViewId !== v.id)
+                      action("focus", { viewId: v.id });
+                  }}
+                  style={{
+                    left:
+                      split && index === 1 ? `calc(${ratio * 100}% + 3px)` : 0,
+                    width: split
+                      ? index === 0
+                        ? `calc(${ratio * 100}% - 3px)`
+                        : `calc(${(1 - ratio) * 100}% - 3px)`
+                      : "100%",
+                  }}
+                >
+                  <WorkspaceContent
+                    viewId={v.id}
+                    spec={v.content || { section: "sources" }}
+                    visible={index >= 0}
+                    tabs={tabs}
+                  />
+                </div>
+              );
+            })}
           {error && (
             <div className="key-shell-error" role="alert">
               {error}
               <button onClick={() => setError("")}>Dismiss</button>
             </div>
           )}
-          {home && section === "record" && record && (
-            <section className="key-record-editor">
-              <div className="key-record-top">
-                <span>
-                  {selectedWorkspace?.name} / {selectedProject?.name || "Pages"}{" "}
-                  / {record.kind}
-                </span>
-                <button
-                  disabled={busy || !title.trim()}
-                  onClick={() => void save()}
-                >
-                  {busy ? "Saving…" : dirty ? "Save changes" : "Save"}
-                </button>
-              </div>
-              <input
-                className="key-record-title"
-                aria-label="Page title"
-                placeholder="Untitled"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  setDirty(true);
-                }}
-              />
-              {record.kind === "database" ? (
-                <>
-                  <div className="key-library-filters">
-                    <label>
-                      Item type
-                      <select
-                        value={databaseView.kind || ""}
-                        onChange={(e) => {
-                          setDatabaseView({
-                            ...databaseView,
-                            kind: e.target.value,
-                          });
-                          setDirty(true);
-                        }}
-                      >
-                        <option value="">Any type</option>
-                        {[
-                          "source",
-                          "note",
-                          "page",
-                          "document",
-                          "file",
-                          "database",
-                        ].map((kind) => (
-                          <option key={kind}>{kind}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Text contains
-                      <input
-                        value={databaseView.query || ""}
-                        onChange={(e) => {
-                          setDatabaseView({
-                            ...databaseView,
-                            query: e.target.value,
-                          });
-                          setDirty(true);
-                        }}
-                      />
-                    </label>
-                    <label>
-                      Property name
-                      <input
-                        value={databaseView.property || ""}
-                        onChange={(e) => {
-                          setDatabaseView({
-                            ...databaseView,
-                            property: e.target.value,
-                          });
-                          setDirty(true);
-                        }}
-                      />
-                    </label>
-                    <label>
-                      Equals
-                      <input
-                        placeholder="Text, number, true or false"
-                        value={databaseView.value || ""}
-                        onChange={(e) => {
-                          setDatabaseView({
-                            ...databaseView,
-                            value: e.target.value,
-                          });
-                          setDirty(true);
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {workspaceId && (
-                    <WorkspaceRecordTable
-                      workspaceId={workspaceId}
-                      projectId={projectId}
-                      view={databaseView}
-                      onSelect={selectRecord}
-                      revision={refreshKey}
-                    />
-                  )}
-                  <p className="key-sidebar-hint">
-                    A saved database is a filtered view of workspace items.
-                    Formulas and relation rollups are planned.
-                  </p>
-                </>
-              ) : (
-                <textarea
-                  aria-label="Page content"
-                  placeholder="Start writing…"
-                  value={body}
-                  onChange={(e) => {
-                    setBody(e.target.value);
-                    setDirty(true);
-                  }}
-                />
-              )}
-              <details className="key-record-projects">
-                <summary>Custom properties</summary>
-                <p>
-                  Properties are saved on this item. Enter a JSON object with
-                  your own names and values.
-                </p>
-                <textarea
-                  style={{
-                    height: 160,
-                    minHeight: 100,
-                    fontFamily: "monospace",
-                    fontSize: 12,
-                  }}
-                  aria-label="Custom properties JSON"
-                  value={propertiesText}
-                  onChange={(e) => {
-                    setPropertiesText(e.target.value);
-                    setDirty(true);
-                  }}
-                />
-              </details>
-              <div className="key-record-status" role="status">
-                {dirty
-                  ? "Unsaved changes"
-                  : message ||
-                    (record.id ? `Revision ${record.revision}` : "New page")}
-              </div>
-              {record.id && projects.length > 0 && (
-                <details className="key-record-projects">
-                  <summary>Project membership</summary>
-                  {projects.map((p) => (
-                    <div key={p.id}>
-                      <span>{p.name}</span>
-                      <button
-                        onClick={() =>
-                          void task(async () => {
-                            await invoke(
-                              "workspace_set_project_membership",
-                              {
-                                projectId: p.id,
-                                recordId: record.id,
-                                present: true,
-                              },
-                              workspaceId,
-                            );
-                            setMessage(`Added to ${p.name}`);
-                            setRefreshKey((k) => k + 1);
-                          })
-                        }
-                      >
-                        Add
-                      </button>
-                      <button
-                        onClick={() =>
-                          void task(async () => {
-                            await invoke(
-                              "workspace_set_project_membership",
-                              {
-                                projectId: p.id,
-                                recordId: record.id,
-                                present: false,
-                              },
-                              workspaceId,
-                            );
-                            setMessage(`Removed from ${p.name}`);
-                            setRefreshKey((k) => k + 1);
-                          })
-                        }
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </details>
-              )}
-            </section>
-          )}
-          {home && section === "records" && workspaceId && (
-            <section className="key-record-editor">
-              <h1>All items & linked files</h1>
-              <input
-                aria-label="Search workspace records"
-                placeholder="Search file metadata, notes and pages"
-                value={recordQuery}
-                onChange={(e) => setRecordQuery(e.target.value)}
-              />
-              <WorkspaceRecordTable
-                workspaceId={workspaceId}
-                projectId={projectId}
-                view={{ query: recordQuery }}
-                onSelect={selectRecord}
-                revision={refreshKey}
-              />
-            </section>
-          )}
-          <div
-            style={{
-              display: home && section === "sources" ? "flex" : "none",
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            <LibraryHome
-              active={home && section === "sources"}
-              invoke={invoke}
-              workspaceId={workspaceId}
-              projectId={projectId}
-              scopeLabel={
-                selectedProject
-                  ? `${selectedProject.name} · Sources`
-                  : selectedWorkspace
-                    ? "Sources"
-                    : "All sources"
-              }
-              openDocumentIds={openIds}
-              onAddSources={() =>
-                workspaceId
-                  ? void task(() => api().openSources(workspaceId))
-                  : setError(
-                      "Choose a destination workspace before adding PDFs.",
-                    )
-              }
-              onOpenSource={(source, hit, results) =>
-                void task(() => api().openSource(source, hit, results))
-              }
-              refreshKey={refreshKey}
-            />
-          </div>
-          {!home && (
-            <div
-              className="key-view-host-placeholder"
-              aria-label="Document view"
-            />
-          )}
-        </main>
+        </div>
       </div>
-      {!home && activeTab?.views.length === 2 && (
+      {activeTab?.views.length === 2 && (
         <div
           className="key-split-divider"
           role="separator"
@@ -1035,7 +632,7 @@ export default function App() {
                     { name: dialogValue },
                     workspaceId,
                   );
-                  setProjectId(p.id);
+                  chooseScope(workspaceId, p.id);
                 } else {
                   const folder = await invoke<{ id: string }>(
                     "workspace_link_folder",

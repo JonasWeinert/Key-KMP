@@ -56,7 +56,10 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("button", { name: "Save changes", exact: true })
       .click();
-    await page.getByText("Saved", { exact: true }).waitFor();
+    await page
+      .locator("[data-content-view]:visible")
+      .getByText("Saved", { exact: true })
+      .waitFor();
     await page
       .getByRole("button", { name: "Create item", exact: true })
       .click();
@@ -74,7 +77,10 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("button", { name: "Save changes", exact: true })
       .click();
-    await page.getByText("Saved", { exact: true }).waitFor();
+    await page
+      .locator("[data-content-view]:visible")
+      .getByText("Saved", { exact: true })
+      .waitFor();
     await page
       .locator(".key-record-browser")
       .getByRole("button", { name: "Qualifying research note", exact: true })
@@ -96,7 +102,7 @@ const assert = require("node:assert/strict");
     assert.equal(note.properties.reviewed, true);
     await page.reload();
     await page
-      .getByRole("heading", { name: "All sources", exact: true })
+      .getByRole("textbox", { name: "Page title", exact: true })
       .waitFor();
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${workspaces[0].id}"]`).click();

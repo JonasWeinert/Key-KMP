@@ -20,6 +20,8 @@ const { tmpdir } = require("node:os");
     const shell = await app.firstWindow();
     await shell.waitForFunction(() => window.key);
     const [w] = await shell.evaluate(() => window.key.workspaces());
+    const library = (await shell.evaluate(() => window.key.tabs()))
+      .activeViewId;
     for (const kind of ["docs", "sheets", "slides", "markdown", "html"]) {
       await shell.evaluate(
         async ({ kind, id }) =>
@@ -41,7 +43,27 @@ const { tmpdir } = require("node:os");
       if (!editor) throw Error(`${kind} renderer did not open`);
       await editor.waitForFunction(() => document.body.innerText.length > 30);
       const content = await editor.locator("body").innerText();
-      console.log(kind, content.slice(0, 500));
+      await shell.evaluate(
+        (viewId) => window.key.tabAction("split", { viewId }),
+        library,
+      );
+      await shell
+        .getByRole("heading", { name: "All sources", exact: true })
+        .waitFor();
+      const geometry = await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]
+          .contentView.children.filter((v) => v.getVisible?.())
+          .map((v) => v.getBounds()),
+      );
+      if (geometry.length !== 1 || geometry[0].width < 300)
+        throw Error(JSON.stringify(geometry));
+      console.log(
+        kind,
+        "library split",
+        JSON.stringify(geometry),
+        content.slice(0, 100),
+      );
+      await shell.evaluate(() => window.key.tabAction("separate"));
       await editor.screenshot({ path: path.join(temp, kind + ".png") });
       const errors = await editor.locator("body").innerText();
       if (/ERR_FILE_NOT_FOUND|Failed to load resource/i.test(errors))

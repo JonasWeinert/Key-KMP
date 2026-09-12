@@ -17,6 +17,7 @@ const assert = require("node:assert/strict");
   try {
     const page = await app.firstWindow();
     page.setDefaultTimeout(20000);
+    page.on("pageerror", e => console.error("RENDERER", String(e)));
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor();
@@ -156,7 +157,7 @@ const assert = require("node:assert/strict");
     );
     console.log(JSON.stringify(result));
   } catch (e) {
-    console.error(e);
+    console.error(e, temp);
     const page = app.windows()[0];
     if (page) {
       await page
@@ -171,7 +172,7 @@ const assert = require("node:assert/strict");
     }
     throw e;
   } finally {
-    await app.evaluate(() => require("electron").app.exit(0)).catch(() => {});
+    await app.evaluate(({app}) => app.exit(0)).catch(() => {});
     await app.close().catch(() => {});
   }
 })().catch(() => {

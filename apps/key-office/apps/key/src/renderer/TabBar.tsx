@@ -4,7 +4,20 @@ import "./tabbar.css";
 export interface TabSummary {
   id: string;
   title: string;
-  kind: "home" | "docs" | "sheets" | "slides" | "pdf" | "markdown" | "html";
+  kind:
+    | "library"
+    | "records"
+    | "note"
+    | "page"
+    | "database"
+    | "source"
+    | "home"
+    | "docs"
+    | "sheets"
+    | "slides"
+    | "pdf"
+    | "markdown"
+    | "html";
   active: boolean;
   closable: boolean;
   views: { id: string; title: string; kind: string; active?: boolean }[];
@@ -171,6 +184,12 @@ function HtmlIcon() {
 
 const KIND_ICON: Record<TabSummary["kind"], ReactElement> = {
   home: <HomeIcon />,
+  library: <span aria-hidden="true">▤</span>,
+  records: <span aria-hidden="true">▦</span>,
+  note: <span aria-hidden="true">≡</span>,
+  page: <span aria-hidden="true">▱</span>,
+  database: <span aria-hidden="true">▦</span>,
+  source: <span aria-hidden="true">↗</span>,
   docs: <DocIcon />,
   sheets: <SheetIcon />,
   slides: <SlideIcon />,
@@ -484,7 +503,8 @@ export function TabBar({
                       title={view.title}
                     >
                       <span className="tab-icon">
-                        {KIND_ICON[view.kind as TabSummary["kind"]]}
+                        {KIND_ICON[view.kind as TabSummary["kind"]] ||
+                          KIND_ICON.page}
                       </span>
                       <span className="tab-title">{view.title}</span>
                       {i === 0 && <span className="tab-split-divider" />}
@@ -493,7 +513,9 @@ export function TabBar({
                 </span>
               ) : (
                 <>
-                  <span className="tab-icon">{KIND_ICON[tab.kind]}</span>
+                  <span className="tab-icon">
+                    {KIND_ICON[tab.kind] || KIND_ICON.page}
+                  </span>
                   <span className="tab-title">{tab.title}</span>
                 </>
               )}

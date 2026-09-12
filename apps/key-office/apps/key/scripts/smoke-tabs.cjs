@@ -41,7 +41,11 @@ const assert = require("node:assert/strict");
         });
       }
       const t = await window.key.tabs();
-      await window.key.tabAction("split", { viewId: t.activeViewId });
+      await window.key.tabAction("split", {
+        viewId: t.tabs
+          .flatMap((t) => t.views)
+          .find((v) => v.kind === "pdf" && v.id !== t.activeViewId).id,
+      });
     }, files);
     // Wait for both readers to finish attaching; their initial focus/layout
     // work must not interrupt the pointer capture being measured below.
@@ -198,8 +202,13 @@ const assert = require("node:assert/strict");
       return { label, expected, actual };
     }
     const nativeBounds = [await verifyNativeBounds("expanded sidebar")];
-    const toggleBox = await page.locator(".tab-bar .key-sidebar-toggle").boundingBox();
-    assert(toggleBox.x >= 78 && toggleBox.x < 120 && toggleBox.y < 10, "Sidebar toggle belongs beside traffic lights");
+    const toggleBox = await page
+      .locator(".tab-bar .key-sidebar-toggle")
+      .boundingBox();
+    assert(
+      toggleBox.x >= 78 && toggleBox.x < 120 && toggleBox.y < 10,
+      "Sidebar toggle belongs beside traffic lights",
+    );
     await page
       .getByRole("button", { name: "Collapse sidebar", exact: true })
       .click();
@@ -216,7 +225,7 @@ const assert = require("node:assert/strict");
     );
     nativeBounds.push(await verifyNativeBounds("collapsed sidebar"));
     assert.equal(await page.locator(".key-sidebar-rail").count(), 0);
-    await page.screenshot({path:path.join(temp,"collapsed-sidebar.png")});
+    await page.screenshot({ path: path.join(temp, "collapsed-sidebar.png") });
     const divider = page.getByRole("separator", { name: "Resize split panes" });
     const dividerBox = await divider.boundingBox();
     await page.mouse.move(dividerBox.x + 3, dividerBox.y + 100);

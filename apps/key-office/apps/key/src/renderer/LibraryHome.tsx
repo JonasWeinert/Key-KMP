@@ -109,6 +109,7 @@ export default function LibraryHome({
   scopeLabel = "Library",
   openDocumentIds = new Set<string>(),
   onOpenSource,
+  onOpenItem,
   onAddSources,
   refreshKey,
   active = true,
@@ -761,6 +762,9 @@ export default function LibraryHome({
         </nav>
         {sourceKind === "other" && (
           <EntriesList
+            active={active}
+            refreshKey={refreshKey}
+            onOpen={onOpenItem}
             invoke={invoke}
             workspaceId={workspaceId}
             projectId={projectId}

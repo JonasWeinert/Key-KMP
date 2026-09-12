@@ -6,7 +6,6 @@ contextBridge.exposeInMainWorld("key", {
     workspaceId?: string,
     options?: unknown,
   ) => ipcRenderer.invoke("key:invoke", command, args, workspaceId, options),
-  setDirty: (dirty: boolean) => ipcRenderer.send("key:dirty", dirty),
   workspaces: () => ipcRenderer.invoke("key:workspaces"),
   addWorkspace: () => ipcRenderer.invoke("key:add-workspace"),
   tabs: () => ipcRenderer.invoke("key:tabs"),
@@ -24,6 +23,7 @@ contextBridge.exposeInMainWorld("key", {
     if (
       ![
         "tabs-changed",
+        "save-content",
         "library-changed",
         "search-target",
         "search-navigation",

@@ -17,6 +17,7 @@ import {
   configureOfficeEditors,
   createOfficeView,
   closeOfficeView,
+  canCloseOfficeView,
   activateOfficeView,
   type OfficeKind,
 } from "./office-editors";
@@ -37,6 +38,15 @@ type OwnedView = {
   id: string;
   title: string;
   kind: "home" | "pdf" | OfficeKind;
+  content?: {
+    section: string;
+    workspaceId?: string;
+    projectId?: string;
+    record?: any;
+  };
+  contentKey?: string;
+  returnViewId?: string;
+  dirty?: boolean;
   workspaceId?: string;
   path?: string;
   source?: any;
@@ -94,7 +104,6 @@ function disposePdf(record: OwnedView) {
 }
 let state: WorkspaceTabsState = { tabs: [], activeTabId: null };
 let quitting = false;
-let shellDirty = false;
 const preload = join(__dirname, "../preload/index.js");
 const renderer = join(__dirname, "../renderer");
 function snapshot() {
@@ -102,11 +111,25 @@ function snapshot() {
     splitRatio: activeWorkspaceTab(state)?.splitRatio ?? 0.5,
     tabs: state.tabs.map((t) => ({
       id: t.id,
-      title: t.viewIds.map((id) => views.get(id)?.title ?? "Key").join(" / "),
+      title: t.viewIds
+        .map(
+          (id) =>
+            `${views.get(id)?.title ?? "Key"}${views.get(id)?.dirty ? " •" : ""}`,
+        )
+        .join(" / "),
       views: t.viewIds.map((id) => ({
         id,
-        title: views.get(id)?.title,
-        kind: views.get(id)?.kind,
+        title: `${views.get(id)?.title ?? "Key"}${views.get(id)?.dirty ? " •" : ""}`,
+        workspaceId: views.get(id)?.workspaceId,
+        kind:
+          views.get(id)?.content?.section === "record"
+            ? views.get(id)?.content?.record?.kind || "page"
+            : views.get(id)?.contentKey
+              ? views.get(id)?.content?.section === "sources"
+                ? "library"
+                : "records"
+              : views.get(id)?.kind,
+        content: views.get(id)?.content,
       })),
     })),
     activeTabId: state.activeTabId,
@@ -120,6 +143,7 @@ function home() {
   const record: OwnedView = {
     id: randomUUID(),
     title: "Home",
+    content: { section: "sources" },
     kind: "home",
     lastUsed: Date.now(),
   };
@@ -244,13 +268,39 @@ function add(record: OwnedView) {
 async function closeTab(id: string) {
   const tab = state.tabs.find((t) => t.id === id);
   if (!tab) return;
+  for (const viewId of tab.viewIds) {
+    const record = views.get(viewId);
+    if (record?.dirty) {
+      const result = await dialog.showMessageBox(window, {
+        type: "warning",
+        message: `Discard unsaved changes to ${record.title}?`,
+        detail: "Return to the tab and save to keep your changes.",
+        buttons: ["Cancel", "Discard"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (result.response !== 1) {
+        focus(viewId);
+        return;
+      }
+    }
+    if (
+      record?.view &&
+      record.kind !== "home" &&
+      record.kind !== "pdf" &&
+      !(await canCloseOfficeView({ kind: record.kind, view: record.view }))
+    ) {
+      focus(viewId);
+      return;
+    }
+  }
   for (const viewId of [...tab.viewIds]) {
     const record = views.get(viewId)!;
     if (
       record.view &&
       record.kind !== "pdf" &&
       record.kind !== "home" &&
-      !(await closeOfficeView({ kind: record.kind, view: record.view }))
+      !(await closeOfficeView({ kind: record.kind, view: record.view }, true))
     )
       return;
     if (record.kind === "pdf") disposePdf(record);
@@ -295,6 +345,8 @@ function openPath(path: string, workspaceId?: string) {
   return true;
 }
 async function sourceOpen(source: any, hit?: any, results?: any[]) {
+  const origin = views.get(activeWorkspaceTab(state)?.activeViewId ?? "");
+  const returnViewId = origin?.content ? origin.id : origin?.returnViewId;
   const workspaceId =
     source.workspaceId ?? hit?.workspaceId ?? (await registry.list())[0]?.id;
   if (!workspaceId) throw Error("Choose a workspace");
@@ -326,6 +378,7 @@ async function sourceOpen(source: any, hit?: any, results?: any[]) {
   );
   const existing = views.get(id);
   if (existing) {
+    existing.returnViewId = returnViewId ?? existing.returnViewId;
     existing.searchTarget = target;
     existing.searchResults = searchResults;
     existing.searchIndex = searchIndex;
@@ -341,6 +394,7 @@ async function sourceOpen(source: any, hit?: any, results?: any[]) {
     id,
     title: source.title ?? source.documentTitle ?? (info as any).title,
     kind: "pdf",
+    returnViewId,
     workspaceId,
     source: info,
     searchTarget: target,
@@ -403,6 +457,15 @@ function baseMenu() {
         label: "File",
         submenu: [
           { label: "New Tab", accelerator: "CmdOrCtrl+T", click: home },
+          {
+            label: "Save",
+            accelerator: "CmdOrCtrl+S",
+            enabled:
+              views.get(activeWorkspaceTab(state)?.activeViewId ?? "")?.content
+                ?.section === "record",
+            click: () =>
+              emit("save-content", activeWorkspaceTab(state)?.activeViewId),
+          },
           {
             label: "Open…",
             accelerator: "CmdOrCtrl+O",
@@ -603,7 +666,16 @@ else
               .finally(() => calls.delete(operation))
               .catch(() => {});
           }
-          return operation;
+          const result = await operation;
+          if (
+            [
+              "workspace_save_record",
+              "workspace_save_entry",
+              "workspace_set_project_membership",
+            ].includes(command)
+          )
+            emit("library-changed");
+          return result;
         },
       );
       ipcMain.handle("key:workspaces", (event) => {
@@ -620,15 +692,15 @@ else
           : registry.add(result.filePaths[0], basename(result.filePaths[0]));
       });
       ipcMain.handle("key:tabs", () => snapshot());
-      ipcMain.on("key:dirty", (event, dirty) => {
-        shell(event.sender.id);
-        shellDirty = Boolean(dirty);
-      });
       ipcMain.handle("key:reader-back", (event) => {
         const v = bound(event.sender.id);
         if (v?.kind !== "pdf") throw Error("Not a PDF reader");
+        if (v.returnViewId && views.has(v.returnViewId)) {
+          focus(v.returnViewId);
+          return;
+        }
         const tab = state.tabs.find((t) =>
-          t.viewIds.some((id) => views.get(id)?.kind === "home"),
+          t.viewIds.some((id) => views.get(id)?.content?.section === "sources"),
         );
         if (tab) {
           state = activateWorkspaceTab(state, tab.id);
@@ -679,6 +751,117 @@ else
           case "new":
             home();
             break;
+          case "open-content": {
+            if (!["sources", "records", "record"].includes(p.section))
+              throw Error("Invalid content view");
+            if (p.section !== "sources" && !p.workspaceId)
+              throw Error("Choose a workspace");
+            const key = JSON.stringify([
+              p.section,
+              p.workspaceId || null,
+              p.projectId || null,
+              p.section === "record" ? p.record?.id || randomUUID() : null,
+            ]);
+            // Records have one global owner even when opened through another project.
+            const recordKey =
+              p.section === "record" && p.record?.id
+                ? JSON.stringify(["record", p.workspaceId, p.record.id])
+                : key;
+            const existing = [...views.values()].find(
+              (v) => v.contentKey === recordKey,
+            );
+            if (existing) {
+              focus(existing.id);
+              return snapshot();
+            }
+            if (p.section === "record" && p.record?.id) {
+              p.record = await registry.invoke(
+                "workspace_record",
+                { id: p.record.id },
+                p.workspaceId,
+              );
+              if (!p.record) throw Error("This item no longer exists");
+            }
+            const workspace = (await registry.list()).find(
+              (w) => w.id === p.workspaceId,
+            );
+            const scope = p.projectId
+              ? (
+                  await registry.invoke<any[]>(
+                    "workspace_projects",
+                    {},
+                    p.workspaceId,
+                  )
+                ).find((project) => project.id === p.projectId)?.name
+              : workspace?.name;
+            const owner = [...views.values()].find(
+              (v) => v.contentKey === recordKey,
+            );
+            if (owner) {
+              focus(owner.id);
+              return snapshot();
+            }
+            add({
+              id: randomUUID(),
+              kind: "home",
+              title:
+                p.section === "record"
+                  ? p.record?.title || `Untitled ${p.record?.kind || "page"}`
+                  : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
+              workspaceId: p.workspaceId,
+              lastUsed: Date.now(),
+              contentKey: recordKey,
+              content: {
+                section: p.section,
+                workspaceId: p.workspaceId,
+                projectId: p.projectId,
+                record: p.record,
+              },
+            });
+            break;
+          }
+          case "content-saved": {
+            const view = views.get(p.viewId);
+            if (view?.content?.section !== "record")
+              throw Error("Not a record view");
+            const saved = await registry.invoke<any>(
+              "workspace_record",
+              { id: p.recordId },
+              view.workspaceId,
+            );
+            if (!saved) throw Error("Saved item is missing");
+            view.content.record = saved;
+            view.contentKey = JSON.stringify([
+              "record",
+              view.workspaceId,
+              saved.id,
+            ]);
+            view.title = saved.title;
+            view.dirty = false;
+            emit("tabs-changed", snapshot());
+            return snapshot();
+          }
+          case "content-state": {
+            const record = views.get(p.viewId);
+            if (record?.kind !== "home" || record.content?.section !== "record")
+              return snapshot();
+            const changed =
+              record.title !== p.title || record.dirty !== Boolean(p.dirty);
+            record.title = String(p.title || "Untitled");
+            record.dirty = Boolean(p.dirty);
+            if (p.recordId && record.content.record) {
+              record.content.record.id = p.recordId;
+              record.content.record.title = record.title;
+            }
+            if (p.recordId)
+              record.contentKey = JSON.stringify([
+                "record",
+                record.workspaceId,
+                p.recordId,
+              ]);
+            if (changed) emit("tabs-changed", snapshot());
+            return snapshot();
+          }
           case "open-url": {
             const url = new URL(p.url);
             if (!["https:", "http:", "mailto:"].includes(url.protocol))
@@ -724,22 +907,35 @@ else
           case "close":
             await closeTab(p.tabId);
             break;
+          case "split-menu": {
+            const sourceId = state.activeTabId;
+            if (activeWorkspaceTab(state)?.viewIds.length !== 1)
+              return snapshot();
+            Menu.buildFromTemplate(
+              state.tabs
+                .filter((t) => t.id !== sourceId && t.viewIds.length === 1)
+                .map((t) => ({
+                  label: views.get(t.activeViewId)?.title || "Tab",
+                  click: () => {
+                    state = splitWithTab(state, sourceId!, t.id);
+                    layout();
+                  },
+                })),
+            ).popup({ window });
+            return snapshot();
+          }
           case "split": {
             const target = state.tabs.find(
               (t) =>
                 t.id !== state.activeTabId &&
                 t.viewIds.length === 1 &&
-                views.get(t.activeViewId)?.kind !== "home" &&
                 (p.viewId === activeWorkspaceTab(state)?.activeViewId ||
                   t.viewIds.includes(p.viewId)),
             );
             if (
               target &&
               target.id !== state.activeTabId &&
-              target.viewIds.length === 1 &&
-              views.get(p.viewId)?.kind !== "home" &&
-              views.get(activeWorkspaceTab(state)?.activeViewId ?? "")?.kind !==
-                "home"
+              target.viewIds.length === 1
             )
               state = splitWithTab(state, state.activeTabId!, target.id);
             break;
@@ -810,17 +1006,6 @@ else
         if (quitting) return;
         event.preventDefault();
         void (async () => {
-          if (shellDirty) {
-            const result = await dialog.showMessageBox(window, {
-              type: "warning",
-              message: "Discard unsaved page changes?",
-              detail: "Return to the page and save to keep your changes.",
-              buttons: ["Cancel", "Discard"],
-              defaultId: 0,
-              cancelId: 0,
-            });
-            if (result.response !== 1) return;
-          }
           for (const tab of [...state.tabs]) {
             await closeTab(tab.id);
             if (state.tabs.some((t) => t.id === tab.id)) return;

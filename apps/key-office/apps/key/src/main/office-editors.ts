@@ -258,22 +258,31 @@ export function activateOfficeView(
   else callbacks?.installBaseMenu?.();
 }
 
+/** Check all panes before tearing any down, so cancelling a group close preserves its peers. */
+export function canCloseOfficeView(record: OfficeRecord): Promise<boolean> {
+  const wc = record.view.webContents;
+  if (!wc || wc.isDestroyed()) return Promise.resolve(true);
+  return {
+    docs: requestDocsClose,
+    sheets: requestSheetsClose,
+    slides: requestSlidesClose,
+    markdown: requestMarkdownClose,
+    html: requestHtmlClose,
+  }[record.kind](wc, parent);
+}
+
 /** The owner detaches the view only after this returns true. */
-export function closeOfficeView(record: OfficeRecord): Promise<boolean> {
+export function closeOfficeView(
+  record: OfficeRecord,
+  approved = false,
+): Promise<boolean> {
   const wc = record.view.webContents;
   if (!wc || wc.isDestroyed()) return Promise.resolve(true);
   const previous = closing.get(wc.id);
   if (previous) return previous;
   const id = wc.id;
   const pending = (async () => {
-    const guard = {
-      docs: requestDocsClose,
-      sheets: requestSheetsClose,
-      slides: requestSlidesClose,
-      markdown: requestMarkdownClose,
-      html: requestHtmlClose,
-    }[record.kind];
-    if (!(await guard(wc, parent))) return false;
+    if (!approved && !(await canCloseOfficeView(record))) return false;
     if (record.kind === "docs" && !wc.isDestroyed()) {
       teardownDocsRenderer(wc);
       // Drop the editor/accessibility tree before destroying the native view.

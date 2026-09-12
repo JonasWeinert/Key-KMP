@@ -107,7 +107,7 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("button", { name: "Notebook synapse", exact: true })
       .click();
-    d = page.getByRole("dialog", { name: "Edit source", exact: true });
+    d = page.locator(".key-entry-pane:visible");
     await d.getByRole("textbox", { name: "Note", exact: true }).waitFor();
     assert.match(
       await d.getByRole("textbox", { name: "Note", exact: true }).inputValue(),
@@ -115,7 +115,10 @@ const assert = require("node:assert/strict");
     );
     await d.getByText("Custom properties", { exact: true }).click();
     await d.getByText("Reviewed: true", { exact: true }).waitFor();
-    await d.getByRole("button", { name: "Close", exact: true }).click();
+    await page
+      .locator(".key-sidebar > button")
+      .filter({ hasText: "Sources" })
+      .click();
     await page.getByRole("button", { name: "PDFs", exact: true }).click();
     await page
       .getByRole("button", { name: "Agentic fill", exact: true })
