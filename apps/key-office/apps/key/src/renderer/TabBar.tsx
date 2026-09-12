@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties, ReactElement } from "react";
+import type { CSSProperties, ReactElement, ReactNode } from "react";
 import "./tabbar.css";
 export interface TabSummary {
   id: string;
@@ -179,7 +179,13 @@ const KIND_ICON: Record<TabSummary["kind"], ReactElement> = {
   html: <HtmlIcon />,
 };
 
-export function TabBar({ api }: { api: TabsApi }) {
+export function TabBar({
+  api,
+  chromeControl,
+}: {
+  api: TabsApi;
+  chromeControl?: ReactNode;
+}) {
   const t = (key: string) =>
     ({ closeTab: "Close tab", newTab: "New tab", tabList: "All tabs" })[key] ??
     key;
@@ -318,6 +324,7 @@ export function TabBar({ api }: { api: TabsApi }) {
   return (
     <div className="tab-bar">
       <div className="tab-bar-drag-spacer" />
+      {chromeControl}
       <div
         className={`tab-strip ${dragVisual ? "dragging" : ""} ${settling ? "settling" : ""}`}
         ref={stripRef}

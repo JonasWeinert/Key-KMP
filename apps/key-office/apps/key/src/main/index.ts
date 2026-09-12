@@ -314,14 +314,12 @@ async function sourceOpen(source: any, hit?: any, results?: any[]) {
     : undefined;
   const searchResults =
     hit && Array.isArray(results)
-      ? results
-          .slice(0, 1000)
-          .map((h) => ({
-            id: h.id,
-            documentHash: h.documentHash,
-            documentTitle: h.documentTitle,
-            workspaceId: h.workspaceId ?? workspaceId,
-          }))
+      ? results.slice(0, 1000).map((h) => ({
+          id: h.id,
+          documentHash: h.documentHash,
+          documentTitle: h.documentTitle,
+          workspaceId: h.workspaceId ?? workspaceId,
+        }))
       : undefined;
   const searchIndex = searchResults?.findIndex(
     (h) => h.id === hit.id && h.workspaceId === workspaceId,
@@ -685,7 +683,9 @@ else
             return snapshot();
           }
           case "sidebar-width":
-            sidebarWidth = Math.max(56, Math.min(320, Number(p.width) || 240));
+            sidebarWidth = Number.isFinite(Number(p.width))
+              ? Math.max(0, Math.min(320, Number(p.width)))
+              : 240;
             placeViews();
             return snapshot();
           case "reorder":

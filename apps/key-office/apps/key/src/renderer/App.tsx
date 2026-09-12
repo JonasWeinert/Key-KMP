@@ -249,7 +249,7 @@ export default function App() {
     () => localStorage.getItem("key.sidebar.collapsed") === "true",
   );
   const sidebarSlot = useRef<HTMLDivElement>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(sidebarCollapsed ? 64 : 240);
+  const [sidebarWidth, setSidebarWidth] = useState(sidebarCollapsed ? 0 : 240);
   useEffect(() => {
     localStorage.setItem("key.sidebar.collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
@@ -483,17 +483,23 @@ export default function App() {
   );
   return (
     <div className="key-shell">
-      <TabBar api={officeTabs} />
+      <TabBar
+        api={officeTabs}
+        chromeControl={
+          <button
+            className="key-sidebar-toggle"
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={() => setSidebarCollapsed((v) => !v)}
+          >
+            ◧
+          </button>
+        }
+      />
       <header className="key-navbar">
-        <button
-          className="key-sidebar-toggle"
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-expanded={!sidebarCollapsed}
-          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          onClick={() => setSidebarCollapsed((v) => !v)}
-        >
-          ◧
-        </button>
         <select
           aria-label="Workspace"
           value={workspaceId || ""}
@@ -565,47 +571,6 @@ export default function App() {
           ref={sidebarSlot}
           className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
         >
-          <nav
-            className="key-sidebar-rail"
-            aria-label="Collapsed navigation"
-            hidden={!sidebarCollapsed}
-          >
-            <button
-              title="Expand sidebar"
-              aria-label="Expand sidebar navigation"
-              onClick={() => setSidebarCollapsed(false)}
-            >
-              ◧
-            </button>
-            <button
-              title="Sources"
-              aria-label="Sources"
-              onClick={() => {
-                if (discard()) {
-                  revealHome();
-                  setSection("sources");
-                  setRecord(undefined);
-                  setDirty(false);
-                }
-              }}
-            >
-              ▤
-            </button>
-            <button
-              title="All items and linked files"
-              aria-label="All items and linked files"
-              onClick={() => {
-                if (discard()) {
-                  revealHome();
-                  setSection("records");
-                  setRecord(undefined);
-                  setDirty(false);
-                }
-              }}
-            >
-              ▦
-            </button>
-          </nav>
           <aside
             className="key-sidebar"
             inert={sidebarCollapsed}

@@ -198,13 +198,15 @@ const assert = require("node:assert/strict");
       return { label, expected, actual };
     }
     const nativeBounds = [await verifyNativeBounds("expanded sidebar")];
+    const toggleBox = await page.locator(".tab-bar .key-sidebar-toggle").boundingBox();
+    assert(toggleBox.x >= 78 && toggleBox.x < 120 && toggleBox.y < 10, "Sidebar toggle belongs beside traffic lights");
     await page
       .getByRole("button", { name: "Collapse sidebar", exact: true })
       .click();
     await page.waitForFunction(
       () =>
         document.querySelector(".key-sidebar-slot").getBoundingClientRect()
-          .width === 64,
+          .width === 0,
     );
     await page.evaluate(
       () =>
@@ -213,6 +215,8 @@ const assert = require("node:assert/strict");
         ),
     );
     nativeBounds.push(await verifyNativeBounds("collapsed sidebar"));
+    assert.equal(await page.locator(".key-sidebar-rail").count(), 0);
+    await page.screenshot({path:path.join(temp,"collapsed-sidebar.png")});
     const divider = page.getByRole("separator", { name: "Resize split panes" });
     const dividerBox = await divider.boundingBox();
     await page.mouse.move(dividerBox.x + 3, dividerBox.y + 100);
