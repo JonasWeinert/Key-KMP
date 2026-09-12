@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  reorderWorkspaceTab,
   activateWorkspaceTab,
   closeWorkspaceView,
   separateWorkspaceTab,
@@ -91,4 +92,17 @@ describe("Electron global view ownership", () => {
       invariant(state, ["a", "b", "c", "d"]);
     }
   });
+});
+
+it("moves complete split groups without changing ownership, focus or ratios", () => {
+  let state = initial();
+  state = splitWithTab(state, state.tabs[0].id, state.tabs[1].id);
+  const group = state.tabs[0];
+  const moved = reorderWorkspaceTab(state, group.id, 2);
+  expect(moved.tabs[2]).toBe(group);
+  expect(moved.activeTabId).toBe(state.activeTabId);
+  invariant(moved, ["a", "b", "c", "d"]);
+  expect(reorderWorkspaceTab(moved, "missing", 0)).toBe(moved);
+  expect(reorderWorkspaceTab(moved, group.id, NaN)).toBe(moved);
+  expect(reorderWorkspaceTab(moved, group.id, -1).tabs[0]).toBe(group);
 });

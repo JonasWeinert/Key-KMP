@@ -1,3 +1,4 @@
+import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import LibraryHome, {
   type LibrarySource,
@@ -189,6 +190,30 @@ function parseFilterValue(value: string): unknown {
   }
 }
 
+const tabSummary = (state: TabState): TabSummary[] =>
+  state.tabs.map((tab) => ({
+    id: tab.id,
+    title: tab.title,
+    kind: (tab.views[0]?.kind as TabSummary["kind"]) || "home",
+    active: tab.id === state.activeTabId,
+    closable: true,
+    views: tab.views,
+  }));
+const officeTabs: TabsApi = {
+  list: () => api().tabs().then(tabSummary),
+  onChanged: (callback) =>
+    api().on("tabs-changed", () => {
+      void api().tabs().then(tabSummary).then(callback);
+    }),
+  activate: (tabId) => api().tabAction("activate", { tabId }),
+  close: (tabId) => api().tabAction("close", { tabId }),
+  reorder: (tabId, index) => api().tabAction("reorder", { tabId, index }),
+  showNewMenu: () => api().tabAction("new"),
+  showMenu: (x, y) => api().tabAction("tab-menu", { x, y }),
+  notifyChromePressed: () => {
+    void api().tabAction("chrome-pressed");
+  },
+};
 export default function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]),
     [workspaceId, setWorkspaceId] = useState<string>();
@@ -419,47 +444,7 @@ export default function App() {
   );
   return (
     <div className="key-shell">
-      <div className="key-tabbar">
-        <div className="key-traffic-space" />
-        <div className="key-tabs" role="tablist" aria-label="Workspace tabs">
-          {tabs.tabs.map((tab) => (
-            <div
-              className={`key-tab ${tab.id === tabs.activeTabId ? "active" : ""}`}
-              key={tab.id}
-            >
-              <button
-                role="tab"
-                aria-selected={tab.id === tabs.activeTabId}
-                onClick={() => action("activate", { tabId: tab.id })}
-                title={tab.title}
-              >
-                <span>
-                  {tab.views.length > 1
-                    ? "◫"
-                    : tab.views.some((v) => v.kind !== "home")
-                      ? "▱"
-                      : "⌂"}
-                </span>
-                <span>{tab.title || "Home"}</span>
-              </button>
-              <button
-                aria-label={`Close ${tab.title}`}
-                onClick={() => action("close", { tabId: tab.id })}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            className="key-new-tab"
-            aria-label="New tab"
-            onClick={() => action("new")}
-          >
-            ＋
-          </button>
-        </div>
-        <span className="key-brand">Key</span>
-      </div>
+      <TabBar api={officeTabs} />
       <header className="key-navbar">
         <select
           aria-label="Workspace"

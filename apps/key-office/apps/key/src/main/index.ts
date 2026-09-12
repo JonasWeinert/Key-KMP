@@ -19,6 +19,7 @@ import {
   type OfficeKind,
 } from "./office-editors";
 import {
+  reorderWorkspaceTab,
   singleWorkspaceTab,
   activeWorkspaceTab,
   activateWorkspaceTab,
@@ -387,312 +388,342 @@ function baseMenu() {
 app.setName("Key");
 if (process.env.KEY_USER_DATA)
   app.setPath("userData", process.env.KEY_USER_DATA);
-app.on('second-instance', () => {
-  if (window && !window.isDestroyed()) { if(window.isMinimized())window.restore(); window.show(); window.focus(); }
+app.on("second-instance", () => {
+  if (window && !window.isDestroyed()) {
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+  }
 });
 if (!app.requestSingleInstanceLock()) app.quit();
-else app
-  .whenReady()
-  .then(async () => {
-    setUiLang(normalizeLang(app.getLocale()));
-    const root = resolve(app.getAppPath(), "../../../..");
-    registry = new Registry({
-      registryDir: join(app.getPath("userData"), "workspaces"),
-      defaultWorkspaceParent:
-        process.env.KEY_WORKSPACE_PARENT ??
-        join(app.getPath("documents"), "Key"),
-      hostExecutable:
-        process.env.KEY_HOST_EXECUTABLE ??
-        (app.isPackaged
-          ? join(process.resourcesPath, "backend/key-desktop-host")
-          : join(root, "apps/key/src-tauri/target/debug/key-desktop-host")),
-      pdfiumPath:
-        process.env.PDFIUM_DYNAMIC_LIB_PATH ??
-        (app.isPackaged
-          ? join(process.resourcesPath, "backend/libpdfium.dylib")
-          : join(root, "vendor/pdfium/lib/libpdfium.dylib")),
-    });
-    await registry.list();
-    window = new BrowserWindow({
-      width: 1440,
-      height: 960,
-      minWidth: 850,
-      minHeight: 600,
-      title: "Key",
-      titleBarStyle: "hiddenInset",
-      trafficLightPosition: { x: 13, y: 12 },
-      webPreferences: {
-        preload,
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-    configureOfficeEditors(window, {
-      extractPdfText: async (bytes) => {
-        if (bytes.byteLength > 32 * 1024 * 1024)
-          throw Error("PDF attachment exceeds 32 MiB");
-        const workspaceId = (await registry.list())[0].id;
-        const id = randomUUID();
-        let text = "";
-        try {
-          const doc: any = await registry.invoke(
-            "native_open_buffer",
-            { id },
-            workspaceId,
-            { binary: bytes },
-          );
-          for (let page = 0; page < doc.pages.length; page++) {
-            const value: any = await registry.invoke(
-              "native_text",
-              { id, page },
-              workspaceId,
-            );
-            text += value.text + "\n";
-            if (text.length > 2 * 1024 * 1024)
-              throw Error("PDF attachment text exceeds 2 MiB");
-          }
-          return text;
-        } finally {
-          await registry.invoke("native_close", { id }, workspaceId);
-        }
-      },
-      open: (kind, path) => office(kind, path),
-      openPath,
-      closeActive: () => void closeTab(state.activeTabId!),
-      listTabs: () =>
-        [...views.values()].map((v) => ({
-          id: v.id,
-          title: v.title,
-          kind: v.kind,
-          active: v.id === activeWorkspaceTab(state)?.activeViewId,
-        })),
-      focus,
-      fileChanged: (wc, path) => {
-        const v = [...views.values()].find(
-          (v) => v.view?.webContents.id === wc,
-        );
-        if (v) {
-          v.path = path;
-          v.title = basename(path);
-          void saveOfficeRecord(v);
-          emit("tabs-changed", snapshot());
-        }
-      },
-      titleChanged: (wc, title) => {
-        const v = [...views.values()].find(
-          (v) => v.view?.webContents.id === wc,
-        );
-        if (v) {
-          v.title = title;
-          emit("tabs-changed", snapshot());
-        }
-      },
-      installBaseMenu: baseMenu,
-    });
-    const bound = (sender: number) =>
-      [...views.values()].find((v) => v.view?.webContents.id === sender);
-    const shell = (sender: number) => {
-      if (sender !== window.webContents.id)
-        throw Error("Only the workspace shell can perform this operation");
-    };
-    ipcMain.handle(
-      "key:invoke",
-      (event, command, args, workspaceId, options) => {
-        const record = bound(event.sender.id);
-        if (!record && event.sender.id !== window.webContents.id)
-          throw Error("Unknown view");
-        const operation = registry.invoke(
-          command,
-          args,
-          record?.workspaceId ?? workspaceId,
-          options,
-        );
-        if (record?.kind === "pdf") {
-          const id = event.sender.id;
-          const calls = readerCalls.get(id) ?? new Set<Promise<unknown>>();
-          calls.add(operation);
-          readerCalls.set(id, calls);
-          void operation.finally(() => calls.delete(operation)).catch(() => {});
-        }
-        return operation;
-      },
-    );
-    ipcMain.handle("key:workspaces", (event) => {
-      shell(event.sender.id);
-      return registry.list();
-    });
-    ipcMain.handle("key:add-workspace", async (event) => {
-      shell(event.sender.id);
-      const result = await dialog.showOpenDialog(window, {
-        properties: ["openDirectory", "createDirectory"],
+else
+  app
+    .whenReady()
+    .then(async () => {
+      setUiLang(normalizeLang(app.getLocale()));
+      const root = resolve(app.getAppPath(), "../../../..");
+      registry = new Registry({
+        registryDir: join(app.getPath("userData"), "workspaces"),
+        defaultWorkspaceParent:
+          process.env.KEY_WORKSPACE_PARENT ??
+          join(app.getPath("documents"), "Key"),
+        hostExecutable:
+          process.env.KEY_HOST_EXECUTABLE ??
+          (app.isPackaged
+            ? join(process.resourcesPath, "backend/key-desktop-host")
+            : join(root, "apps/key/src-tauri/target/debug/key-desktop-host")),
+        pdfiumPath:
+          process.env.PDFIUM_DYNAMIC_LIB_PATH ??
+          (app.isPackaged
+            ? join(process.resourcesPath, "backend/libpdfium.dylib")
+            : join(root, "vendor/pdfium/lib/libpdfium.dylib")),
       });
-      return result.canceled
-        ? null
-        : registry.add(result.filePaths[0], basename(result.filePaths[0]));
-    });
-    ipcMain.handle("key:tabs", () => snapshot());
-    ipcMain.on("key:dirty", (event, dirty) => {
-      shell(event.sender.id);
-      shellDirty = Boolean(dirty);
-    });
-    ipcMain.handle("key:reader-back", (event) => {
-      const v = bound(event.sender.id);
-      if (v?.kind !== "pdf") throw Error("Not a PDF reader");
-      const tab = state.tabs.find((t) =>
-        t.viewIds.some((id) => views.get(id)?.kind === "home"),
-      );
-      if (tab) {
-        state = activateWorkspaceTab(state, tab.id);
-        layout();
-      } else home();
-    });
-    ipcMain.handle("key:open-sources", (event, id) => {
-      shell(event.sender.id);
-      return importSources(id);
-    });
-    ipcMain.handle("key:open-source", (event, source, hit) => {
-      shell(event.sender.id);
-      return sourceOpen(source, hit);
-    });
-    ipcMain.handle("key:reader-ready", (event) => {
-      const v = bound(event.sender.id);
-      if (v?.kind !== "pdf") throw Error("Not a PDF reader");
-      return {
-        source: v.source,
-        viewState: v.viewState,
-        searchTarget: v.searchTarget,
+      await registry.list();
+      window = new BrowserWindow({
+        width: 1440,
+        height: 960,
+        minWidth: 850,
+        minHeight: 600,
+        title: "Key",
+        titleBarStyle: "hiddenInset",
+        trafficLightPosition: { x: 13, y: 12 },
+        webPreferences: {
+          preload,
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+      configureOfficeEditors(window, {
+        extractPdfText: async (bytes) => {
+          if (bytes.byteLength > 32 * 1024 * 1024)
+            throw Error("PDF attachment exceeds 32 MiB");
+          const workspaceId = (await registry.list())[0].id;
+          const id = randomUUID();
+          let text = "";
+          try {
+            const doc: any = await registry.invoke(
+              "native_open_buffer",
+              { id },
+              workspaceId,
+              { binary: bytes },
+            );
+            for (let page = 0; page < doc.pages.length; page++) {
+              const value: any = await registry.invoke(
+                "native_text",
+                { id, page },
+                workspaceId,
+              );
+              text += value.text + "\n";
+              if (text.length > 2 * 1024 * 1024)
+                throw Error("PDF attachment text exceeds 2 MiB");
+            }
+            return text;
+          } finally {
+            await registry.invoke("native_close", { id }, workspaceId);
+          }
+        },
+        open: (kind, path) => office(kind, path),
+        openPath,
+        closeActive: () => void closeTab(state.activeTabId!),
+        listTabs: () =>
+          [...views.values()].map((v) => ({
+            id: v.id,
+            title: v.title,
+            kind: v.kind,
+            active: v.id === activeWorkspaceTab(state)?.activeViewId,
+          })),
+        focus,
+        fileChanged: (wc, path) => {
+          const v = [...views.values()].find(
+            (v) => v.view?.webContents.id === wc,
+          );
+          if (v) {
+            v.path = path;
+            v.title = basename(path);
+            void saveOfficeRecord(v);
+            emit("tabs-changed", snapshot());
+          }
+        },
+        titleChanged: (wc, title) => {
+          const v = [...views.values()].find(
+            (v) => v.view?.webContents.id === wc,
+          );
+          if (v) {
+            v.title = title;
+            emit("tabs-changed", snapshot());
+          }
+        },
+        installBaseMenu: baseMenu,
+      });
+      const bound = (sender: number) =>
+        [...views.values()].find((v) => v.view?.webContents.id === sender);
+      const shell = (sender: number) => {
+        if (sender !== window.webContents.id)
+          throw Error("Only the workspace shell can perform this operation");
       };
-    });
-    ipcMain.on("key:reader-state", (event, value) => {
-      const v = bound(event.sender.id);
-      if (v?.kind === "pdf") v.viewState = value;
-    });
-    ipcMain.handle("key:tab-action", async (event, action, p = {}) => {
-      shell(event.sender.id);
-      switch (action) {
-        case "new":
-          home();
-          break;
-        case "activate":
-          state = activateWorkspaceTab(state, p.tabId);
-          break;
-        case "focus":
-          focus(p.viewId);
-          break;
-        case "close":
-          await closeTab(p.tabId);
-          break;
-        case "split": {
-          const target = state.tabs.find(
-            (t) =>
-              t.id !== state.activeTabId &&
-              t.viewIds.length === 1 &&
-              views.get(t.activeViewId)?.kind !== "home" &&
-              (p.viewId === activeWorkspaceTab(state)?.activeViewId ||
-                t.viewIds.includes(p.viewId)),
+      ipcMain.handle(
+        "key:invoke",
+        (event, command, args, workspaceId, options) => {
+          const record = bound(event.sender.id);
+          if (!record && event.sender.id !== window.webContents.id)
+            throw Error("Unknown view");
+          const operation = registry.invoke(
+            command,
+            args,
+            record?.workspaceId ?? workspaceId,
+            options,
           );
-          if (
-            target &&
-            target.id !== state.activeTabId &&
-            target.viewIds.length === 1 &&
-            views.get(p.viewId)?.kind !== "home" &&
-            views.get(activeWorkspaceTab(state)?.activeViewId ?? "")?.kind !==
-              "home"
-          )
-            state = splitWithTab(state, state.activeTabId!, target.id);
-          break;
-        }
-        case "separate":
-          state = separateWorkspaceTab(state, state.activeTabId!);
-          break;
-        case "swap":
-          state = swapWorkspaceSplit(state, state.activeTabId!);
-          break;
-        case "resize-split":
-          state = setWorkspaceSplitRatio(
-            state,
-            state.activeTabId!,
-            Number(p.ratio),
-          );
-          break;
-        case "create-office":
-          if (
-            ["docs", "sheets", "slides", "markdown", "html"].includes(p.kind)
-          ) {
-            if (!p.workspaceId) throw Error("Choose a workspace");
-            office(p.kind, undefined, p.workspaceId);
+          if (record?.kind === "pdf") {
+            const id = event.sender.id;
+            const calls = readerCalls.get(id) ?? new Set<Promise<unknown>>();
+            calls.add(operation);
+            readerCalls.set(id, calls);
+            void operation
+              .finally(() => calls.delete(operation))
+              .catch(() => {});
           }
-          break;
-        case "open-office-record": {
-          const item: any = await registry.invoke(
-            "workspace_record",
-            { id: p.recordId },
-            p.workspaceId,
-          );
-          if (
-            !item?.properties?.path ||
-            !openPath(item.properties.path, p.workspaceId)
-          )
-            throw Error("No supported file linked to this record");
-          break;
-        }
-        case "link-folder": {
-          const result = await dialog.showOpenDialog(window, {
-            properties: ["openDirectory"],
-          });
-          if (!result.canceled) {
-            const linked: any = await registry.invoke(
-              "workspace_link_folder",
-              { projectId: p.projectId, path: result.filePaths[0] },
+          return operation;
+        },
+      );
+      ipcMain.handle("key:workspaces", (event) => {
+        shell(event.sender.id);
+        return registry.list();
+      });
+      ipcMain.handle("key:add-workspace", async (event) => {
+        shell(event.sender.id);
+        const result = await dialog.showOpenDialog(window, {
+          properties: ["openDirectory", "createDirectory"],
+        });
+        return result.canceled
+          ? null
+          : registry.add(result.filePaths[0], basename(result.filePaths[0]));
+      });
+      ipcMain.handle("key:tabs", () => snapshot());
+      ipcMain.on("key:dirty", (event, dirty) => {
+        shell(event.sender.id);
+        shellDirty = Boolean(dirty);
+      });
+      ipcMain.handle("key:reader-back", (event) => {
+        const v = bound(event.sender.id);
+        if (v?.kind !== "pdf") throw Error("Not a PDF reader");
+        const tab = state.tabs.find((t) =>
+          t.viewIds.some((id) => views.get(id)?.kind === "home"),
+        );
+        if (tab) {
+          state = activateWorkspaceTab(state, tab.id);
+          layout();
+        } else home();
+      });
+      ipcMain.handle("key:open-sources", (event, id) => {
+        shell(event.sender.id);
+        return importSources(id);
+      });
+      ipcMain.handle("key:open-source", (event, source, hit) => {
+        shell(event.sender.id);
+        return sourceOpen(source, hit);
+      });
+      ipcMain.handle("key:reader-ready", (event) => {
+        const v = bound(event.sender.id);
+        if (v?.kind !== "pdf") throw Error("Not a PDF reader");
+        return {
+          source: v.source,
+          viewState: v.viewState,
+          searchTarget: v.searchTarget,
+        };
+      });
+      ipcMain.on("key:reader-state", (event, value) => {
+        const v = bound(event.sender.id);
+        if (v?.kind === "pdf") v.viewState = value;
+      });
+      ipcMain.handle("key:tab-action", async (event, action, p = {}) => {
+        shell(event.sender.id);
+        switch (action) {
+          case "new":
+            home();
+            break;
+          case "reorder":
+            state = reorderWorkspaceTab(state, p.tabId, Number(p.index));
+            emit("tabs-changed", snapshot());
+            return snapshot();
+          case "chrome-pressed":
+            for (const record of views.values())
+              record.view?.webContents.send("app:chrome-pressed");
+            return snapshot();
+          case "tab-menu":
+            Menu.buildFromTemplate(
+              state.tabs.map((tab) => ({
+                label: tab.viewIds
+                  .map((id) => views.get(id)?.title ?? "Key")
+                  .join(" / "),
+                type: "radio" as const,
+                checked: tab.id === state.activeTabId,
+                click: () => {
+                  state = activateWorkspaceTab(state, tab.id);
+                  layout();
+                },
+              })),
+            ).popup({ window, x: Math.round(p.x), y: Math.round(p.y) });
+            return snapshot();
+          case "activate":
+            state = activateWorkspaceTab(state, p.tabId);
+            break;
+          case "focus":
+            focus(p.viewId);
+            break;
+          case "close":
+            await closeTab(p.tabId);
+            break;
+          case "split": {
+            const target = state.tabs.find(
+              (t) =>
+                t.id !== state.activeTabId &&
+                t.viewIds.length === 1 &&
+                views.get(t.activeViewId)?.kind !== "home" &&
+                (p.viewId === activeWorkspaceTab(state)?.activeViewId ||
+                  t.viewIds.includes(p.viewId)),
+            );
+            if (
+              target &&
+              target.id !== state.activeTabId &&
+              target.viewIds.length === 1 &&
+              views.get(p.viewId)?.kind !== "home" &&
+              views.get(activeWorkspaceTab(state)?.activeViewId ?? "")?.kind !==
+                "home"
+            )
+              state = splitWithTab(state, state.activeTabId!, target.id);
+            break;
+          }
+          case "separate":
+            state = separateWorkspaceTab(state, state.activeTabId!);
+            break;
+          case "swap":
+            state = swapWorkspaceSplit(state, state.activeTabId!);
+            break;
+          case "resize-split":
+            state = setWorkspaceSplitRatio(
+              state,
+              state.activeTabId!,
+              Number(p.ratio),
+            );
+            break;
+          case "create-office":
+            if (
+              ["docs", "sheets", "slides", "markdown", "html"].includes(p.kind)
+            ) {
+              if (!p.workspaceId) throw Error("Choose a workspace");
+              office(p.kind, undefined, p.workspaceId);
+            }
+            break;
+          case "open-office-record": {
+            const item: any = await registry.invoke(
+              "workspace_record",
+              { id: p.recordId },
               p.workspaceId,
             );
-            await registry.invoke(
-              "workspace_scan_linked_folder",
-              { id: linked.id, maxEntries: 10000 },
-              p.workspaceId,
-            );
-            emit("library-changed");
+            if (
+              !item?.properties?.path ||
+              !openPath(item.properties.path, p.workspaceId)
+            )
+              throw Error("No supported file linked to this record");
+            break;
           }
-          break;
+          case "link-folder": {
+            const result = await dialog.showOpenDialog(window, {
+              properties: ["openDirectory"],
+            });
+            if (!result.canceled) {
+              const linked: any = await registry.invoke(
+                "workspace_link_folder",
+                { projectId: p.projectId, path: result.filePaths[0] },
+                p.workspaceId,
+              );
+              await registry.invoke(
+                "workspace_scan_linked_folder",
+                { id: linked.id, maxEntries: 10000 },
+                p.workspaceId,
+              );
+              emit("library-changed");
+            }
+            break;
+          }
         }
-      }
-      layout();
-      return snapshot();
+        layout();
+        return snapshot();
+      });
+      if (process.env.ELECTRON_RENDERER_URL)
+        await window.loadURL(process.env.ELECTRON_RENDERER_URL);
+      else await window.loadFile(join(renderer, "index.html"));
+      home();
+      window.on("resize", layout);
+      window.on("close", (event) => {
+        if (quitting) return;
+        event.preventDefault();
+        void (async () => {
+          if (shellDirty) {
+            const result = await dialog.showMessageBox(window, {
+              type: "warning",
+              message: "Discard unsaved page changes?",
+              detail: "Return to the page and save to keep your changes.",
+              buttons: ["Cancel", "Discard"],
+              defaultId: 0,
+              cancelId: 0,
+            });
+            if (result.response !== 1) return;
+          }
+          for (const tab of [...state.tabs]) {
+            await closeTab(tab.id);
+            if (state.tabs.some((t) => t.id === tab.id)) return;
+          }
+          quitting = true;
+          await registry.close();
+          app.quit();
+        })();
+      });
+    })
+    .catch((error) => {
+      console.error(error);
+      dialog.showErrorBox("Key could not start", String(error));
+      app.quit();
     });
-    if (process.env.ELECTRON_RENDERER_URL)
-      await window.loadURL(process.env.ELECTRON_RENDERER_URL);
-    else await window.loadFile(join(renderer, "index.html"));
-    home();
-    window.on("resize", layout);
-    window.on("close", (event) => {
-      if (quitting) return;
-      event.preventDefault();
-      void (async () => {
-        if (shellDirty) {
-          const result = await dialog.showMessageBox(window, {
-            type: "warning",
-            message: "Discard unsaved page changes?",
-            detail: "Return to the page and save to keep your changes.",
-            buttons: ["Cancel", "Discard"],
-            defaultId: 0,
-            cancelId: 0,
-          });
-          if (result.response !== 1) return;
-        }
-        for (const tab of [...state.tabs]) {
-          await closeTab(tab.id);
-          if (state.tabs.some((t) => t.id === tab.id)) return;
-        }
-        quitting = true;
-        await registry.close();
-        app.quit();
-      })();
-    });
-  })
-  .catch((error) => {
-    console.error(error);
-    dialog.showErrorBox("Key could not start", String(error));
-    app.quit();
-  });
 app.on("window-all-closed", () => app.quit());

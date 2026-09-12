@@ -157,3 +157,17 @@ export function closeWorkspaceView(
       : state.activeTabId;
   return { tabs, activeTabId };
 }
+
+/** Reorder groups as units; document identities and active pane are unchanged. */
+export function reorderWorkspaceTab(
+  state: WorkspaceTabsState,
+  id: string,
+  index: number,
+): WorkspaceTabsState {
+  const from = state.tabs.findIndex((tab) => tab.id === id);
+  if (from < 0 || !Number.isFinite(index)) return state;
+  const tabs = [...state.tabs];
+  const [moved] = tabs.splice(from, 1);
+  tabs.splice(Math.min(tabs.length, Math.max(0, Math.trunc(index))), 0, moved);
+  return { ...state, tabs };
+}
