@@ -562,7 +562,7 @@ textarea:focus-visible {
   line-height: 20px;
 }
 .key-sidebar-toggle:hover {
-  background: var(--surface-hover, #eef0f4);
+  background: transparent;
 }
 .key-shell-content {
   background: var(--surface, #fff);
