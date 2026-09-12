@@ -32,3 +32,13 @@ The Electron bridge admits six regular requests concurrently, with a bounded que
 Source browsing uses `semantic_library_page`, with SQL LIMIT/OFFSET and a separate count. Aggregate all-workspace pages remain bounded to the requested limit and label each source with its owning workspace. Workspace relevance scores are never compared to sort a shared search list.
 
 Saved Office files use `workspace_register_file`: canonical-path lookup is indexed, repeated saves/reopens reuse a record, observed fields merge with user properties, and hashes reflect file contents. Linked-file rescans likewise preserve user properties. Historic duplicate path records are not automatically deleted.
+
+## Source entries and assisted properties (schema 12)
+
+Non-PDF sources now persist as canonical records with `sourceType` values web, reference, note, image, video, audio or dataset. URL, supplied text and typed custom properties are editable; FTS indexes titles, URLs, properties and supplied text. Entry lists are paged and omit full bodies until an entry is opened. Media records describe their source; no automatic transcription, OCR or remote page snapshot is implied.
+
+BibTeX and RIS imports handle up to 100 references / 256 KiB, preserving common title, author, year, DOI and URL fields. DOI links can request scholarly metadata for explicit review. Available open-access PDF URLs use the bounded download/import pipeline and link the imported PDF hash back to the reference record.
+
+`workspace_attributes` and `workspace_agent_properties` persist attribute configuration and fill instructions. Actual fill execution uses the existing Office AI provider configuration; the UI can also configure a custom OpenAI-compatible provider. Keys remain in the existing local settings file with mode 0600 and are not returned in provider status. Remote endpoints require HTTPS; local endpoints may use HTTP.
+
+A fill batch accepts up to 25 PDFs and two concurrent provider calls, with a 45-second deadline each. Only selected inputs are sent; extracted text is bounded to 32 KiB from the first four stored text blocks. Strict scalar/select validation precedes proposal display. No values are written until the user confirms selected proposals. Confirmation checks the selected-input fingerprint and atomically compares the previous property value before writing both value and provider/input provenance. Mock-provider tests cover concurrency, no writes before approval, stale inputs, type validation and semantic tag suggestion validation. Configuring a provider does not trigger a model call.
