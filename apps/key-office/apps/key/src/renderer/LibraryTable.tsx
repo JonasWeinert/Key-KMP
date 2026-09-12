@@ -250,9 +250,20 @@ export default function LibraryTable({
                 }
               >
                 {c.type === "formula" ? "ƒ " : ""}
-                {c.pinned ? "⌖ " : ""}
+                {c.pinned && c.id !== "title" ? "⌖ " : ""}
                 {c.label}
               </span>
+              {c.id === "title" && (
+                <button
+                  className="key-column-pin"
+                  aria-label={`${c.pinned ? "Unpin" : "Pin"} Title column`}
+                  aria-pressed={!!c.pinned}
+                  title={c.pinned ? "Unpin Title column" : "Pin Title column"}
+                  onClick={() => setColumns(columns.map(column =>
+                    column.id === c.id ? { ...column, pinned: !column.pinned } : column
+                  ))}
+                >⌖</button>
+              )}
               {c.id.startsWith('property:') && onProperty && <button className="key-property-header-edit" aria-label={`Configure ${c.label} property`} onClick={()=>onProperty(c)}>⌄</button>}
               <span
                 className="key-column-resize"

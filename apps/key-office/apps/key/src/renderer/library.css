@@ -598,6 +598,23 @@
   white-space: nowrap;
   background: var(--surface, #fff);
 }
+.key-source-grid th:not(:last-child),
+.key-source-grid td:not(:last-child) {
+  border-right: 1px solid var(--border, #e3e6ea);
+}
+.key-source-grid .key-column-pin {
+  border: 0;
+  background: transparent;
+  padding: 2px 5px;
+  margin-left: 6px;
+  color: var(--text-tertiary, #909499);
+}
+.key-source-grid .key-column-pin[aria-pressed="true"] {
+  color: var(--text-primary, #232425);
+}
+.key-source-grid .key-column-pin:hover {
+  background: var(--hover, #f5f5f5);
+}
 .key-source-grid tr:hover td {
   background: var(--hover, #f5f5f5);
 }

@@ -40,6 +40,27 @@ const assert = require("node:assert/strict");
     );
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${source.workspaceId}"]`).click();
+    await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1100,900));
+    // Title defaults to pinned, but both its scroll behavior and saved preference are user-controlled.
+    const grid=page.locator('.key-source-grid:visible');
+    await grid.getByRole('button',{name:'Unpin Title column',exact:true}).waitFor();
+    const scroll=page.locator('.key-library-scroll:visible');
+    const titleCell=grid.locator('tbody tr td').nth(1);
+    await titleCell.waitFor();
+    const pinnedX=(await titleCell.boundingBox()).x;
+    await scroll.evaluate(el=>el.scrollLeft=120);
+    assert(Math.abs((await titleCell.boundingBox()).x-pinnedX)<2);
+    await scroll.evaluate(el=>el.scrollLeft=0);
+    await grid.getByRole('button',{name:'Unpin Title column',exact:true}).click();
+    const unpinnedX=(await titleCell.boundingBox()).x;
+    await scroll.evaluate(el=>el.scrollLeft=120);
+    assert((await titleCell.boundingBox()).x<unpinnedX-80,'Unpinned Title scrolls with other columns');
+    await page.reload();
+    await grid.getByRole('button',{name:'Pin Title column',exact:true}).waitFor();
+    await grid.getByRole('button',{name:'Pin Title column',exact:true}).click();
+    await grid.getByRole('button',{name:'Unpin Title column',exact:true}).waitFor();
+    assert.equal(await titleCell.evaluate(el=>getComputedStyle(el).borderRightWidth),'1px');
+    await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1440,900));
     await page
       .getByRole("checkbox", { name: "Select all sources on this page" })
       .check();
