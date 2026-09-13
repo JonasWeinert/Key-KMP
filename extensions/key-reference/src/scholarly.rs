@@ -147,17 +147,22 @@ impl ScholarlyQuery {
         (title.split_whitespace().count() >= 2).then_some(Self::Title(title))
     }
 
-    fn lookup_text(&self) -> &str {
+    /// Provider lookup text; use `cache_key` for canonical identity.
+    pub fn lookup_text(&self) -> &str {
         match self {
             Self::Doi(value) | Self::LandingUrl(value) | Self::Title(value) => value,
         }
     }
 
-    fn key(&self) -> String {
+    /// Stable identity shared by sessions and persistent resolver caches.
+    pub fn cache_key(&self) -> String {
         match self {
-            Self::Doi(doi) => format!("doi:{doi}"),
+            Self::Doi(doi) => format!(
+                "doi:{}",
+                detect_doi(doi).unwrap_or_else(|| doi.trim().to_ascii_lowercase())
+            ),
             Self::LandingUrl(url) => format!("url:{url}"),
-            Self::Title(title) => format!("title:{}", title.to_ascii_lowercase()),
+            Self::Title(title) => format!("title:{}", normalize_space(title).to_lowercase()),
         }
     }
 
@@ -190,6 +195,16 @@ pub trait ScholarlyMetadataProvider: Send + Sync {
         reference: &str,
         cancellation: &CancellationToken,
     ) -> Result<ScholarlyMetadata, String>;
+
+    /// User-triggered lookup. Wrappers should delegate this method so provider
+    /// rate-limit gates retain the request's urgency. Existing providers remain compatible.
+    fn fetch_interactive(
+        &self,
+        reference: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<ScholarlyMetadata, String> {
+        self.fetch(reference, cancellation)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -201,7 +216,15 @@ impl ScholarlyMetadataProvider for NetworkScholarlyMetadataProvider {
         reference: &str,
         cancellation: &CancellationToken,
     ) -> Result<ScholarlyMetadata, String> {
-        fetch_scholarly_metadata(reference, cancellation)
+        fetch_scholarly_metadata(reference, cancellation, false)
+    }
+
+    fn fetch_interactive(
+        &self,
+        reference: &str,
+        cancellation: &CancellationToken,
+    ) -> Result<ScholarlyMetadata, String> {
+        fetch_scholarly_metadata(reference, cancellation, true)
     }
 }
 
@@ -267,6 +290,7 @@ impl ScholarlyFetcher {
         key: String,
         reference: String,
         priority: ReferenceTaskPriority,
+        interactive: bool,
     ) -> bool {
         if !self.scope.is_current(generation) {
             return false;
@@ -275,9 +299,12 @@ impl ScholarlyFetcher {
         let provider = Arc::clone(&self.provider);
         self.scope
             .execute_with_priority(generation, priority, move |cancellation| {
-                let result = provider
-                    .fetch(&reference, &cancellation)
-                    .map_err(|error| concise_error(&error));
+                let result = if interactive {
+                    provider.fetch_interactive(&reference, &cancellation)
+                } else {
+                    provider.fetch(&reference, &cancellation)
+                }
+                .map_err(|error| concise_error(&error));
                 if !cancellation.is_cancelled() {
                     let _ = events.send(ScholarlyEvent::Fetched {
                         generation,
@@ -311,6 +338,20 @@ impl ScholarlySession {
         self.request_query(fetcher, generation, query)
     }
 
+    /// Requests metadata for an explicit user action, ahead of background jobs.
+    /// Session deduplication still applies to previously requested identities.
+    pub fn request_interactive(
+        &mut self,
+        fetcher: &ScholarlyFetcher,
+        generation: u64,
+        reference: &str,
+    ) -> bool {
+        let Some(query) = ScholarlyQuery::from_reference(reference) else {
+            return false;
+        };
+        self.request_query_with_intent(fetcher, generation, query, true)
+    }
+
     /// Requests metadata for a reusable DOI-or-title query.
     pub fn request_query(
         &mut self,
@@ -318,8 +359,22 @@ impl ScholarlySession {
         generation: u64,
         query: ScholarlyQuery,
     ) -> bool {
-        let key = query.key();
-        let priority = query.task_priority();
+        self.request_query_with_intent(fetcher, generation, query, false)
+    }
+
+    fn request_query_with_intent(
+        &mut self,
+        fetcher: &ScholarlyFetcher,
+        generation: u64,
+        query: ScholarlyQuery,
+        interactive: bool,
+    ) -> bool {
+        let key = query.cache_key();
+        let priority = if interactive {
+            ReferenceTaskPriority::Urgent
+        } else {
+            query.task_priority()
+        };
         if self.entries.contains_key(&key) {
             return false;
         }
@@ -328,6 +383,7 @@ impl ScholarlySession {
             key.clone(),
             query.lookup_text().to_owned(),
             priority,
+            interactive,
         ) {
             self.entries.insert(
                 key,
@@ -341,7 +397,7 @@ impl ScholarlySession {
 
     /// Returns metadata state for a reusable DOI-or-title query.
     pub fn query_state(&self, query: &ScholarlyQuery) -> Option<&ScholarlyMetadataState> {
-        self.entries.get(&query.key())
+        self.entries.get(&query.cache_key())
     }
 
     pub fn apply(&mut self, event: ScholarlyEvent) -> Option<u64> {
@@ -377,6 +433,7 @@ struct SemanticScholarGate {
 struct SemanticScholarGateState {
     next_request_at: Instant,
     cooldown_until: Instant,
+    urgent_waiters: usize,
     high_waiters: usize,
     normal_waiters: usize,
     consecutive_rate_limits: u32,
@@ -391,6 +448,7 @@ impl SemanticScholarGate {
                 state: Mutex::new(SemanticScholarGateState {
                     next_request_at: now,
                     cooldown_until: now,
+                    urgent_waiters: 0,
                     high_waiters: 0,
                     normal_waiters: 0,
                     consecutive_rate_limits: 0,
@@ -410,6 +468,7 @@ impl SemanticScholarGate {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         match priority {
+            ReferenceTaskPriority::Urgent => state.urgent_waiters += 1,
             ReferenceTaskPriority::High => state.high_waiters += 1,
             ReferenceTaskPriority::Normal => state.normal_waiters += 1,
             ReferenceTaskPriority::Low => {}
@@ -422,9 +481,16 @@ impl SemanticScholarGate {
             }
             let now = Instant::now();
             let eligible = match priority {
-                ReferenceTaskPriority::High => true,
-                ReferenceTaskPriority::Normal => state.high_waiters == 0,
-                ReferenceTaskPriority::Low => state.high_waiters == 0 && state.normal_waiters == 0,
+                ReferenceTaskPriority::Urgent => true,
+                ReferenceTaskPriority::High => state.urgent_waiters == 0,
+                ReferenceTaskPriority::Normal => {
+                    state.urgent_waiters == 0 && state.high_waiters == 0
+                }
+                ReferenceTaskPriority::Low => {
+                    state.urgent_waiters == 0
+                        && state.high_waiters == 0
+                        && state.normal_waiters == 0
+                }
             };
             let allowed_at = state.next_request_at.max(state.cooldown_until);
             if eligible && now >= allowed_at {
@@ -447,6 +513,9 @@ impl SemanticScholarGate {
 
     fn remove_waiter(state: &mut SemanticScholarGateState, priority: ReferenceTaskPriority) {
         match priority {
+            ReferenceTaskPriority::Urgent => {
+                state.urgent_waiters = state.urgent_waiters.saturating_sub(1);
+            }
             ReferenceTaskPriority::High => {
                 state.high_waiters = state.high_waiters.saturating_sub(1);
             }
@@ -545,7 +614,10 @@ fn fetch_semantic_scholar_json(
     not_found: &str,
     cancellation: &CancellationToken,
 ) -> Result<Vec<u8>, String> {
-    let attempts = if priority == ReferenceTaskPriority::High {
+    let attempts = if matches!(
+        priority,
+        ReferenceTaskPriority::Urgent | ReferenceTaskPriority::High
+    ) {
         2
     } else {
         1
@@ -576,19 +648,36 @@ fn fetch_semantic_scholar_json(
 fn fetch_scholarly_metadata(
     reference: &str,
     cancellation: &CancellationToken,
+    interactive: bool,
 ) -> Result<ScholarlyMetadata, String> {
     if let Some(doi) = detect_doi(reference) {
         let base = fetch_openalex(&doi, cancellation).or_else(|openalex_error| {
             fetch_crossref(&doi, cancellation)
                 .map_err(|crossref_error| format!("{openalex_error}; {crossref_error}"))
         })?;
-        Ok(fetch_semantic_scholar_doi(&doi, cancellation)
-            .map(|semantic| merge_base_with_semantic(base.clone(), semantic))
-            .unwrap_or(base))
+        Ok(fetch_semantic_scholar_doi(
+            &doi,
+            cancellation,
+            if interactive {
+                ReferenceTaskPriority::Urgent
+            } else {
+                ReferenceTaskPriority::Low
+            },
+        )
+        .map(|semantic| merge_base_with_semantic(base.clone(), semantic))
+        .unwrap_or(base))
     } else if let Some(url) = valid_http_string(reference) {
         fetch_crossref_landing_url(&url, cancellation)
     } else {
-        fetch_semantic_scholar(reference, cancellation)
+        fetch_semantic_scholar(
+            reference,
+            cancellation,
+            if interactive {
+                ReferenceTaskPriority::Urgent
+            } else {
+                ReferenceTaskPriority::High
+            },
+        )
     }
 }
 
@@ -611,11 +700,12 @@ fn semantic_scholar_doi_url(doi: &str) -> Result<Url, String> {
 fn fetch_semantic_scholar_doi(
     doi: &str,
     cancellation: &CancellationToken,
+    priority: ReferenceTaskPriority,
 ) -> Result<ScholarlyMetadata, String> {
     let url = semantic_scholar_doi_url(doi)?;
     let body = fetch_semantic_scholar_json(
         &url,
-        ReferenceTaskPriority::Low,
+        priority,
         "Semantic Scholar has no record for this DOI",
         cancellation,
     )?;
@@ -687,6 +777,7 @@ fn fetch_crossref_landing_url(
 fn fetch_semantic_scholar(
     reference: &str,
     cancellation: &CancellationToken,
+    priority: ReferenceTaskPriority,
 ) -> Result<ScholarlyMetadata, String> {
     let query = probable_title(reference);
     if query.split_whitespace().count() < 2 {
@@ -699,7 +790,7 @@ fn fetch_semantic_scholar(
         .append_pair("fields", semantic_scholar_fields());
     let body = fetch_semantic_scholar_json(
         &url,
-        ReferenceTaskPriority::High,
+        priority,
         "Semantic Scholar found no reliable title match",
         cancellation,
     )?;
@@ -1123,7 +1214,7 @@ fn title_tokens(value: &str) -> BTreeSet<String> {
 
 fn reference_key(reference: &str) -> String {
     ScholarlyQuery::from_reference(reference)
-        .map(|query| query.key())
+        .map(|query| query.cache_key())
         .unwrap_or_else(|| format!("title:{}", probable_title(reference).to_ascii_lowercase()))
 }
 
@@ -1414,6 +1505,86 @@ mod tests {
         assert_eq!(
             probable_title(reference),
             "Diagnostic efficacy and therapeutic decision-making capacity of an artificial intelligence platform"
+        );
+    }
+
+    #[test]
+    fn public_cache_keys_normalize_direct_and_parsed_queries() {
+        let canonical = ScholarlyQuery::Doi("10.1000/abc".into()).cache_key();
+        for value in [
+            "10.1000/ABC",
+            "doi:10.1000/ABC.",
+            "https://doi.org/10.1000/abc",
+        ] {
+            assert_eq!(
+                ScholarlyQuery::from_reference(value).unwrap().cache_key(),
+                canonical
+            );
+            assert_eq!(ScholarlyQuery::Doi(value.into()).cache_key(), canonical);
+        }
+        assert_eq!(
+            ScholarlyQuery::Title(" Deep  Learning\nMethods ".into()).cache_key(),
+            ScholarlyQuery::from_reference("deep learning methods")
+                .unwrap()
+                .cache_key()
+        );
+    }
+
+    #[test]
+    fn clicked_doi_runs_before_queued_background_title_and_doi_and_preserves_intent() {
+        struct RecordingProvider(flume::Sender<(String, bool)>);
+        impl ScholarlyMetadataProvider for RecordingProvider {
+            fn fetch(
+                &self,
+                reference: &str,
+                _: &CancellationToken,
+            ) -> Result<ScholarlyMetadata, String> {
+                self.0.send((reference.into(), false)).unwrap();
+                Err("fixture".into())
+            }
+            fn fetch_interactive(
+                &self,
+                reference: &str,
+                _: &CancellationToken,
+            ) -> Result<ScholarlyMetadata, String> {
+                self.0.send((reference.into(), true)).unwrap();
+                Err("fixture".into())
+            }
+        }
+        let executor = ReferenceExecutor::new(crate::ReferenceExecutorConfig {
+            worker_count: 1,
+            ..Default::default()
+        })
+        .unwrap();
+        let scope = executor.document_scope();
+        scope.begin_generation(1);
+        let (started_tx, started_rx) = flume::bounded(1);
+        let (release_tx, release_rx) = flume::bounded(1);
+        assert!(scope.execute(1, move |_| {
+            started_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        }));
+        started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let (calls_tx, calls_rx) = flume::unbounded();
+        let (fetcher, _) =
+            ScholarlyFetcher::with_provider_and_scope(Arc::new(RecordingProvider(calls_tx)), scope);
+        let mut session = ScholarlySession::default();
+        assert!(session.request(&fetcher, 1, "10.1000/background"));
+        assert!(session.request(&fetcher, 1, "Background title"));
+        assert!(session.request_interactive(&fetcher, 1, "10.1000/clicked"));
+        assert!(!session.request_interactive(&fetcher, 1, "https://doi.org/10.1000/CLICKED"));
+        release_tx.send(()).unwrap();
+        assert_eq!(
+            calls_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            ("10.1000/clicked".into(), true)
+        );
+        assert_eq!(
+            calls_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            ("Background title".into(), false)
+        );
+        assert_eq!(
+            calls_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            ("10.1000/background".into(), false)
         );
     }
 

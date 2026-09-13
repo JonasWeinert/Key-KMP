@@ -1,6 +1,8 @@
 //! Desktop backend orchestration migrated from the Key Tauri shell.
 #[path = "native_process.rs"]
 mod native_process;
+#[path = "scholarly_resolver.rs"]
+mod scholarly_resolver;
 use crate::ipc;
 use crate::ipc::{HostState, Output, arg, json_output};
 use key_pdf_core::{
@@ -1527,11 +1529,11 @@ fn begin_background_companion_analysis(
             return;
         }
         enrichment_scheduler().submit(id.clone(), "references", 0, move || {
-            enrich_reference_metadata_streaming(&store, &id, generation, &mut references);
+            enrich_reference_metadata_streaming(&store, &native_library, &id, generation, &mut references);
             let Ok(snapshot) = store.storage.snapshot(&id) else {
                 return;
             };
-            if snapshot.generation != generation {
+            if snapshot.generation != generation || snapshot.stage == "failed" {
                 return;
             }
             let Some(analysis) = snapshot.analysis else {
@@ -1629,6 +1631,7 @@ async fn begin_pdfjs_companion_managed(
     let search = search.inner().clone();
     tokio::task::spawn_blocking(move || {
         processing_scheduler().prioritize(&hash);
+        enrichment_scheduler().prioritize(&hash);
         if let Ok(snapshot) = store.storage.snapshot(&hash) {
             store
                 .reader_ids
@@ -2042,32 +2045,10 @@ async fn global_search(
     .map_err(|error| error.to_string())?
 }
 
-async fn scholarly_lookup_resource(resource: String) -> Result<ScholarlyMetadataDto, String> {
-    tokio::task::spawn_blocking(move || {
-        let (fetcher, events) = ScholarlyFetcher::new();
-        let mut session = ScholarlySession::default();
-        let generation = 1;
-        fetcher.begin_document(generation);
-        if !session.request(&fetcher, generation, &resource) {
-            return Err("the link did not contain a usable DOI or Crossref resource".to_owned());
-        }
-        let event = events
-            .recv_timeout(Duration::from_secs(30))
-            .map_err(|_| "scholarly resource lookup timed out".to_owned())?;
-        session.apply(event);
-        match session.state(&resource) {
-            Some(ScholarlyMetadataState::Ready(metadata)) => {
-                Ok(ScholarlyMetadataDto::from((**metadata).clone()))
-            }
-            Some(ScholarlyMetadataState::Failed(error)) => Err(error.clone()),
-            Some(ScholarlyMetadataState::Loading) => {
-                Err("scholarly resource lookup is still pending".to_owned())
-            }
-            None => Err("scholarly resource lookup returned no result".to_owned()),
-        }
-    })
-    .await
-    .map_err(|error| error.to_string())?
+async fn scholarly_lookup_resource(service: HostState<'_, SemanticSearchService>, resource: String) -> Result<ScholarlyMetadataDto, String> {
+    let library = service.library().clone();
+    tokio::task::spawn_blocking(move || scholarly_resolver::resolve(&library, &resource, true))
+        .await.map_err(|error| error.to_string())?
 }
 
 fn text_layer_from_dto(page: &TextPageDto) -> TextLayer {
@@ -2229,80 +2210,45 @@ impl From<ScholarlyMetadata> for ScholarlyMetadataDto {
 
 fn enrich_reference_metadata_streaming(
     store: &CompanionStore,
+    library: &key_library::Library,
     id: &str,
     generation: u64,
     references: &mut [ScientificReferenceDto],
 ) {
-    let (fetcher, events) = ScholarlyFetcher::new();
-    let mut session = ScholarlySession::default();
-    fetcher.begin_document(generation);
-    let mut requested = 0;
-    let mut completed = HashSet::new();
-
-    let mut lookup_order = (0..references.len()).collect::<Vec<_>>();
-    lookup_order.sort_by_key(|index| detect_doi(&references[*index].text).is_some());
-    for index in lookup_order {
-        let reference = &mut references[index];
-        if session.request(&fetcher, generation, &reference.text) {
-            requested += 1;
-        } else if session.state(&reference.text).is_none() {
-            reference.metadata_error =
-                Some("the reference did not contain a usable DOI or title".to_owned());
-            completed.insert(reference.number);
-            store
-                .storage
-                .update_reference(id, generation, reference.clone());
-        }
-    }
-
-    'events: for _ in 0..requested {
-        let waiting_since = Instant::now();
-        let event = loop {
-            if !matches!(
-                store.storage.snapshot(id),
-                Ok(snapshot) if snapshot.generation == generation
-            ) {
-                return;
-            }
-            match events.recv_timeout(Duration::from_millis(250)) {
-                Ok(event) => break event,
-                Err(_) if waiting_since.elapsed() < Duration::from_secs(25) => continue,
-                Err(_) => break 'events,
-            }
-        };
-        session.apply(event);
-        for reference in references.iter_mut() {
-            if completed.contains(&reference.number) {
-                continue;
-            }
-            match session.state(&reference.text) {
-                Some(ScholarlyMetadataState::Ready(metadata)) => {
-                    reference.metadata = Some(ScholarlyMetadataDto::from((**metadata).clone()));
-                    reference.metadata_error = None;
+    // A fixed number of coordinators; queued documents never retain a thread per citation.
+    let jobs = references.to_vec();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        for _ in 0..jobs.len().min(3) {
+            let jobs = &jobs;
+            let next = &next;
+            scope.spawn(move || loop {
+                let ordinal = next.fetch_add(1, Ordering::Relaxed);
+                let Some(reference) = jobs.get(ordinal) else { break; };
+                if !matches!(store.storage.snapshot(id), Ok(s) if s.generation == generation) { break; }
+                let mut reference = reference.clone();
+                if let Some(metadata) = &reference.metadata {
+                    if let Err(error) = scholarly_resolver::seed(library, &reference.text, metadata) {
+                        store.storage.fail(id, generation, error); break;
+                    }
                 }
-                Some(ScholarlyMetadataState::Failed(error)) => {
-                    reference.metadata = None;
-                    reference.metadata_error = Some(error.clone());
+                match scholarly_resolver::resolve(library, &reference.text, false) {
+                    Ok(metadata) => { reference.metadata = Some(metadata); reference.metadata_error = None; }
+                    Err(error) => { reference.metadata_error = Some(error); }
                 }
-                Some(ScholarlyMetadataState::Loading) | None => continue,
-            }
-            completed.insert(reference.number);
-            store
-                .storage
-                .update_reference(id, generation, reference.clone());
+                if !matches!(store.storage.snapshot(id), Ok(s) if s.generation == generation) { break; }
+                // Commit each citation before publishing progress; restart can reuse its cache entry.
+                if let Err(error) = library.store_reference(id, ordinal, &reference) {
+                    store.storage.fail(id, generation, error); break;
+                }
+                store.storage.update_reference(id, generation, reference);
+            });
         }
-    }
-
-    for reference in references.iter_mut() {
-        if completed.contains(&reference.number) {
-            continue;
+    });
+    if let Ok(snapshot) = store.storage.snapshot(id) {
+        if snapshot.generation == generation {
+            if let Some(analysis) = snapshot.analysis { references.clone_from_slice(&analysis.references); }
         }
-        reference.metadata = None;
-        reference.metadata_error = Some("scholarly preprocessing timed out".to_owned());
-        completed.insert(reference.number);
-        store
-            .storage
-            .update_reference(id, generation, reference.clone());
     }
 }
 
@@ -2534,7 +2480,8 @@ fn load_or_create_native_analysis(
     hash: &str,
     source: &Path,
 ) -> Result<PaperPreprocessingDto, String> {
-    if let Some(analysis) = library.get(hash, "analysis", "pdfium-v4", "document")? {
+    if let Some(mut analysis) = library.get::<PaperPreprocessingDto>(hash, "analysis", "pdfium-v4", "document")? {
+        scholarly_resolver::hydrate(library, &mut analysis.references)?;
         return Ok(analysis);
     }
     let mut command = Command::new(env::current_exe().map_err(|e| e.to_string())?);
@@ -2857,6 +2804,7 @@ impl Host {
             imports: Default::default(),
             sessions: Arc::default(),
         };
+        scholarly_resolver::start_retry_worker(host.search.library().clone());
         for doc in host.search.library_documents()? {
             if doc.has_source
                 && (matches!(doc.status.as_str(), "queued" | "processing" | "indexing")
@@ -3176,7 +3124,7 @@ impl Host {
                 .await?,
             ),
             "scholarly_lookup_resource" => {
-                json_output(scholarly_lookup_resource(arg(args, "resource")?).await?)
+                json_output(scholarly_lookup_resource(HostState(&self.search), arg(args, "resource")?).await?)
             }
             "disposable_text_page" => json_output(
                 disposable_text_page(

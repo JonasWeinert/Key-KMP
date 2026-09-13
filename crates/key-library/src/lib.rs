@@ -14,6 +14,8 @@ pub use lease::ProcessingLease;
 mod lifecycle;
 mod metadata;
 pub use metadata::*;
+mod scholarly;
+pub use scholarly::ScholarlyCacheEntry;
 mod import;
 pub use import::{Imports, SourceInfo, file_hash};
 // Canonical, content-addressed library. Search indexes are derived artifacts.
@@ -249,10 +251,10 @@ impl Library {
         let version: i64 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(err)?;
-        if version > 13 {
+        if version > 14 {
             return Err("library was created by a newer Key version".into());
         }
-        if version > 0 && version < 13 {
+        if version > 0 && version < 14 {
             let backup = library
                 .root
                 .join(format!("library-before-v{version}-migration.sqlite3"));
@@ -311,6 +313,9 @@ impl Library {
         }
         if version < 13 {
             conn.execute_batch(include_str!("migrations/013_workspace_appearance.sql")).map_err(err)?;
+        }
+        if version < 14 {
+            scholarly::initialize(&conn)?;
         }
         library.recover_publications()?;
         Ok(library)
