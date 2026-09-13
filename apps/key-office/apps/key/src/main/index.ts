@@ -373,6 +373,55 @@ function placeViews() {
     }),
   );
 }
+let globalOverlay: string | undefined;
+let overlayCaptureSequence = 0;
+let overlayCaptureKey = "";
+async function captureOverlayFrames() {
+  const ids = activeWorkspaceTab(state)?.viewIds || [];
+  return Promise.all(
+    ids.flatMap((id) => {
+      const view = views.get(id)?.view;
+      if (!view || view.webContents.isDestroyed()) return [];
+      const bounds = view.getBounds();
+      return [
+        (async () => {
+          try {
+            const capture = await view.webContents.capturePage(undefined, {
+              stayHidden: true,
+            });
+            return {
+              id,
+              ...bounds,
+              image: capture
+                .resize({ width: Math.max(1, bounds.width) })
+                .toDataURL(),
+            };
+          } catch {
+            return null;
+          }
+        })(),
+      ];
+    }),
+  ).then((frames) => frames.filter(Boolean));
+}
+function refreshOverlayFrames() {
+  if (!globalOverlay) return;
+  const key = JSON.stringify(
+    (activeWorkspaceTab(state)?.viewIds || []).map((id) => [
+      id,
+      views.get(id)?.view?.getBounds(),
+    ]),
+  );
+  if (key === overlayCaptureKey) return;
+  overlayCaptureKey = key;
+  const id = globalOverlay,
+    sequence = ++overlayCaptureSequence;
+  emit("global-overlay-frames", { id, frames: [] });
+  void captureOverlayFrames().then((frames) => {
+    if (globalOverlay === id && sequence === overlayCaptureSequence)
+      emit("global-overlay-frames", { id, frames });
+  });
+}
 function layout() {
   if (!window || window.isDestroyed()) return;
   const tab = activeWorkspaceTab(state);
@@ -382,9 +431,10 @@ function layout() {
       record.lastUsed = Date.now();
       attach(record);
     }
-    if (record.view) record.view.setVisible(visible.has(record.id));
+    if (record.view) record.view.setVisible(!globalOverlay && visible.has(record.id));
   }
   placeViews();
+  refreshOverlayFrames();
   // Only the two most recently used PDF renderers retain their raster/GPU caches.
   const pdfs = [...views.values()].filter((v) => v.kind === "pdf" && v.view);
   const keep = Math.max(0, 2 - pdfs.filter((v) => visible.has(v.id)).length);
@@ -929,6 +979,16 @@ else
       ipcMain.handle("key:tab-action", async (event, action, p = {}) => {
         shell(event.sender.id);
         switch (action) {
+          case "global-overlay-open": {
+            globalOverlay=String(p.id);overlayCaptureKey="";
+            const frames=await captureOverlayFrames();
+            if(globalOverlay===p.id){overlayCaptureKey=JSON.stringify((activeWorkspaceTab(state)?.viewIds||[]).map(id=>[id,views.get(id)?.view?.getBounds()]));layout();}
+            return {frames};
+          }
+          case "global-overlay-close": {
+            if(globalOverlay===p.id){globalOverlay=undefined;overlayCaptureKey="";++overlayCaptureSequence;layout();}
+            return;
+          }
           case "preview-result": {
             const source = views.get(p.sourceViewId);
             if (!source?.content || !p.hit?.id || !p.hit?.documentHash)
@@ -1247,6 +1307,7 @@ else
         await window.loadURL(process.env.ELECTRON_RENDERER_URL);
       else await window.loadFile(join(renderer, "index.html"));
       home();
+      window.webContents.on("did-start-loading",()=>{if(globalOverlay){globalOverlay=undefined;overlayCaptureKey="";++overlayCaptureSequence;layout();}});
       window.on("resize", layout);
       window.on("close", (event) => {
         if (quitting) return;

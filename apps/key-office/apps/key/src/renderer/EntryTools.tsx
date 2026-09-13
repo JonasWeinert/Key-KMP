@@ -1,3 +1,4 @@
+import { GlobalDrawer } from "./GlobalDrawer";
 import { useEffect, useState, useRef } from "react";
 import { parseReferences } from "./reference-import";
 import {
@@ -54,13 +55,17 @@ function Frame({
   children,
   embedded = false,
   className = "",
+  drawer = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   embedded?: boolean;
   className?: string;
+  drawer?: boolean;
 }) {
+  if (drawer) return <GlobalDrawer onClose={onClose}><Frame title={title} onClose={onClose} className={className} embedded>{children}</Frame></GlobalDrawer>;
+  if (embedded && className.includes("key-agent-fill-dialog")) return <section className={`key-shell-dialog ${className}`} aria-label={title}><header style={{display:"flex",justifyContent:"space-between"}}><h2>{title}</h2><button type="button" aria-label="Close agent settings" onClick={onClose}>×</button></header>{children}</section>;
   if (embedded)
     return (
       <section className="key-record-editor key-entry-pane">
@@ -746,7 +751,8 @@ export function AgentPropertyDialog({
   onSaved,
   hashes = [],
   propertyName = "",
-}: Props & { hashes?: string[]; propertyName?: string }) {
+  embedded = false,
+}: Props & { hashes?: string[]; propertyName?: string; embedded?: boolean }) {
   const [endpoint, setEndpoint] = useState("http://localhost:11434/v1");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -839,7 +845,7 @@ export function AgentPropertyDialog({
       .filter(Boolean),
   };
   return (
-    <Frame title="Fill a property" onClose={onClose} className="key-agent-fill-dialog">
+    <Frame title="Fill a property" onClose={onClose} className="key-agent-fill-dialog" embedded={embedded} drawer={!embedded}>
       <p>
         {hashes.length} selected PDFs. Select up to 25 PDFs per batch. Choose
         the inputs sent to your configured AI provider. Results require review

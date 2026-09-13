@@ -384,6 +384,7 @@ https://www.unicode.org/Public/17.0.0/ucd/EquivalentUnifiedIdeograph.txt
 `
 out += readFileSync(join(ROOT, 'LICENSE-UNICODE.txt'), 'utf8').trim() + '\n'
 
+out += '\n\nbeUI motion drawer and table (adapted)\nhttps://beui.dev\n' + readFileSync(join(ROOT, 'apps/key/src/renderer/motion/BEUI-LICENSE.txt'), 'utf8')
 const dest = join(ROOT, 'apps/key/build/THIRD-PARTY-NOTICES.txt')
 mkdirSync(dirname(dest), { recursive: true })
 writeFileSync(dest, out)

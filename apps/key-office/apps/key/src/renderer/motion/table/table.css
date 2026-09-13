@@ -1,0 +1,104 @@
+/* beUI's quiet spreadsheet surface, adapted to Key's Gen Office tokens. */
+.key-source-grid.key-beui-table {
+  border: 1px solid var(--border, #e3e6ea);
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+.key-beui-table thead tr {
+  height: 44px;
+}
+.key-beui-table th {
+  height: 44px;
+  padding: 0 14px;
+  font-weight: 500;
+  background: var(--surface-subtle, #f6f7f8);
+}
+.key-beui-table td {
+  padding: 10px 14px;
+  transition: background-color 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.key-beui-table tr[data-selected="true"] td {
+  background: var(--active-bg, #f0f3f7);
+}
+.key-beui-table .key-table-spacer td {
+  padding: 0 !important;
+  border: 0 !important;
+}
+.key-beui-table .key-table-column-grip {
+  opacity: 0;
+  border: 0;
+  background: transparent;
+  padding: 2px;
+  margin-right: 4px;
+  cursor: grab;
+  color: var(--text-tertiary, #909499);
+  touch-action: none;
+}
+.key-beui-table th:hover .key-table-column-grip,
+.key-beui-table .key-table-column-grip:focus-visible {
+  opacity: 1;
+}
+.key-beui-table th[data-drop="true"] {
+  box-shadow: inset 2px 0 var(--text-primary, #333);
+}
+.key-beui-table th[data-drag="true"] {
+  opacity: 0.5;
+}
+.key-beui-table .key-inline-edit input,
+.key-beui-table .key-inline-edit select {
+  border-color: var(--border, #ddd);
+  border-radius: 5px;
+  padding: 5px 7px;
+  background: var(--surface, #fff);
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-beui-table td {
+    transition: none;
+  }
+}
+.key-beui-table .key-motion-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1.5px solid var(--text-tertiary, #a3a6ad);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  color: var(--color-btn-primary-text, #fff);
+  cursor: pointer;
+}
+.key-beui-table .key-motion-checkbox[data-state="checked"] {
+  background: var(--text-primary, #303238);
+  border-color: var(--text-primary, #303238);
+}
+.key-beui-table td > .key-motion-checkbox {
+  padding: 0;
+  border: 1.5px solid var(--text-tertiary, #a3a6ad);
+}
+.key-beui-table th {
+  white-space: nowrap;
+}
+.key-beui-table .key-grid-select {
+  padding: 0;
+}
+.key-beui-table .key-table-column-grip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 12px;
+  margin: 0;
+  z-index: 2;
+}
+
+.key-beui-table .key-table-actions {
+  padding: 0;
+  text-align: center;
+  text-overflow: clip;
+}
+.key-beui-table .key-table-actions button {
+  padding: 4px;
+}

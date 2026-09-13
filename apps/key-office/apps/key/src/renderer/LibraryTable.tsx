@@ -1,4 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Checkbox } from "./motion/Checkbox";
+import { useColumnReorder } from "./motion/table/use-column-reorder";
+import { Table } from "./motion/table/Table";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { evaluatePropertyFormula } from "./property-formula";
 import type { LibrarySource } from "./LibraryHome";
 export interface SourceColumn {
@@ -181,6 +184,11 @@ export default function LibraryTable({
     ...visible.filter((c) => c.pinned),
     ...visible.filter((c) => !c.pinned),
   ];
+  const headerRefs=useRef<Record<string,HTMLTableCellElement|null>>({});
+  const columnDrag=useColumnReorder({columns:ordered.map(c=>({key:c.id,header:c.label,width:`${c.width}px`})),thRefs:headerRefs,onColumnOrderChange:keys=>{
+    const byId=new Map(columns.map(c=>[c.id,c]));
+    setColumns([...keys.map(key=>byId.get(key)!).filter(Boolean),...columns.filter(c=>!keys.includes(c.id))]);
+  }});
   const left = (col: SourceColumn) =>
     42 +
     ordered
@@ -202,47 +210,29 @@ export default function LibraryTable({
       ),
     );
   return (
-    <table
-      className="key-source-grid"
-      style={{
-        width: ordered.reduce((n, c) => n + c.width, 84),
-        minWidth: "100%",
-      }}
-    >
-      <colgroup>
-        <col style={{ width: 42 }} />
-        {ordered.map((c) => (
-          <col key={c.id} style={{ width: c.width }} />
-        ))}
-        <col style={{ width: 42 }} />
-      </colgroup>
+    <Table data={documents} columns={ordered} getRowId={keyOf} rowHeight={view==='list'?72:56} header={
       <thead>
         <tr>
           <th className="key-grid-select">
-            <input
-              type="checkbox"
-              aria-label="Select all sources on this page"
-              checked={
-                documents.length > 0 &&
-                documents.every((d) => checked.has(keyOf(d)))
-              }
-              onChange={(e) =>
-                setChecked(
-                  e.target.checked ? new Set(documents.map(keyOf)) : new Set(),
-                )
-              }
-            />
+            <Checkbox label="Select all sources on this page"
+              checked={documents.length>0&&documents.every(d=>checked.has(keyOf(d)))}
+              indeterminate={documents.some(d=>checked.has(keyOf(d)))&&!documents.every(d=>checked.has(keyOf(d)))}
+              onChange={value=>setChecked(value?new Set(documents.map(keyOf)):new Set())}/>
           </th>
-          {ordered.map((c) => (
+          {ordered.map((c,index) => (
             <th
               key={c.id}
+              ref={el=>{headerRefs.current[c.id]=el;}}
+              data-drop={columnDrag.dragKey ? columnDrag.dropIndex===index : undefined}
+              data-drag={columnDrag.dragKey===c.id}
               style={
                 c.pinned
                   ? { position: "sticky", left: left(c), zIndex: 4 }
                   : undefined
               }
             >
-              <span role={['title','year'].includes(c.id)?'button':undefined} tabIndex={['title','year'].includes(c.id)?0:undefined} onClick={()=>{if(['title','year'].includes(c.id))onSort(c.id);}} onKeyDown={e=>{if(e.key==='Enter'&&['title','year'].includes(c.id))onSort(c.id);}}
+              <button type="button" className="key-table-column-grip" aria-label={`Reorder ${c.label} column`} onPointerDown={e=>columnDrag.startReorder(c.id,e)} onPointerCancel={columnDrag.cancelReorder} onKeyDown={e=>{if(e.key==='Escape')columnDrag.cancelReorder();if(e.altKey&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();const next=[...columns],from=next.indexOf(c),to=from+(e.key==='ArrowLeft'?-1:1);if(to>=0&&to<next.length){[next[from],next[to]]=[next[to],next[from]];setColumns(next);}}}}>⠿</button>
+              {c.id.startsWith('property:') && onProperty ? <button className="key-property-name-link" aria-label={`Configure ${c.label} property`} onClick={()=>onProperty(c)}>{c.type==='formula'?'ƒ ':''}{c.pinned?'⌖ ':''}{c.label}</button> : <span role={['title','year'].includes(c.id)?'button':undefined} tabIndex={['title','year'].includes(c.id)?0:undefined} onClick={()=>{if(['title','year'].includes(c.id))onSort(c.id);}} onKeyDown={e=>{if(e.key==='Enter'&&['title','year'].includes(c.id))onSort(c.id);}}
                 title={
                   c.formula
                     ? `Derived display: ${c.formula}. Save the attribute to refresh stored filter values.`
@@ -252,7 +242,7 @@ export default function LibraryTable({
                 {c.type === "formula" ? "ƒ " : ""}
                 {c.pinned && c.id !== "title" ? "⌖ " : ""}
                 {c.label}
-              </span>
+              </span>}
               {c.id === "title" && (
                 <button
                   className="key-column-pin"
@@ -264,7 +254,6 @@ export default function LibraryTable({
                   ))}
                 >⌖</button>
               )}
-              {c.id.startsWith('property:') && onProperty && <button className="key-property-header-edit" aria-label={`Configure ${c.label} property`} onClick={()=>onProperty(c)}>⌄</button>}
               <span
                 className="key-column-resize"
                 role="separator"
@@ -298,13 +287,12 @@ export default function LibraryTable({
               />
             </th>
           ))}
-          <th>{onProperty&&<button aria-label="Add a property" onClick={()=>onProperty()}>＋</button>}</th>
+          <th className="key-table-actions" data-drop={columnDrag.dragKey ? columnDrag.dropIndex===ordered.length : undefined}>{onProperty&&<button aria-label="Add a property" onClick={()=>onProperty()}>＋</button>}</th><th aria-hidden="true"/>
         </tr>
-      </thead>
-      <tbody>
-        {documents.map((d) => (
+      </thead>} renderRow={(d) => (
           <tr
             key={keyOf(d)}
+            data-selected={checked.has(keyOf(d))}
             className={
               selected && keyOf(selected) === keyOf(d) ? "selected" : ""
             }
@@ -319,12 +307,7 @@ export default function LibraryTable({
               className="key-grid-select"
               onClick={(e) => e.stopPropagation()}
             >
-              <input
-                type="checkbox"
-                aria-label={`Select ${d.title}`}
-                checked={checked.has(keyOf(d))}
-                onChange={() => toggle(d)}
-              />
+              <Checkbox label={`Select ${d.title}`} checked={checked.has(keyOf(d))} onChange={()=>toggle(d)}/>
             </td>
             {ordered.map((c) => (
               <td
@@ -447,7 +430,7 @@ export default function LibraryTable({
                 )}
               </td>
             ))}
-            <td>
+            <td className="key-table-actions">
               <button
                 aria-label={`Details for ${d.title}`}
                 onClick={(e) => {
@@ -458,10 +441,10 @@ export default function LibraryTable({
                 •••
               </button>
             </td>
+            <td aria-hidden="true"/>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        )}
+    />
   );
 }
 

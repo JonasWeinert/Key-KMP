@@ -1,0 +1,142 @@
+.key-global-drawer-scrim {
+  position: fixed;
+  inset: 40px 0 0;
+  z-index: 1000;
+  border: 0;
+  background: #0003;
+  backdrop-filter: blur(3px);
+  cursor: default;
+}
+.key-global-drawer {
+  position: fixed;
+  left: 0;
+  top: 40px;
+  bottom: 0;
+  z-index: 1001;
+  width: min(480px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #232425);
+  box-shadow: 12px 0 48px #0002;
+  border-right: 1px solid var(--border, #e3e6ea);
+  overflow: hidden;
+  font: 13px var(--gs-font-sans, Arial, sans-serif);
+}
+.key-native-overlay-frame {
+  position: fixed;
+  z-index: 900;
+  pointer-events: none;
+  object-fit: fill;
+}
+.key-global-drawer .key-property-editor {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+.key-global-drawer .key-property-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+}
+.key-global-drawer .key-property-body > label,
+.key-global-drawer .key-property-body > fieldset,
+.key-global-drawer .key-property-body > section {
+  padding: 20px 24px;
+  margin: 0;
+  border-bottom: 1px solid var(--border, #e8e8e8);
+}
+.key-global-drawer .key-property-body > small {
+  padding: 0 24px 18px;
+}
+.key-global-drawer .key-property-body > fieldset > legend {
+  padding-top: 20px;
+}
+.key-global-drawer .key-property-body > .key-property-apply {
+  border-top: 0;
+}
+.key-global-drawer .key-property-editor header,
+.key-global-drawer .key-property-editor footer {
+  padding: 18px 24px;
+}
+.key-global-drawer .key-property-editor h2 {
+  font-size: 20px;
+}
+.key-drawer-slides {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.key-drawer-slide {
+  background: var(--surface, #fff);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.key-agent-drawer-back {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #e8e8e8);
+}
+.key-agent-drawer-back button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 24px;
+  cursor: pointer;
+  color: inherit;
+  width: 32px;
+  height: 32px;
+}
+.key-agent-drawer-back button:hover {
+  background: var(--hover, #f5f5f5);
+}
+.key-global-drawer .key-agent-fill-dialog {
+  flex: 1;
+  width: 100% !important;
+  max-height: none !important;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px 24px;
+  overflow: auto;
+}
+.key-global-drawer .key-agent-fill-dialog fieldset {
+  margin: 20px 0;
+}
+.key-property-name-link {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  max-width: calc(100% - 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.key-property-name-link:hover {
+  color: var(--text-primary, #232425);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.key-global-drawer .key-property-body {
+  align-content: start;
+}
+.key-global-drawer .key-property-body > label {
+  gap: 8px;
+}
+.key-global-drawer .key-property-body > fieldset {
+  padding-top: 8px;
+}

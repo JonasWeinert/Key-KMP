@@ -1,3 +1,4 @@
+import { GlobalDrawerHost } from "./GlobalDrawer";
 import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -302,6 +303,7 @@ export default function App() {
   }, [activeView?.id, activeView?.content?.record?.id]);
   return (
     <div className="key-shell">
+      <GlobalDrawerHost />
       <TabBar
         api={officeTabs}
         trailingControls={

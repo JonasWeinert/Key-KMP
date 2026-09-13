@@ -32,7 +32,9 @@
     "react-dom": "^19.2.4",
     "pdfjs-dist": "5.4.624",
     "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-dialog": "^2.0.0"
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "motion": "^13.2.0",
+    "@tanstack/react-virtual": "^3.14.12"
   },
   "devDependencies": {
     "electron": "^43.3.0",

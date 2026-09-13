@@ -225,7 +225,7 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("button", { name: "Agentic fill", exact: true })
       .click();
-    let dialog = page.getByRole("dialog", {
+    let dialog = page.getByRole("region", {
       name: "Fill a property",
       exact: true,
     });
@@ -277,11 +277,11 @@ const assert = require("node:assert/strict");
     await dialog
       .getByText("Provider: custom · test-no-inference", { exact: true })
       .waitFor();
-    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await dialog.getByRole("button", { name: "Close agent settings", exact: true }).click();
     await page
       .getByRole("button", { name: "Agentic fill", exact: true })
       .click();
-    dialog = page.getByRole("dialog", { name: "Fill a property", exact: true });
+    dialog = page.getByRole("region", { name: "Fill a property", exact: true });
     await dialog
       .getByRole("textbox", { name: "Property name", exact: true })
       .fill("Impact");

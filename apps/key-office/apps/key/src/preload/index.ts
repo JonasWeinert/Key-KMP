@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld("key", {
     if (
       ![
         "tabs-changed",
+        "global-overlay-frames",
         "save-content",
         "property-definitions-changed",
         "library-changed",

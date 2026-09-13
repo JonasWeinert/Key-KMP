@@ -75,3 +75,35 @@ preview replacement/dismissal, typed property persistence, rename with unsaved
 edits, recipe persistence without provider requests, and stable reorder release
 frames. Run GUI scripts serially with isolated profiles; rebuild the shell before
 running, and rebuild/package the Rust host when its code changes.
+
+## beUI table and global property drawer
+
+The Sources PDF table adapts the MIT beUI motion table, checkbox and column-reorder
+primitives (https://beui.dev/components/motion/table). It retains Key's canonical
+metadata, backend sorting/pagination, inline property editing, formula previews,
+indexing status, adjustable pinned columns, column widths/order, and split previews.
+A TanStack virtualizer measures rows in the existing pane scroll container; only
+the viewport plus eight rows of overscan on each side mounts. Selection still
+covers the entire loaded page (up to 200 sources), including unmounted rows.
+Column grips appear on hover/focus; drag them or use Alt+Left/Right. Existing resize
+handles also support arrow keys. The Title pin remains on by default and optional.
+
+Click a custom property name to open its details in a global left drawer adapted
+from https://beui.dev/components/motion/drawer. It starts below the 40px tab bar,
+overlays the sidebar and every pane, and keeps the originating workspace/selection
+when switching tabs. Property sections lead into an animated agent detail slide;
+Back preserves an unsaved recipe. Standalone agent settings use the same drawer.
+Saving a recipe does not run inference; proposal generation remains explicit.
+
+Electron native WebContentsViews cannot be covered by a DOM portal. While the
+drawer is open, the host captures at most two active native panes at CSS resolution,
+hides them, and displays their snapshots behind the scrim. It refreshes on tab or
+bounds changes and restores native visibility after the exit transition. Snapshots
+are memory-only and released on close. Native backgrounds are intentionally still
+images during this modal interaction; the original views and state remain owned
+by their tabs. Shell reload also releases the overlay. The app body is inert while
+the drawer is visible; the tab bar stays usable. Motion respects reduced-motion.
+
+Adapted source and the upstream MIT license live under renderer/motion; the license
+is also included in the packaged third-party notices. Existing non-PDF item tables
+keep their current implementation in this change.

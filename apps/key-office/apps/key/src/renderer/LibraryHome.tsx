@@ -648,7 +648,8 @@ export default function LibraryHome({
         const currentDefinitions = await invoke<PropertyDefinition[]>("workspace_attributes", {}, targetWorkspace);
         if(propertyGeneration!==context.current)return;
         setColumns(previous=>{const merged=mergePropertyColumns(previous,currentDefinitions,renaming?{name:originalName,newName:name}:undefined);try{localStorage.setItem(`key:library-columns:${targetWorkspace}`,JSON.stringify(merged));}catch{}return merged;});
-        setAttribute(false);
+        setAttribute(configureAgent);
+        setAttributeName(name);
         setMetadataRevision(n => n + 1);
         if(configureAgent) { setAgentSelection({workspaceId:targetWorkspace,hashes:(attributeContext?.targets||[]).map(d=>d.documentHash)}); setAgentProperty(name); setAgentDialog(true); }
         if (selected) {
@@ -1457,7 +1458,7 @@ export default function LibraryHome({
           }}
         />
       )}
-      {agentDialog && (
+      {agentDialog && !attribute && (
         <AgentPropertyDialog
           invoke={invoke}
           workspaceId={agentSelection?.workspaceId || workspaceId}
@@ -1493,8 +1494,10 @@ export default function LibraryHome({
       {attribute && <PropertyEditor
         initial={{name:attributeName,type:attributeType,value:attributeValue,options:attributeOptions.split(';').map(s=>s.trim()).filter(Boolean),formula:attributeFormula,applyValues:attributeApply}}
         editing={columns.some(c=>c.id===`property:${attributeName}`)}
+        onBack={()=>setAgentDialog(false)}
+        agentContent={agentDialog ? <AgentPropertyDialog key={agentProperty} embedded invoke={invoke} workspaceId={agentSelection?.workspaceId || attributeContext?.workspaceId} hashes={agentSelection?.hashes || []} propertyName={agentProperty} onClose={()=>setAgentDialog(false)} onSaved={()=>setMetadataRevision(n=>n+1)} /> : undefined}
         busy={busy} error={error || undefined} targetCount={attributeContext?.targets.length || 0}
-        properties={attributeContext?.properties || {}} previewTitle={attributeContext?.title} onClose={()=>setAttribute(false)} onSave={(draft,agent)=>void applyAttribute(draft,agent)}
+        properties={attributeContext?.properties || {}} previewTitle={attributeContext?.title} onClose={()=>{setAttribute(false);setAgentDialog(false);setAgentSelection(undefined);}} onSave={(draft,agent)=>void applyAttribute(draft,agent)}
       />}
       {roadmap && (
         <div className="key-roadmap-backdrop" onClick={() => setRoadmap(false)}>
