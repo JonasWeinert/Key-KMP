@@ -6,7 +6,7 @@
   .ribbon, .ribbon-tabs, .status-bar, .ai-panel, .copilot, .ai-dock,
   .modal, [role='dialog'], .dialog-backdrop, .comments-pane, .comment-compose,
   .comment-bubble, .find-panel, .gs-find-panel, .outline-pane, .md-outline,
-  .view-outline, .hx-panel, .format-pane, .fm-panel, .gs-dd-pop,
+  .hx-panel, .format-pane, .fm-panel, .gs-dd-pop,
   .ctx-menu, .ctx-submenu, .file-menu, .rb-menu, .slash-menu, .md-block-menu,
   .table-menu, .ui-screentip, .gcp-palette, .gs-imgdlg,
   .spacing-menu, .rb-font-size-menu, .rb-font-family-menu, .layout-menu,
@@ -73,7 +73,7 @@
 }
 .key-office-ui :is(.ribbon-tab, .ribbon-tabs > button) {
   border-radius: 999px;
-  font: 500 13px var(--key-ui-font);
+  font: 500 var(--key-ui-text-sm)/1.5 var(--key-ui-font);
 }
 .key-office-ui :is(.ribbon-tab.active, .ribbon-tabs > button.active) {
   background: var(--key-ui-hover);
@@ -87,7 +87,7 @@
 }
 .key-office-ui :is(.rb-big, .ribbon-group-styles) { border-radius: var(--key-ui-radius); }
 .key-office-ui :is(.ribbon-group-label, .rb-menu-group-label) {
-  font: 500 11px var(--key-ui-font);
+  font: 500 var(--key-ui-text-xs)/1.5 var(--key-ui-font);
   color: var(--key-ui-muted);
 }
 .key-office-ui :is(.ribbon-sep, .rb-sep) { border-color: var(--key-ui-border); }
@@ -96,7 +96,7 @@
   border-color: var(--key-ui-border);
   font-family: var(--key-ui-font);
 }
-.key-office-ui .gs-dd-btn { min-height: 28px; padding-inline: 8px; }
+.key-office-ui .gs-dd-btn { min-height: var(--key-ui-control-compact); padding-inline: 8px; }
 
 /* Shared anchored surfaces retain their engine's position/size/keyboard logic. */
 .key-office-ui :is(.gs-dd-pop, .ctx-menu, .ctx-submenu, .file-menu, .rb-menu, .slash-menu,
@@ -124,9 +124,9 @@
 /* Form styles are restricted to application forms, never editor inputs. */
 .key-office-ui :is(.modal, [role='dialog'], .dialog-backdrop, .hx-panel, .format-pane,
   .find-panel, .gs-find-panel, .comment-compose, .comment-reply-compose, .comment-new,
-  .ai-panel, .copilot, .fm-panel) :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select, textarea) {
+  .ai-panel, .copilot, .fm-panel) :where(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select, textarea) {
   font-family: var(--key-ui-font);
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
   color: var(--key-ui-text);
   background: var(--key-ui-bg);
   border: 1px solid var(--key-ui-border);
@@ -135,7 +135,7 @@
   box-sizing: border-box;
 }
 .key-office-ui :is(.modal, [role='dialog']) :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select) {
-  min-height: 36px;
+  min-height: var(--key-ui-field);
 }
 .key-office-ui :is(.modal, [role='dialog'], .comment-compose, .comment-reply-compose, .comment-new, .ai-panel, .copilot) textarea {
   border-radius: var(--key-ui-radius);
@@ -155,7 +155,7 @@
   padding: 6px 16px;
   border-radius: 999px;
   border: 1px solid var(--key-ui-border);
-  font: 500 13px var(--key-ui-font);
+  font: 500 var(--key-ui-text-sm)/1.5 var(--key-ui-font);
   background: var(--key-ui-surface);
   color: var(--key-ui-text);
 }
@@ -175,7 +175,7 @@
 
 /* Calm side panels, evidence cards and anchored comment threads. */
 .key-office-ui :is(.ai-panel, .copilot, .comments-pane, .hx-panel, .format-pane, .find-panel,
-  .gs-find-panel, .outline-pane, .md-outline, .view-outline, .fm-panel) {
+  .gs-find-panel, .outline-pane, .md-outline, .fm-panel) {
   background: var(--key-ui-bg);
   border-color: var(--key-ui-border);
 }
@@ -184,29 +184,29 @@
   border-color: var(--key-ui-border);
 }
 .key-office-ui :is(.ai-panel-title, .comments-pane-title, .md-outline-title) {
-  font: 600 14px var(--key-ui-font);
+  font: 600 var(--key-ui-text-lg)/1.5 var(--key-ui-font);
 }
 .key-office-ui :is(.comment-card, .comment-bubble, .ai-starter, .ai-work-group, .ai-input-wrap) {
   border-radius: var(--key-ui-radius-lg);
   border-color: var(--key-ui-border);
   background: var(--key-ui-surface);
 }
-.key-office-ui :is(.comment-card, .comment-bubble) { padding: 12px; }
+.key-office-ui :is(.comment-card, .comment-bubble) { padding: 16px; }
 .key-office-ui :is(.comment-author, .comment-bubble-author, .ai-step-title) { font-weight: 600; }
 .key-office-ui :is(.comment-date, .comment-time, .comment-anchor, .ai-step-detail) {
   color: var(--key-ui-muted);
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
-.key-office-ui :is(.comment-text, .comment-bubble-text) { font-size: 13px; line-height: 1.5; }
+.key-office-ui :is(.comment-text, .comment-bubble-text) { font-size: var(--key-ui-text-base); line-height: 1.5; }
 .key-office-ui :is(.comment-resolved-badge, .ai-tool-chip) {
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-office-ui :is(.ai-msg-user, .ai-starter) {
   background: var(--key-ui-hover);
   border-radius: var(--key-ui-radius-lg);
 }
-.key-office-ui .ai-composer { padding: 12px; }
+.key-office-ui .ai-composer { padding: 16px; }
 .key-office-ui :is(.ai-input-wrap, .ai-composer-box) { border-radius: var(--key-ui-radius-lg); }
 .key-office-ui :is(.status-bar, .status-item, .status-file, .status-save) {
   font: 400 12px var(--key-ui-font);
@@ -292,10 +292,150 @@ body.key-office-ui .slide-list,
 }
 .key-office-ui .rb-view {
   border-radius: 999px;
-  font: 500 13px var(--key-ui-font);
+  font: 500 var(--key-ui-text-sm)/1.5 var(--key-ui-font);
   color: var(--key-ui-muted);
 }
 .key-office-ui .rb-view.active {
   color: var(--key-ui-text);
   background: var(--key-ui-selected);
+}
+
+/* Density contract: body 14/21, section headings 16/24, supporting text
+ * 12/18; compact editing tools 32, ordinary actions 40, form fields 44.
+ * This list deliberately excludes editor roots and thumbnail artwork. */
+.key-office-ui :is(.ai-panel, .copilot, .ai-dock, .comments-pane, .comment-bubble,
+  .hx-panel, .format-pane, .chart-format-pane, .fm-panel, .find-panel, .gs-find-panel,
+  .outline-pane, .md-outline, .modal, [role='dialog'], .gs-imgdlg, .ctx-menu,
+  .ctx-submenu, .file-menu, .rb-menu, .slash-menu, .md-block-menu, .brief-card,
+  .ai-ask-pop, .ai-queue, .app-toast) {
+  font-family: var(--key-ui-font);
+  font-size: var(--key-ui-text-base);
+  line-height: 1.5;
+}
+/* Native controls and legacy font shorthands do not inherit their panel font.
+ * Name each interface boundary rather than resetting all Office descendants. */
+.key-office-ui :is(.ai-panel, .copilot, .ai-dock, .comments-pane, .comment-bubble,
+  .hx-panel, .format-pane, .chart-format-pane, .fm-panel, .find-panel, .gs-find-panel,
+  .outline-pane, .md-outline, .modal, [role='dialog'], .gs-imgdlg, .ctx-menu,
+  .ctx-submenu, .file-menu, .rb-menu, .slash-menu, .md-block-menu, .brief-card,
+  .ai-ask-pop, .ai-queue) :is(button, input, select, textarea, label) {
+  font-family: var(--key-ui-font);
+  font-size: var(--key-ui-text-base);
+  line-height: 1.5;
+}
+.key-office-ui :is(.ribbon, .ribbon-tabs, .status-bar, .gs-dd-pop) :is(button, input, select) {
+  font-family: var(--key-ui-font);
+  font-size: var(--key-ui-text-sm);
+  line-height: 1.5;
+}
+.key-office-ui .ribbon-body {
+  height: 96px;
+  min-height: 96px;
+  padding: 8px 16px;
+}
+.key-office-ui :is(.rb-btn, .rb-icon, .qa-btn, .rb-view, .ribbon-tab,
+  .ribbon-tabs > button, .ribbon-tool, .menu-select, .menu-select-edit) {
+  min-height: var(--key-ui-control-compact);
+  box-sizing: border-box;
+}
+.key-office-ui :is(.rb-btn, .rb-icon, .qa-btn) { min-width: var(--key-ui-control-compact); }
+.key-office-ui :is(.ribbon-group-items, .ribbon-group-content) { gap: 4px; }
+.key-office-ui :is(.gs-dd-pop, .ctx-menu, .ctx-submenu, .file-menu, .rb-menu, .slash-menu, .md-block-menu) {
+  padding: 8px;
+}
+.key-office-ui :is(.ctx-item, .gs-dd-item, .slash-item, .md-block-menu-item) {
+  min-height: var(--key-ui-control-compact);
+  padding: 6px 12px;
+  font-size: var(--key-ui-text-base);
+  line-height: 1.5;
+}
+.key-office-ui :is(.modal, .gs-imgdlg) { padding: 24px; }
+.key-office-ui :is(.dialog-body, .comments-list, .comments-pane-body, .hx-panel-body) {
+  padding: 16px;
+}
+.key-office-ui :is(.modal, [role='dialog']) :is(h2, header) {
+  line-height: 1.5;
+}
+.key-office-ui :is(.modal, [role='dialog']) :is(h3, .protect-section-title) {
+  font: 600 var(--key-ui-text-lg)/1.5 var(--key-ui-font);
+}
+.key-office-ui :is(.modal-actions, .dialog-actions, .dialog-actions-inline, .select-data-actions) {
+  gap: 8px;
+  padding-top: 16px;
+}
+.key-office-ui :is(.modal-actions, .dialog-actions, .dialog-actions-inline, .select-data-actions) button {
+  min-height: var(--key-ui-control);
+  padding: 8px 16px;
+  font-size: var(--key-ui-text-base);
+}
+.key-office-ui :is(.modal, [role='dialog'], .gs-imgdlg, .hx-panel, .chart-format-pane, .format-pane, .fm-panel)
+  :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select, .gs-dd-btn) {
+  min-height: var(--key-ui-field);
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+.key-office-ui :is(.ai-panel-header, .comments-pane-head, .hx-panel-head, .find-panel-head) {
+  padding: 16px;
+  gap: 8px;
+}
+.key-office-ui :is(.ai-panel-title, .ai-chat-empty-title, .comments-pane-title,
+  .md-outline-title, .fm-title, .hx-panel-tag) {
+  font: 600 var(--key-ui-text-lg)/1.5 var(--key-ui-font);
+}
+.key-office-ui :is(.ai-panel-header, .comments-pane-head, .hx-panel-head, .find-panel-head) > button {
+  min-width: var(--key-ui-control-compact);
+  min-height: var(--key-ui-control-compact);
+}
+.key-office-ui :is(.ai-chat, .ai-msg, .ai-chat-empty-body, .ai-starter, .comment-text,
+  .comment-bubble-text, .comment-reply, .comments-empty p, .ai-step-title,
+  .ai-version-row, .ai-clarify-opt-label, .brief-hint, .md-outline-item) {
+  font-family: var(--key-ui-font);
+  font-size: var(--key-ui-text-base);
+  line-height: 1.5;
+}
+.key-office-ui :is(.ai-input-box textarea, .comment-new textarea, .comment-compose textarea,
+  .comment-reply-compose textarea, .fm-textarea) {
+  font: 400 var(--key-ui-text-base)/1.5 var(--key-ui-font);
+  padding: 12px;
+}
+.key-office-ui :is(.ai-chat, .comments-list) { gap: 16px; }
+.key-office-ui :is(.hx-panel-section, .chart-format-pane .pane-section) {
+  padding: 16px;
+  gap: 12px;
+}
+.key-office-ui :is(.comment-date, .comment-time, .comment-anchor, .comment-resolved-badge,
+  .comments-empty-sub, .ai-step-detail, .ai-input-hint, .ai-scope-hint,
+  .ai-attachment-card-size, .ai-version-time, .ai-elapsed, .ai-history-sep,
+  .fld-hint, .fld-error, .dialog-note, .modal-desc, .ctx-key, .find-count,
+  .find-panel-status, .md-outline-empty, .brief-field > label) {
+  font-family: var(--key-ui-font);
+  font-size: var(--key-ui-text-xs);
+  line-height: 1.5;
+}
+.key-office-ui :is(.find-panel, .gs-find-panel) { padding: 16px; }
+.key-office-ui :is(.find-panel, .gs-find-panel) input {
+  min-height: var(--key-ui-control);
+  font-size: var(--key-ui-text-base);
+}
+.key-office-ui :is(.find-btn, .find-close, .find-panel-close, .find-action) {
+  min-height: var(--key-ui-control-compact);
+  min-width: var(--key-ui-control-compact);
+  font-family: var(--key-ui-font);
+}
+
+/* Both AiComposer and Slides' local composer measure scrollHeight, capped at
+ * 168px. Give the empty state room for three 21px lines plus its 24px inset;
+ * the old 48px minimum clipped wrapped placeholders after density migration.
+ * The outer input box owns the border, avoiding a nested textarea frame. */
+.key-office-ui :is(.ai-panel, .copilot, .ai-dock) .ai-input-box textarea {
+  box-sizing: border-box;
+  min-height: 88px;
+  max-height: 168px;
+  margin: 0;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--key-ui-radius-lg) var(--key-ui-radius-lg) 0 0;
+  background: transparent;
+  resize: none;
+  overflow-y: auto;
 }

@@ -14,23 +14,24 @@ body,
   flex-direction: column;
   background: var(--key-ui-bg, #fafafa);
   color: var(--key-ui-text, #222);
-  font: 13px/1.4 var(--key-ui-font, sans-serif);
+  font: var(--key-ui-text-base)/var(--key-ui-line)
+    var(--key-ui-font, sans-serif);
 }
 .key-pdf-toolbar {
-  min-height: 44px;
+  min-height: 48px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: var(--key-ui-space-2);
+  padding: var(--key-ui-space-2) var(--key-ui-space-3);
   background: var(--key-ui-bg, #fafafa);
   border-bottom: 1px solid var(--key-ui-border, #e8e8e8);
 }
 .key-pdf-toolbar-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--key-ui-space-1);
   min-width: 0;
 }
 .key-pdf-toolbar-end {
@@ -69,8 +70,8 @@ body,
 .key-pdf-target {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--key-ui-space-2);
+  padding: var(--key-ui-space-2) var(--key-ui-space-3);
   background: var(--key-ui-bg, #fafafa);
   border-bottom: 1px solid var(--key-ui-border, #e8e8e8);
   flex: none;
@@ -102,17 +103,18 @@ body,
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--key-ui-space-3);
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  font: 14px/1.5 var(--key-ui-font, sans-serif);
+  padding: var(--key-ui-space-6);
+  font: var(--key-ui-text-base)/var(--key-ui-line)
+    var(--key-ui-font, sans-serif);
   background: var(--key-ui-bg, #fafafa);
   color: var(--key-ui-muted, #737373);
 }
 .key-pdf-error h2 {
   color: var(--key-ui-text, #222);
-  font-size: 20px;
+  font-size: var(--key-ui-text-title);
   font-weight: 600;
   margin: 0;
 }
@@ -123,7 +125,7 @@ body,
 @media (max-width: 720px) {
   .key-pdf-toolbar {
     flex-wrap: wrap;
-    gap: 4px;
+    gap: var(--key-ui-space-1);
   }
   .key-pdf-toolbar-end {
     margin-left: auto;
@@ -134,7 +136,7 @@ body,
 }
 @media (max-width: 400px) {
   .key-pdf-find {
-    gap: 4px;
+    gap: var(--key-ui-space-1);
     padding: 8px;
     flex-wrap: wrap;
   }

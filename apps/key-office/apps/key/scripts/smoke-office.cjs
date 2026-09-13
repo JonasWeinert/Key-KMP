@@ -46,6 +46,16 @@ const { tmpdir } = require("node:os");
       await editor.waitForFunction(() => document.body.innerText.length > 30);
       const content = await editor.locator("body").innerText();
       const appearance=await editor.evaluate(async()=>{await document.fonts.ready;const control=document.querySelector('.ribbon,.ribbon-tabs,.ai-panel,.status-bar');return {scope:document.body.classList.contains('key-office-ui'),font:control?getComputedStyle(control).fontFamily:'',tokens:getComputedStyle(document.body).getPropertyValue('--key-ui-bg'),fontLoaded:document.fonts.check('13px "Geist Variable"')};});
+      const composer = await editor.locator('.ai-input-box textarea').evaluate(el => {
+        const s = getComputedStyle(el);
+        return {font:s.fontFamily, size:s.fontSize, line:s.lineHeight, height:el.getBoundingClientRect().height, border:s.borderWidth};
+      });
+      assert(composer.font.includes('Geist'), `${kind} composer uses shared font`);
+      assert.equal(composer.size, '14px');
+      assert.equal(composer.line, '21px');
+      assert(composer.height >= 88, `${kind} composer fits multiline text`);
+      assert.equal(composer.border, '0px', `${kind} composer has only one outer frame`);
+      appearance.composer = composer;
       assert(appearance.scope,`${kind} renderer is themed`);assert(appearance.tokens.trim(),`${kind} has shared tokens`);assert(appearance.fontLoaded,`${kind} loads bundled font`);checks.push({kind,...appearance});
       await shell.evaluate(
         (viewId) => window.key.tabAction("split", { viewId }),

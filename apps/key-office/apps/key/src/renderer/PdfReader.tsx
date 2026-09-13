@@ -125,11 +125,7 @@ export default function PdfReader() {
       <main className="key-ui-root key-pdf-error">
         <h2>Unable to open PDF</h2>
         <p>{error}</p>
-        <Button
-          size="compact"
-          variant="ghost"
-          onClick={() => location.reload()}
-        >
+        <Button variant="secondary" onClick={() => location.reload()}>
           Retry
         </Button>
       </main>
@@ -145,7 +141,7 @@ export default function PdfReader() {
       <header className="key-pdf-toolbar" aria-label="PDF controls">
         <div className="key-pdf-toolbar-group">
           <Button
-            size="compact"
+            size="icon"
             variant="ghost"
             title="Document outline"
             aria-label="Document outline"
@@ -160,7 +156,7 @@ export default function PdfReader() {
         </div>
         <div className="key-pdf-toolbar-group">
           <Button
-            size="compact"
+            size="icon"
             variant="ghost"
             aria-label="Zoom out"
             title="Zoom out"
@@ -178,7 +174,7 @@ export default function PdfReader() {
             {Math.round((chrome?.zoom ?? 1) * 100)}%
           </Button>
           <Button
-            size="compact"
+            size="icon"
             variant="ghost"
             aria-label="Zoom in"
             title="Zoom in"
@@ -251,7 +247,7 @@ export default function PdfReader() {
               : `${chrome?.searchCount ? chrome.activeSearchIndex + 1 : 0} of ${chrome?.searchCount ?? 0}`}
           </span>
           <Button
-            size="compact"
+            size="icon"
             variant="ghost"
             type="button"
             aria-label="Previous match"
@@ -260,7 +256,7 @@ export default function PdfReader() {
             ↑
           </Button>
           <Button
-            size="compact"
+            size="icon"
             variant="ghost"
             type="submit"
             aria-label="Next match"
@@ -268,7 +264,7 @@ export default function PdfReader() {
             ↓
           </Button>
           <Button
-            size="compact"
+            size="icon"
             variant="ghost"
             type="button"
             aria-label="Close find"

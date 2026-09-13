@@ -1,65 +1,4 @@
-/* Bridge old content selectors onto the shared primitives during migration. */
-.key-ui-root .kui-button {
-  border: 1px solid var(--key-ui-border);
-  border-radius: 999px;
-  padding: 6px 12px;
-  min-height: 32px;
-  color: var(--key-ui-text);
-  background: var(--key-ui-bg);
-  font: 500 13px/1.4 var(--key-ui-font);
-}
-.key-ui-root .kui-button:hover:not(:disabled) {
-  background: var(--key-ui-hover);
-}
-.key-ui-root .kui-button[data-variant="primary"] {
-  color: var(--key-ui-primary-ink);
-  background: var(--key-ui-primary);
-  border-color: var(--key-ui-primary);
-}
-.key-ui-root .kui-button[data-variant="ghost"] {
-  background: transparent;
-  border-color: transparent;
-}
-.key-ui-root .kui-button[data-variant="danger"] {
-  color: var(--key-ui-danger);
-  border-color: color-mix(in srgb, var(--key-ui-danger) 30%, transparent);
-}
-.key-ui-root .kui-button[data-size="icon"] {
-  width: 32px;
-  height: 32px;
-  padding: 6px;
-  border-radius: 8px;
-}
-.key-ui-root :is(.kui-input, .kui-select) {
-  min-height: 32px;
-  border: 1px solid var(--key-ui-border);
-  border-radius: 999px;
-  padding: 6px 12px;
-  color: var(--key-ui-text);
-  background: var(--key-ui-bg);
-  font: 13px/1.4 var(--key-ui-font);
-}
-.key-ui-root .kui-select {
-  padding-right: 24px;
-}
-.key-ui-root .kui-textarea {
-  border: 1px solid var(--key-ui-border);
-  border-radius: 12px;
-  padding: 12px;
-  background: var(--key-ui-bg);
-  color: var(--key-ui-text);
-  font: 13px/1.6 var(--key-ui-font);
-}
-.key-ui-root .kui-input:is([type="checkbox"], [type="radio"]) {
-  appearance: auto;
-  min-height: 0;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  margin: 0;
-  flex: 0 0 auto;
-  accent-color: var(--key-ui-primary);
-}
+/* Content compositions; primitive typography and sizing live in the shared package. */
 .key-ui-root :is(button, input, textarea, select, [tabindex]):focus-visible {
   outline: 2px solid var(--key-ui-focus);
   outline-offset: 2px;
@@ -78,7 +17,7 @@
   margin-bottom: 24px;
 }
 .key-ui-root .key-library-heading h1 {
-  font-size: 24px;
+  font-size: var(--key-ui-text-page);
   letter-spacing: -0.6px;
   margin: 8px 0;
 }
@@ -90,7 +29,7 @@
     .key-record-status
   ) {
   color: var(--key-ui-muted);
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-ui-root .key-library-scopes {
   gap: 4px;
@@ -152,7 +91,7 @@
   label {
   gap: 8px;
   color: var(--key-ui-text);
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
 }
 .key-ui-root .key-library-hit {
   border-radius: 16px;
@@ -196,7 +135,7 @@
   align-items: center;
 }
 .key-ui-root .key-library-detail h2 {
-  font-size: 20px;
+  font-size: var(--key-ui-text-title);
   line-height: 1.35;
   letter-spacing: -0.4px;
   margin: 20px 0;
@@ -207,10 +146,10 @@
 }
 .key-ui-root .key-library-detail dt {
   color: var(--key-ui-muted);
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-ui-root .key-library-detail dd {
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
   overflow-wrap: anywhere;
 }
 .key-ui-root .key-activity-item {
@@ -235,7 +174,7 @@
 }
 .key-ui-root .key-shell-dialog h2 {
   margin: 0 0 16px;
-  font-size: 20px;
+  font-size: var(--key-ui-text-title);
   letter-spacing: -0.4px;
 }
 .key-ui-root .key-shell-dialog > label {
@@ -252,7 +191,7 @@
 }
 .key-ui-root .key-shell-dialog details summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
   font-weight: 500;
   padding-block: 4px;
 }
@@ -281,16 +220,16 @@
 }
 .key-ui-root .key-agent-section h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--key-ui-text-lg);
   font-weight: 600;
 }
 .key-ui-root .key-agent-section p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-ui-root .key-agent-section legend {
   padding: 0 8px 0 0;
-  font-size: 14px;
+  font-size: var(--key-ui-text-lg);
   font-weight: 600;
 }
 .key-ui-root .key-agent-inputs {
@@ -318,7 +257,7 @@
   padding: 16px;
 }
 .key-ui-root .key-agent-proposal strong {
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
 }
 .key-ui-root .key-agent-proposal p {
   padding: 12px;
@@ -328,7 +267,7 @@
 }
 .key-ui-root .key-agent-proposal small {
   display: block;
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
   overflow-wrap: anywhere;
 }
 .key-ui-root .key-metadata-proposal {
@@ -348,7 +287,7 @@
   align-content: start;
 }
 .key-ui-root .key-property-editor h2 {
-  font-size: 20px;
+  font-size: var(--key-ui-text-title);
   letter-spacing: -0.4px;
 }
 .key-ui-root .key-property-manager {
@@ -373,7 +312,7 @@
 }
 .key-ui-root .key-property-manager-name small {
   color: var(--key-ui-muted);
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-ui-root .key-record-editor {
   padding: 24px 32px;
@@ -480,7 +419,7 @@
   height: 32px;
 }
 .key-ui-root .key-workspace-no-results {
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
   color: var(--key-ui-muted);
   padding: 12px;
 }
@@ -511,7 +450,7 @@
   }
 }
 
-/* Dense property cells keep the same compact field treatment as the drawer. */
+/* Inline record fields use compact density; full property forms use default density. */
 .key-ui-root
   .key-record-properties
   .key-record-property-value
@@ -540,4 +479,31 @@
 }
 .key-ui-root .key-shell-dialog .key-agent-proposal {
   display: block;
+}
+
+.key-ui-root :is(.key-property-editor, .key-shell-dialog, .key-tag-dialog) {
+  font: var(--key-ui-text-base)/var(--key-ui-line) var(--key-ui-font);
+}
+.key-ui-root :is(.key-property-editor, .key-shell-dialog, .key-tag-dialog) label {
+  font-size: var(--key-ui-text-base);
+  line-height: var(--key-ui-line);
+  gap: var(--key-ui-space-2);
+}
+.key-ui-root .key-property-body { gap: var(--key-ui-space-6); }
+.key-ui-root .key-property-body section { gap: var(--key-ui-space-3); }
+.key-ui-root .key-property-body :is(h3, legend) {
+  font-size: var(--key-ui-text-lg);
+  line-height: var(--key-ui-line);
+}
+.key-ui-root .key-property-body :is(small, .key-property-hint) {
+  font-size: var(--key-ui-text-xs);
+  line-height: var(--key-ui-line);
+}
+/* Search navigation shares a fixed 40px native-view inset. */
+.key-ui-root .key-search-session .kui-button {
+  min-height: 28px;
+  height: 28px;
+  padding: 3px var(--key-ui-space-2);
+  font-size: var(--key-ui-text-sm);
+  line-height: 20px;
 }

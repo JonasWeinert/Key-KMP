@@ -123,3 +123,10 @@ Intentional adaptations: native Select remains the desktop choice; complex Offic
 Validation: Key and all five Office typechecks/builds, 46 unit tests, table virtualization/reorder/resize, global and nested drawers, comment save/reload/narrow/dark states, typed properties/formulas/agent recipes, source entries and search highlighting, all Office views in mixed splits, packaged light/dark specimens, and a 24-cycle PDF stress run. Search preview regression also checks shared navigation bounds, document replacement, retained query and split retention on dismissal. The validation JSON records results and stress scope.
 
 The stress sample retained at most two PDF views and released all of them after close. It measures Electron processes and excludes Rust workers; it is not a universal latency or memory guarantee. A paired performance baseline, exhaustive screen-reader audit and 200% text-scaling audit were not performed in this migration; the broader gates above remain release-quality targets rather than claims of completed measurements.
+
+
+## Typography/density correction — 2026-09-13
+
+The initial migration left compact defaults and duplicated content rules in place. This follow-up removes generic content overrides, changes defaults to 40px actions/44px fields, centralizes the12/13/14/16/20/24 typography scale, and makes compact reader tools explicit. Reader citation/comment panels, property/agent forms, library navigation and Office panel/native controls now use the shared scale. Office ribbons allocate space for 32px controls; AI composers reserve enough height for multiline text. Document text and chrome remain outside the scale.
+
+Added computed-style assertions for actual dialog fields, comment editor text/action height, and all five Office composers, alongside the existing rendered screenshots and functional table/search/drawer checks. This corrects the earlier claim that token/font integration alone completed the typography migration.

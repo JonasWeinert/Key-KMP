@@ -206,5 +206,184 @@
         }
       ]
     }
+  },
+  "typographyFollowUp": {
+    "date": "2026-09-13",
+    "unitTests": 46,
+    "reports": {
+      "specimen": {
+        "ok": true,
+        "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-design-system-pictjI",
+        "chromeUnchanged": true,
+        "bundledFont": true,
+        "globalDialogEscape": true,
+        "primaryHoverContrast": true,
+        "fieldErrorsAssociated": true,
+        "checkbox": true,
+        "density": {
+          "projectField": {
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "size": "14px",
+            "height": 44.000030517578125,
+            "padding": "11px 12px"
+          },
+          "buttonDensity": {
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "size": "14px",
+            "height": 40,
+            "padding": "8px 16px"
+          },
+          "fieldDensity": {
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "size": "14px",
+            "height": 44,
+            "padding": "11px 12px"
+          }
+        }
+      },
+      "comments": {
+        "ok": true,
+        "canonicalEditAndReload": true,
+        "narrowBounds": {
+          "rect": {
+            "x": 55.578125,
+            "y": 12,
+            "width": 378,
+            "height": 364,
+            "top": 12,
+            "right": 433.578125,
+            "bottom": 376,
+            "left": 55.578125
+          },
+          "width": 610,
+          "height": 560,
+          "background": "oklch(0.99 0 0)"
+        },
+        "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-comments-4zwC9u"
+      },
+      "table": {
+        "ok": true,
+        "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-motion-table-yND6ra",
+        "totalRows": 80,
+        "mountedRows": 16,
+        "selectAll": true,
+        "scrollToEnd": true,
+        "columnReorder": true,
+        "successiveQuickDrags": 6,
+        "resizePersisted": true
+      },
+      "search": {
+        "ok": true,
+        "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-search-preview-10AGJa",
+        "tabCount": 2,
+        "native": [
+          {
+            "x": 843,
+            "y": 80,
+            "width": 597,
+            "height": 808
+          }
+        ],
+        "queryRetained": true,
+        "previewReplaced": true
+      },
+      "drawer": {
+        "ok": true,
+        "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-global-property-vxzDIY",
+        "globalBounds": {
+          "x": -0.9510719776153564,
+          "y": 40,
+          "width": 479.99999165534973,
+          "height": 848
+        },
+        "nativeLayering": true,
+        "tabSwitchPreservesProperty": true,
+        "agentDraftPreserved": true,
+        "nativeViewsRestored": true
+      },
+      "office": {
+        "ok": true,
+        "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-office-smoke-ASLyfw",
+        "checks": [
+          {
+            "kind": "docs",
+            "scope": true,
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "tokens": "oklch(99% 0 0)",
+            "fontLoaded": true,
+            "composer": {
+              "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+              "size": "14px",
+              "line": "21px",
+              "height": 88,
+              "border": "0px"
+            }
+          },
+          {
+            "kind": "sheets",
+            "scope": true,
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "tokens": "oklch(99% 0 0)",
+            "fontLoaded": true,
+            "composer": {
+              "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+              "size": "14px",
+              "line": "21px",
+              "height": 88,
+              "border": "0px"
+            }
+          },
+          {
+            "kind": "slides",
+            "scope": true,
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "tokens": "oklch(99% 0 0)",
+            "fontLoaded": true,
+            "composer": {
+              "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+              "size": "14px",
+              "line": "21px",
+              "height": 88,
+              "border": "0px"
+            }
+          },
+          {
+            "kind": "markdown",
+            "scope": true,
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "tokens": "oklch(99% 0 0)",
+            "fontLoaded": true,
+            "composer": {
+              "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+              "size": "14px",
+              "line": "21px",
+              "height": 88,
+              "border": "0px"
+            }
+          },
+          {
+            "kind": "html",
+            "scope": true,
+            "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+            "tokens": "oklch(99% 0 0)",
+            "fontLoaded": true,
+            "composer": {
+              "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+              "size": "14px",
+              "line": "21px",
+              "height": 88,
+              "border": "0px"
+            }
+          }
+        ]
+      }
+    },
+    "commentTypography": {
+      "font": "Geist Variable",
+      "fontSize": 14,
+      "lineHeight": 21,
+      "actionHeight": 40
+    },
+    "notes": "Measured controls and reviewed screenshots; chrome and document text excluded. No new performance benchmark for this CSS/density-only follow-up."
   }
 }

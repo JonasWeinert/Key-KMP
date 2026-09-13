@@ -54,6 +54,16 @@ const assert = require("node:assert/strict");
       exact: true,
     });
     await dialog.waitFor();
+    const appearance = async (locator) => locator.evaluate(el => {
+      const css = getComputedStyle(el);
+      return {font: css.fontFamily, size: css.fontSize, height: el.getBoundingClientRect().height, padding: css.padding};
+    });
+    const projectField = await appearance(dialog.locator('input:not([type="checkbox"])').first());
+    assert(projectField.font.includes('Geist'), 'Real dialog field uses Geist');
+    assert.equal(projectField.size, '14px', 'Real dialog field uses body type');
+    assert(Math.abs(projectField.height - 44) < 0.5, 'Real dialog field uses default density');
+    await dialog.evaluate(async el => { await Promise.all(el.getAnimations({subtree: true}).map(a => a.finished.catch(() => {}))); });
+    await page.screenshot({path: path.join(temp, 'project-dialog.png')});
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "hidden" });
     const base = page.url().slice(0, page.url().lastIndexOf("/") + 1);
@@ -69,6 +79,11 @@ const assert = require("node:assert/strict");
       name: "Add sources",
       exact: true,
     });
+    const buttonDensity = await appearance(primary);
+    assert.equal(buttonDensity.size, '14px');
+    assert(Math.abs(buttonDensity.height - 40) < 0.5);
+    const fieldDensity = await appearance(page.getByRole('textbox', {name: 'Property name', exact: true}));
+    assert(Math.abs(fieldDensity.height - 44) < 0.5);
     const normal = await primary.evaluate(
       (el) => getComputedStyle(el).backgroundColor,
     );
@@ -88,8 +103,11 @@ const assert = require("node:assert/strict");
     );
     await page.getByRole("checkbox", { name: "Enable agent fill" }).check();
     await page.screenshot({ path: path.join(temp, "light.png") });
+    const lightBackground = await page.locator('main').evaluate(el=>getComputedStyle(el).backgroundColor);
     await page.getByRole("button", { name: "Dark theme", exact: true }).click();
+    assert.notEqual(await page.locator('main').evaluate(el=>getComputedStyle(el).backgroundColor), lightBackground, 'Dark theme changes resolved colors');
     assert.equal(await page.locator("main").getAttribute("data-theme"), "dark");
+    await page.evaluate(async () => { await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))); });
     await page.screenshot({ path: path.join(temp, "dark.png") });
     const report = {
       ok: true,
@@ -100,6 +118,7 @@ const assert = require("node:assert/strict");
       primaryHoverContrast: true,
       fieldErrorsAssociated: true,
       checkbox: true,
+      density: { projectField, buttonDensity, fieldDensity },
     };
     await writeFile(
       path.join(temp, "report.json"),

@@ -1,14 +1,14 @@
 /* Key application compositions. The tab strip intentionally has no selectors. */
 .key-shell-body.key-ui-root {
   background: var(--key-ui-bg);
-  font-size: 14px;
+  font-size: var(--key-ui-text-base);
 }
 .key-ui-root .key-sidebar {
   background: transparent;
   box-shadow: none;
   border: 0;
   padding: 16px 12px;
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
 }
 .key-ui-root .key-sidebar-slot {
   background: transparent;
@@ -19,7 +19,7 @@
   width: 100%;
   border: 0;
   border-radius: 8px;
-  min-height: 36px;
+  min-height: var(--key-ui-control);
   padding: 8px 12px;
   background: transparent;
   text-align: left;
@@ -32,7 +32,7 @@
   background: var(--key-ui-hover);
 }
 .key-ui-root .key-sidebar h3 {
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
   font-weight: 500;
   color: var(--key-ui-muted);
   margin: 24px 12px 8px;
@@ -41,7 +41,7 @@
   gap: 4px;
 }
 .key-ui-root .key-sidebar-footer {
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
   color: var(--key-ui-muted);
 }
 .key-ui-root .key-sidebar-section .kui-button {
@@ -50,7 +50,7 @@
   border-radius: 8px;
 }
 .key-global-drawer.key-ui-root {
-  font: 14px/1.5 var(--key-ui-font);
+  font: var(--key-ui-text-base)/var(--key-ui-line) var(--key-ui-font);
   background: var(--key-ui-bg);
   color: var(--key-ui-text);
 }
@@ -87,17 +87,17 @@
   margin: 0 0 12px;
 }
 .key-global-dialog .key-shell-dialog p {
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
   color: var(--key-ui-muted);
 }
 .key-ui-root .key-beui-table {
   font-family: var(--key-ui-font);
-  font-size: 13px;
+  font-size: var(--key-ui-text-sm);
   border-color: var(--key-ui-border-subtle);
 }
 .key-ui-root .key-beui-table th {
   background: var(--key-ui-surface);
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
   font-weight: 500;
   height: 40px;
 }
@@ -130,7 +130,7 @@
   width: 100%;
   border-radius: 6px;
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-ui-root .key-beui-table .key-motion-checkbox {
   border-radius: 4px;
@@ -166,7 +166,7 @@
 .key-ui-root .key-sidebar .key-sidebar-section {
   padding: 20px 8px 8px;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-ui-root .key-sidebar .key-sidebar-section > span {
   white-space: nowrap;

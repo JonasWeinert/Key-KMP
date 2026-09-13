@@ -55,6 +55,16 @@ const { tmpdir } = require("node:os");
     await pdf
       .locator(".markdown-editor-surface")
       .fill("A persistent **comment** about this passage.");
+    const typography = await pdf.locator('.markdown-editor-surface').evaluate(el => {
+      const s = getComputedStyle(el); return {font:s.fontFamily,size:s.fontSize,line:s.lineHeight,padding:s.padding};
+    });
+    const assert = require('node:assert/strict');
+    assert(typography.font.includes('Geist'));
+    assert.equal(typography.size, '14px');
+    assert.equal(typography.line, '21px');
+    const saveHeight = await pdf.getByRole('button', {name:'Save comment',exact:true}).evaluate(el=>el.getBoundingClientRect().height);
+    assert(Math.abs(saveHeight - 40) < 0.5, `Comment actions use standard density, got ${saveHeight}`);
+    console.log('TYPOGRAPHY', JSON.stringify({typography, saveHeight}));
     await pdf.screenshot({ path: path.join(temp, "editor.png") });
     console.log(
       "EDITOR",

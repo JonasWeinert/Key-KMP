@@ -42,7 +42,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={cls("kui-button", className)}
         data-variant={variant}
-        data-size={size || density || "compact"}
+        data-size={size || density || "default"}
         aria-busy={loading || undefined}
         disabled={disabled || loading}
       >
@@ -55,7 +55,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 export const Input = forwardRef<
   HTMLInputElement,
   ComponentPropsWithoutRef<"input"> & { density?: Density }
->(function Input({ className, density = "compact", ...props }, ref) {
+>(function Input({ className, density = "default", ...props }, ref) {
   return (
     <input
       {...props}
@@ -81,7 +81,7 @@ export const Textarea = forwardRef<
 export const Select = forwardRef<
   HTMLSelectElement,
   ComponentPropsWithoutRef<"select"> & { density?: Density }
->(function Select({ className, density = "compact", ...props }, ref) {
+>(function Select({ className, density = "default", ...props }, ref) {
   return (
     <select
       {...props}

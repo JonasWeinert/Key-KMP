@@ -53,10 +53,10 @@
   gap: 4px 8px;
 }
 .key-pdf-reader .key-panel-header strong {
-  font-size: 14px;
+  font-size: var(--key-ui-text-lg);
 }
 .key-pdf-reader .key-panel-header small {
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-pdf-reader
   :is(
@@ -67,7 +67,6 @@
     .pdfjs-citation-modal > footer button,
     .pdfjs-citation-modal > footer a
   ) {
-  min-height: 32px;
   border-radius: 8px;
   font: inherit;
   color: var(--key-ui-text, #222);
@@ -117,10 +116,10 @@
   padding: 12px;
 }
 .key-pdf-reader .pdfjs-outline-list > button {
-  min-height: 32px;
+  min-height: var(--key-ui-control-compact);
 }
 .key-pdf-reader .pdfjs-outline-list span {
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
 }
 .key-pdf-reader
   :is(
@@ -132,15 +131,15 @@
   small,
 .key-pdf-reader .pdfjs-result-list span {
   color: var(--key-ui-muted, #737373);
-  font-size: 12px;
+  font-size: var(--key-ui-text-xs);
 }
 .key-pdf-reader :is(.pdfjs-reference-list, .pdfjs-result-list) p {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--key-ui-text-base);
+  line-height: var(--key-ui-line);
 }
 .key-pdf-reader .pdfjs-reference-list strong {
   color: var(--key-ui-text, #222);
-  font-size: 13px;
+  font-size: var(--key-ui-text-base);
 }
 .key-pdf-reader :is(.pdfjs-comment-list, .pdfjs-result-list) > button.active {
   background: var(--key-ui-hover, #eee);
@@ -152,8 +151,8 @@
   overflow-wrap: anywhere;
 }
 .key-pdf-reader .pdfjs-comment-list .markdown-content {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--key-ui-text-base);
+  line-height: var(--key-ui-line);
 }
 .key-pdf-reader .pdfjs-comment-editor {
   gap: 12px;
@@ -173,8 +172,8 @@
   background: var(--key-ui-surface, #f5f5f5);
 }
 .key-pdf-reader .markdown-editor-toolbar button {
-  width: 28px;
-  height: 28px;
+  width: var(--key-ui-control-compact);
+  height: var(--key-ui-control-compact);
   border-radius: 6px;
 }
 .key-pdf-reader .markdown-editor-surface {
@@ -183,7 +182,8 @@
   background: var(--key-ui-bg, #fafafa);
   color: var(--key-ui-text, #222);
   border-color: var(--key-ui-border, #d4d4d4);
-  font: 13px/1.5 var(--key-ui-font, sans-serif);
+  font: var(--key-ui-text-base)/var(--key-ui-line)
+    var(--key-ui-font, sans-serif);
 }
 .key-pdf-reader .markdown-editor-surface:focus {
   border-color: var(--key-ui-focus, #737373);
@@ -233,9 +233,9 @@
   }
 }
 .key-pdf-reader .pdfjs-selection-toolbar button:not(.pdfjs-color-button) {
-  min-height: 32px;
+  min-height: var(--key-ui-control-compact);
   border-radius: 8px;
-  font: 13px var(--key-ui-font, sans-serif);
+  font: var(--key-ui-text-sm)/var(--key-ui-line) var(--key-ui-font, sans-serif);
 }
 .key-pdf-reader .pdfjs-selection-toolbar .pdfjs-selection-action {
   width: 32px;
@@ -250,9 +250,185 @@
   gap: 12px;
 }
 .key-pdf-reader .key-empty-state strong {
-  font-size: 14px;
+  font-size: var(--key-ui-text-lg);
 }
 .key-pdf-reader .key-empty-state small {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--key-ui-text-base);
+  line-height: var(--key-ui-line);
+}
+
+/* Normalize the nested reader UI explicitly. The shared reader keeps compact
+   legacy type rules, so inheritance at the Electron root is insufficient.
+   These selectors only address interface surfaces, never PDF page content. */
+.key-pdf-reader
+  :is(
+    .key-panel-shell,
+    .pdfjs-comment-anchor-card,
+    .pdfjs-citation-card,
+    .pdfjs-citation-modal,
+    .pdfjs-selection-toolbar
+  ) {
+  font-size: var(--key-ui-text-base);
+  line-height: var(--key-ui-line);
+}
+.key-pdf-reader :is(.key-icon-button, .markdown-editor-toolbar button) {
+  width: var(--key-ui-control-compact);
+  height: var(--key-ui-control-compact);
+  flex-shrink: 0;
+}
+.key-pdf-reader .pdfjs-outline-list > button {
+  min-height: var(--key-ui-control);
+  padding-block: var(--key-ui-space-2);
+  padding-right: var(--key-ui-space-3);
+  padding-left: calc(
+    var(--key-ui-space-3) + var(--outline-depth, 0) * var(--key-ui-space-4)
+  );
+}
+.key-pdf-reader :is(.pdfjs-reference-list small, .pdfjs-result-list p) {
+  margin-top: var(--key-ui-space-1);
+}
+.key-pdf-reader .markdown-editor {
+  gap: var(--key-ui-space-2);
+}
+.key-pdf-reader .markdown-editor-toolbar {
+  max-width: 100%;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-comment-editor blockquote,
+    .pdfjs-lookup blockquote,
+    .pdfjs-comment-anchor-open
+  ) {
+  font: var(--key-ui-text-base)/var(--key-ui-line) var(--key-ui-font);
+}
+.key-pdf-reader :is(.markdown-editor-surface code, .markdown-content code) {
+  font-family: var(--key-ui-mono);
+}
+.key-pdf-reader .pdfjs-comment-error {
+  font-size: var(--key-ui-text-xs);
+  margin: 0;
+}
+.key-pdf-reader .pdfjs-comment-actions {
+  flex-wrap: wrap;
+}
+.key-pdf-reader .pdfjs-comment-actions button {
+  min-height: var(--key-ui-control);
+  padding: var(--key-ui-space-2) var(--key-ui-space-4);
+}
+.key-pdf-reader .pdfjs-selection-toolbar {
+  gap: var(--key-ui-space-1);
+  padding: var(--key-ui-space-1);
+}
+.key-pdf-reader .pdfjs-citation-card > header {
+  min-height: 56px;
+  gap: var(--key-ui-space-3);
+  padding: var(--key-ui-space-2) var(--key-ui-space-3);
+}
+.key-pdf-reader .pdfjs-citation-card > header strong {
+  font-size: var(--key-ui-text-base);
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-citation-card > header small,
+    .pdfjs-citation-compact-list small,
+    .pdfjs-citation-summary > span,
+    .pdfjs-citation-reference-action span,
+    .pdfjs-citation-modal > header span,
+    .pdfjs-citation-modal-tldr > span,
+    .pdfjs-citation-provenance dt
+  ) {
+  font-size: var(--key-ui-text-xs);
+  line-height: var(--key-ui-line);
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-citation-compact-list strong,
+    .pdfjs-citation-byline,
+    .pdfjs-citation-summary p,
+    .pdfjs-citation-preview blockquote,
+    .pdfjs-citation-modal > header p,
+    .pdfjs-citation-modal-body p,
+    .pdfjs-citation-provenance dd,
+    .pdfjs-citation-original-reference blockquote
+  ) {
+  font-size: var(--key-ui-text-base);
+  line-height: var(--key-ui-line);
+}
+.key-pdf-reader :is(.pdfjs-citation-preview h2, .pdfjs-citation-modal-body h3) {
+  font-size: var(--key-ui-text-lg);
+  line-height: var(--key-ui-line);
+}
+.key-pdf-reader .pdfjs-citation-modal > header h2 {
+  font-size: var(--key-ui-text-title);
+  line-height: 1.3;
+}
+.key-pdf-reader
+  :is(.pdfjs-citation-panel, .pdfjs-citation-card .pdfjs-citation-panel) {
+  padding: var(--key-ui-space-3);
+}
+.key-pdf-reader .pdfjs-citation-compact-list {
+  padding: var(--key-ui-space-2);
+  gap: var(--key-ui-space-1);
+}
+.key-pdf-reader .pdfjs-citation-compact-list > div {
+  padding: var(--key-ui-space-2) var(--key-ui-space-3);
+}
+.key-pdf-reader .pdfjs-citation-tabs {
+  gap: var(--key-ui-space-1);
+  padding: var(--key-ui-space-1);
+}
+.key-pdf-reader .pdfjs-citation-tabs button {
+  height: var(--key-ui-control-compact);
+  padding-inline: var(--key-ui-space-3);
+  font-size: var(--key-ui-text-sm);
+}
+.key-pdf-reader .pdfjs-citation-tabs.compact button {
+  min-width: max-content;
+  flex: 1 0 auto;
+  padding-inline: var(--key-ui-space-2);
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-citation-preview-copy,
+    .pdfjs-citation-card .pdfjs-citation-preview-copy
+  ) {
+  padding: var(--key-ui-space-4) var(--key-ui-space-1) var(--key-ui-space-3);
+}
+.key-pdf-reader
+  :is(.pdfjs-citation-card > footer, .pdfjs-citation-modal > footer) {
+  gap: var(--key-ui-space-2);
+  padding: var(--key-ui-space-3) var(--key-ui-space-4);
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-citation-card > footer button,
+    .pdfjs-citation-preview > footer button,
+    .pdfjs-citation-preview > footer a,
+    .pdfjs-citation-modal > footer a,
+    .pdfjs-citation-modal > footer > button
+  ) {
+  min-height: var(--key-ui-control);
+  height: auto;
+  padding: var(--key-ui-space-2) var(--key-ui-space-3);
+  font: var(--key-ui-text-base)/var(--key-ui-line) var(--key-ui-font);
+}
+.key-pdf-reader
+  :is(.pdfjs-citation-modal > header, .pdfjs-citation-modal-body) {
+  padding: var(--key-ui-space-6);
+}
+.key-pdf-reader .pdfjs-citation-modal-tldr {
+  padding: var(--key-ui-space-4);
+}
+.key-pdf-reader .pdfjs-citation-provenance dl > div {
+  padding: var(--key-ui-space-3);
+}
+.key-pdf-reader .pdfjs-lookup {
+  gap: var(--key-ui-space-3);
+  padding: var(--key-ui-space-4);
+}
+
+.key-pdf-reader :is(.key-icon-button, .selection-actions button:not(.color-dot)) {
+  min-height: var(--key-ui-control-compact);
 }
