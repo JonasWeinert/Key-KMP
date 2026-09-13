@@ -43,7 +43,8 @@
     "react-konva": "^19.0.10",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "@key/design-system": "*"
   },
   "author": "Key",
   "build": {

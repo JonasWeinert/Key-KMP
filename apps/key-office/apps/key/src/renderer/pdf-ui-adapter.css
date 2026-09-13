@@ -1,0 +1,258 @@
+/* Electron-only adapter for the shared Rust/PDF reader's application surfaces.
+   It intentionally does not style document pages, highlights, text or canvas. */
+.key-pdf-reader {
+  --key-space: 4px;
+  --key-border-width: 1px;
+  --key-radius-floating: 16px;
+  --key-radius-medium: 8px;
+  --key-radius-pill: 999px;
+  --key-material-floating-opacity: 1;
+  --key-backdrop-blur: 0px;
+  --key-motion-short: 120ms;
+  --key-motion-medium: 180ms;
+  --key-text: var(--key-ui-text, #222);
+  --key-text-secondary: var(--key-ui-muted, #737373);
+  --key-text-tertiary: var(--key-ui-muted, #737373);
+  --key-accent: var(--key-ui-primary, #222);
+  --key-accent-soft: var(--key-ui-hover, #eee);
+  --key-hover: var(--key-ui-hover, #eee);
+  --key-press: var(--key-ui-hover, #eee);
+  --key-hairline: var(--key-ui-border, #e8e8e8);
+  --key-hairline-strong: var(--key-ui-border, #d4d4d4);
+  --key-elevation-3: 0 8px 32px rgb(0 0 0 / 12%);
+  --text: var(--key-ui-text, #222);
+  --panel: var(--key-ui-surface, #f5f5f5);
+  --hover: var(--key-ui-hover, #eee);
+  --line: var(--key-ui-border, #e8e8e8);
+}
+.key-pdf-reader
+  :is(
+    .key-panel-shell,
+    .pdfjs-comment-anchor-card,
+    .pdfjs-citation-card,
+    .pdfjs-citation-modal,
+    .pdfjs-selection-toolbar
+  ) {
+  background: var(--key-ui-bg, #fafafa);
+  color: var(--key-ui-text, #222);
+  border: 1px solid var(--key-ui-border, #e8e8e8);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 12%);
+  backdrop-filter: none;
+  font-family: var(--key-ui-font, sans-serif);
+}
+.key-pdf-reader .pdfjs-citation-modal {
+  border-radius: 24px;
+}
+.key-pdf-reader .key-panel-header {
+  min-height: 56px;
+  padding: 8px 12px 8px 16px;
+}
+.key-pdf-reader .key-panel-header > div {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.key-pdf-reader .key-panel-header strong {
+  font-size: 14px;
+}
+.key-pdf-reader .key-panel-header small {
+  font-size: 12px;
+}
+.key-pdf-reader
+  :is(
+    .key-icon-button,
+    .selection-actions button:not(.color-dot),
+    .pdfjs-comment-actions button,
+    .pdfjs-citation-preview > footer button,
+    .pdfjs-citation-modal > footer button,
+    .pdfjs-citation-modal > footer a
+  ) {
+  min-height: 32px;
+  border-radius: 8px;
+  font: inherit;
+  color: var(--key-ui-text, #222);
+}
+.key-pdf-reader
+  :is(
+    .key-icon-button,
+    .selection-actions button:not(.color-dot),
+    .pdfjs-comment-actions button
+  ):focus-visible,
+.key-pdf-reader
+  :is(
+    .pdfjs-outline-list,
+    .pdfjs-reference-list,
+    .pdfjs-comment-list,
+    .pdfjs-result-list
+  )
+  > button:focus-visible {
+  outline: 2px solid var(--key-ui-focus, #737373);
+  outline-offset: 2px;
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-outline-list,
+    .pdfjs-reference-list,
+    .pdfjs-comment-list,
+    .pdfjs-result-list
+  ) {
+  gap: 4px;
+  padding: 8px;
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-outline-list,
+    .pdfjs-reference-list,
+    .pdfjs-comment-list,
+    .pdfjs-result-list
+  )
+  > button {
+  border-radius: 8px;
+  color: var(--key-ui-text, #222);
+  font: inherit;
+}
+.key-pdf-reader
+  :is(.pdfjs-reference-list, .pdfjs-comment-list, .pdfjs-result-list)
+  > button {
+  padding: 12px;
+}
+.key-pdf-reader .pdfjs-outline-list > button {
+  min-height: 32px;
+}
+.key-pdf-reader .pdfjs-outline-list span {
+  font-size: 13px;
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-outline-list,
+    .pdfjs-reference-list,
+    .pdfjs-comment-list,
+    .pdfjs-result-list
+  )
+  small,
+.key-pdf-reader .pdfjs-result-list span {
+  color: var(--key-ui-muted, #737373);
+  font-size: 12px;
+}
+.key-pdf-reader :is(.pdfjs-reference-list, .pdfjs-result-list) p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.key-pdf-reader .pdfjs-reference-list strong {
+  color: var(--key-ui-text, #222);
+  font-size: 13px;
+}
+.key-pdf-reader :is(.pdfjs-comment-list, .pdfjs-result-list) > button.active {
+  background: var(--key-ui-hover, #eee);
+  border-color: var(--key-ui-border, #d4d4d4);
+  box-shadow: none;
+}
+.key-pdf-reader .pdfjs-comment-list button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.key-pdf-reader .pdfjs-comment-list .markdown-content {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.key-pdf-reader .pdfjs-comment-editor {
+  gap: 12px;
+  padding: 16px;
+}
+.key-pdf-reader .pdfjs-comment-editor blockquote {
+  padding: 12px;
+  color: var(--key-ui-muted, #737373);
+  background: var(--key-ui-surface, #f5f5f5);
+  border-radius: 0 8px 8px 0;
+}
+.key-pdf-reader .markdown-editor-toolbar {
+  padding: 4px;
+  gap: 4px;
+  border-radius: 8px;
+  box-shadow: none;
+  background: var(--key-ui-surface, #f5f5f5);
+}
+.key-pdf-reader .markdown-editor-toolbar button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+.key-pdf-reader .markdown-editor-surface {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--key-ui-bg, #fafafa);
+  color: var(--key-ui-text, #222);
+  border-color: var(--key-ui-border, #d4d4d4);
+  font: 13px/1.5 var(--key-ui-font, sans-serif);
+}
+.key-pdf-reader .markdown-editor-surface:focus {
+  border-color: var(--key-ui-focus, #737373);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--key-ui-focus, #737373) 14%, transparent);
+}
+.key-pdf-reader .pdfjs-comment-actions {
+  gap: 8px;
+}
+.key-pdf-reader .pdfjs-comment-actions button {
+  padding: 6px 12px;
+  border: 1px solid var(--key-ui-border, #e8e8e8);
+  border-radius: 999px;
+  background: var(--key-ui-bg, #fafafa);
+}
+.key-pdf-reader .pdfjs-comment-actions button:hover {
+  background: var(--key-ui-hover, #eee);
+}
+.key-pdf-reader
+  :is(
+    .pdfjs-comment-actions button.primary,
+    .pdfjs-citation-modal > footer a.primary
+  ) {
+  color: var(--key-ui-primary-ink, #fff);
+  background: var(--key-ui-primary, #222);
+  border-color: transparent;
+}
+/* Anchored cards are measured live during selection and scrolling: never animate
+   their position, size or measurement-to-visible transition. */
+.key-pdf-reader .pdfjs-comment-anchor-card {
+  transition: none;
+  animation: none;
+}
+.key-pdf-reader .pdfjs-comment-anchor-card .pdfjs-comment-editor {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-pdf-reader
+    :is(
+      .key-panel-shell,
+      .pdfjs-citation-card,
+      .pdfjs-citation-modal,
+      .pdfjs-selection-toolbar
+    ) {
+    animation: none;
+    transition: none;
+  }
+}
+.key-pdf-reader .pdfjs-selection-toolbar button:not(.pdfjs-color-button) {
+  min-height: 32px;
+  border-radius: 8px;
+  font: 13px var(--key-ui-font, sans-serif);
+}
+.key-pdf-reader .pdfjs-selection-toolbar .pdfjs-selection-action {
+  width: 32px;
+  min-width: 32px;
+}
+.key-pdf-reader .pdfjs-selection-toolbar button:focus-visible {
+  outline: 2px solid var(--key-ui-focus, #737373);
+  outline-offset: 2px;
+}
+.key-pdf-reader .key-empty-state {
+  padding: 24px;
+  gap: 12px;
+}
+.key-pdf-reader .key-empty-state strong {
+  font-size: 14px;
+}
+.key-pdf-reader .key-empty-state small {
+  font-size: 13px;
+  line-height: 1.5;
+}

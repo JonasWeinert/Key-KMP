@@ -1,4 +1,12 @@
-import { GlobalDrawer } from "./GlobalDrawer";
+import {
+  Button,
+  Input,
+  Textarea,
+  Select,
+  Surface,
+  Badge,
+} from "@key/design-system";
+import { GlobalDrawer, GlobalDialog } from "./GlobalDrawer";
 import { useEffect, useState, useRef } from "react";
 import { parseReferences } from "./reference-import";
 import {
@@ -64,8 +72,30 @@ function Frame({
   className?: string;
   drawer?: boolean;
 }) {
-  if (drawer) return <GlobalDrawer onClose={onClose}><Frame title={title} onClose={onClose} className={className} embedded>{children}</Frame></GlobalDrawer>;
-  if (embedded && className.includes("key-agent-fill-dialog")) return <section className={`key-shell-dialog ${className}`} aria-label={title}><header style={{display:"flex",justifyContent:"space-between"}}><h2>{title}</h2><button type="button" aria-label="Close agent settings" onClick={onClose}>×</button></header>{children}</section>;
+  if (drawer)
+    return (
+      <GlobalDrawer onClose={onClose}>
+        <Frame title={title} onClose={onClose} className={className} embedded>
+          {children}
+        </Frame>
+      </GlobalDrawer>
+    );
+  if (embedded && className.includes("key-agent-fill-dialog"))
+    return (
+      <section className={`key-shell-dialog ${className}`} aria-label={title}>
+        <header style={{ display: "flex", justifyContent: "space-between" }}>
+          <h2>{title}</h2>
+          <Button
+            type="button"
+            aria-label="Close agent settings"
+            onClick={onClose}
+          >
+            ×
+          </Button>
+        </header>
+        {children}
+      </section>
+    );
   if (embedded)
     return (
       <section className="key-record-editor key-entry-pane">
@@ -74,23 +104,19 @@ function Frame({
       </section>
     );
   return (
-    <div className="key-dialog-backdrop">
+    <GlobalDialog label={title} onClose={onClose}>
       <section
         className={`key-shell-dialog ${className}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        style={{ maxHeight: "85vh", overflow: "auto", width: 620 }}
       >
         <header style={{ display: "flex", justifyContent: "space-between" }}>
           <h2>{title}</h2>
-          <button onClick={onClose} aria-label="Close">
+          <Button onClick={onClose} aria-label="Close">
             ×
-          </button>
+          </Button>
         </header>
         {children}
       </section>
-    </div>
+    </GlobalDialog>
   );
 }
 export function AddEntryDialog(props: Props) {
@@ -311,15 +337,15 @@ export function EntryDetails({
       {!id && <p role="alert">Choose a workspace before adding a source.</p>}
       <label>
         Source type
-        <select value={type} onChange={(e) => setType(e.target.value)}>
+        <Select value={type} onChange={(e) => setType(e.target.value)}>
           {types.map((t) => (
             <option key={t}>{t}</option>
           ))}
-        </select>
+        </Select>
       </label>
       <label>
         Title
-        <input
+        <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={256}
@@ -327,7 +353,7 @@ export function EntryDetails({
       </label>
       <label>
         Source URL
-        <input
+        <Input
           type="url"
           placeholder="https://…"
           value={url}
@@ -338,28 +364,28 @@ export function EntryDetails({
         <>
           <label>
             Authors separated by semicolons
-            <input
+            <Input
               value={authors}
               onChange={(e) => setAuthors(e.target.value)}
             />
           </label>
           <label>
             Year
-            <input
+            <Input
               type="number"
               step="1"
               value={year}
               onChange={(e) => setYear(e.target.value)}
             />
           </label>
-          <button
+          <Button
             disabled={busy || !url.trim()}
             onClick={() => void lookupMetadata()}
           >
             Look up metadata
-          </button>
+          </Button>
           {lookup && (
-            <section>
+            <Surface className="key-metadata-proposal">
               <h3>Review retrieved metadata</h3>
               <strong>{lookup.title}</strong>
               <p>
@@ -367,7 +393,7 @@ export function EntryDetails({
               </p>
               <p>{lookup.abstractText?.slice(0, 1000)}</p>
               <small>Source: {lookup.source}</small>
-              <button
+              <Button
                 onClick={() => {
                   if (lookup.title) setTitle(lookup.title);
                   if (lookup.authors?.length)
@@ -378,11 +404,11 @@ export function EntryDetails({
                 }}
               >
                 Use reviewed metadata
-              </button>
-            </section>
+              </Button>
+            </Surface>
           )}
           {(lookup?.fullTextUrl || loaded?.properties.fullTextUrl) && (
-            <button
+            <Button
               disabled={busy || !entry?.id}
               onClick={() => {
                 setBusy(true);
@@ -427,13 +453,13 @@ export function EntryDetails({
               }}
             >
               Get open-access PDF{!entry?.id ? " (save reference first)" : ""}
-            </button>
+            </Button>
           )}
         </>
       )}
       <label>
         {type === "note" ? "Note" : "Supplied text or description"}
-        <textarea
+        <Textarea
           rows={8}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -454,7 +480,7 @@ export function EntryDetails({
                 ? JSON.stringify(value)
                 : String(value)}
             </span>
-            <button
+            <Button
               onClick={() =>
                 setExtras((old) =>
                   Object.fromEntries(
@@ -464,12 +490,12 @@ export function EntryDetails({
               }
             >
               Remove
-            </button>
+            </Button>
           </div>
         ))}
         <label>
           Property name
-          <input
+          <Input
             value={propertyName}
             onChange={(e) => setPropertyName(e.target.value)}
             maxLength={128}
@@ -477,24 +503,24 @@ export function EntryDetails({
         </label>
         <label>
           Type
-          <select
+          <Select
             value={propertyType}
             onChange={(e) => setPropertyType(e.target.value)}
           >
             <option>text</option>
             <option>number</option>
             <option>boolean</option>
-          </select>
+          </Select>
         </label>
         <label>
           Value
-          <input
+          <Input
             value={propertyValue}
             onChange={(e) => setPropertyValue(e.target.value)}
             maxLength={4096}
           />
         </label>
-        <button
+        <Button
           onClick={() => {
             const name = propertyName.trim();
             if (
@@ -531,14 +557,14 @@ export function EntryDetails({
           }}
         >
           Add or update property
-        </button>
+        </Button>
         <p>Changes are saved with the source.</p>
       </details>
       {notice && <p role="status">{notice}</p>}
       {!entry && (
         <details>
           <summary>Import BibTeX or RIS references</summary>
-          <input
+          <Input
             type="file"
             accept=".bib,.ris"
             onChange={(e) => {
@@ -551,29 +577,29 @@ export function EntryDetails({
               void file.text().then(setBibliography);
             }}
           />
-          <textarea
+          <Textarea
             rows={5}
             aria-label="BibTeX or RIS content"
             value={bibliography}
             onChange={(e) => setBibliography(e.target.value)}
             placeholder="Paste BibTeX or RIS…"
           />
-          <button
+          <Button
             disabled={busy || !id || !bibliography.trim()}
             onClick={() => void importBibliography()}
           >
             Import references
-          </button>
+          </Button>
         </details>
       )}
       {error && <p role="alert">{error}</p>}
-      <button
+      <Button
         data-save-record
         disabled={!id || busy || !title.trim() || (!!entry && !loaded)}
         onClick={() => void save()}
       >
         {busy ? "Saving…" : "Save source"}
-      </button>
+      </Button>
     </Frame>
   );
 }
@@ -645,9 +671,9 @@ export function EntriesList({
         <h2>
           Other sources <small>{total}</small>
         </h2>
-        <button disabled={!workspaceId} onClick={() => setAdding(true)}>
+        <Button disabled={!workspaceId} onClick={() => setAdding(true)}>
           Add source
-        </button>
+        </Button>
       </header>
       <form
         onSubmit={(e) => {
@@ -655,13 +681,13 @@ export function EntriesList({
           setSubmitted(query);
         }}
       >
-        <input
+        <Input
           aria-label="Search other sources"
           placeholder="Search titles, URLs and supplied text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button>Search</button>
+        <Button>Search</Button>
       </form>
       {error && <p role="alert">{error}</p>}
       <table className="key-source-table">
@@ -677,14 +703,14 @@ export function EntriesList({
           {entries.map((e) => (
             <tr key={`${e.workspaceId}:${e.id}`}>
               <td>
-                <button
+                <Button
                   onClick={() => {
                     if (onOpen) onOpen(e);
                     else setEditing(e);
                   }}
                 >
                   {highlight(e.title, submitted)}
-                </button>
+                </Button>
               </td>
               <td>{String(e.properties.sourceType)}</td>
               <td>
@@ -693,11 +719,11 @@ export function EntriesList({
                   : "Metadata indexed"}
               </td>
               <td>
-                <button onClick={() => (onOpen ? onOpen(e) : setEditing(e))}>
+                <Button onClick={() => (onOpen ? onOpen(e) : setEditing(e))}>
                   Edit
-                </button>
+                </Button>
                 {typeof e.properties.url === "string" && e.properties.url && (
-                  <button
+                  <Button
                     onClick={() =>
                       void (window as any).key.tabAction("open-url", {
                         url: e.properties.url,
@@ -705,7 +731,7 @@ export function EntriesList({
                     }
                   >
                     Open link ↗
-                  </button>
+                  </Button>
                 )}
               </td>
             </tr>
@@ -718,9 +744,9 @@ export function EntriesList({
         </p>
       )}
       {next !== null && (
-        <button disabled={busy} onClick={() => void load(next)}>
+        <Button disabled={busy} onClick={() => void load(next)}>
           Load more
-        </button>
+        </Button>
       )}
       {adding && (
         <AddEntryDialog
@@ -845,72 +871,87 @@ export function AgentPropertyDialog({
       .filter(Boolean),
   };
   return (
-    <Frame title="Fill a property" onClose={onClose} className="key-agent-fill-dialog" embedded={embedded} drawer={!embedded}>
-      <p>
-        {hashes.length} selected PDFs. Select up to 25 PDFs per batch. Choose
-        the inputs sent to your configured AI provider. Results require review
-        before saving.
-      </p>
-      <label>
-        Property name
-        <input
-          value={name}
-          disabled={!!propertyName || busy}
-          maxLength={128}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </label>
-      <label>
-        Value type
-        <select
-          value={type}
-          disabled={!!attribute?.type || loadingRecipe}
-          onChange={(e) => setType(e.target.value)}
-        >
-          {type === "formula" && (
-            <option value="formula">Formula · calculated locally</option>
-          )}
-          {["text", "number", "boolean", "select"].map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
-      </label>
-      {type === "select" && (
+    <Frame
+      title="Fill a property"
+      onClose={onClose}
+      className="key-agent-fill-dialog"
+      embedded={embedded}
+      drawer={!embedded}
+    >
+      <Surface tone="quiet" className="key-agent-intro">
+        <Badge>{hashes.length} selected PDFs</Badge>
+        <p>
+          Choose the information your agent can use. Review every proposal
+          before saving.
+        </p>
+        <small>Up to 25 PDFs per batch.</small>
+      </Surface>
+      <section
+        className="key-agent-section"
+        aria-label="Property configuration"
+      >
+        <h3>Property</h3>
         <label>
-          Options separated by semicolons
-          <input
-            value={options}
-            disabled={!!attribute?.type || loadingRecipe}
-            onChange={(e) => setOptions(e.target.value)}
+          Property name
+          <Input
+            value={name}
+            disabled={!!propertyName || busy}
+            maxLength={128}
+            onChange={(e) => setName(e.target.value)}
           />
         </label>
-      )}
-      <label>
-        <input
-          type="checkbox"
-          style={{ width: "auto", marginRight: 8 }}
-          checked={enabled}
-          disabled={loadingRecipe || busy}
-          onChange={(e) => setEnabled(e.target.checked)}
-        />
-        Enable agent fill for this property
-      </label>
-      <p>
-        Enabling saves a reusable recipe. Nothing runs automatically: Generate
-        sends only the checked inputs, and confirmed proposals are saved after
-        review.
-      </p>
-      {attribute?.type && (
-        <small>
-          Value type and select options follow the workspace property
-          definition.
-        </small>
-      )}
-      <fieldset>
+        <label>
+          Value type
+          <Select
+            value={type}
+            disabled={!!attribute?.type || loadingRecipe}
+            onChange={(e) => setType(e.target.value)}
+          >
+            {type === "formula" && (
+              <option value="formula">Formula · calculated locally</option>
+            )}
+            {["text", "number", "boolean", "select"].map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </Select>
+        </label>
+        {type === "select" && (
+          <label>
+            Options separated by semicolons
+            <Input
+              value={options}
+              disabled={!!attribute?.type || loadingRecipe}
+              onChange={(e) => setOptions(e.target.value)}
+            />
+          </label>
+        )}
+        <label>
+          <Input
+            type="checkbox"
+            style={{ width: "auto", marginRight: 8 }}
+            checked={enabled}
+            disabled={loadingRecipe || busy}
+            onChange={(e) => setEnabled(e.target.checked)}
+          />
+          Enable agent fill for this property
+        </label>
+        <p>
+          Enabling saves a reusable recipe. Nothing runs automatically: Generate
+          sends only the checked inputs, and confirmed proposals are saved after
+          review.
+        </p>
+        {attribute?.type && (
+          <small>
+            Value type and select options follow the workspace property
+            definition.
+          </small>
+        )}
+      </section>
+      <fieldset className="key-agent-section key-agent-inputs">
         <legend>Inputs</legend>
         {agentInputs.map((input) => (
           <label key={input}>
-            <input
+            <Input
               type="checkbox"
               style={{ width: "auto", marginRight: 8 }}
               disabled={loadingRecipe || busy}
@@ -929,64 +970,66 @@ export function AgentPropertyDialog({
           </label>
         ))}
       </fieldset>
-      <label>
-        Instructions
-        <textarea
-          rows={4}
-          value={prompt}
-          maxLength={8192}
-          disabled={loadingRecipe || busy}
-          onChange={(e) => setPrompt(e.target.value)}
-        />
-      </label>
-      <button
-        disabled={
-          busy ||
-          loadingRecipe ||
-          !workspaceId ||
-          !name.trim() ||
-          !inputs.length ||
-          type === "formula"
-        }
-        onClick={() =>
-          void action(async () => {
-            const attributes = await invoke<AgentAttribute[]>(
-              "workspace_attributes",
-              {},
-              workspaceId,
-            );
-            const current = attributes.find((a) => a.name === name.trim());
-            if (
-              current?.type &&
-              (current.type !== type ||
-                JSON.stringify(current.options ?? []) !==
-                  JSON.stringify(attribute?.options ?? []))
-            )
-              throw Error(
-                "Property definition changed. Reopen agent fill before saving.",
+      <section className="key-agent-section" aria-label="Agent instructions">
+        <label>
+          Instructions
+          <Textarea
+            rows={4}
+            value={prompt}
+            maxLength={8192}
+            disabled={loadingRecipe || busy}
+            onChange={(e) => setPrompt(e.target.value)}
+          />
+        </label>
+        <Button
+          disabled={
+            busy ||
+            loadingRecipe ||
+            !workspaceId ||
+            !name.trim() ||
+            !inputs.length ||
+            type === "formula"
+          }
+          onClick={() =>
+            void action(async () => {
+              const attributes = await invoke<AgentAttribute[]>(
+                "workspace_attributes",
+                {},
+                workspaceId,
               );
-            const saved = withAgentRecipe(
-              current,
-              name.trim(),
-              type,
-              config.options,
-              { inputs, instruction: prompt, enabled },
-            );
-            await invoke(
-              "workspace_save_attribute",
-              { name: name.trim(), config: saved },
-              workspaceId,
-            );
-            setAttribute({ name: name.trim(), ...saved });
-            onSaved();
-            setMessage(
-              "Recipe saved for this property. No inputs have been sent.",
-            );
-          })
-        }
-      >
-        Save instructions
-      </button>
+              const current = attributes.find((a) => a.name === name.trim());
+              if (
+                current?.type &&
+                (current.type !== type ||
+                  JSON.stringify(current.options ?? []) !==
+                    JSON.stringify(attribute?.options ?? []))
+              )
+                throw Error(
+                  "Property definition changed. Reopen agent fill before saving.",
+                );
+              const saved = withAgentRecipe(
+                current,
+                name.trim(),
+                type,
+                config.options,
+                { inputs, instruction: prompt, enabled },
+              );
+              await invoke(
+                "workspace_save_attribute",
+                { name: name.trim(), config: saved },
+                workspaceId,
+              );
+              setAttribute({ name: name.trim(), ...saved });
+              onSaved();
+              setMessage(
+                "Recipe saved for this property. No inputs have been sent.",
+              );
+            })
+          }
+        >
+          Save instructions
+        </Button>
+      </section>
       {status?.available ? (
         <p>
           Provider: {status.provider} · {status.model}
@@ -997,22 +1040,22 @@ export function AgentPropertyDialog({
           Configure provider form below.
         </p>
       )}
-      <details>
+      <details className="key-agent-provider">
         <summary>Configure an OpenAI-compatible provider</summary>
         <label>
           Endpoint
-          <input
+          <Input
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
           />
         </label>
         <label>
           Model
-          <input value={model} onChange={(e) => setModel(e.target.value)} />
+          <Input value={model} onChange={(e) => setModel(e.target.value)} />
         </label>
         <label>
           API key (optional for a local provider)
-          <input
+          <Input
             type="password"
             autoComplete="off"
             value={apiKey}
@@ -1020,7 +1063,7 @@ export function AgentPropertyDialog({
           />
         </label>
         <label>
-          <input
+          <Input
             type="checkbox"
             style={{ width: "auto", marginRight: 8 }}
             checked={clearKey}
@@ -1028,7 +1071,7 @@ export function AgentPropertyDialog({
           />
           Clear saved API key (otherwise blank keeps it)
         </label>
-        <button
+        <Button
           disabled={busy || !model.trim()}
           onClick={() =>
             void action(async () => {
@@ -1052,9 +1095,10 @@ export function AgentPropertyDialog({
           }
         >
           Save provider
-        </button>
+        </Button>
       </details>
-      <button
+      <Button
+        variant="primary"
         disabled={
           busy ||
           !workspaceId ||
@@ -1085,13 +1129,13 @@ export function AgentPropertyDialog({
         }
       >
         {busy ? "Working…" : "Generate proposals"}
-      </button>
+      </Button>
       {proposals.length > 0 && (
-        <section>
+        <section className="key-agent-proposals">
           <h3>Review {proposals.length} proposals</h3>
           {proposals.map((p) => (
-            <div key={p.id}>
-              <input
+            <Surface className="key-agent-proposal" key={p.id}>
+              <Input
                 type="checkbox"
                 style={{ width: "auto", marginRight: 8 }}
                 aria-label={`Accept proposal for ${p.title}`}
@@ -1111,9 +1155,10 @@ export function AgentPropertyDialog({
               <small>
                 {p.provider} · {p.model} · {p.inputs.join(", ")}
               </small>
-            </div>
+            </Surface>
           ))}
-          <button
+          <Button
+            variant="primary"
             disabled={busy || !selectedProposals.length}
             onClick={() =>
               void action(async () => {
@@ -1129,17 +1174,17 @@ export function AgentPropertyDialog({
             }
           >
             Confirm selected values
-          </button>
-          <button disabled={busy} onClick={() => setProposals([])}>
+          </Button>
+          <Button disabled={busy} onClick={() => setProposals([])}>
             Dismiss proposals
-          </button>
+          </Button>
         </section>
       )}
       <details>
         <summary>Copy known metadata without AI</summary>
         <p>This copies existing values and leaves populated cells unchanged.</p>
         {["title", "authors", "year", "pageCount"].map((input) => (
-          <button
+          <Button
             key={input}
             disabled={busy || !workspaceId || !name.trim() || !hashes.length}
             onClick={() =>
@@ -1155,7 +1200,7 @@ export function AgentPropertyDialog({
             }
           >
             Copy {input}
-          </button>
+          </Button>
         ))}
       </details>
       {message && (

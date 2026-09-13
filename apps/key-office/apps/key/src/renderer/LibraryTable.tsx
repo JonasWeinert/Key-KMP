@@ -1,3 +1,4 @@
+import { Button, Input, Select } from "@key/design-system";
 import { Checkbox } from "./motion/Checkbox";
 import { useColumnReorder } from "./motion/table/use-column-reorder";
 import { Table } from "./motion/table/Table";
@@ -231,8 +232,8 @@ export default function LibraryTable({
                   : undefined
               }
             >
-              <button type="button" className="key-table-column-grip" aria-label={`Reorder ${c.label} column`} onPointerDown={e=>columnDrag.startReorder(c.id,e)} onPointerCancel={columnDrag.cancelReorder} onKeyDown={e=>{if(e.key==='Escape')columnDrag.cancelReorder();if(e.altKey&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();const next=[...columns],from=next.indexOf(c),to=from+(e.key==='ArrowLeft'?-1:1);if(to>=0&&to<next.length){[next[from],next[to]]=[next[to],next[from]];setColumns(next);}}}}>⠿</button>
-              {c.id.startsWith('property:') && onProperty ? <button className="key-property-name-link" aria-label={`Configure ${c.label} property`} onClick={()=>onProperty(c)}>{c.type==='formula'?'ƒ ':''}{c.pinned?'⌖ ':''}{c.label}</button> : <span role={['title','year'].includes(c.id)?'button':undefined} tabIndex={['title','year'].includes(c.id)?0:undefined} onClick={()=>{if(['title','year'].includes(c.id))onSort(c.id);}} onKeyDown={e=>{if(e.key==='Enter'&&['title','year'].includes(c.id))onSort(c.id);}}
+              <Button type="button" className="key-table-column-grip" aria-label={`Reorder ${c.label} column`} onPointerDown={e=>columnDrag.startReorder(c.id,e)} onPointerCancel={columnDrag.cancelReorder} onKeyDown={e=>{if(e.key==='Escape')columnDrag.cancelReorder();if(e.altKey&&['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();const next=[...columns],from=next.indexOf(c),to=from+(e.key==='ArrowLeft'?-1:1);if(to>=0&&to<next.length){[next[from],next[to]]=[next[to],next[from]];setColumns(next);}}}}>⠿</Button>
+              {c.id.startsWith('property:') && onProperty ? <Button className="key-property-name-link" aria-label={`Configure ${c.label} property`} onClick={()=>onProperty(c)}>{c.type==='formula'?'ƒ ':''}{c.pinned?'⌖ ':''}{c.label}</Button> : <span role={['title','year'].includes(c.id)?'button':undefined} tabIndex={['title','year'].includes(c.id)?0:undefined} onClick={()=>{if(['title','year'].includes(c.id))onSort(c.id);}} onKeyDown={e=>{if(e.key==='Enter'&&['title','year'].includes(c.id))onSort(c.id);}}
                 title={
                   c.formula
                     ? `Derived display: ${c.formula}. Save the attribute to refresh stored filter values.`
@@ -244,7 +245,7 @@ export default function LibraryTable({
                 {c.label}
               </span>}
               {c.id === "title" && (
-                <button
+                <Button
                   className="key-column-pin"
                   aria-label={`${c.pinned ? "Unpin" : "Pin"} Title column`}
                   aria-pressed={!!c.pinned}
@@ -252,7 +253,7 @@ export default function LibraryTable({
                   onClick={() => setColumns(columns.map(column =>
                     column.id === c.id ? { ...column, pinned: !column.pinned } : column
                   ))}
-                >⌖</button>
+                >⌖</Button>
               )}
               <span
                 className="key-column-resize"
@@ -287,7 +288,7 @@ export default function LibraryTable({
               />
             </th>
           ))}
-          <th className="key-table-actions" data-drop={columnDrag.dragKey ? columnDrag.dropIndex===ordered.length : undefined}>{onProperty&&<button aria-label="Add a property" onClick={()=>onProperty()}>＋</button>}</th><th aria-hidden="true"/>
+          <th className="key-table-actions" data-drop={columnDrag.dragKey ? columnDrag.dropIndex===ordered.length : undefined}>{onProperty&&<Button aria-label="Add a property" onClick={()=>onProperty()}>＋</Button>}</th><th aria-hidden="true"/>
         </tr>
       </thead>} renderRow={(d) => (
           <tr
@@ -343,7 +344,7 @@ export default function LibraryTable({
                     onClick={(e) => e.stopPropagation()}
                   >
                     {c.type === "select" || c.type === "boolean" ? (
-                      <select
+                      <Select
                         aria-label={`Edit ${c.label} for ${d.title}`}
                         onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();setEditing(undefined);}if(e.key==='Enter'){e.preventDefault();void commit(d,c);}}}
                         autoFocus
@@ -361,9 +362,9 @@ export default function LibraryTable({
                         ).map((option) => (
                           <option key={option}>{option}</option>
                         ))}
-                      </select>
+                      </Select>
                     ) : (
-                      <input
+                      <Input
                         autoFocus
                         aria-label={`Edit ${c.label} for ${d.title}`}
                         disabled={saving}
@@ -381,7 +382,7 @@ export default function LibraryTable({
                         onBlur={() => void commit(d, c)}
                       />
                     )}{" "}
-                    {onFillProperty && <button type="button" title={`Review agent proposals for ${c.label}`} onClick={()=>{setEditing(undefined);onFillProperty(c,d);}}>✧ Fill</button>}
+                    {onFillProperty && <Button type="button" title={`Review agent proposals for ${c.label}`} onClick={()=>{setEditing(undefined);onFillProperty(c,d);}}>✧ Fill</Button>}
                     {editing.error && (
                       <small role="alert">{editing.error}</small>
                     )}
@@ -431,7 +432,7 @@ export default function LibraryTable({
               </td>
             ))}
             <td className="key-table-actions">
-              <button
+              <Button
                 aria-label={`Details for ${d.title}`}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -439,7 +440,7 @@ export default function LibraryTable({
                 }}
               >
                 •••
-              </button>
+              </Button>
             </td>
             <td aria-hidden="true"/>
           </tr>

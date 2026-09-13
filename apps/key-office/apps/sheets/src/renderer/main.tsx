@@ -17,6 +17,8 @@ import { installCanvasFontFallback, registerCellFontAliases } from './cell-font-
 import { LocaleProvider, setModuleLang } from './i18n/locale'
 import type { UiTheme } from '../shared/desktop-api'
 import './styles.css'
+import '@key/design-system/styles.css'
+import '@key/design-system/office.css'
 
 if (import.meta.hot) {
   import.meta.hot.on('vite:beforeUpdate', ({ updates }) => {
@@ -29,6 +31,8 @@ if (import.meta.hot) {
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Missing application root.')
+
+document.body.classList.add('key-office-ui')
 
 installScreenTips()
 installCanvasFontFallback()

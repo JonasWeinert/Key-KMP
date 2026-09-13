@@ -1,0 +1,210 @@
+{
+  "date": "2026-09-13",
+  "unitTests": 46,
+  "typechecks": [
+    "key",
+    "docs",
+    "sheets",
+    "slides",
+    "markdown",
+    "html"
+  ],
+  "reports": {
+    "table": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-motion-table-4mnLBI",
+      "totalRows": 80,
+      "mountedRows": 17,
+      "selectAll": true,
+      "scrollToEnd": true,
+      "columnReorder": true,
+      "successiveQuickDrags": 6,
+      "resizePersisted": true
+    },
+    "comments": {
+      "ok": true,
+      "canonicalEditAndReload": true,
+      "narrowBounds": {
+        "rect": {
+          "x": 55.578125,
+          "y": 12,
+          "width": 378,
+          "height": 319.59375,
+          "top": 12,
+          "right": 433.578125,
+          "bottom": 331.59375,
+          "left": 55.578125
+        },
+        "width": 610,
+        "height": 560,
+        "background": "oklch(0.99 0 0)"
+      },
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-comments-gmU80w"
+    },
+    "drawer": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-global-property-8vM3wF",
+      "globalBounds": {
+        "x": -0.9393120408058167,
+        "y": 40,
+        "width": 480.00001150369644,
+        "height": 848
+      },
+      "nativeLayering": true,
+      "tabSwitchPreservesProperty": true,
+      "agentDraftPreserved": true,
+      "nativeViewsRestored": true
+    },
+    "office": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-office-smoke-w44L3s",
+      "checks": [
+        {
+          "kind": "docs",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "sheets",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "slides",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "markdown",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "html",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        }
+      ]
+    },
+    "properties": {
+      "passed": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-Jp8O38",
+      "noteId": "7f061d0b35551c47058d5aa405c15e2a995b39245f8a2e671e907832dc0f75a8",
+      "typedProperties": true,
+      "canonicalReopen": true,
+      "renamePreservesUnsavedDraft": true,
+      "formulaExplicitMaterialization": true,
+      "agentRecipeRestored": true,
+      "providerRequests": 0,
+      "errors": [],
+      "screenshots": [
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-Jp8O38/typed-record.png",
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-Jp8O38/saved-agent-recipe.png"
+      ]
+    },
+    "entries": {
+      "passed": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-GCwS0s",
+      "sourceTypes": [
+        "dataset",
+        "note"
+      ],
+      "customPropertyPersisted": true,
+      "searchHighlight": true,
+      "providerConfiguredWithoutNetworkCall": true,
+      "screenshots": [
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-GCwS0s/note-editor.png",
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-GCwS0s/entry-search.png",
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-entry-ui-GCwS0s/provider-config.png"
+      ]
+    },
+    "specimen": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-design-system-AJdEfo",
+      "chromeUnchanged": true,
+      "bundledFont": true,
+      "globalDialogEscape": true,
+      "primaryHoverContrast": true,
+      "fieldErrorsAssociated": true,
+      "checkbox": true
+    },
+    "stress": {
+      "ok": true,
+      "startMiB": 513.4375,
+      "endMiB": 641.875,
+      "peakMiB": 1287.609375,
+      "scope": "Electron app.getAppMetrics workingSetSize: main/renderers/GPU/utility processes; Rust workers excluded. Synthetic foreground switching/zoom/scroll and split/separate; local debug build, not a latency guarantee.",
+      "errors": [],
+      "cycles": 24,
+      "maxResident": 2,
+      "closedResident": 0,
+      "maxFrameMs": 53.5
+    },
+    "searchPreview": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-search-preview-TZj15I",
+      "tabCount": 2,
+      "native": [
+        {
+          "x": 843,
+          "y": 80,
+          "width": 597,
+          "height": 808
+        }
+      ],
+      "queryRetained": true,
+      "previewReplaced": true
+    },
+    "packagedOffice": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-office-smoke-uDJZQi",
+      "checks": [
+        {
+          "kind": "docs",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "sheets",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "slides",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "markdown",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        },
+        {
+          "kind": "html",
+          "scope": true,
+          "font": "\"Geist Variable\", ui-sans-serif, system-ui, sans-serif",
+          "tokens": "oklch(99% 0 0)",
+          "fontLoaded": true
+        }
+      ]
+    }
+  }
+}

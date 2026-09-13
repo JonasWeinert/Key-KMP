@@ -13,7 +13,11 @@ import '@key/ui/ai-panel-prefs.css'
 import '@key/ui/ai-scope-quote.css'
 import 'katex/dist/katex.min.css'
 import './styles.css'
+import '@key/design-system/styles.css'
+import '@key/design-system/office.css'
 import { applyAiPanelPrefs, installScreenTips } from '@key/ui'
+
+document.body.classList.add('key-office-ui')
 
 installScreenTips()
 

@@ -39,7 +39,8 @@ const SRC_GLOBS = [
     .filter((e) => e.isDirectory())
     .map((e) => `packages/${e.name}/src`),
 ]
-const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs)$/
+// CSS @imports include bundled font packages, whose OFL notices must ship too.
+const CODE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|css)$/
 const SKIP_DIR = /^(node_modules|out|dist|release|tests|__tests__|target)$/
 
 /** Runtime that is always present but never imported by specifier */

@@ -1,3 +1,5 @@
+/* Reader controls use the same beUI foundation as the library. Page/raster and
+   text-layer selectors deliberately stay in the shared reader implementation. */
 html,
 body,
 #root {
@@ -10,53 +12,36 @@ body,
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f1f2f3;
-  color: #282a30;
-  font:
-    12px -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  background: var(--key-ui-bg, #fafafa);
+  color: var(--key-ui-text, #222);
+  font: 13px/1.4 var(--key-ui-font, sans-serif);
 }
 .key-pdf-toolbar {
-  height: 42px;
+  min-height: 44px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 10px;
-  background: #fafafa;
-  border-bottom: 1px solid #e2e3e6;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--key-ui-bg, #fafafa);
+  border-bottom: 1px solid var(--key-ui-border, #e8e8e8);
 }
 .key-pdf-toolbar-group {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 .key-pdf-toolbar-end {
   justify-content: flex-end;
 }
-:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button {
-  font: inherit;
-  cursor: pointer;
-  color: inherit;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  padding: 6px 8px;
+.key-pdf-toolbar button {
+  flex-shrink: 0;
   white-space: nowrap;
 }
-:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button:hover {
-  background: #e9eaed;
-}
-:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button[aria-pressed='true'] {
-  background: #e4e5e9;
-}
-:is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button:focus-visible {
-  outline: 2px solid #697aaf;
-  outline-offset: 1px;
+.key-pdf-toolbar button[aria-pressed="true"] {
+  background: var(--key-ui-hover, #eee);
 }
 .key-pdf-page {
   min-width: 58px;
@@ -64,10 +49,10 @@ body,
   font-variant-numeric: tabular-nums;
 }
 .key-pdf-page span {
-  color: #91949c;
+  color: var(--key-ui-muted, #737373);
 }
 .key-pdf-zoom {
-  min-width: 50px;
+  min-width: 56px;
   font-variant-numeric: tabular-nums;
 }
 .key-pdf-surface {
@@ -85,26 +70,29 @@ body,
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
-  background: #fafafa;
-  border-bottom: 1px solid #e2e3e6;
+  padding: 8px 12px;
+  background: var(--key-ui-bg, #fafafa);
+  border-bottom: 1px solid var(--key-ui-border, #e8e8e8);
   flex: none;
 }
 .key-pdf-find input {
-  font: inherit;
-  border: 1px solid #d8dbe0;
-  border-radius: 6px;
-  padding: 6px 9px;
-  min-width: 120px;
-  width: 220px;
-  background: white;
-  color: inherit;
+  min-width: 80px;
+  width: 240px;
+  flex: 1;
+  max-width: 360px;
 }
 .key-pdf-find span {
-  color: #858993;
+  color: var(--key-ui-muted, #737373);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .key-pdf-target {
-  background: #fff9e8;
+  flex-wrap: wrap;
+  background: color-mix(
+    in srgb,
+    var(--key-ui-warning, #97600d) 12%,
+    var(--key-ui-bg, #fafafa)
+  );
 }
 .key-pdf-target span {
   flex: 1;
@@ -114,112 +102,40 @@ body,
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 12px;
   align-items: center;
   justify-content: center;
-  font:
-    14px -apple-system,
-    sans-serif;
-  color: #656a75;
+  padding: 24px;
+  font: 14px/1.5 var(--key-ui-font, sans-serif);
+  background: var(--key-ui-bg, #fafafa);
+  color: var(--key-ui-muted, #737373);
+}
+.key-pdf-error h2 {
+  color: var(--key-ui-text, #222);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
 }
 .key-pdf-error p {
   max-width: 550px;
   overflow-wrap: anywhere;
 }
-@media (max-width: 620px) {
+@media (max-width: 720px) {
   .key-pdf-toolbar {
-    gap: 3px;
-    padding: 0 4px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .key-pdf-toolbar-end {
+    margin-left: auto;
   }
   .key-pdf-toolbar-group {
     gap: 0;
   }
-  :is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button {
-    padding: 6px;
-  }
-  .key-pdf-toolbar-end button {
-    font-size: 11px;
-  }
 }
-@media (prefers-color-scheme: dark) {
-  .key-pdf-reader {
-    background: #25262a;
-    color: #e4e5e8;
-  }
-  .key-pdf-toolbar,
+@media (max-width: 400px) {
   .key-pdf-find {
-    background: #292a2e;
-    border-color: #414249;
+    gap: 4px;
+    padding: 8px;
+    flex-wrap: wrap;
   }
-  :is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button:hover,
-  :is(.key-pdf-toolbar, .key-pdf-find, .key-pdf-target) button[aria-pressed='true'] {
-    background: #404148;
-  }
-  .key-pdf-find input {
-    background: #222328;
-    border-color: #4a4c55;
-  }
-  .key-pdf-target {
-    background: #3d3727;
-    border-color: #5b513a;
-  }
-}
-
-/* The embedded reader does not mount the former Tauri design-system provider. */
-.key-pdf-reader {
-  --key-space: 4px;
-  --key-border-width: 1px;
-  --key-radius-floating: 12px;
-  --key-radius-medium: 8px;
-  --key-radius-pill: 6px;
-  --key-material-floating-opacity: 1;
-  --key-backdrop-blur: 0px;
-  --key-motion-short: 120ms;
-  --key-motion-medium: 180ms;
-  --key-text-tertiary: #858993;
-  --text: var(--key-text);
-  --panel: rgb(var(--key-surface));
-  --hover: var(--key-hover);
-}
-.key-pdf-reader .pdfjs-comment-anchor-card {
-  border: 1px solid var(--key-hairline-strong);
-}
-.key-pdf-reader .pdfjs-comment-editor blockquote {
-  color: var(--key-text-secondary);
-  background: var(--key-hover);
-}
-.key-pdf-reader .markdown-editor-surface {
-  background: rgb(var(--key-surface));
-  color: var(--key-text);
-  border-color: var(--key-hairline-strong);
-}
-.key-pdf-reader .pdfjs-comment-actions button {
-  color: var(--key-text);
-  background: rgb(var(--key-surface));
-  border-color: var(--key-hairline-strong);
-}
-.key-pdf-reader .pdfjs-comment-actions button.primary {
-  color: white;
-  background: var(--key-accent);
-}
-.key-pdf-reader .pdfjs-comment-list button {
-  color: var(--key-text);
-  font: inherit;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.key-pdf-reader .pdfjs-comment-list small {
-  color: var(--key-text-secondary);
-}
-.key-pdf-reader .pdfjs-comment-list .markdown-content {
-  line-height: 1.5;
-}
-/* Measured anchors must not animate from the hidden measurement position. */
-.key-pdf-reader .pdfjs-comment-anchor-card {
-  transition: none;
-  animation: none;
-}
-.key-pdf-reader .key-panel-shell {
-  background: rgb(var(--key-floating));
-  border: 1px solid var(--key-hairline);
-  backdrop-filter: none;
 }

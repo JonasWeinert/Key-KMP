@@ -14,7 +14,15 @@ const SPRING_PANEL = {
   mass: 0.5,
 } as const;
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
-function Panel({ children }: { children: ReactNode }) {
+function Panel({
+  children,
+  presentation,
+  label,
+}: {
+  children: ReactNode;
+  presentation: "drawer" | "dialog";
+  label: string;
+}) {
   const present = useIsPresent(),
     reduce = useReducedMotion();
   const ref = useRef<HTMLElement>(null);
@@ -29,14 +37,32 @@ function Panel({ children }: { children: ReactNode }) {
   return (
     <motion.aside
       ref={ref}
-      className="key-global-drawer"
+      className={`key-global-drawer key-ui-root ${presentation === "dialog" ? "key-global-dialog" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-label="Property details"
+      aria-label={label}
       inert={!present}
-      initial={reduce ? { opacity: 0 } : { x: "-100%" }}
-      animate={reduce ? { opacity: 1 } : { x: 0 }}
-      exit={reduce ? { opacity: 0 } : { x: "-100%" }}
+      initial={
+        presentation === "dialog"
+          ? { opacity: 0, y: reduce ? 0 : 12 }
+          : reduce
+            ? { opacity: 0 }
+            : { x: "-100%" }
+      }
+      animate={
+        presentation === "dialog"
+          ? { opacity: 1, y: 0 }
+          : reduce
+            ? { opacity: 1 }
+            : { x: 0 }
+      }
+      exit={
+        presentation === "dialog"
+          ? { opacity: 0, y: reduce ? 0 : 8 }
+          : reduce
+            ? { opacity: 0 }
+            : { x: "-100%" }
+      }
       transition={reduce ? { duration: 0.2, ease: EASE_OUT } : SPRING_PANEL}
       onKeyDown={(e) => {
         if (e.key !== "Tab") return;
@@ -65,7 +91,11 @@ export function Drawer({
   onClose,
   onExitComplete,
   children,
+  presentation = "drawer",
+  label = "Property details",
 }: {
+  presentation?: "drawer" | "dialog";
+  label?: string;
   open: boolean;
   onClose: () => void;
   onExitComplete: () => void;
@@ -102,7 +132,11 @@ export function Drawer({
           transition={{ duration: 0.2, ease: EASE_OUT }}
         />
       )}
-      {open && <Panel key="panel">{children}</Panel>}
+      {open && (
+        <Panel key="panel" presentation={presentation} label={label}>
+          {children}
+        </Panel>
+      )}
     </AnimatePresence>
   );
 }

@@ -123,7 +123,7 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("button", { name: "Agentic fill", exact: true })
       .click();
-    d = page.getByRole("dialog", { name: "Fill a property", exact: true });
+    d = page.getByRole("region", { name: "Fill a property", exact: true });
     await d
       .getByText("Configure an OpenAI-compatible provider", { exact: true })
       .click();

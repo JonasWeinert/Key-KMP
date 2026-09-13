@@ -1,0 +1,301 @@
+/* Key's beUI interface adapter for the five Office renderers.
+ * Explicit interface scopes are intentional: never theme authored document nodes,
+ * ProseMirror, CodeMirror, Univer cells, Konva canvases, or presentation output.
+ * Existing menu/selection/IME behavior stays with its editing engine. */
+.key-office-ui :is(
+  .ribbon, .ribbon-tabs, .status-bar, .ai-panel, .copilot, .ai-dock,
+  .modal, [role='dialog'], .dialog-backdrop, .comments-pane, .comment-compose,
+  .comment-bubble, .find-panel, .gs-find-panel, .outline-pane, .md-outline,
+  .view-outline, .hx-panel, .format-pane, .fm-panel, .gs-dd-pop,
+  .ctx-menu, .ctx-submenu, .file-menu, .rb-menu, .slash-menu, .md-block-menu,
+  .table-menu, .ui-screentip, .gcp-palette, .gs-imgdlg,
+  .spacing-menu, .rb-font-size-menu, .rb-font-family-menu, .layout-menu,
+  .style-gallery-menu, .hf-menu, .table-autofit-menu, .chart-menu, .rb-fill-menu,
+  .rb-font-menu, .rb-size-menu, .rb-anim-menu, .rb-collapse-panel, .rb-layout-panel
+) {
+  --surface: var(--key-ui-surface);
+  --surface-subtle: var(--key-ui-hover);
+  --chrome-bg: var(--key-ui-bg);
+  --border: var(--key-ui-border);
+  --border-subtle: var(--key-ui-border);
+  --border-strong: color-mix(in srgb, var(--key-ui-text) 16%, transparent);
+  --text: var(--key-ui-text);
+  --text-primary: var(--key-ui-text);
+  --text-secondary: var(--key-ui-muted);
+  --text-tertiary: var(--key-ui-muted);
+  --text-muted: var(--key-ui-muted);
+  --text-dim: var(--key-ui-muted);
+  --hover: var(--key-ui-hover);
+  --pressed: color-mix(in srgb, var(--key-ui-text) 10%, transparent);
+  --active-bg: var(--pressed);
+  --accent: var(--key-ui-primary);
+  --accent-dark: var(--key-ui-text);
+  --accent-soft: var(--key-ui-hover);
+  --ribbon-hover: var(--key-ui-hover);
+  --ribbon-active: var(--pressed);
+  --color-btn-primary: var(--key-ui-primary);
+  --color-btn-primary-hover: color-mix(in srgb, var(--key-ui-primary) 85%, var(--key-ui-bg));
+  --color-btn-primary-text: var(--key-ui-bg);
+  --color-ai-action: var(--key-ui-primary);
+  --color-ai-action-hover: var(--color-btn-primary-hover);
+  --color-ai-action-text: var(--key-ui-bg);
+  --color-text-primary: var(--key-ui-text);
+  --color-text-secondary: var(--key-ui-muted);
+  --color-text-tertiary: var(--key-ui-muted);
+  --color-bg-page: var(--key-ui-bg);
+  --color-bg-subtle: var(--key-ui-hover);
+  --color-border-default: var(--key-ui-border);
+  --color-border-strong: var(--border-strong);
+  --color-border-brand: var(--key-ui-primary);
+  --color-brand-secondary: var(--key-ui-primary);
+  --gs-font-sans: var(--key-ui-font);
+  --shadow-menu: 0 8px 28px rgb(0 0 0 / 12%);
+  --transition-fast: 160ms cubic-bezier(.16, 1, .3, 1);
+  font-family: var(--key-ui-font);
+  color: var(--key-ui-text);
+}
+
+/* Ribbon geometry remains compact for complex editing tools. These are in-view
+ * formatting tabs, not Key's application tab strip. */
+.key-office-ui .ribbon {
+  background: var(--key-ui-bg);
+  border-color: var(--key-ui-border);
+}
+.key-office-ui .ribbon-tabs {
+  background: var(--key-ui-bg);
+  gap: 4px;
+  border-color: var(--key-ui-border);
+}
+.key-office-ui .ribbon-body {
+  background: var(--key-ui-surface);
+  border-color: var(--key-ui-border);
+  padding-block: 8px;
+}
+.key-office-ui :is(.ribbon-tab, .ribbon-tabs > button) {
+  border-radius: 999px;
+  font: 500 13px var(--key-ui-font);
+}
+.key-office-ui :is(.ribbon-tab.active, .ribbon-tabs > button.active) {
+  background: var(--key-ui-hover);
+  color: var(--key-ui-text);
+}
+.key-office-ui .ribbon-tab.active::after,
+.key-office-ui .ribbon-tabs > button:not(.qa-btn).active::after { display: none; }
+.key-office-ui :is(.rb-btn, .ribbon-tool, .qa-btn, .ai-header-btn, .comments-pane-close, .hx-panel-close) {
+  border-radius: var(--key-ui-radius-sm);
+  transition: background-color 160ms, color 160ms, border-color 160ms;
+}
+.key-office-ui :is(.rb-big, .ribbon-group-styles) { border-radius: var(--key-ui-radius); }
+.key-office-ui :is(.ribbon-group-label, .rb-menu-group-label) {
+  font: 500 11px var(--key-ui-font);
+  color: var(--key-ui-muted);
+}
+.key-office-ui :is(.ribbon-sep, .rb-sep) { border-color: var(--key-ui-border); }
+.key-office-ui :is(.gs-dd-btn, .menu-select, .menu-select-edit, .rb-menu-input) {
+  border-radius: var(--key-ui-radius-sm);
+  border-color: var(--key-ui-border);
+  font-family: var(--key-ui-font);
+}
+.key-office-ui .gs-dd-btn { min-height: 28px; padding-inline: 8px; }
+
+/* Shared anchored surfaces retain their engine's position/size/keyboard logic. */
+.key-office-ui :is(.gs-dd-pop, .ctx-menu, .ctx-submenu, .file-menu, .rb-menu, .slash-menu,
+  .md-block-menu, .table-menu, .rb-link-pop, .gcp-palette,
+  .spacing-menu, .rb-font-size-menu, .rb-font-family-menu, .layout-menu,
+  .style-gallery-menu, .hf-menu, .table-autofit-menu, .chart-menu, .rb-fill-menu,
+  .rb-font-menu, .rb-size-menu, .rb-anim-menu, .rb-collapse-panel, .rb-layout-panel) {
+  border: 1px solid var(--key-ui-border);
+  border-radius: var(--key-ui-radius-lg);
+  background: var(--key-ui-surface);
+  color: var(--key-ui-text);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 12%);
+  padding: 6px;
+  font-family: var(--key-ui-font);
+}
+.key-office-ui :is(.gs-dd-item, .ctx-menu > button, .file-menu > button, .rb-menu > button,
+  .slash-item, .md-block-menu-item) {
+  border-radius: var(--key-ui-radius-sm);
+  min-height: 32px;
+  font-family: var(--key-ui-font);
+}
+.key-office-ui :is(.gs-dd-item, .ctx-menu > button, .file-menu > button, .rb-menu > button,
+  .slash-item, .md-block-menu-item):hover { background: var(--key-ui-hover); }
+
+/* Form styles are restricted to application forms, never editor inputs. */
+.key-office-ui :is(.modal, [role='dialog'], .dialog-backdrop, .hx-panel, .format-pane,
+  .find-panel, .gs-find-panel, .comment-compose, .comment-reply-compose, .comment-new,
+  .ai-panel, .copilot, .fm-panel) :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select, textarea) {
+  font-family: var(--key-ui-font);
+  font-size: 13px;
+  color: var(--key-ui-text);
+  background: var(--key-ui-bg);
+  border: 1px solid var(--key-ui-border);
+  border-radius: var(--key-ui-radius-sm);
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+.key-office-ui :is(.modal, [role='dialog']) :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select) {
+  min-height: 36px;
+}
+.key-office-ui :is(.modal, [role='dialog'], .comment-compose, .comment-reply-compose, .comment-new, .ai-panel, .copilot) textarea {
+  border-radius: var(--key-ui-radius);
+  line-height: 1.5;
+}
+.key-office-ui :is(.ribbon, .modal, [role='dialog'], .ai-panel, .copilot, .comments-pane,
+  .find-panel, .hx-panel, .format-pane, .gs-dd-pop) :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--key-ui-primary);
+  outline-offset: 2px;
+}
+.key-office-ui :is(.modal, [role='dialog'], .ribbon, .ai-panel, .copilot, .comments-pane) :is(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--key-ui-primary);
+}
+.key-office-ui :is(.modal-actions, .dialog-actions, .dialog-actions-inline, .comment-compose-actions,
+  .comment-thread-actions, .comment-reply-compose, .comment-new) button {
+  min-height: 32px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--key-ui-border);
+  font: 500 13px var(--key-ui-font);
+  background: var(--key-ui-surface);
+  color: var(--key-ui-text);
+}
+.key-office-ui :is(.modal-actions, .dialog-actions, .dialog-actions-inline, .comment-compose-actions) button.primary {
+  background: var(--key-ui-primary);
+  color: var(--key-ui-bg);
+  border-color: transparent;
+}
+.key-office-ui :is(.modal, [role='dialog']) {
+  border: 1px solid var(--key-ui-border);
+  border-radius: 24px;
+  background: var(--key-ui-surface);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 18%);
+}
+.key-office-ui :is(.modal, [role='dialog']) h2 { font: 600 20px var(--key-ui-font); }
+.key-office-ui :is(.modal-actions, .dialog-actions) { gap: 8px; }
+
+/* Calm side panels, evidence cards and anchored comment threads. */
+.key-office-ui :is(.ai-panel, .copilot, .comments-pane, .hx-panel, .format-pane, .find-panel,
+  .gs-find-panel, .outline-pane, .md-outline, .view-outline, .fm-panel) {
+  background: var(--key-ui-bg);
+  border-color: var(--key-ui-border);
+}
+.key-office-ui :is(.ai-panel-header, .comments-pane-head, .hx-panel-head, .find-panel-head) {
+  padding: 12px 16px;
+  border-color: var(--key-ui-border);
+}
+.key-office-ui :is(.ai-panel-title, .comments-pane-title, .md-outline-title) {
+  font: 600 14px var(--key-ui-font);
+}
+.key-office-ui :is(.comment-card, .comment-bubble, .ai-starter, .ai-work-group, .ai-input-wrap) {
+  border-radius: var(--key-ui-radius-lg);
+  border-color: var(--key-ui-border);
+  background: var(--key-ui-surface);
+}
+.key-office-ui :is(.comment-card, .comment-bubble) { padding: 12px; }
+.key-office-ui :is(.comment-author, .comment-bubble-author, .ai-step-title) { font-weight: 600; }
+.key-office-ui :is(.comment-date, .comment-time, .comment-anchor, .ai-step-detail) {
+  color: var(--key-ui-muted);
+  font-size: 12px;
+}
+.key-office-ui :is(.comment-text, .comment-bubble-text) { font-size: 13px; line-height: 1.5; }
+.key-office-ui :is(.comment-resolved-badge, .ai-tool-chip) {
+  border-radius: 999px;
+  font-size: 12px;
+}
+.key-office-ui :is(.ai-msg-user, .ai-starter) {
+  background: var(--key-ui-hover);
+  border-radius: var(--key-ui-radius-lg);
+}
+.key-office-ui .ai-composer { padding: 12px; }
+.key-office-ui :is(.ai-input-wrap, .ai-composer-box) { border-radius: var(--key-ui-radius-lg); }
+.key-office-ui :is(.status-bar, .status-item, .status-file, .status-save) {
+  font: 400 12px var(--key-ui-font);
+  color: var(--key-ui-muted);
+  font-variant-numeric: tabular-nums;
+}
+.key-office-ui .status-bar { background: var(--key-ui-bg); border-color: var(--key-ui-border); }
+@media (prefers-reduced-motion: reduce) {
+  .key-office-ui :is(.ribbon, .modal, .ai-panel, .copilot, .comments-pane, .gs-dd-pop) *,
+  .key-office-ui :is(.ribbon, .modal, .ai-panel, .copilot, .comments-pane, .gs-dd-pop) *::before,
+  .key-office-ui :is(.ribbon, .modal, .ai-panel, .copilot, .comments-pane, .gs-dd-pop) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.key-office-ui .ui-screentip {
+  background: var(--key-ui-text);
+  color: var(--key-ui-bg);
+  border-color: transparent;
+  border-radius: var(--key-ui-radius-sm);
+  padding: 8px 12px;
+  font: 12px/1.45 var(--key-ui-font);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+}
+.key-office-ui :is(.ui-screentip-kbd, .ui-screentip-detail) { color: inherit; opacity: .8; }
+.key-office-ui .gs-dd-item.selected { background: var(--key-ui-hover); }
+.key-office-ui .gs-imgdlg { border-radius: 24px; border-color: var(--key-ui-border); }
+.key-office-ui .dialog-tabs button { border-radius: 999px; }
+.key-office-ui :is(.modal, [role='dialog']) > header {
+  font: 600 16px var(--key-ui-font);
+  border-color: var(--key-ui-border);
+}
+
+/* Document navigation belongs to the interface; thumbnail artwork and the
+ * spreadsheet's rendered cells keep their authored palettes and font metrics. */
+body.key-office-ui .slide-list,
+.key-office-ui .name-box-bar {
+  background: var(--key-ui-bg);
+  border-color: var(--key-ui-border);
+  font-family: var(--key-ui-font);
+}
+.key-office-ui :is(.thumb, .master-thumb) {
+  border-color: var(--key-ui-border);
+  border-radius: var(--key-ui-radius-sm);
+}
+.key-office-ui :is(.thumb.active, .master-thumb.active) {
+  border-color: var(--key-ui-primary);
+}
+.key-office-ui .thumb.drop-before { box-shadow: 0 -7px 0 -2.5px var(--key-ui-primary); }
+.key-office-ui .thumb.drop-after { box-shadow: 0 7px 0 -2.5px var(--key-ui-primary); }
+.key-office-ui :is(.thumb-num, .master-thumb-label) { font-family: var(--key-ui-font); }
+.key-office-ui .name-box {
+  border-color: var(--key-ui-border);
+  border-radius: var(--key-ui-radius-sm) 0 0 var(--key-ui-radius-sm);
+  color: var(--key-ui-text);
+  background: var(--key-ui-surface);
+  font: 12px var(--key-ui-font);
+  min-height: 28px;
+}
+.key-office-ui .name-box-goto {
+  border-color: var(--key-ui-border);
+  border-radius: 0 var(--key-ui-radius-sm) var(--key-ui-radius-sm) 0;
+  color: var(--key-ui-muted);
+  background: var(--key-ui-surface);
+}
+.key-office-ui .name-box:focus-visible { outline: 2px solid var(--key-ui-focus); }
+.key-office-ui .name-box.invalid { border-color: var(--key-ui-danger); }
+.key-office-ui [data-u-comp='slide-tab-item'] {
+  font-family: var(--key-ui-font);
+  border-radius: var(--key-ui-radius-sm);
+}
+.key-office-ui [data-u-comp='slide-tab-item'][aria-selected='true'] {
+  color: var(--key-ui-text) !important;
+  background: var(--key-ui-selected);
+}
+/* The formula editor is canvas-backed: only its outer surface is adapted.
+ * Do not alter height/padding, which the measured autosize controller owns. */
+.key-office-ui [data-u-comp='formula-bar'] {
+  background: var(--key-ui-bg);
+  border-color: var(--key-ui-border);
+}
+.key-office-ui .rb-view {
+  border-radius: 999px;
+  font: 500 13px var(--key-ui-font);
+  color: var(--key-ui-muted);
+}
+.key-office-ui .rb-view.active {
+  color: var(--key-ui-text);
+  background: var(--key-ui-selected);
+}

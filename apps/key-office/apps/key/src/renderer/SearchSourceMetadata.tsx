@@ -1,3 +1,4 @@
+import { Button } from "@key/design-system";
 import { useEffect, useState } from "react";
 import type {
   LibrarySource,
@@ -63,9 +64,9 @@ export default function SearchSourceMetadata({
     >
       <header>
         <strong>Source metadata</strong>
-        <button aria-label="Close source metadata" onClick={onClose}>
+        <Button aria-label="Close source metadata" onClick={onClose}>
           ×
-        </button>
+        </Button>
       </header>
       <h2>{source?.title || hit.documentTitle || "Document"}</h2>
       {error && <p role="alert">{error}</p>}
@@ -109,14 +110,14 @@ export default function SearchSourceMetadata({
           </div>
         ))}
       </dl>
-      <button
+      <Button
         className="key-metadata-expand"
         aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
       >
         {expanded ? "Less metadata" : "All metadata"}
-      </button>
-      <button
+      </Button>
+      <Button
         disabled={!source}
         onClick={() =>
           source &&
@@ -124,7 +125,7 @@ export default function SearchSourceMetadata({
         }
       >
         Edit source properties
-      </button>
+      </Button>
     </aside>
   );
 }

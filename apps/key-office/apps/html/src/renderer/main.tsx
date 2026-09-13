@@ -15,6 +15,11 @@ import '@key/ui/ai-panel-prefs.css'
 import '@key/ui/ai-scope-quote.css'
 import '@key/ui/image-dialogs.css'
 import './styles.css'
+import '@key/design-system/styles.css'
+import '@key/design-system/office.css'
+
+if (!new URLSearchParams(location.search).has('present'))
+  document.body.classList.add('key-office-ui')
 
 installScreenTips()
 

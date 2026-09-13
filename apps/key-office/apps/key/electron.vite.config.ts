@@ -26,6 +26,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, "src/renderer/index.html"),
           pdf: resolve(__dirname, "src/renderer/pdf.html"),
+          designSystem: resolve(__dirname,"src/renderer/design-system.html"),
         },
       },
     },

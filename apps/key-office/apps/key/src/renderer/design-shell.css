@@ -1,0 +1,188 @@
+/* Key application compositions. The tab strip intentionally has no selectors. */
+.key-shell-body.key-ui-root {
+  background: var(--key-ui-bg);
+  font-size: 14px;
+}
+.key-ui-root .key-sidebar {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  padding: 16px 12px;
+  font-size: 13px;
+}
+.key-ui-root .key-sidebar-slot {
+  background: transparent;
+}
+.key-ui-root .key-sidebar > .kui-button,
+.key-ui-root .key-sidebar .key-sidebar-section > .kui-button {
+  justify-content: flex-start;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  background: transparent;
+  text-align: left;
+}
+.key-ui-root .key-sidebar > .kui-button.active {
+  background: var(--key-ui-selected);
+  font-weight: 600;
+}
+.key-ui-root .key-sidebar > .kui-button:hover {
+  background: var(--key-ui-hover);
+}
+.key-ui-root .key-sidebar h3 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--key-ui-muted);
+  margin: 24px 12px 8px;
+}
+.key-ui-root .key-sidebar-section {
+  gap: 4px;
+}
+.key-ui-root .key-sidebar-footer {
+  font-size: 12px;
+  color: var(--key-ui-muted);
+}
+.key-ui-root .key-sidebar-section .kui-button {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+}
+.key-global-drawer.key-ui-root {
+  font: 14px/1.5 var(--key-ui-font);
+  background: var(--key-ui-bg);
+  color: var(--key-ui-text);
+}
+.key-global-drawer .key-shell-dialog {
+  background: var(--key-ui-bg);
+  color: var(--key-ui-text);
+}
+.key-global-dialog.key-global-drawer {
+  top: calc(50% + 20px);
+  left: 50%;
+  bottom: auto;
+  translate: -50% -50%;
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  border: 1px solid var(--key-ui-border);
+  border-radius: 24px;
+  overflow: auto;
+  box-shadow: var(--key-ui-shadow);
+}
+.key-global-dialog .key-shell-dialog {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 24px;
+}
+.key-global-dialog .key-shell-dialog h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin: 0 0 12px;
+}
+.key-global-dialog .key-shell-dialog p {
+  font-size: 13px;
+  color: var(--key-ui-muted);
+}
+.key-ui-root .key-beui-table {
+  font-family: var(--key-ui-font);
+  font-size: 13px;
+  border-color: var(--key-ui-border-subtle);
+}
+.key-ui-root .key-beui-table th {
+  background: var(--key-ui-surface);
+  font-size: 12px;
+  font-weight: 500;
+  height: 40px;
+}
+.key-ui-root .key-beui-table td {
+  background: var(--key-ui-bg);
+  border-color: var(--key-ui-border-subtle);
+}
+.key-ui-root .key-beui-table tr[data-selected="true"] td {
+  background: color-mix(in srgb, var(--key-ui-bg), var(--key-ui-text) 7%);
+}
+.key-ui-root .key-beui-table td .kui-button,
+.key-ui-root .key-beui-table th .kui-button {
+  padding: 2px 4px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+.key-ui-root .key-beui-table .key-column-pin {
+  min-width: 20px;
+  width: 20px;
+  padding: 0;
+}
+.key-ui-root .key-beui-table .key-table-column-grip {
+  width: 12px;
+  padding: 0;
+}
+.key-ui-root .key-beui-table :is(.kui-input, .kui-select) {
+  min-height: 28px;
+  width: 100%;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.key-ui-root .key-beui-table .key-motion-checkbox {
+  border-radius: 4px;
+  background: var(--key-ui-bg);
+  border-color: var(--key-ui-muted);
+  color: var(--key-ui-bg);
+}
+.key-ui-root .key-beui-table .key-motion-checkbox[data-state="checked"] {
+  background: var(--key-ui-text);
+  border-color: var(--key-ui-text);
+}
+.key-ui-root .key-shell-error {
+  border: 1px solid color-mix(in srgb, var(--key-ui-danger) 25%, transparent);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: var(--key-ui-danger);
+  background: var(--key-ui-bg);
+}
+.key-ui-root
+  .key-shell-dialog
+  :is(input:not([type="checkbox"]), select, textarea) {
+  font-family: var(--key-ui-font);
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-ui-root * {
+    scroll-behavior: auto !important;
+  }
+}
+.key-ui-root .key-sidebar > .kui-button.selected {
+  background: var(--key-ui-selected);
+  font-weight: 600;
+}
+.key-ui-root .key-sidebar .key-sidebar-section {
+  padding: 20px 8px 8px;
+  gap: 8px;
+  font-size: 12px;
+}
+.key-ui-root .key-sidebar .key-sidebar-section > span {
+  white-space: nowrap;
+}
+.key-ui-root .key-sidebar .key-sidebar-section > .kui-button {
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 16px;
+}
+.key-global-drawer.key-ui-root .key-agent-fill-dialog {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}

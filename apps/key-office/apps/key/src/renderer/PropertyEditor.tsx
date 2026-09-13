@@ -1,3 +1,4 @@
+import { Button, Input, Textarea, Select } from "@key/design-system";
 import { GlobalDrawer } from "./GlobalDrawer";
 import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
@@ -140,19 +141,19 @@ export default function PropertyEditor({
                 <small>WORKSPACE PROPERTY</small>
                 <h2>{editing ? "Edit property" : "New property"}</h2>
               </div>
-              <button
+              <Button
                 type="button"
                 aria-label="Close property editor"
                 disabled={busy}
                 onClick={onClose}
               >
                 ×
-              </button>
+              </Button>
             </header>
             <div className="key-property-body">
               <label>
                 Property name
-                <input
+                <Input
                   required
                   maxLength={128}
                   value={draft.name}
@@ -170,7 +171,7 @@ export default function PropertyEditor({
                 <legend>Property type</legend>
                 <div className="key-property-types">
                   {types.map(([id, icon, label, hint]) => (
-                    <button
+                    <Button
                       type="button"
                       key={id}
                       aria-pressed={draft.type === id}
@@ -184,7 +185,7 @@ export default function PropertyEditor({
                     >
                       <span>{icon}</span>
                       {label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </fieldset>
@@ -193,7 +194,7 @@ export default function PropertyEditor({
                   <label>
                     Options
                     <div className="key-property-option-entry">
-                      <input
+                      <Input
                         value={option}
                         placeholder="Add an option…"
                         onChange={(e) => setOption(e.target.value)}
@@ -204,20 +205,20 @@ export default function PropertyEditor({
                           }
                         }}
                       />
-                      <button
+                      <Button
                         type="button"
                         disabled={!option.trim()}
                         onClick={addOption}
                       >
                         Add
-                      </button>
+                      </Button>
                     </div>
                   </label>
                   <div className="key-property-options">
                     {draft.options.map((value, i) => (
                       <span key={value} data-color={i % 5}>
                         {value}
-                        <button
+                        <Button
                           type="button"
                           aria-label={`Remove option ${value}`}
                           onClick={() =>
@@ -228,7 +229,7 @@ export default function PropertyEditor({
                           }
                         >
                           ×
-                        </button>
+                        </Button>
                       </span>
                     ))}
                   </div>
@@ -238,7 +239,7 @@ export default function PropertyEditor({
                 <section>
                   <label>
                     Formula
-                    <textarea
+                    <Textarea
                       required
                       spellCheck={false}
                       value={draft.formula}
@@ -250,7 +251,7 @@ export default function PropertyEditor({
                     {Object.keys(properties)
                       .slice(0, 24)
                       .map((name) => (
-                        <button
+                        <Button
                           type="button"
                           key={name}
                           onClick={() =>
@@ -258,7 +259,7 @@ export default function PropertyEditor({
                           }
                         >
                           {name}
-                        </button>
+                        </Button>
                       ))}
                   </div>
                   <div className="key-property-preview" role="status">
@@ -292,7 +293,7 @@ export default function PropertyEditor({
               )}
               <section className="key-property-apply">
                 <label>
-                  <input
+                  <Input
                     type="checkbox"
                     checked={draft.applyValues}
                     disabled={!targetCount || busy}
@@ -310,7 +311,7 @@ export default function PropertyEditor({
                     <label>
                       Value
                       {draft.type === "select" ? (
-                        <select
+                        <Select
                           aria-label="Value"
                           required
                           value={draft.value}
@@ -320,18 +321,18 @@ export default function PropertyEditor({
                           {draft.options.map((v) => (
                             <option key={v}>{v}</option>
                           ))}
-                        </select>
+                        </Select>
                       ) : draft.type === "boolean" ? (
-                        <select
+                        <Select
                           aria-label="Value"
                           value={draft.value}
                           onChange={(e) => set({ value: e.target.value })}
                         >
                           <option value="false">Unchecked</option>
                           <option value="true">Checked</option>
-                        </select>
+                        </Select>
                       ) : (
-                        <input
+                        <Input
                           required={draft.type === "number"}
                           type={draft.type === "number" ? "number" : "text"}
                           step="any"
@@ -354,18 +355,19 @@ export default function PropertyEditor({
             </div>
             <footer>
               {allowAgent && (
-                <button
+                <Button
                   type="button"
                   disabled={busy || !valid || draft.type === "formula"}
                   title="Save this property, then configure inputs and review AI proposals"
                   onClick={() => onSave({ ...draft, applyValues: false }, true)}
                 >
                   ✧ Configure agent fill
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 type="submit"
                 className="key-property-primary"
+                variant="primary"
                 disabled={busy || !valid}
               >
                 {busy
@@ -373,7 +375,7 @@ export default function PropertyEditor({
                   : editing
                     ? "Save property"
                     : "Create property"}
-              </button>
+              </Button>
             </footer>
           </form>
         </motion.div>
@@ -394,13 +396,13 @@ export default function PropertyEditor({
             }
           >
             <div className="key-agent-drawer-back">
-              <button
+              <Button
                 type="button"
                 aria-label="Back to property"
                 onClick={onBack}
               >
                 ‹
-              </button>
+              </Button>
               <strong>Agent settings</strong>
             </div>
             {retainedAgent.current}

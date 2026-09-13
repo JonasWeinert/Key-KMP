@@ -1,5 +1,6 @@
+const assert = require("node:assert/strict");
 const { _electron: electron } = require("playwright-core");
-const { mkdtemp, mkdir } = require("node:fs/promises");
+const { mkdtemp, mkdir, writeFile } = require("node:fs/promises");
 const path = require("node:path");
 const { tmpdir } = require("node:os");
 (async () => {
@@ -17,6 +18,7 @@ const { tmpdir } = require("node:os");
     },
   });
   try {
+    const checks=[];
     const shell = await app.firstWindow();
     await shell.waitForFunction(() => window.key);
     const [w] = await shell.evaluate(() => window.key.workspaces());
@@ -43,12 +45,14 @@ const { tmpdir } = require("node:os");
       if (!editor) throw Error(`${kind} renderer did not open`);
       await editor.waitForFunction(() => document.body.innerText.length > 30);
       const content = await editor.locator("body").innerText();
+      const appearance=await editor.evaluate(async()=>{await document.fonts.ready;const control=document.querySelector('.ribbon,.ribbon-tabs,.ai-panel,.status-bar');return {scope:document.body.classList.contains('key-office-ui'),font:control?getComputedStyle(control).fontFamily:'',tokens:getComputedStyle(document.body).getPropertyValue('--key-ui-bg'),fontLoaded:document.fonts.check('13px "Geist Variable"')};});
+      assert(appearance.scope,`${kind} renderer is themed`);assert(appearance.tokens.trim(),`${kind} has shared tokens`);assert(appearance.fontLoaded,`${kind} loads bundled font`);checks.push({kind,...appearance});
       await shell.evaluate(
         (viewId) => window.key.tabAction("split", { viewId }),
         library,
       );
       await shell
-        .getByRole("heading", { name: "All sources", exact: true })
+        .getByRole("heading", { name: /^(All sources|Sources)$/ })
         .waitFor();
       const geometry = await app.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]
@@ -69,7 +73,8 @@ const { tmpdir } = require("node:os");
       if (/ERR_FILE_NOT_FOUND|Failed to load resource/i.test(errors))
         throw Error(errors);
     }
-    console.log("OFFICE_SCREENSHOTS", temp);
+    await writeFile(path.join(temp,"report.json"),JSON.stringify({ok:true,temp,checks},null,2));
+    console.log(JSON.stringify({ok:true,temp,checks}));
     await app.evaluate(({ dialog }) => {
       dialog.showMessageBox = async () => ({
         response: 1,
@@ -78,7 +83,8 @@ const { tmpdir } = require("node:os");
       dialog.showMessageBoxSync = () => 1;
     });
   } finally {
-    await app.close();
+    await app.evaluate(({app})=>app.exit(0)).catch(()=>{});
+    await app.close().catch(()=>{});
   }
 })().catch((e) => {
   console.error(e);

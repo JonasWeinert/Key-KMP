@@ -1,3 +1,4 @@
+import { Button, Input, Textarea, Select } from "@key/design-system";
 import type { SearchPreviewState } from "./SearchPreviewBar";
 import { EntryDetails } from "./EntryTools";
 import { RecordProperties } from "./RecordProperties";
@@ -160,7 +161,7 @@ function WorkspaceRecordTable({
           {visible.map((r) => (
             <tr key={r.id}>
               <td>
-                <button onClick={() => onSelect(r)}>{r.title}</button>
+                <Button onClick={() => onSelect(r)}>{r.title}</Button>
               </td>
               <td>{r.kind}</td>
               <td title={JSON.stringify(r.properties)}>
@@ -184,12 +185,12 @@ function WorkspaceRecordTable({
         </p>
       )}
       {more && (
-        <button
+        <Button
           disabled={loading}
           onClick={() => void load(offset, generation.current)}
         >
           Load next 100 records
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -446,7 +447,7 @@ export default function WorkspaceContent({
       {error && (
         <div className="key-shell-error" role="alert">
           {error}
-          <button onClick={() => setError("")}>Dismiss</button>
+          <Button onClick={() => setError("")}>Dismiss</Button>
         </div>
       )}
       {section === "record" && record && !!record.properties.sourceType && (
@@ -481,15 +482,16 @@ export default function WorkspaceContent({
               {selectedWorkspace?.name} / {selectedProject?.name || "Pages"} /{" "}
               {record.kind}
             </span>
-            <button
+            <Button
+              variant="primary"
               data-save-record
               disabled={busy || !title.trim()}
               onClick={() => void save()}
             >
               {busy ? "Saving…" : dirty ? "Save changes" : "Save"}
-            </button>
+            </Button>
           </div>
-          <input
+          <Input
             className="key-record-title"
             aria-label="Page title"
             placeholder="Untitled"
@@ -504,7 +506,7 @@ export default function WorkspaceContent({
               <div className="key-library-filters">
                 <label>
                   Item type
-                  <select
+                  <Select
                     value={databaseView.kind || ""}
                     onChange={(e) => {
                       setDatabaseView({
@@ -525,11 +527,11 @@ export default function WorkspaceContent({
                     ].map((kind) => (
                       <option key={kind}>{kind}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label>
                   Text contains
-                  <input
+                  <Input
                     value={databaseView.query || ""}
                     onChange={(e) => {
                       setDatabaseView({
@@ -542,7 +544,7 @@ export default function WorkspaceContent({
                 </label>
                 <label>
                   Property name
-                  <input
+                  <Input
                     value={databaseView.property || ""}
                     onChange={(e) => {
                       setDatabaseView({
@@ -555,7 +557,7 @@ export default function WorkspaceContent({
                 </label>
                 <label>
                   Equals
-                  <input
+                  <Input
                     placeholder="Text, number, true or false"
                     value={databaseView.value || ""}
                     onChange={(e) => {
@@ -585,7 +587,7 @@ export default function WorkspaceContent({
               </p>
             </>
           ) : (
-            <textarea
+            <Textarea
               aria-label="Page content"
               placeholder="Start writing…"
               value={body}
@@ -618,7 +620,7 @@ export default function WorkspaceContent({
               {projects.map((p) => (
                 <div key={p.id}>
                   <span>{p.name}</span>
-                  <button
+                  <Button
                     onClick={() =>
                       void task(async () => {
                         await invoke(
@@ -636,8 +638,8 @@ export default function WorkspaceContent({
                     }
                   >
                     Add
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() =>
                       void task(async () => {
                         await invoke(
@@ -655,7 +657,7 @@ export default function WorkspaceContent({
                     }
                   >
                     Remove
-                  </button>
+                  </Button>
                 </div>
               ))}
             </details>
@@ -665,7 +667,7 @@ export default function WorkspaceContent({
       {section === "records" && workspaceId && (
         <section className="key-record-editor">
           <h1>All items & linked files</h1>
-          <input
+          <Input
             aria-label="Search workspace records"
             placeholder="Search file metadata, notes and pages"
             value={recordQuery}

@@ -1,3 +1,4 @@
+import { Button, Input, Select } from "@key/design-system";
 import { useEffect, useId, useState } from "react";
 import { evaluatePropertyFormula } from "./property-formula";
 import PropertyEditor, { type PropertyDraft } from "./PropertyEditor";
@@ -234,9 +235,9 @@ export function RecordProperties({
             across the workspace and saved immediately.
           </p>
         </div>
-        <button type="button" disabled={disabled} onClick={() => edit()}>
+        <Button type="button" disabled={disabled} onClick={() => edit()}>
           ＋ Add property
-        </button>
+        </Button>
       </header>
       {error && <p role="alert">{error}</p>}
       {!names.length && (
@@ -271,14 +272,14 @@ export function RecordProperties({
         return (
           <div className="key-record-property-row" key={key}>
             <label htmlFor={`${instanceId}-property-${key}`} title={key}>
-              <button
+              <Button
                 type="button"
                 className="key-record-property-name"
                 disabled={disabled}
                 onClick={() => edit(key)}
               >
                 {key}
-              </button>
+              </Button>
               <small>{kind === "boolean" ? "Checkbox" : kind}</small>
             </label>
             <div className="key-record-property-value">
@@ -288,20 +289,20 @@ export function RecordProperties({
                   <output>
                     {formulaError || String(formulaValue ?? "Empty")}
                   </output>
-                  <button
+                  <Button
                     type="button"
                     disabled={disabled || !!formulaError}
                     onClick={() => update(key, formulaValue)}
                   >
                     Use result
-                  </button>
+                  </Button>
                   <small>
                     Recalculate after changing inputs. The result is saved with
                     this item.
                   </small>
                 </div>
               ) : kind === "boolean" ? (
-                <input
+                <Input
                   id={`${instanceId}-property-${key}`}
                   aria-label={key}
                   type="checkbox"
@@ -310,7 +311,7 @@ export function RecordProperties({
                   onChange={(e) => update(key, e.target.checked)}
                 />
               ) : kind === "select" ? (
-                <select
+                <Select
                   id={`${instanceId}-property-${key}`}
                   value={typeof raw === "string" ? raw : ""}
                   disabled={disabled}
@@ -327,9 +328,9 @@ export function RecordProperties({
                       {option}
                     </option>
                   ))}
-                </select>
+                </Select>
               ) : kind === "number" ? (
-                <input
+                <Input
                   id={`${instanceId}-property-${key}`}
                   type="number"
                   step="any"
@@ -354,7 +355,7 @@ export function RecordProperties({
                   </small>
                 </details>
               ) : (
-                <input
+                <Input
                   id={`${instanceId}-property-${key}`}
                   type="text"
                   maxLength={4096}
@@ -371,7 +372,7 @@ export function RecordProperties({
                 />
               )}
             </div>
-            <button
+            <Button
               className="key-record-property-clear"
               type="button"
               title={`Clear ${key} on this item`}
@@ -380,7 +381,7 @@ export function RecordProperties({
               onClick={() => remove(key)}
             >
               ×
-            </button>
+            </Button>
           </div>
         );
       })}

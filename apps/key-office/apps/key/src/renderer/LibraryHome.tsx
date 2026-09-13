@@ -1,3 +1,6 @@
+import { GlobalDialog } from "./GlobalDrawer";
+import "./content-design.css";
+import { Button, Input, Select, Badge } from "@key/design-system";
 import SearchSourceMetadata from "./SearchSourceMetadata";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import "./library.css";
@@ -720,9 +723,9 @@ export default function LibraryHome({
               processing
             </p>
           </div>
-          <button onClick={() => setRoadmap(true)}>
-            Roadmap <span className="key-mock-badge">Preview</span>
-          </button>
+          <Button onClick={() => setRoadmap(true)}>
+            Roadmap <Badge>Preview</Badge>
+          </Button>
         </header>
         <nav className="key-library-scopes" aria-label="Library views">
           {[
@@ -731,31 +734,31 @@ export default function LibraryHome({
             ["attention", "Needs attention"],
             ["removed", "Removed"],
           ].map(([id, label]) => (
-            <button
+            <Button
               key={id}
               aria-pressed={scope === id}
               onClick={() => setScope(id)}
             >
               {label}
-            </button>
+            </Button>
           ))}
         </nav>
         <nav className="key-library-scopes" aria-label="Source types">
-          <button
+          <Button
             aria-pressed={sourceKind === "pdf"}
             onClick={() => setSourceKind("pdf")}
           >
             PDFs
-          </button>
-          <button
+          </Button>
+          <Button
             aria-pressed={sourceKind === "other"}
             onClick={() => setSourceKind("other")}
           >
             References, web & media
-          </button>
-          <button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>
+          </Button>
+          <Button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>
             ＋ Reference / other source
-          </button>
+          </Button>
         </nav>
         {sourceKind === "other" && (
           <EntriesList
@@ -771,13 +774,13 @@ export default function LibraryHome({
           <div className="key-library-toolbar">
             <div className="key-view-switch">
               {["table", "list"].map((v) => (
-                <button
+                <Button
                   key={v}
                   aria-pressed={view === v}
                   onClick={() => setView(v)}
                 >
                   {v === "table" ? "▤ Table" : "☷ List"}
-                </button>
+                </Button>
               ))}
             </div>
             <form
@@ -786,21 +789,21 @@ export default function LibraryHome({
                 void search();
               }}
             >
-              <input
+              <Input
                 aria-label="Search passages"
                 placeholder="Search passages · keyword or describe an idea"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
-              <button disabled={searching || !query.trim()}>Search</button>
+              <Button disabled={searching || !query.trim()}>Search</Button>
             </form>
-            <button
+            <Button
               aria-expanded={showFilters}
               onClick={() => setShowFilters(!showFilters)}
             >
               Filter
-            </button>
-            <select
+            </Button>
+            <Select
               aria-label="Sort library"
               value={sort}
               onChange={(e) => setSort(e.target.value)}
@@ -808,13 +811,13 @@ export default function LibraryHome({
               <option value="title">{workspaceId?'Title':'Title · within each workspace'}</option>
               <option value="year">{workspaceId?'Year':'Year · within each workspace'}</option>
               <option value="updated">{workspaceId?'Last updated':'Updated · within each workspace'}</option>
-            </select>
-            <button className="key-primary" onClick={onAddSources}>
+            </Select>
+            <Button variant="primary" className="key-primary" onClick={onAddSources}>
               ＋ Add PDFs
-            </button>
+            </Button>
           </div>
           <div className="key-library-tools">
-            <button
+            <Button
               disabled={!workspaceId}
               onClick={() => {
                 setAgentProperty("");
@@ -822,8 +825,8 @@ export default function LibraryHome({
               }}
             >
               Agentic fill
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 setActivity(!activity);
                 setSelected(undefined);
@@ -831,52 +834,52 @@ export default function LibraryHome({
               }}
             >
               Activity
-            </button>
-            <button disabled={!workspaceId} onClick={() => setTagManager(true)}>
+            </Button>
+            <Button disabled={!workspaceId} onClick={() => setTagManager(true)}>
               PDF tags
-            </button>
-            <button
+            </Button>
+            <Button
               aria-expanded={showColumns}
               onClick={() => setShowColumns(!showColumns)}
             >
               Properties
-            </button>
-            <button disabled={!workspaceId} title={!workspaceId ? "Choose a workspace to manage properties" : "Create a typed workspace property"} onClick={newProperty}>＋ Property</button>
+            </Button>
+            <Button disabled={!workspaceId} title={!workspaceId ? "Choose a workspace to manage properties" : "Create a typed workspace property"} onClick={newProperty}>＋ Property</Button>
             {checked.size > 0 && (
               <>
                 <strong>{checked.size} selected</strong>
-                <button disabled={busy} onClick={() => void bulk("pause")}>
+                <Button disabled={busy} onClick={() => void bulk("pause")}>
                   Pause
-                </button>
-                <button disabled={busy} onClick={() => void bulk("resume")}>
+                </Button>
+                <Button disabled={busy} onClick={() => void bulk("resume")}>
                   Resume
-                </button>
-                <button disabled={busy} onClick={() => void bulk("retry")}>
+                </Button>
+                <Button disabled={busy} onClick={() => void bulk("retry")}>
                   Retry
-                </button>
-                <button
+                </Button>
+                <Button
                   disabled={busy}
                   onClick={() =>
                     void bulk(scope === "removed" ? "restore" : "remove")
                   }
                 >
                   {scope === "removed" ? "Restore" : "Remove"}
-                </button>
-                <input
+                </Button>
+                <Input
                   aria-label="Tag selected sources"
                   placeholder="Add tag…"
                   value={bulkTag}
                   onChange={(e) => setBulkTag(e.target.value)}
                 />
-                <button
+                <Button
                   disabled={busy || !bulkTag.trim()}
                   onClick={() => void bulk("tag")}
                 >
                   Apply tag
-                </button>
-                <button onClick={() => setChecked(new Set())}>
+                </Button>
+                <Button onClick={() => setChecked(new Set())}>
                   Clear selection
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -891,7 +894,7 @@ export default function LibraryHome({
                   key !== "value",
               )
               .map(([key, value]) => (
-                <button
+                <Button
                   key={key}
                   onClick={() =>
                     setFilter({
@@ -901,7 +904,7 @@ export default function LibraryHome({
                   }
                 >
                   {key}: {value} ×
-                </button>
+                </Button>
               ))}
           </div>
           {showFilters && (
@@ -924,7 +927,7 @@ export default function LibraryHome({
               ].map(([key, label]) => (
                 <label key={key}>
                   {label}
-                  <input
+                  <Input
                     value={filter[key as keyof typeof filter]}
                     onChange={(e) =>
                       setFilter({ ...filter, [key]: e.target.value })
@@ -934,7 +937,7 @@ export default function LibraryHome({
               ))}
               <label>
                 Annotations
-                <select
+                <Select
                   value={filter.annotations}
                   onChange={(e) =>
                     setFilter({ ...filter, annotations: e.target.value })
@@ -943,11 +946,11 @@ export default function LibraryHome({
                   <option value="any">Any</option>
                   <option value="yes">With annotations</option>
                   <option value="no">Without annotations</option>
-                </select>
+                </Select>
               </label>
               <label>
                 Property type
-                <select
+                <Select
                   value={filter.type}
                   onChange={(e) =>
                     setFilter({ ...filter, type: e.target.value })
@@ -956,20 +959,20 @@ export default function LibraryHome({
                   <option value="text">Text</option>
                   <option value="number">Number</option>
                   <option value="boolean">True / false</option>
-                </select>
+                </Select>
               </label>
-              <button type="button" onClick={() => setFilter(emptyFilter)}>
+              <Button type="button" onClick={() => setFilter(emptyFilter)}>
                 Reset
-              </button>
-              <button disabled={searching || !query.trim()}>
+              </Button>
+              <Button disabled={searching || !query.trim()}>
                 Apply to search
-              </button>
+              </Button>
             </form>
           )}
           {error && (
             <div className="key-library-error" role="alert">
               {error}
-              <button onClick={() => setError("")}>Dismiss</button>
+              <Button onClick={() => setError("")}>Dismiss</Button>
             </div>
           )}
           {message && (
@@ -980,7 +983,7 @@ export default function LibraryHome({
           {removed && (
             <p className="key-library-message" role="status">
               Removed “{removed.title}”.{" "}
-              <button
+              <Button
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
@@ -994,7 +997,7 @@ export default function LibraryHome({
                 }
               >
                 Undo
-              </button>
+              </Button>
             </p>
           )}
           <div className="key-library-scroll">
@@ -1005,7 +1008,7 @@ export default function LibraryHome({
                     {searching ? "Searching…" : `${hits.length} matches loaded`}{" "}
                     for “{submitted}”
                   </strong>
-                  <button
+                  <Button
                     onClick={() => {
                       ++request.current;
                       setSearching(false);
@@ -1015,7 +1018,7 @@ export default function LibraryHome({
                     }}
                   >
                     Back to library
-                  </button>
+                  </Button>
                 </header>
                 {!searching && !hits.length && !error && (
                   <p className="key-library-empty">
@@ -1033,7 +1036,7 @@ export default function LibraryHome({
                       <small>· {group.length} passages</small>
                     </h2>
                     {group.map((hit) => (
-                      <button
+                      <Button
                         className={`key-library-hit ${previewHit?.id === hit.id && identity(previewHit) === identity(hit) ? "preview-active" : ""}`}
                         aria-current={previewHit?.id === hit.id && identity(previewHit) === identity(hit) ? "true" : undefined}
                         key={`${identity(hit)}:${hit.id}`}
@@ -1054,17 +1057,17 @@ export default function LibraryHome({
                             query={submitted}
                           />
                         </p>
-                      </button>
+                      </Button>
                     ))}
                   </article>
                 ))}
                 {cursor && (
-                  <button
+                  <Button
                     disabled={searching}
                     onClick={() => void search(cursor)}
                   >
                     Load more results
-                  </button>
+                  </Button>
                 )}
                 {capped && (
                   <p>
@@ -1088,7 +1091,7 @@ export default function LibraryHome({
                   Add PDFs to read immediately. Search indexing happens in the
                   background.
                 </p>
-                <button onClick={onAddSources}>Add PDFs</button>
+                <Button onClick={onAddSources}>Add PDFs</Button>
               </div>
             ) : (
               <LibraryTable onSort={setSort}
@@ -1138,25 +1141,25 @@ export default function LibraryHome({
             )}
             {!submitted && (offset > 0 || nextOffset !== null) && (
               <div className="key-library-pagination">
-                <button
+                <Button
                   disabled={loading || offset === 0}
                   onClick={() => setOffset(Math.max(0, offset - 200))}
                 >
                   Previous 200
-                </button>
+                </Button>
                 <span>
                   Sources {Math.min(offset + 1, total)}–
                   {Math.min(offset + documents.length, total)} of {total}
                   {scope === "open" || scope === "attention" ? "" : ""}
                 </span>
-                <button
+                <Button
                   disabled={loading || nextOffset === null}
                   onClick={() => {
                     if (nextOffset !== null) setOffset(nextOffset);
                   }}
                 >
                   Next 200 sources
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -1167,12 +1170,12 @@ export default function LibraryHome({
         <aside className="key-library-detail" aria-label="Processing activity">
           <header>
             <strong>Activity</strong>
-            <button
+            <Button
               onClick={() => setActivity(false)}
               aria-label="Close activity"
             >
               ×
-            </button>
+            </Button>
           </header>
           <p>
             Processing status for the {documents.length} sources on this page.
@@ -1185,7 +1188,7 @@ export default function LibraryHome({
             )
             .map((d) => (
               <div className="key-activity-item" key={identity(d)}>
-                <button onClick={() => setSelected(d)}>{d.title}</button>
+                <Button onClick={() => setSelected(d)}>{d.title}</Button>
                 <p>{statusText(d)}</p>
                 {d.total > 0 && <progress max={d.total} value={d.completed} />}
               </div>
@@ -1201,18 +1204,19 @@ export default function LibraryHome({
         <aside className="key-library-detail" aria-label="Document details">
           <header>
             <strong>Details</strong>
-            <button
+            <Button
               aria-label="Close details"
               onClick={() => setSelected(undefined)}
             >
               ×
-            </button>
+            </Button>
           </header>
           <h2>{selected.title}</h2>
           <p>{statusText(selected)}</p>
           <div className="key-detail-actions">
             {scope !== "removed" && (
-              <button
+              <Button
+                variant="primary"
                 className="key-primary"
                 onClick={() =>
                   selected.status === "needs_source"
@@ -1231,11 +1235,11 @@ export default function LibraryHome({
                   : isOpen(selected)
                     ? "Go to tab ↗"
                     : "Open PDF ↗"}
-              </button>
+              </Button>
             )}
             {(activeStates.has(selected.status) ||
               ["paused", "failed"].includes(selected.status)) && (
-              <button
+              <Button
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
@@ -1260,17 +1264,17 @@ export default function LibraryHome({
                   : selected.status === "failed"
                     ? "Retry"
                     : "Pause"}
-              </button>
+              </Button>
             )}
           </div>
           <form key={`metadata:${identity(selected)}`} onSubmit={saveMetadata}>
             <label>
               Title
-              <input name="title" defaultValue={selected.title} required />
+              <Input name="title" defaultValue={selected.title} required />
             </label>
             <label>
               Authors
-              <input
+              <Input
                 name="authors"
                 defaultValue={selected.authors?.join("; ")}
                 placeholder="Separate authors with ;"
@@ -1278,14 +1282,14 @@ export default function LibraryHome({
             </label>
             <label>
               Year
-              <input
+              <Input
                 name="year"
                 type="number"
                 step="1"
                 defaultValue={selected.year || ""}
               />
             </label>
-            <button disabled={busy}>Save metadata</button>
+            <Button disabled={busy}>Save metadata</Button>
           </form>
           {details && (
             <>
@@ -1320,11 +1324,11 @@ export default function LibraryHome({
                   label="Collections"
                   initial={details.collections}
                 />
-                <button disabled={busy}>Save labels</button>
+                <Button disabled={busy}>Save labels</Button>
               </form>
               <h3>Properties</h3>
-              <div className="key-source-property-rows">{Array.from(new Set([...columns.filter(c=>c.id.startsWith('property:')).map(c=>c.property!),...Object.keys(details.properties)])).map(name=>{const column=columns.find(c=>c.property===name)||{id:`property:${name}`,property:name,label:name,width:150,type:typeof details.properties[name]==='number'?'number':typeof details.properties[name]==='boolean'?'boolean':'text'};let value=details.properties[name];if(column.type==='formula'){try{value=evaluatePropertyFormula(column.formula||'', {...details.properties,Title:selected.title,Year:selected.year??null,Pages:selected.pageCount});}catch(e){value=String(e);}}return <div key={name}><button disabled={!workspaceId} onClick={()=>editProperty(column)}>{column.type==='formula'?'ƒ ':column.type==='number'?'# ':'Aa '}{name}</button><button title="Edit property and apply a value to this source" disabled={!workspaceId} onClick={()=>{setChecked(new Set());editProperty(column,true);}}>{value===undefined||value===null||value===''?'Empty':String(value)}</button>{column.type!=='formula'&&<button title={`Fill ${name} for this source`} disabled={!workspaceId} onClick={()=>{setChecked(new Set());setAgentProperty(name);setAgentDialog(true);}}>✧</button>}</div>;})}</div>
-              <button disabled={!workspaceId} onClick={newProperty}>＋ Add a property</button>
+              <div className="key-source-property-rows">{Array.from(new Set([...columns.filter(c=>c.id.startsWith('property:')).map(c=>c.property!),...Object.keys(details.properties)])).map(name=>{const column=columns.find(c=>c.property===name)||{id:`property:${name}`,property:name,label:name,width:150,type:typeof details.properties[name]==='number'?'number':typeof details.properties[name]==='boolean'?'boolean':'text'};let value=details.properties[name];if(column.type==='formula'){try{value=evaluatePropertyFormula(column.formula||'', {...details.properties,Title:selected.title,Year:selected.year??null,Pages:selected.pageCount});}catch(e){value=String(e);}}return <div key={name}><Button disabled={!workspaceId} onClick={()=>editProperty(column)}>{column.type==='formula'?'ƒ ':column.type==='number'?'# ':'Aa '}{name}</Button><Button title="Edit property and apply a value to this source" disabled={!workspaceId} onClick={()=>{setChecked(new Set());editProperty(column,true);}}>{value===undefined||value===null||value===''?'Empty':String(value)}</Button>{column.type!=='formula'&&<Button title={`Fill ${name} for this source`} disabled={!workspaceId} onClick={()=>{setChecked(new Set());setAgentProperty(name);setAgentDialog(true);}}>✧</Button>}</div>;})}</div>
+              <Button disabled={!workspaceId} onClick={newProperty}>＋ Add a property</Button>
             </>
           )}
           {projects.length > 0 && (
@@ -1334,7 +1338,7 @@ export default function LibraryHome({
               {projects.map((project) => (
                 <div key={project.id}>
                   <span>{project.name}</span>
-                  <button
+                  <Button
                     disabled={busy || !sourceRecordId}
                     onClick={() =>
                       void run(async () => {
@@ -1351,8 +1355,8 @@ export default function LibraryHome({
                     }
                   >
                     Add
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     disabled={busy || !sourceRecordId}
                     onClick={() =>
                       void run(async () => {
@@ -1369,24 +1373,24 @@ export default function LibraryHome({
                     }
                   >
                     Remove
-                  </button>
+                  </Button>
                 </div>
               ))}
             </details>
           )}
-          <button
+          <Button
             onClick={() => {
               setAgentProperty("");
               setAgentDialog(true);
             }}
           >
             Configure agentic fill{" "}
-            <span className="key-mock-badge">Preview</span>
-          </button>
+            <Badge>Preview</Badge>
+          </Button>
           <div className="key-detail-danger">
             {scope === "removed" ? (
               <>
-                <button
+                <Button
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
@@ -1400,8 +1404,8 @@ export default function LibraryHome({
                   }
                 >
                   Restore
-                </button>
-                <button
+                </Button>
+                <Button
                   disabled={busy || isOpen(selected)}
                   onClick={() => {
                     if (
@@ -1420,13 +1424,13 @@ export default function LibraryHome({
                   }}
                 >
                   Delete permanently
-                </button>
+                </Button>
                 {isOpen(selected) && (
                   <small>Close this PDF in every tab before deleting it.</small>
                 )}
               </>
             ) : (
-              <button
+              <Button
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
@@ -1441,7 +1445,7 @@ export default function LibraryHome({
                 }
               >
                 Remove from library
-              </button>
+              </Button>
             )}
           </div>
         </aside>
@@ -1500,22 +1504,18 @@ export default function LibraryHome({
         properties={attributeContext?.properties || {}} previewTitle={attributeContext?.title} onClose={()=>{setAttribute(false);setAgentDialog(false);setAgentSelection(undefined);}} onSave={(draft,agent)=>void applyAttribute(draft,agent)}
       />}
       {roadmap && (
-        <div className="key-roadmap-backdrop" onClick={() => setRoadmap(false)}>
+        <GlobalDialog label="Library roadmap" onClose={() => setRoadmap(false)}>
           <section
             className="key-roadmap"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Library roadmap"
-            onClick={(e) => e.stopPropagation()}
           >
             <header>
               <h2>Library roadmap</h2>
-              <button
+              <Button
                 aria-label="Close roadmap"
                 onClick={() => setRoadmap(false)}
               >
                 ×
-              </button>
+              </Button>
             </header>
             <p>
               The available controls use your real library. The items below
@@ -1526,9 +1526,9 @@ export default function LibraryHome({
               PDF import, search, processing controls, scalar properties and
               metadata editing use the real library.
             </p>
-            <button onClick={() => setRoadmap(false)}>Back to library</button>
+            <Button onClick={() => setRoadmap(false)}>Back to library</Button>
           </section>
-        </div>
+        </GlobalDialog>
       )}
     </section>
   );

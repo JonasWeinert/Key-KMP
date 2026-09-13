@@ -14,7 +14,12 @@ import '@key/ui/markdown.css'
 import '@key/ui/ai-panel-prefs.css'
 import '@key/ui/ai-scope-quote.css'
 import './styles.css'
+import '@key/design-system/styles.css'
+import '@key/design-system/office.css'
 import { applyAiPanelPrefs, installScreenTips } from '@key/ui'
+
+if (new URLSearchParams(location.search).get('mode') !== 'audience')
+  document.body.classList.add('key-office-ui')
 
 installScreenTips()
 

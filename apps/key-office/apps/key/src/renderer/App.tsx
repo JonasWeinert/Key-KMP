@@ -1,4 +1,5 @@
-import { GlobalDrawerHost } from "./GlobalDrawer";
+import { Button, Input } from "@key/design-system";
+import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
 import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -357,7 +358,7 @@ export default function App() {
           </button>
         }
       />
-      <div className="key-shell-body">
+      <div className="key-shell-body key-ui-root">
         <div
           ref={sidebarSlot}
           className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
@@ -390,7 +391,7 @@ export default function App() {
                 setWorkspaces(await api().workspaces());
               }}
             />
-            <button
+            <Button
               className={section === "sources" ? "selected" : ""}
               onClick={() =>
                 action("open-content", {
@@ -401,8 +402,8 @@ export default function App() {
               }
             >
               ▤ <span>Sources</span>
-            </button>
-            <button
+            </Button>
+            <Button
               disabled={!workspaceId}
               className={section === "records" ? "selected" : ""}
               onClick={() =>
@@ -414,10 +415,10 @@ export default function App() {
               }
             >
               ▦ <span>All items & linked files</span>
-            </button>
+            </Button>
             <div className="key-sidebar-section">
               <span>Projects</span>
-              <button
+              <Button
                 aria-label="New project"
                 disabled={!workspaceId}
                 onClick={() => {
@@ -426,25 +427,25 @@ export default function App() {
                 }}
               >
                 ＋
-              </button>
+              </Button>
             </div>
             {workspaceId ? (
               <>
-                <button
+                <Button
                   className={!projectId ? "scope-current" : ""}
                   onClick={() => chooseScope(workspaceId)}
                 >
                   ⌂ <span>Entire workspace</span>
-                </button>
+                </Button>
                 {projects.map((p) => (
-                  <button
+                  <Button
                     key={p.id}
                     className={projectId === p.id ? "scope-current" : ""}
                     onClick={() => chooseScope(workspaceId, p.id)}
                     title={p.folder}
                   >
                     ▱ <span>{p.name}</span>
-                  </button>
+                  </Button>
                 ))}
               </>
             ) : (
@@ -454,24 +455,24 @@ export default function App() {
             )}
             <div className="key-sidebar-section">
               <span>Pages & documents</span>
-              <button
+              <Button
                 disabled={!workspaceId}
                 aria-label="Create item"
                 onClick={() => setCreateMenu(!createMenu)}
               >
                 ＋
-              </button>
+              </Button>
             </div>
             {createMenu && (
               <div className="key-create-menu">
                 {["note", "page", "database"].map((kind) => (
-                  <button key={kind} onClick={() => createRecord(kind)}>
+                  <Button key={kind} onClick={() => createRecord(kind)}>
                     New {kind}
-                  </button>
+                  </Button>
                 ))}
                 {["docs", "sheets", "slides", "markdown", "html"].map(
                   (kind) => (
-                    <button
+                    <Button
                       key={kind}
                       onClick={() => {
                         setCreateMenu(false);
@@ -479,7 +480,7 @@ export default function App() {
                       }}
                     >
                       New {kind === "docs" ? "document" : kind}
-                    </button>
+                    </Button>
                   ),
                 )}
               </div>
@@ -487,7 +488,7 @@ export default function App() {
             {records
               .filter((r) => r.kind !== "source")
               .map((r) => (
-                <button
+                <Button
                   key={r.id}
                   className={record?.id === r.id ? "selected" : ""}
                   onClick={() =>
@@ -509,17 +510,17 @@ export default function App() {
                 >
                   <span>{r.kind === "note" ? "≡" : "▱"}</span>
                   <span>{r.title}</span>
-                </button>
+                </Button>
               ))}
             <div className="key-sidebar-footer">
               {projectId && (
-                <button
+                <Button
                   onClick={() =>
                     action("link-folder", { workspaceId, projectId })
                   }
                 >
                   ＋ Link folder
-                </button>
+                </Button>
               )}
               <small>
                 {selectedWorkspace
@@ -576,7 +577,7 @@ export default function App() {
           {error && (
             <div className="key-shell-error" role="alert">
               {error}
-              <button onClick={() => setError("")}>Dismiss</button>
+              <Button onClick={() => setError("")}>Dismiss</Button>
             </div>
           )}
         </div>
@@ -627,7 +628,7 @@ export default function App() {
         />
       )}{" "}
       {dialog && (
-        <div className="key-dialog-backdrop">
+        <GlobalDialog label={dialog === "project" ? "New project" : "Link a folder"} onClose={()=>setDialog(null)}>
           <form
             className="key-shell-dialog"
             onSubmit={(e) => {
@@ -666,7 +667,7 @@ export default function App() {
             </p>
             <label>
               {dialog === "project" ? "Project name" : "Absolute folder path"}
-              <input
+              <Input
                 autoFocus
                 required
                 value={dialogValue}
@@ -674,15 +675,15 @@ export default function App() {
               />
             </label>
             <div>
-              <button type="button" onClick={() => setDialog(null)}>
+              <Button type="button" onClick={() => setDialog(null)}>
                 Cancel
-              </button>
-              <button type="submit">
+              </Button>
+              <Button type="submit">
                 {dialog === "project" ? "Create project" : "Link and scan"}
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+        </GlobalDialog>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import { Button, Input } from "@key/design-system";
 import { useState } from "react";
 import type { SourceColumn } from "./LibraryTable";
 import "./property-tools.css";
@@ -24,11 +25,11 @@ export default function PropertyManager({
     <section className="key-property-manager" aria-label="Manage properties">
       <header>
         <strong>Properties</strong>
-        <button disabled={disabled} onClick={onAdd}>
+        <Button disabled={disabled} onClick={onAdd}>
           ＋ New property
-        </button>
+        </Button>
       </header>
-      <input
+      <Input
         aria-label="Find a property"
         placeholder="Find a property…"
         value={query}
@@ -39,7 +40,7 @@ export default function PropertyManager({
           .filter((c) => c.label.toLowerCase().includes(query.toLowerCase()))
           .map((c) => (
             <div className="key-property-manager-row" key={c.id}>
-              <input
+              <Input
                 type="checkbox"
                 aria-label={`Show ${c.label}`}
                 checked={!c.hidden}
@@ -52,7 +53,7 @@ export default function PropertyManager({
                   )
                 }
               />
-              <button
+              <Button
                 className="key-property-manager-name"
                 disabled={!c.id.startsWith("property:") || disabled}
                 onClick={() => onEdit(c)}
@@ -70,8 +71,8 @@ export default function PropertyManager({
                 </span>
                 {c.label}
                 <small>{c.type || "Built-in"}</small>
-              </button>
-              <button
+              </Button>
+              <Button
                 aria-label={`${c.pinned ? "Unpin" : "Pin"} ${c.label}`}
                 aria-pressed={!!c.pinned}
                 onClick={() =>
@@ -83,8 +84,8 @@ export default function PropertyManager({
                 }
               >
                 {c.pinned ? "Unpin" : "Pin"}
-              </button>
-              <button
+              </Button>
+              <Button
                 aria-label={`Move ${c.label} left`}
                 disabled={columns.indexOf(c) === 0}
                 onClick={() => {
@@ -95,23 +96,23 @@ export default function PropertyManager({
                 }}
               >
                 ←
-              </button>
+              </Button>
               {c.id.startsWith("property:") && (
                 <>
-                  <button
+                  <Button
                     disabled={disabled || c.type === "formula"}
                     title="Configure inputs and review proposals for selected sources"
                     onClick={() => onFill(c)}
                   >
                     ✧ Fill
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     aria-label={`Delete ${c.label}`}
                     disabled={disabled}
                     onClick={() => setConfirm(c)}
                   >
                     ×
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -124,8 +125,8 @@ export default function PropertyManager({
             Removing its definition keeps source values. Deleting values also
             removes them from metadata search.
           </p>
-          <button onClick={() => setConfirm(undefined)}>Cancel</button>
-          <button
+          <Button onClick={() => setConfirm(undefined)}>Cancel</Button>
+          <Button
             disabled={disabled}
             onClick={() => {
               onDelete(confirm, false);
@@ -133,8 +134,8 @@ export default function PropertyManager({
             }}
           >
             Keep values
-          </button>
-          <button
+          </Button>
+          <Button
             disabled={disabled}
             onClick={() => {
               onDelete(confirm, true);
@@ -142,7 +143,7 @@ export default function PropertyManager({
             }}
           >
             Delete values too
-          </button>
+          </Button>
         </div>
       )}
     </section>

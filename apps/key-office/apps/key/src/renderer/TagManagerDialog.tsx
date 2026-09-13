@@ -1,3 +1,5 @@
+import { GlobalDialog } from "./GlobalDrawer";
+import { Button, Input, Textarea } from "@key/design-system";
 import { useEffect, useState } from "react";
 interface Props {
   invoke: <T = unknown>(
@@ -103,16 +105,10 @@ export default function TagManagerDialog({
       );
   };
   return (
-    <div className="key-dialog-backdrop" onClick={onClose}>
+    <GlobalDialog label="Manage PDF tags" onClose={onClose} busy={busy}>
       <section
         className="key-shell-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Manage PDF tags"
-        onClick={(e) => e.stopPropagation()}
         style={{
-          width: 560,
-          maxHeight: "85vh",
           display: "flex",
           flexDirection: "column",
         }}
@@ -137,7 +133,7 @@ export default function TagManagerDialog({
                     padding: 6,
                   }}
                 >
-                  <input
+                  <Input
                     type="checkbox"
                     checked={selected.includes(row.name)}
                     onChange={(e) =>
@@ -154,7 +150,7 @@ export default function TagManagerDialog({
               ))}
             </div>
             <div>
-              <button
+              <Button
                 disabled={!offset}
                 onClick={() => {
                   setSelected([]);
@@ -162,13 +158,13 @@ export default function TagManagerDialog({
                 }}
               >
                 Previous
-              </button>
+              </Button>
               <span>
                 {" "}
                 {total ? offset + 1 : 0}–{Math.min(offset + 200, total)} of{" "}
                 {total}{" "}
               </span>
-              <button
+              <Button
                 disabled={offset + 200 >= total}
                 onClick={() => {
                   setSelected([]);
@@ -176,24 +172,24 @@ export default function TagManagerDialog({
                 }}
               >
                 Next
-              </button>
+              </Button>
             </div>
             <label>
               Canonical tag name
-              <input
+              <Input
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
                 placeholder="Rename or merge selected tags into…"
               />
             </label>
             <div>
-              <button
+              <Button
                 disabled={busy || !selected.length || !target.trim()}
                 onClick={() => void apply(target.trim())}
               >
                 {selected.length > 1 ? "Merge selected" : "Rename"}
-              </button>
-              <button
+              </Button>
+              <Button
                 disabled={busy || !selected.length}
                 onClick={() => {
                   if (
@@ -205,8 +201,8 @@ export default function TagManagerDialog({
                 }}
               >
                 Remove tags
-              </button>
-              <button onClick={suggestions}>Suggest simple merges</button>
+              </Button>
+              <Button onClick={suggestions}>Suggest simple merges</Button>
             </div>
             <details>
               <summary>Agentic tag consolidation</summary>
@@ -217,25 +213,25 @@ export default function TagManagerDialog({
               </p>
               <label>
                 Instructions
-                <textarea
+                <Textarea
                   value={instruction}
                   onChange={(e) => setInstruction(e.target.value)}
                   maxLength={2000}
                 />
               </label>
-              <button
+              <Button
                 disabled={busy || rows.length < 2}
                 onClick={() => void suggestAi()}
               >
                 {busy ? "Working…" : "Suggest with AI"}
-              </button>
+              </Button>
               {aiGroups.map((group, i) => (
                 <div key={i}>
                   <strong>
                     {group.from.join(", ")} → {group.to}
                   </strong>
                   <p>{group.reason}</p>
-                  <button
+                  <Button
                     onClick={() => {
                       setSelected(group.from);
                       setTarget(group.to);
@@ -248,7 +244,7 @@ export default function TagManagerDialog({
                     }}
                   >
                     Review this merge
-                  </button>
+                  </Button>
                 </div>
               ))}
             </details>
@@ -256,8 +252,8 @@ export default function TagManagerDialog({
         )}
         {error && <p role="alert">{error}</p>}
         {message && <p role="status">{message}</p>}
-        <button onClick={onClose}>Close</button>
+        <Button onClick={onClose}>Close</Button>
       </section>
-    </div>
+    </GlobalDialog>
   );
 }

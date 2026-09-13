@@ -15,6 +15,8 @@ type Entry = {
   children: ReactNode;
   onClose: () => void;
   busy?: boolean;
+  presentation?: "drawer" | "dialog";
+  label?: string;
 };
 let current: Entry | null = null;
 const listeners = new Set<() => void>();
@@ -32,14 +34,18 @@ export function GlobalDrawer({
   children,
   onClose,
   busy,
+  presentation = "drawer",
+  label = "Property details",
 }: {
   children: ReactNode;
   onClose: () => void;
   busy?: boolean;
+  presentation?: "drawer" | "dialog";
+  label?: string;
 }) {
   const id = useId();
   useLayoutEffect(() => {
-    publish({ id, children, onClose, busy });
+    publish({ id, children, onClose, busy, presentation, label });
   });
   useLayoutEffect(
     () => () => {
@@ -48,6 +54,14 @@ export function GlobalDrawer({
     [id],
   );
   return null;
+}
+export function GlobalDialog(props: {
+  children: ReactNode;
+  onClose: () => void;
+  busy?: boolean;
+  label: string;
+}) {
+  return <GlobalDrawer {...props} presentation="dialog" />;
 }
 type Frame = {
   id: string;
@@ -98,6 +112,9 @@ export function GlobalDrawerHost() {
       })
       .catch(() => {
         if (lease.current !== id) return;
+        void bridge()
+          .tabAction("global-overlay-close", { id })
+          .catch(() => {});
         lease.current = undefined;
         setFrames([]);
         setReady(false);
@@ -148,6 +165,8 @@ export function GlobalDrawerHost() {
           />
         ))}
       <Drawer
+        presentation={(entry || last.current)?.presentation}
+        label={(entry || last.current)?.label}
         open={ready && !!entry}
         onClose={() => {
           if (!current?.busy) current?.onClose();

@@ -1,0 +1,543 @@
+/* Bridge old content selectors onto the shared primitives during migration. */
+.key-ui-root .kui-button {
+  border: 1px solid var(--key-ui-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 32px;
+  color: var(--key-ui-text);
+  background: var(--key-ui-bg);
+  font: 500 13px/1.4 var(--key-ui-font);
+}
+.key-ui-root .kui-button:hover:not(:disabled) {
+  background: var(--key-ui-hover);
+}
+.key-ui-root .kui-button[data-variant="primary"] {
+  color: var(--key-ui-primary-ink);
+  background: var(--key-ui-primary);
+  border-color: var(--key-ui-primary);
+}
+.key-ui-root .kui-button[data-variant="ghost"] {
+  background: transparent;
+  border-color: transparent;
+}
+.key-ui-root .kui-button[data-variant="danger"] {
+  color: var(--key-ui-danger);
+  border-color: color-mix(in srgb, var(--key-ui-danger) 30%, transparent);
+}
+.key-ui-root .kui-button[data-size="icon"] {
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  border-radius: 8px;
+}
+.key-ui-root :is(.kui-input, .kui-select) {
+  min-height: 32px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: var(--key-ui-text);
+  background: var(--key-ui-bg);
+  font: 13px/1.4 var(--key-ui-font);
+}
+.key-ui-root .kui-select {
+  padding-right: 24px;
+}
+.key-ui-root .kui-textarea {
+  border: 1px solid var(--key-ui-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--key-ui-bg);
+  color: var(--key-ui-text);
+  font: 13px/1.6 var(--key-ui-font);
+}
+.key-ui-root .kui-input:is([type="checkbox"], [type="radio"]) {
+  appearance: auto;
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--key-ui-primary);
+}
+.key-ui-root :is(button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--key-ui-focus);
+  outline-offset: 2px;
+}
+/* Content compositions share the beUI-based foundation. App chrome is excluded. */
+.key-ui-root :is(.key-library, .key-shell-content) {
+  color: var(--key-ui-text);
+  background: var(--key-ui-bg);
+  font-family: var(--key-ui-font);
+}
+.key-ui-root .key-library-main {
+  padding: 24px 24px 0;
+}
+.key-ui-root .key-library-heading {
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.key-ui-root .key-library-heading h1 {
+  font-size: 24px;
+  letter-spacing: -0.6px;
+  margin: 8px 0;
+}
+.key-ui-root
+  :is(
+    .key-library-breadcrumb,
+    .key-library-heading p,
+    .key-record-top,
+    .key-record-status
+  ) {
+  color: var(--key-ui-muted);
+  font-size: 12px;
+}
+.key-ui-root .key-library-scopes {
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.key-ui-root .key-library-scopes button {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  min-height: 32px;
+  padding: 6px 12px;
+  color: var(--key-ui-muted);
+}
+.key-ui-root .key-library-scopes button[aria-pressed="true"] {
+  background: var(--key-ui-hover);
+  color: var(--key-ui-text);
+}
+.key-ui-root .key-library-toolbar {
+  gap: 8px;
+  padding: 4px 0 16px;
+  flex-wrap: wrap;
+  border-color: var(--key-ui-border);
+}
+.key-ui-root .key-library-toolbar form {
+  flex-basis: 240px;
+}
+.key-ui-root .key-library-toolbar form input {
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-view-switch {
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-view-switch button {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+}
+.key-ui-root .key-view-switch button[aria-pressed="true"] {
+  background: var(--key-ui-bg);
+  box-shadow: 0 1px 3px #0000000a;
+}
+.key-ui-root .key-library-tools {
+  gap: 8px;
+  padding: 12px 0;
+}
+.key-ui-root .key-library-filters {
+  padding: 16px;
+  gap: 16px;
+  margin-bottom: 12px;
+  background: var(--key-ui-surface);
+  border: 1px solid var(--key-ui-border);
+  border-radius: 16px;
+}
+.key-ui-root
+  :is(.key-library-filters, .key-shell-dialog, .key-entry-pane)
+  label {
+  gap: 8px;
+  color: var(--key-ui-text);
+  font-size: 13px;
+}
+.key-ui-root .key-library-hit {
+  border-radius: 16px;
+  border: 1px solid var(--key-ui-border);
+  background: var(--key-ui-bg);
+  padding: 16px;
+  margin: 0 0 8px;
+}
+.key-ui-root .key-library-hit:hover {
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-library-hit.preview-active {
+  border-color: var(--key-ui-muted);
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-library-hit mark {
+  border-radius: 3px;
+  padding-inline: 1px;
+}
+.key-ui-root .key-library-empty {
+  margin: 24px 0;
+  padding: 32px 24px;
+  border: 1px dashed var(--key-ui-border);
+  border-radius: 16px;
+  background: var(--key-ui-surface);
+  color: var(--key-ui-muted);
+  text-align: center;
+}
+.key-ui-root :is(.key-library-message, .key-record-status:not(:empty)) {
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-library-detail {
+  background: var(--key-ui-bg);
+  border-color: var(--key-ui-border);
+  padding: 24px;
+}
+.key-ui-root .key-library-detail header {
+  gap: 12px;
+  align-items: center;
+}
+.key-ui-root .key-library-detail h2 {
+  font-size: 20px;
+  line-height: 1.35;
+  letter-spacing: -0.4px;
+  margin: 20px 0;
+}
+.key-ui-root .key-library-detail dl > div {
+  border-color: var(--key-ui-border);
+  padding: 12px 0;
+}
+.key-ui-root .key-library-detail dt {
+  color: var(--key-ui-muted);
+  font-size: 12px;
+}
+.key-ui-root .key-library-detail dd {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.key-ui-root .key-activity-item {
+  padding: 16px;
+  margin: 8px 0;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 12px;
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-activity-item progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--key-ui-primary);
+}
+.key-ui-root :is(.key-shell-dialog, .key-roadmap) {
+  color: var(--key-ui-text);
+  background: var(--key-ui-bg);
+  border: 1px solid var(--key-ui-border);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px #0002;
+  padding: 24px;
+}
+.key-ui-root .key-shell-dialog h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  letter-spacing: -0.4px;
+}
+.key-ui-root .key-shell-dialog > label {
+  margin-block: 16px;
+}
+.key-ui-root .key-shell-dialog :is(p, small) {
+  line-height: 1.6;
+  color: var(--key-ui-muted);
+}
+.key-ui-root .key-shell-dialog details {
+  border-top: 1px solid var(--key-ui-border);
+  padding-block: 16px;
+  margin-top: 16px;
+}
+.key-ui-root .key-shell-dialog details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding-block: 4px;
+}
+.key-ui-root .key-shell-dialog details[open] summary {
+  margin-bottom: 16px;
+}
+.key-ui-root .key-shell-dialog details label {
+  margin-bottom: 16px;
+}
+.key-ui-root .key-agent-intro {
+  display: block;
+  padding: 16px;
+  margin: 0 0 24px;
+}
+.key-ui-root .key-agent-intro p {
+  margin: 12px 0 4px;
+}
+.key-ui-root .key-agent-section {
+  border: 0;
+  border-top: 1px solid var(--key-ui-border);
+  margin: 0;
+  padding: 24px 0;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.key-ui-root .key-agent-section h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.key-ui-root .key-agent-section p {
+  margin: 0;
+  font-size: 12px;
+}
+.key-ui-root .key-agent-section legend {
+  padding: 0 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.key-ui-root .key-agent-inputs {
+  gap: 8px;
+}
+.key-ui-root .key-agent-inputs label {
+  padding: 10px 12px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 12px;
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-agent-inputs label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--key-ui-text) 24%, transparent);
+}
+.key-ui-root .key-agent-fill-dialog > button {
+  margin: 8px 8px 8px 0;
+}
+.key-ui-root .key-agent-proposals {
+  border-top: 1px solid var(--key-ui-border);
+  margin-top: 24px;
+  padding-top: 16px;
+}
+.key-ui-root .key-agent-proposal {
+  margin: 12px 0;
+  padding: 16px;
+}
+.key-ui-root .key-agent-proposal strong {
+  font-size: 13px;
+}
+.key-ui-root .key-agent-proposal p {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--key-ui-surface);
+  color: var(--key-ui-text);
+}
+.key-ui-root .key-agent-proposal small {
+  display: block;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.key-ui-root .key-metadata-proposal {
+  padding: 16px;
+  margin: 16px 0;
+}
+.key-ui-root
+  :is(
+    .key-property-body,
+    .key-property-editor footer,
+    .key-property-editor header
+  ) {
+  padding: 24px;
+  gap: 16px;
+}
+.key-ui-root .key-property-body {
+  align-content: start;
+}
+.key-ui-root .key-property-editor h2 {
+  font-size: 20px;
+  letter-spacing: -0.4px;
+}
+.key-ui-root .key-property-manager {
+  border: 1px solid var(--key-ui-border);
+  border-radius: 16px;
+  background: var(--key-ui-surface);
+  padding: 16px;
+  margin: 0 0 16px;
+}
+.key-ui-root .key-property-manager-list {
+  margin-top: 12px;
+}
+.key-ui-root .key-property-manager-row {
+  gap: 8px;
+  padding: 8px 0;
+  border-color: var(--key-ui-border);
+}
+.key-ui-root .key-property-manager-name {
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+.key-ui-root .key-property-manager-name small {
+  color: var(--key-ui-muted);
+  font-size: 12px;
+}
+.key-ui-root .key-record-editor {
+  padding: 24px 32px;
+}
+.key-ui-root .key-record-title {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  height: auto;
+  min-height: 44px;
+  padding: 4px 0;
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+}
+.key-ui-root .key-record-properties {
+  border-color: var(--key-ui-border);
+  padding-top: 24px;
+  margin-block: 24px;
+}
+.key-ui-root .key-record-property-row {
+  border-color: var(--key-ui-border);
+  gap: 12px;
+  padding-block: 12px;
+}
+.key-ui-root .key-record-property-clear {
+  min-width: 28px;
+  padding: 4px;
+}
+.key-ui-root .key-entry-pane > label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  max-width: 860px;
+}
+.key-ui-root .key-entry-pane > textarea {
+  border: 1px solid var(--key-ui-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.key-ui-root .key-tag-editor > div {
+  border: 1px solid var(--key-ui-border);
+  background: var(--key-ui-bg);
+  border-radius: 12px;
+  padding: 6px;
+  gap: 4px;
+}
+.key-ui-root .key-tag-editor > div > button {
+  border: 0;
+  border-radius: 999px;
+  background: var(--key-ui-hover);
+  min-height: 28px;
+  padding: 4px 8px;
+}
+.key-ui-root .key-tag-editor > div > input {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  min-height: 32px;
+  padding: 4px 8px;
+}
+.key-ui-root .key-workspace-dropdown {
+  padding: 8px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 16px;
+  background: var(--key-ui-bg);
+  box-shadow: 0 12px 40px #0002;
+}
+.key-ui-root .key-workspace-options > input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.key-ui-root .key-workspace-options [role="menu"] {
+  max-height: min(60vh, 480px);
+  overflow: auto;
+}
+.key-ui-root .key-workspace-options [role^="menuitem"] {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 40px;
+}
+.key-ui-root
+  .key-workspace-options
+  [role^="menuitem"]:is(:hover, :focus-visible, [aria-checked="true"]) {
+  background: var(--key-ui-hover);
+}
+.key-ui-root .key-workspace-dropdown hr {
+  border: 0;
+  border-top: 1px solid var(--key-ui-border);
+  margin: 8px 0;
+}
+.key-ui-root .key-workspace-dropdown form {
+  padding: 8px;
+}
+.key-ui-root .key-workspace-dropdown form label {
+  margin: 16px 0 8px;
+}
+.key-ui-root .key-workspace-dropdown input[type="color"] {
+  padding: 4px;
+  width: 44px;
+  height: 32px;
+}
+.key-ui-root .key-workspace-no-results {
+  font-size: 12px;
+  color: var(--key-ui-muted);
+  padding: 12px;
+}
+.key-ui-root .key-search-session {
+  gap: 8px;
+  padding: 4px 12px;
+  min-height: 40px;
+}
+.key-ui-root .key-search-session button {
+  height: 28px;
+  min-height: 28px;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+}
+@media (max-width: 760px) {
+  .key-ui-root .key-library-main {
+    padding: 16px 16px 0;
+  }
+  .key-ui-root .key-library-heading {
+    align-items: flex-start;
+  }
+  .key-ui-root .key-record-editor {
+    padding: 20px;
+  }
+  .key-ui-root .key-library-detail {
+    padding: 16px;
+  }
+}
+
+/* Dense property cells keep the same compact field treatment as the drawer. */
+.key-ui-root
+  .key-record-properties
+  .key-record-property-value
+  .kui-input:not([type="checkbox"]),
+.key-ui-root .key-record-properties .kui-select,
+.key-ui-root .key-record-property-add .kui-input {
+  border-radius: 999px;
+  border-color: var(--key-ui-border);
+  background: var(--key-ui-bg);
+  color: var(--key-ui-text);
+  padding: 6px 12px;
+  min-height: 32px;
+}
+.key-ui-root .key-property-editor .kui-textarea {
+  font-family: var(--key-ui-mono);
+}
+.key-ui-root .key-property-editor .key-property-options button {
+  min-height: 24px;
+  border: 0;
+  background: transparent;
+  padding: 3px 6px;
+}
+.key-ui-root .key-property-editor .key-property-references button {
+  min-height: 28px;
+  padding: 4px 8px;
+}
+.key-ui-root .key-shell-dialog .key-agent-proposal {
+  display: block;
+}

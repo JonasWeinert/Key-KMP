@@ -1,0 +1,374 @@
+@import "./fonts.css";
+/* Tokens are scoped to application surfaces. No reset or tab-chrome selectors. */
+:where(.key-ui-root, .key-office-ui) {
+  --key-ui-font: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --key-ui-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --key-ui-bg: oklch(99% 0 0);
+  --key-ui-surface: oklch(97% 0 0);
+  --key-ui-text: oklch(15% 0 0);
+  --key-ui-muted: oklch(48% 0 0);
+  --key-ui-border: oklch(15% 0 0 / 0.12);
+  --key-ui-border-subtle: oklch(15% 0 0 / 0.07);
+  --key-ui-hover: oklch(15% 0 0 / 0.055);
+  --key-ui-selected: oklch(15% 0 0 / 0.085);
+  --key-ui-primary: var(--key-ui-text);
+  --key-ui-primary-ink: var(--key-ui-bg);
+  --key-ui-focus: #476bba;
+  --key-ui-danger: #b42336;
+  --key-ui-success: #187448;
+  --key-ui-warning: #97600d;
+  --key-ui-radius-sm: 8px;
+  --key-ui-radius: 12px;
+  --key-ui-radius-lg: 16px;
+  --key-ui-radius-dialog: 24px;
+  --key-ui-shadow: 0 12px 40px #00000016, 0 2px 8px #00000008;
+  --key-ui-space-1: 4px;
+  --key-ui-space-2: 8px;
+  --key-ui-space-3: 12px;
+  --key-ui-space-4: 16px;
+  --key-ui-space-6: 24px;
+  --key-ui-space-8: 32px;
+  --key-ui-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: light;
+}
+:where(
+  [data-theme="dark"] .key-ui-root,
+  [data-theme="dark"].key-ui-root,
+  [data-theme="dark"] .key-office-ui,
+  [data-theme="dark"].key-office-ui
+) {
+  --key-ui-bg: #151515;
+  --key-ui-surface: #1c1c1c;
+  --key-ui-text: oklch(96% 0 0);
+  --key-ui-muted: oklch(68% 0 0);
+  --key-ui-border: #ffffff22;
+  --key-ui-border-subtle: #ffffff12;
+  --key-ui-hover: #ffffff0d;
+  --key-ui-selected: #ffffff16;
+  --key-ui-focus: #9fb8f0;
+  --key-ui-danger: #f99caa;
+  --key-ui-success: #7cd4aa;
+  --key-ui-warning: #e2bc70;
+  --key-ui-shadow: 0 12px 40px #0006;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :where(
+    html:not([data-theme]) .key-ui-root:not([data-theme]),
+    html:not([data-theme]) .key-office-ui:not([data-theme])
+  ) {
+    --key-ui-bg: #151515;
+    --key-ui-surface: #1c1c1c;
+    --key-ui-text: oklch(96% 0 0);
+    --key-ui-muted: oklch(68% 0 0);
+    --key-ui-border: #ffffff22;
+    --key-ui-border-subtle: #ffffff12;
+    --key-ui-hover: #ffffff0d;
+    --key-ui-selected: #ffffff16;
+    --key-ui-focus: #9fb8f0;
+    --key-ui-danger: #f99caa;
+    --key-ui-success: #7cd4aa;
+    --key-ui-warning: #e2bc70;
+    --key-ui-shadow: 0 12px 40px #0006;
+    color-scheme: dark;
+  }
+}
+.key-ui-root {
+  --surface: var(--key-ui-bg);
+  --surface-subtle: var(--key-ui-surface);
+  --text-primary: var(--key-ui-text);
+  --text: var(--key-ui-text);
+  --text-secondary: var(--key-ui-muted);
+  --text-tertiary: var(--key-ui-muted);
+  --text-muted: var(--key-ui-muted);
+  --border: var(--key-ui-border);
+  --border-subtle: var(--key-ui-border-subtle);
+  --border-strong: var(--key-ui-border);
+  --hover: var(--key-ui-hover);
+  --pressed: var(--key-ui-selected);
+  --active-bg: var(--key-ui-selected);
+  --bg-hover-accent: var(--key-ui-selected);
+  --gs-font-sans: var(--key-ui-font);
+  color: var(--key-ui-text);
+  font: 14px/1.5 var(--key-ui-font);
+  background: var(--key-ui-bg);
+}
+:where(.key-ui-root, .key-office-ui)
+  :is(.kui-button, .kui-input, .kui-textarea, .kui-select) {
+  box-sizing: border-box;
+  font-family: var(--key-ui-font);
+  color: var(--key-ui-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+:where(.key-ui-root, .key-office-ui) .kui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 999px;
+  background: var(--key-ui-bg);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.14s var(--key-ui-ease),
+    border-color 0.14s var(--key-ui-ease),
+    transform 0.1s var(--key-ui-ease);
+}
+:where(.key-ui-root, .key-office-ui) .kui-button:hover:not(:disabled) {
+  background: var(--key-ui-hover);
+}
+:where(.key-ui-root, .key-office-ui) .kui-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+:where(.key-ui-root, .key-office-ui) .kui-button[data-size="default"] {
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+:where(.key-ui-root, .key-office-ui) .kui-button[data-size="large"] {
+  min-height: 48px;
+  padding: 10px 24px;
+  font-size: 14px;
+}
+:where(.key-ui-root, .key-office-ui) .kui-button[data-size="icon"] {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 6px;
+  border-radius: 8px;
+}
+:where(.key-ui-root, .key-office-ui) .kui-button[data-variant="primary"] {
+  background: var(--key-ui-primary);
+  border-color: var(--key-ui-primary);
+  color: var(--key-ui-primary-ink);
+}
+:where(.key-ui-root, .key-office-ui) .kui-button[data-variant="primary"]:hover {
+  filter: brightness(0.9);
+}
+:where(.key-ui-root, .key-office-ui) .kui-button[data-variant="ghost"] {
+  background: transparent;
+  border-color: transparent;
+}
+:where(.key-ui-root, .key-office-ui) .kui-button[data-variant="danger"] {
+  color: var(--key-ui-danger);
+  border-color: color-mix(in srgb, var(--key-ui-danger) 30%, transparent);
+}
+:where(.key-ui-root, .key-office-ui) :is(.kui-input, .kui-select) {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 999px;
+  background: var(--key-ui-bg);
+  max-width: 100%;
+}
+:where(.key-ui-root, .key-office-ui)
+  :is(.kui-input, .kui-select)[data-density="default"] {
+  min-height: 44px;
+  font-size: 14px;
+  padding: 10px 14px;
+}
+:where(.key-ui-root, .key-office-ui) .kui-select {
+  padding-right: 24px;
+}
+:where(.key-ui-root, .key-office-ui) .kui-textarea {
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 12px;
+  background: var(--key-ui-bg);
+  max-width: 100%;
+  resize: vertical;
+}
+:where(.key-ui-root, .key-office-ui)
+  .kui-input:is([type="checkbox"], [type="radio"]) {
+  appearance: auto;
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--key-ui-primary);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+:where(.key-ui-root, .key-office-ui) .kui-input[type="color"] {
+  width: 40px;
+  padding: 4px;
+  border-radius: 8px;
+}
+:where(.key-ui-root, .key-office-ui) .kui-input[type="range"] {
+  padding: 0;
+  accent-color: var(--key-ui-primary);
+}
+:where(.key-ui-root, .key-office-ui)
+  :is(.kui-input, .kui-textarea)::placeholder {
+  color: var(--key-ui-muted);
+  opacity: 0.8;
+}
+:where(.key-ui-root, .key-office-ui)
+  :is(button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--key-ui-focus);
+  outline-offset: 2px;
+}
+:where(.key-ui-root, .key-office-ui)
+  :is(.kui-input, .kui-textarea, .kui-select)[aria-invalid="true"] {
+  border-color: var(--key-ui-danger);
+}
+:where(.key-ui-root, .key-office-ui)
+  :is(button, input, textarea, select):disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.kui-surface {
+  background: var(--key-ui-bg);
+  border: 1px solid var(--key-ui-border);
+  border-radius: 16px;
+  padding: 16px;
+}
+.kui-surface[data-tone="quiet"] {
+  background: var(--key-ui-surface);
+  border-color: var(--key-ui-border-subtle);
+}
+.kui-surface[data-tone="raised"] {
+  box-shadow: var(--key-ui-shadow);
+}
+.kui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 999px;
+  font: 500 11px/1.4 var(--key-ui-font);
+  white-space: nowrap;
+  color: var(--key-ui-muted);
+  background: var(--key-ui-surface);
+  font-variant-numeric: tabular-nums;
+}
+.kui-badge[data-tone="success"] {
+  color: var(--key-ui-success);
+}
+.kui-badge[data-tone="warning"] {
+  color: var(--key-ui-warning);
+}
+.kui-badge[data-tone="danger"] {
+  color: var(--key-ui-danger);
+}
+.kui-badge[data-tone="info"] {
+  color: var(--key-ui-text);
+}
+.kui-field {
+  display: grid;
+  gap: 6px;
+}
+.kui-field label {
+  display: grid;
+  gap: 8px;
+}
+.kui-field-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.kui-field-help,
+.kui-field-error {
+  font-size: 12px;
+  color: var(--key-ui-muted);
+}
+.kui-field-error {
+  color: var(--key-ui-danger);
+}
+.kui-progress {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.kui-progress progress {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--key-ui-primary);
+}
+.kui-empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 32px 24px;
+  color: var(--key-ui-muted);
+}
+.kui-empty strong {
+  color: var(--key-ui-text);
+  font-size: 16px;
+}
+.kui-empty p {
+  max-width: 48ch;
+  margin: 0;
+}
+.kui-skeleton {
+  height: 16px;
+  min-width: 32px;
+  background: var(--key-ui-hover);
+  border-radius: 8px;
+  animation: kui-pulse 1.8s ease-in-out infinite;
+}
+.kui-spinner {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: kui-spin 0.9s linear infinite;
+}
+.kui-disclosure > button {
+  width: 100%;
+  justify-content: flex-start;
+}
+.kui-disclosure > div {
+  padding: 12px 0;
+}
+@keyframes kui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes kui-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.key-ui-root, .key-office-ui)
+    :is(.kui-button, .kui-skeleton, .kui-spinner) {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}
+
+:where(.key-ui-root, .key-office-ui)
+  .kui-button[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--key-ui-primary);
+  color: var(--key-ui-primary-ink);
+}
+:where(.key-ui-root, .key-office-ui) .key-motion-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1.5px solid var(--key-ui-muted);
+  border-radius: 4px;
+  background: var(--key-ui-bg);
+  color: var(--key-ui-bg);
+  cursor: pointer;
+}
+:where(.key-ui-root, .key-office-ui)
+  .key-motion-checkbox[data-state="checked"] {
+  background: var(--key-ui-text);
+  border-color: var(--key-ui-text);
+}

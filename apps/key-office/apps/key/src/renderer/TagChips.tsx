@@ -1,3 +1,4 @@
+import { Button, Input } from "@key/design-system";
 import { useState } from "react";
 export default function TagChips({
   name,
@@ -21,7 +22,7 @@ export default function TagChips({
   return (
     <div className="key-tag-editor">
       <span>{label}</span>
-      <input
+      <Input
         type="hidden"
         name={name}
         value={[
@@ -34,16 +35,16 @@ export default function TagChips({
       />
       <div>
         {values.map((v) => (
-          <button
+          <Button
             type="button"
             key={v}
             onClick={() => setValues(values.filter((x) => x !== v))}
             aria-label={`Remove ${label} ${v}`}
           >
             {v} ×
-          </button>
+          </Button>
         ))}
-        <input
+        <Input
           aria-label={`Add ${label}`}
           placeholder={`Add ${label.toLowerCase()}…`}
           value={draft}
