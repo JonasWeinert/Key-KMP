@@ -1,6 +1,7 @@
 // Workspace library database. One SQLite file holds sources (fixed bibliographic
 // columns plus user JSON properties), collections, notes, annotations and the
 // chunked text that full-text and vector search run over.
+mod properties;
 mod search;
 pub use search::{SearchHit, SearchPassage, SearchQuery, SearchResult};
 
@@ -15,7 +16,7 @@ use std::{
 
 pub type Result<T> = std::result::Result<T, String>;
 pub const EMBEDDING_DIMENSIONS: usize = 768;
-const MIGRATIONS: &[&str] = &[include_str!("migrations/001_initial.sql")];
+const MIGRATIONS: &[&str] = &[include_str!("migrations/001_initial.sql"), include_str!("migrations/002_properties.sql")];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
 /// order of the table. Kept in one list so inserts, patches and reads cannot drift.

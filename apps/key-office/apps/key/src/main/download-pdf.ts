@@ -7,6 +7,8 @@ export async function downloadPdf(
   registry: Pick<Registry, "invoke">,
   workspaceId: string,
   url: string,
+  /** Attach the PDF to this library source instead of adding a new one. */
+  sourceId?: string,
 ) {
   if (!workspaceId) throw Error("Choose a workspace");
   const parsed = new URL(url);
@@ -63,6 +65,12 @@ export async function downloadPdf(
       );
     await file.sync();
     await file.close();
+    if (sourceId)
+      return await registry.invoke(
+        "store_attach_file",
+        { id: sourceId, path },
+        workspaceId,
+      );
     const result = await registry.invoke(
       "library_import_file",
       { path },

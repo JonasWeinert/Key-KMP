@@ -19,6 +19,16 @@ import {
 } from "./library-api";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 import SourceInspector, { indexLabel } from "./SourceInspector";
+import {
+  AgentFillSheet,
+  IdentifierSheet,
+  PropertySheet,
+  TagManagerSheet,
+  formulaValue,
+  usePropertyDefinitions,
+  type PropertyDefinition,
+  type PropertySheetState,
+} from "./PropertySheets";
 import "./reference-library.css";
 
 const PAGE = 300;
@@ -87,10 +97,37 @@ export default function ReferenceLibrary({
   const [search, setSearch] = useState<{ query: string; result?: SearchResult; busy: boolean }>();
   const [dropping, setDropping] = useState(false);
   const [toast, setToast] = useState<{ text: string; undo?: () => void }>();
+  const { definitions, reload: reloadDefinitions } = usePropertyDefinitions(invoke, workspaceId);
+  const [sheet, setSheet] = useState<PropertySheetState>();
+  const [agent, setAgent] = useState<{ targets: Source[]; name?: string }>();
+  const [tagManager, setTagManager] = useState(false);
+  const [identifier, setIdentifier] = useState(false);
+  const [view, setView] = useState<"list" | "table">(() => {
+    try {
+      return localStorage.getItem("key.library.view") === "table" ? "table" : "list";
+    } catch {
+      return "list";
+    }
+  });
+  const [visibleProperties, setVisibleProperties] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`key.library.columns:${workspaceId}`) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("key.library.view", view);
+      localStorage.setItem(`key.library.columns:${workspaceId}`, JSON.stringify(visibleProperties));
+    } catch {}
+  }, [view, visibleProperties, workspaceId]);
+  const tableColumns = definitions.filter((d) => visibleProperties.includes(d.name));
   const listRef = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const request = useRef(0);
   const loadingMore = useRef(false);
+  const virtualizerRef = useRef<{ measure: () => void } | null>(null);
 
   // Sidebar selection drives the collection and scope.
   useEffect(
@@ -156,9 +193,14 @@ export default function ReferenceLibrary({
     loadCollections();
     return onLibraryChanged(() => {
       loadCollections();
+      reloadDefinitions();
       void load(0);
     });
-  }, [active, loadCollections, load]);
+  }, [active, loadCollections, load, reloadDefinitions]);
+  // Definitions can change in other tabs or through the agent; refresh when the inspector opens.
+  useEffect(() => {
+    if (active && focusId) reloadDefinitions();
+  }, [active, focusId, reloadDefinitions]);
 
   // Indexing progress: poll while anything is in flight, refresh visible statuses gently.
   useEffect(() => {
@@ -194,12 +236,16 @@ export default function ReferenceLibrary({
     if (row) setInspector(row);
   }, [focusId, items]);
 
+  useEffect(() => {
+    virtualizerRef.current?.measure();
+  }, [view]);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => listRef.current,
-    estimateSize: () => ROW,
+    estimateSize: () => (view === "table" ? 36 : ROW),
     overscan: 12,
   });
+  virtualizerRef.current = virtualizer;
   const virtualItems = virtualizer.getVirtualItems();
   useEffect(() => {
     const last = virtualItems.at(-1);
@@ -266,8 +312,9 @@ export default function ReferenceLibrary({
 
   const trash = async (ids: string[], trashed = true) => {
     await invoke("store_trash", { ids, trashed }, workspaceId);
-    setSelected(new Set());
-    setFocusId(undefined);
+    // Restoring brings the items back selected, so the inspector reopens where it was.
+    setSelected(trashed || ids.length === 1 ? new Set() : new Set(ids));
+    setFocusId(trashed ? undefined : ids[0]);
     await load(0);
     libraryChanged();
     setToast({
@@ -304,8 +351,9 @@ export default function ReferenceLibrary({
       e.preventDefault();
       void trash(selection);
     } else if (e.key === "Escape") {
-      setSelected(new Set());
-      if (search) setSearch(undefined);
+      if (selected.size) setSelected(new Set());
+      else if (search) setSearch(undefined);
+      else setFocusId(undefined);
     }
   };
   useEffect(() => {
@@ -415,6 +463,7 @@ export default function ReferenceLibrary({
                 setFocusId(source.id);
                 setInspector(source);
               }}
+              onIdentifier={() => setIdentifier(true)}
               onZotero={async () => {
                 setToast({ text: "Importing your Zotero library…" });
                 try {
@@ -458,6 +507,48 @@ export default function ReferenceLibrary({
             <button className="kx-control" title={descending ? "Descending" : "Ascending"} aria-label="Toggle sort direction" onClick={() => setDescending(!descending)}>
               <Icon name="chevronDown" size={13} style={{ transform: descending ? undefined : "rotate(180deg)" }} />
             </button>
+            {view === "table" && (
+              <details className="kx-menu">
+                <summary className="kx-control" title="Columns">
+                  <Icon name="columns" size={14} />
+                  Columns
+                </summary>
+                <div className="kx-menu-popover kx-columns-popover">
+                  {definitions.map((d) => (
+                    <label key={d.name}>
+                      <input
+                        type="checkbox"
+                        checked={visibleProperties.includes(d.name)}
+                        onChange={(e) =>
+                          setVisibleProperties((list) => (e.target.checked ? [...list, d.name] : list.filter((n) => n !== d.name)))
+                        }
+                      />
+                      <span>{d.name}</span>
+                      <button
+                        title="Edit property"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSheet({ mode: "edit", definition: d, targets: [] });
+                        }}
+                      >
+                        <Icon name="chevronRight" size={11} />
+                      </button>
+                    </label>
+                  ))}
+                  {!!definitions.length && <hr />}
+                  <button onClick={() => setSheet({ mode: "new", targets: [] })}>
+                    <Icon name="plus" size={13} /> New property…
+                  </button>
+                </div>
+              </details>
+            )}
+            <div className="kx-segmented" role="group" aria-label="Layout">
+              {(["list", "table"] as const).map((v) => (
+                <button key={v} aria-pressed={view === v} aria-label={v === "table" ? "Table" : "List"} title={v === "table" ? "Table" : "List"} onClick={() => setView(v)}>
+                  <Icon name={v === "table" ? "table" : "list"} size={15} />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         )}
@@ -471,7 +562,7 @@ export default function ReferenceLibrary({
                   <span>{k.count.toLocaleString()}</span>
                 </button>
               ))}
-            {facets.tags.length > 0 && <TagPicker tags={facets.tags} value={tag} onChange={setTag} />}
+            {facets.tags.length > 0 && <TagPicker tags={facets.tags} value={tag} onChange={setTag} onManage={() => setTagManager(true)} />}
           </div>
         )}
         {model && model.state !== "ready" && (
@@ -521,11 +612,44 @@ export default function ReferenceLibrary({
             {!loading && !items.length ? (
               <EmptyState scope={scope} filtered={!!(filterText || kind || tag)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />
             ) : (
+              <>
+              {view === "table" && (
+                <div className="kx-table-head" style={{ gridTemplateColumns: tableGrid(tableColumns.length) }}>
+                  {[["title", "Title"], ["creator", "Authors"], ["year", "Year"], ["container", "Journal / container"], ["added", "Added"]].map(([key, label]) => (
+                    <button key={key} data-sorted={sort === key} onClick={() => (sort === key ? setDescending(!descending) : setSort(key))}>
+                      {label}
+                      {sort === key && <Icon name="chevronDown" size={10} style={{ transform: descending ? undefined : "rotate(180deg)" }} />}
+                    </button>
+                  ))}
+                  {tableColumns.map((d) => (
+                    <button key={d.name} onClick={() => setSheet({ mode: "edit", definition: d, targets: [] })} title="Edit property">
+                      {d.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
                 {virtualItems.map((row) => {
                   const source = items[row.index];
                   if (!source) return null;
                   const isSelected = selected.has(source.id) || (!selected.size && focusId === source.id);
+                  if (view === "table")
+                    return (
+                      <TableRow
+                        key={source.id}
+                        source={source}
+                        top={row.start}
+                        selected={isSelected}
+                        columns={tableColumns}
+                        grid={tableGrid(tableColumns.length)}
+                        onPointer={(e) => select(source.id, e)}
+                        onOpen={() => open(source)}
+                        onCommit={(name, value) =>
+                          void invoke<Source>("store_update", { id: source.id, patch: { properties: { [name]: value } } }, workspaceId).then(updateSource)
+                        }
+                        dragIds={() => (selected.has(source.id) ? [...selected] : [source.id])}
+                      />
+                    );
                   return (
                     <SourceRow
                       key={source.id}
@@ -543,6 +667,7 @@ export default function ReferenceLibrary({
                   );
                 })}
               </div>
+              </>
             )}
           </div>
         )}
@@ -582,6 +707,12 @@ export default function ReferenceLibrary({
               for (const id of selected) await invoke("store_update", { id, patch: { starred: true } }, workspaceId);
               await load(0);
             }}
+            definitions={definitions}
+            onSetProperty={(definition) => {
+              const targets = items.filter((s) => selected.has(s.id));
+              setSheet(definition ? { mode: "edit", definition, targets, applyValue: true } : { mode: "new", targets });
+            }}
+            onFill={() => setAgent({ targets: items.filter((s) => selected.has(s.id)) })}
             onTrash={() => void trash([...selected], scope !== "trashed")}
             onDelete={async () => {
               if (!window.confirm(`Delete ${selected.size} items permanently? Linked files stay on disk.`)) return;
@@ -616,10 +747,66 @@ export default function ReferenceLibrary({
           tagSuggestions={facets.tags}
           onChanged={(source) => {
             updateSource(source);
-            if (source.collections.length !== inspector.collections.length) libraryChanged();
+            if (source.collections.length !== inspector.collections.length || source.tags.join("\n") !== inspector.tags.join("\n")) libraryChanged();
           }}
           onOpen={open}
           onClose={() => setFocusId(undefined)}
+          definitions={definitions}
+          onPropertySheet={setSheet}
+          onAgentFill={(name) => setAgent({ targets: [inspector], name })}
+          onDownload={async () => {
+            const lookup = await invoke<{ fullTextUrl?: string | null }>("scholarly_lookup_resource", { resource: inspector.doi || inspector.url }, workspaceId);
+            if (!lookup.fullTextUrl) throw Error("No open-access PDF was found for this reference.");
+            updateSource(await invoke<Source>("library_download_pdf", { url: lookup.fullTextUrl, sourceId: inspector.id }, workspaceId));
+          }}
+        />
+      )}
+      {sheet && (
+        <PropertySheet
+          state={sheet}
+          invoke={invoke}
+          workspaceId={workspaceId}
+          definitions={definitions}
+          onClose={() => setSheet(undefined)}
+          onSaved={() => {
+            reloadDefinitions();
+            void load(0);
+          }}
+        />
+      )}
+      {agent && (
+        <AgentFillSheet
+          invoke={invoke}
+          workspaceId={workspaceId}
+          targets={agent.targets}
+          propertyName={agent.name}
+          onClose={() => setAgent(undefined)}
+          onSaved={() => {
+            reloadDefinitions();
+            void load(0);
+          }}
+        />
+      )}
+      {tagManager && (
+        <TagManagerSheet
+          invoke={invoke}
+          workspaceId={workspaceId}
+          onClose={() => setTagManager(false)}
+          onSaved={() => void load(0)}
+        />
+      )}
+      {identifier && (
+        <IdentifierSheet
+          invoke={invoke}
+          workspaceId={workspaceId}
+          collectionId={collectionId}
+          onClose={() => setIdentifier(false)}
+          onAdded={(source) => {
+            void load(0);
+            setFocusId(source.id);
+            setInspector(source);
+            libraryChanged();
+          }}
         />
       )}
     </section>
@@ -697,6 +884,117 @@ function SourceRow({
   );
 }
 
+const tableGrid = (properties: number) =>
+  `minmax(220px, 3fr) minmax(120px, 1.3fr) 56px minmax(120px, 1.2fr) 92px${" minmax(110px, 1fr)".repeat(properties)}`;
+
+function TableRow({
+  source,
+  top,
+  selected,
+  columns,
+  grid,
+  onPointer,
+  onOpen,
+  onCommit,
+  dragIds,
+}: {
+  source: Source;
+  top: number;
+  selected: boolean;
+  columns: PropertyDefinition[];
+  grid: string;
+  onPointer: (e: React.MouseEvent) => void;
+  onOpen: () => void;
+  onCommit: (name: string, value: unknown) => void;
+  dragIds: () => string[];
+}) {
+  const [editing, setEditing] = useState<string>();
+  return (
+    <div
+      className="kx-table-row"
+      role="option"
+      aria-selected={selected}
+      style={{ transform: `translateY(${top}px)`, gridTemplateColumns: grid }}
+      onMouseDown={onPointer}
+      onDoubleClick={onOpen}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(dragIds()));
+        e.dataTransfer.effectAllowed = "copy";
+      }}
+    >
+      <span className="kx-cell-title">
+        <span className="kx-row-kind kx-row-kind-small" data-kind={source.kind}>
+          <Icon name={KIND_ICON[source.kind] ?? "doc"} size={12} />
+        </span>
+        <span>{source.title || "Untitled"}</span>
+      </span>
+      <span>{shortCreators(source.creators)}</span>
+      <span className="kx-cell-number">{source.year ?? ""}</span>
+      <span>{source.containerShort || source.containerTitle || ""}</span>
+      <span className="kx-cell-muted">{relativeDate(source.addedAt)}</span>
+      {columns.map((d) => {
+        const raw = source.properties[d.name];
+        const text = d.type === "formula" ? formulaValue(d, source) : raw === undefined || raw === null ? "" : d.type === "boolean" ? (raw ? "✓" : "") : String(raw);
+        if (editing === d.name && d.type !== "formula") {
+          const done = (value: unknown) => {
+            setEditing(undefined);
+            if (value !== raw) onCommit(d.name, value);
+          };
+          return d.type === "select" || d.type === "boolean" ? (
+            <select
+              key={d.name}
+              autoFocus
+              className="kx-cell-editor"
+              defaultValue={String(raw ?? "")}
+              onMouseDown={(e) => e.stopPropagation()}
+              onChange={(e) => done(d.type === "boolean" ? e.target.value === "true" : e.target.value || null)}
+              onBlur={() => setEditing(undefined)}
+            >
+              <option value="">—</option>
+              {(d.type === "boolean" ? ["true", "false"] : d.options ?? []).map((o) => (
+                <option key={o} value={o}>
+                  {d.type === "boolean" ? (o === "true" ? "Yes" : "No") : o}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              key={d.name}
+              autoFocus
+              className="kx-cell-editor"
+              defaultValue={String(raw ?? "")}
+              inputMode={d.type === "number" ? "decimal" : undefined}
+              onMouseDown={(e) => e.stopPropagation()}
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                done(next === "" ? null : d.type === "number" && Number.isFinite(Number(next)) ? Number(next) : next);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") setEditing(undefined);
+              }}
+            />
+          );
+        }
+        return (
+          <span
+            key={d.name}
+            className={`kx-cell-property ${d.type === "formula" ? "computed" : ""}`}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              if (d.type !== "formula") setEditing(d.name);
+            }}
+            title={d.type === "formula" ? "Calculated" : "Double-click to edit"}
+          >
+            {text}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function SearchResults({
   search,
   items,
@@ -763,7 +1061,7 @@ function SearchResults({
   );
 }
 
-function AddMenu({ onFiles, onBlank, onZotero }: { onFiles: () => void; onBlank: () => void; onZotero: () => void }) {
+function AddMenu({ onFiles, onBlank, onIdentifier, onZotero }: { onFiles: () => void; onBlank: () => void; onIdentifier: () => void; onZotero: () => void }) {
   return (
     <div className="kx-add">
       <button className="kx-button-primary" onClick={onFiles}>
@@ -778,6 +1076,9 @@ function AddMenu({ onFiles, onBlank, onZotero }: { onFiles: () => void; onBlank:
           <button onClick={onFiles}>
             <Icon name="upload" size={13} /> Add files…
           </button>
+          <button onClick={onIdentifier}>
+            <Icon name="search" size={13} /> Add by DOI, ISBN or URL…
+          </button>
           <button onClick={onBlank}>
             <Icon name="quote" size={13} /> New reference…
           </button>
@@ -791,7 +1092,7 @@ function AddMenu({ onFiles, onBlank, onZotero }: { onFiles: () => void; onBlank:
   );
 }
 
-function TagPicker({ tags, value, onChange }: { tags: { value: string; count: number }[]; value?: string; onChange: (tag?: string) => void }) {
+function TagPicker({ tags, value, onChange, onManage }: { tags: { value: string; count: number }[]; value?: string; onChange: (tag?: string) => void; onManage: () => void }) {
   const [query, setQuery] = useState("");
   const shown = tags.filter((t) => t.value.toLowerCase().includes(query.toLowerCase())).slice(0, 80);
   return (
@@ -829,6 +1130,16 @@ function TagPicker({ tags, value, onChange }: { tags: { value: string; count: nu
             </button>
           ))}
         </div>
+        <hr />
+        <button
+          className="kx-tag-manage"
+          onClick={(e) => {
+            (e.currentTarget.closest("details") as HTMLDetailsElement).removeAttribute("open");
+            onManage();
+          }}
+        >
+          <Icon name="tag" size={12} /> Manage, merge and clean up tags…
+        </button>
       </div>
     </details>
   );
@@ -838,6 +1149,9 @@ function BulkBar({
   count,
   collections,
   trashed,
+  definitions,
+  onSetProperty,
+  onFill,
   onTag,
   onCollect,
   onStar,
@@ -848,6 +1162,9 @@ function BulkBar({
   count: number;
   collections: Collection[];
   trashed: boolean;
+  definitions: PropertyDefinition[];
+  onSetProperty: (definition?: PropertyDefinition) => void;
+  onFill: () => void;
   onTag: (tag: string) => Promise<void>;
   onCollect: (id: string) => Promise<void>;
   onStar: () => Promise<void>;
@@ -887,6 +1204,26 @@ function BulkBar({
             <Icon name="tag" size={13} />
             <input aria-label="Tag selection" placeholder="Add tag…" value={tag} onChange={(e) => setTag(e.target.value)} />
           </form>
+          <select
+            aria-label="Set a property on the selection"
+            value=""
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "__new") onSetProperty();
+              else if (value) onSetProperty(definitions.find((d) => d.name === value));
+            }}
+          >
+            <option value="">Set property…</option>
+            {definitions.filter((d) => d.type !== "formula").map((d) => (
+              <option key={d.name} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+            <option value="__new">New property…</option>
+          </select>
+          <button onClick={onFill} title={count > 25 ? "Agent fill works on 25 sources at a time" : "Fill a property with AI"}>
+            <Icon name="sparkle" size={13} /> Fill with AI
+          </button>
           <span className="kx-bulk-sep" />
         </>
       )}

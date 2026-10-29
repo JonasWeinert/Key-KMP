@@ -173,6 +173,14 @@ impl Library {
                 json_output(report)
             })(),
             "store_zotero_location" => json_output(key_zotero::default_data_dir()),
+            "store_attach_file" => (|| {
+                let id: String = arg(args, "id")?;
+                let path: PathBuf = arg(args, "path")?;
+                let source = self.attach_file(&id, &path, root)?;
+                self.indexer.wake();
+                json_output(source)
+            })(),
+            "store_provenance" => arg::<String>(args, "id").and_then(|id| json_output(self.store.property_provenance(&id)?)),
             _ => return None,
         };
         Some(result)
@@ -207,17 +215,7 @@ impl Library {
             }
             return Ok(json!({"hash": hash, "id": existing.id, "title": existing.title(), "existing": true}));
         }
-        let temporary = path.starts_with(std::env::temp_dir()) || path.to_string_lossy().contains("/T/");
-        let stored = if temporary {
-            let directory = root.join("files");
-            std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
-            let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("bin");
-            let target = directory.join(format!("{hash}.{extension}"));
-            std::fs::copy(path, &target).map_err(|e| e.to_string())?;
-            target
-        } else {
-            path.to_path_buf()
-        };
+        let stored = self.stored_path(path, &hash, root)?;
         let (kind, item_type, mime) = classify(&stored);
         let title = path.file_stem().map(|s| s.to_string_lossy().replace(['_', '-'], " ")).unwrap_or_default();
         let mut fields = Map::new();
@@ -234,6 +232,159 @@ impl Library {
             ..Default::default()
         })?;
         Ok(json!({"hash": hash, "id": source.id, "title": source.title()}))
+    }
+
+    /// Commands the existing property, agent-fill and tag UI speaks, served from key-store.
+    /// Definition and tag commands always use key-store; per-source ones only when the
+    /// hash resolves to a key-store source.
+    pub fn compat(&self, command: &str, args: &Json) -> Option<Result<Output, String>> {
+        let store = &self.store;
+        let source = |key: &str| -> Option<Source> { arg::<String>(args, key).ok().and_then(|h| store.source_by_hash(&h).ok().flatten()) };
+        Some(match command {
+            "workspace_attributes" => store.property_definitions().and_then(json_output),
+            "workspace_save_attribute" => (|| {
+                store.save_property_definition(&arg::<String>(args, "name")?, &arg::<Json>(args, "config")?)?;
+                json_output(())
+            })(),
+            "workspace_rename_attribute" => (|| json_output(store.rename_property(&arg::<String>(args, "name")?, &arg::<String>(args, "newName")?)?))(),
+            "workspace_delete_attribute" => (|| {
+                json_output(store.delete_property(&arg::<String>(args, "name")?, arg::<Option<bool>>(args, "deleteValues")?.unwrap_or(false))?)
+            })(),
+            "workspace_agent_property" => arg::<String>(args, "name").and_then(|name| json_output(store.agent_recipe(&name)?)),
+            "workspace_save_agent_property" => (|| {
+                store.save_agent_recipe(&arg::<String>(args, "name")?, &arg::<Json>(args, "config")?)?;
+                json_output(())
+            })(),
+            "library_tags" => (|| {
+                let offset = arg::<Option<usize>>(args, "offset")?.unwrap_or(0);
+                let limit = arg::<Option<usize>>(args, "limit")?.unwrap_or(200).clamp(1, 1000);
+                let mut tags = store.facets(&ListQuery::default())?.tags;
+                tags.sort_by(|a, b| a.value.to_lowercase().cmp(&b.value.to_lowercase()));
+                let total = tags.len();
+                let page: Vec<Json> = tags.into_iter().skip(offset).take(limit).map(|t| json!({"name": t.value, "count": t.count})).collect();
+                json_output(json!({"tags": page, "total": total}))
+            })(),
+            "library_retag" => (|| {
+                let to: Option<String> = arg(args, "to")?;
+                json_output(json!({"affected": store.retag(&arg::<Vec<String>>(args, "from")?, to.as_deref().unwrap_or(""))?}))
+            })(),
+            "library_metadata_details" => {
+                let source = source("hash")?;
+                let names: std::collections::HashMap<String, String> =
+                    store.collections().unwrap_or_default().into_iter().map(|c| (c.id, c.name)).collect();
+                let collections: Vec<String> = source.collections.iter().filter_map(|id| names.get(id).cloned()).collect();
+                json_output(json!({"tags": source.tags, "collections": collections, "properties": source.properties}))
+            }
+            "library_set_property" => {
+                let source = source("hash")?;
+                (|| {
+                    let mut properties = Map::new();
+                    properties.insert(arg::<String>(args, "name")?, arg::<Json>(args, "value")?);
+                    let mut patch = Map::new();
+                    patch.insert("properties".into(), Json::Object(properties));
+                    store.update_source(&source.id, &patch)?;
+                    json_output(())
+                })()
+            }
+            "workspace_agent_context" => {
+                let source = source("hash")?;
+                (|| {
+                    let inputs: Vec<String> = arg(args, "inputs")?;
+                    let mut context = Map::new();
+                    for input in inputs.iter().take(16) {
+                        let value = match input.as_str() {
+                            "title" => json!(source.title()),
+                            "authors" => json!(source.creators.iter().map(|c| c.display()).collect::<Vec<_>>()),
+                            "year" => source.fields.get("year").cloned().unwrap_or(Json::Null),
+                            "pageCount" => source.fields.get("pageCount").cloned().unwrap_or(Json::Null),
+                            "abstract" => json!(source.field("abstract").unwrap_or("")),
+                            "pdfText" => json!(store.leading_text(&source.id, 32768)?),
+                            _ => return Err("Unknown input".into()),
+                        };
+                        context.insert(input.clone(), value);
+                    }
+                    json_output(Json::Object(context))
+                })()
+            }
+            "workspace_apply_property_proposal" => {
+                let source = source("hash")?;
+                (|| {
+                    store.apply_property_proposal(
+                        &source.id,
+                        &arg::<String>(args, "name")?,
+                        &arg::<Json>(args, "value")?,
+                        &arg::<Json>(args, "expectedValue")?,
+                        &arg::<Json>(args, "provenance")?,
+                    )?;
+                    json_output(())
+                })()
+            }
+            "workspace_fill_known_property" => (|| {
+                // Deterministic copy of known metadata; existing values are kept.
+                let name: String = arg(args, "name")?;
+                let input: String = arg(args, "input")?;
+                let (mut filled, mut skipped) = (0, 0);
+                for hash in arg::<Vec<String>>(args, "hashes")?.iter().take(100) {
+                    let Some(source) = store.source_by_hash(hash)? else {
+                        skipped += 1;
+                        continue;
+                    };
+                    let value = match input.as_str() {
+                        "title" => json!(source.title()),
+                        "authors" => json!(source.creators.iter().map(|c| c.display()).collect::<Vec<_>>().join("; ")),
+                        "year" => source.fields.get("year").cloned().unwrap_or(Json::Null),
+                        "pageCount" => source.fields.get("pageCount").cloned().unwrap_or(Json::Null),
+                        _ => return Err("Only known document metadata can be copied".into()),
+                    };
+                    let current = source.properties.get(&name);
+                    if value.is_null() || value == json!("") || current.is_some_and(|v| !v.is_null() && v != &json!("")) {
+                        skipped += 1;
+                        continue;
+                    }
+                    let mut properties = Map::new();
+                    properties.insert(name.clone(), value);
+                    let mut patch = Map::new();
+                    patch.insert("properties".into(), Json::Object(properties));
+                    store.update_source(&source.id, &patch)?;
+                    filled += 1;
+                }
+                json_output(json!({"filled": filled, "skipped": skipped, "method": "Known metadata copied; no AI inference"}))
+            })(),
+            _ => return None,
+        })
+    }
+
+    /// Links (or, for downloads, copies) a file to an existing source and re-indexes it.
+    pub fn attach_file(&self, id: &str, path: &Path, root: &Path) -> Result<Source, String> {
+        let source = self.store.source(id)?.ok_or("Source not found")?;
+        let hash = key_index::file_hash(path)?;
+        let stored = self.stored_path(path, &hash, root)?;
+        let (kind, _, mime) = classify(&stored);
+        let mut patch = Map::new();
+        patch.insert("filePath".into(), Json::from(stored.to_string_lossy().to_string()));
+        patch.insert("fileHash".into(), Json::from(hash));
+        patch.insert("mime".into(), Json::from(mime));
+        patch.insert("fileSize".into(), Json::from(std::fs::metadata(&stored).map(|m| m.len()).unwrap_or(0)));
+        if matches!(source.kind.as_str(), "reference" | "web") {
+            patch.insert("kind".into(), Json::from(kind));
+        }
+        let updated = self.store.update_source(id, &patch)?;
+        self.store.set_index_status(id, "pending", None, 0, 0)?;
+        Ok(updated)
+    }
+
+    /// Files from the system temp folder (downloads) are copied into the workspace.
+    fn stored_path(&self, path: &Path, hash: &str, root: &Path) -> Result<PathBuf, String> {
+        let temporary = path.starts_with(std::env::temp_dir()) || path.to_string_lossy().contains("/T/");
+        if !temporary {
+            return Ok(path.to_path_buf());
+        }
+        let directory = root.join("files");
+        std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+        let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("bin");
+        let target = directory.join(format!("{hash}.{extension}"));
+        std::fs::copy(path, &target).map_err(|e| e.to_string())?;
+        Ok(target)
     }
 
     // ── Reader support ─────────────────────────────────────
@@ -264,14 +415,20 @@ impl Library {
     }
 
     /// Opens a key-store PDF in the reader companion without the legacy analysis pipeline.
-    pub fn begin_companion(&self, hash: &str, native: &NativePdfService, companions: &CompanionStore) -> Option<Result<super::CompanionSnapshotDto, String>> {
+    pub fn begin_companion(
+        &self,
+        hash: &str,
+        native: &NativePdfService,
+        companions: &CompanionStore,
+        legacy: key_library::Library,
+    ) -> Option<Result<super::CompanionSnapshotDto, String>> {
         let (source, path) = self.reader_source(hash)?;
         Some((|| {
             if let Ok(snapshot) = companions.storage.snapshot(hash) {
                 companions.reader_ids.lock().map_err(|_| "Reader registry poisoned")?.insert(hash.to_string());
                 return Ok(snapshot);
             }
-            let Reply::Document(mut document) = native.request(|reply| Request::OpenFile { id: hash.to_string(), path, reply })? else {
+            let Reply::Document(mut document) = native.request(|reply| Request::OpenFile { id: hash.to_string(), path: path.clone(), reply })? else {
                 return Err("Unexpected open reply".into());
             };
             if document.title.as_deref().unwrap_or("").is_empty() {
@@ -282,7 +439,13 @@ impl Library {
             companions.storage.set_document_hash(hash, generation, hash.to_string());
             let chunks = source.indexed_chunks.max(0) as usize;
             companions.storage.set_semantic_progress(hash, generation, "indexed", chunks, chunks.max(pages));
-            companions.storage.finish(hash, generation);
+            // References and citations for the reader; very long documents skip it so the
+            // shared PDF engine stays responsive.
+            if pages <= 150 {
+                super::begin_store_companion_analysis(companions.clone(), native.clone(), legacy, hash.to_string(), path, generation);
+            } else {
+                companions.storage.finish(hash, generation);
+            }
             companions.reader_ids.lock().map_err(|_| "Reader registry poisoned")?.insert(hash.to_string());
             companions.storage.snapshot(hash)
         })())

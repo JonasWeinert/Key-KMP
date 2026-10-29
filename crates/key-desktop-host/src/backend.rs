@@ -1554,6 +1554,40 @@ fn begin_background_companion_analysis(
     });
 }
 
+/// Reader analysis (references, citations, metadata enrichment) for a PDF that lives in
+/// the workspace library. Results stay in the reader companion; only the scholarly
+/// metadata cache is shared with the legacy library.
+fn begin_store_companion_analysis(
+    store: CompanionStore,
+    native: NativePdfService,
+    library: key_library::Library,
+    hash: String,
+    path: PathBuf,
+    generation: u64,
+) {
+    thread::spawn(move || {
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) if bytes.len() <= 64 * 1024 * 1024 => bytes,
+            _ => return store.storage.finish(&hash, generation),
+        };
+        let analysis = match native.request(|reply| Request::Preprocess { id: format!("analysis:{hash}"), bytes, reply }) {
+            Ok(Reply::Preprocessing(analysis)) => analysis,
+            _ => return store.storage.finish(&hash, generation),
+        };
+        let mut references = analysis.references.clone();
+        if !store.storage.install_local_analysis(&hash, generation, analysis, Vec::new()) {
+            return;
+        }
+        if references.is_empty() {
+            return store.storage.finish(&hash, generation);
+        }
+        enrichment_scheduler().submit(hash.clone(), "references", 0, move || {
+            enrich_reference_metadata_streaming(&store, &library, &hash, generation, &mut references);
+            store.storage.finish(&hash, generation);
+        });
+    });
+}
+
 fn library_import_begin(
     search: HostState<'_, SemanticSearchService>,
     imports: HostState<'_, key_library::Imports>,
@@ -2837,6 +2871,9 @@ impl Host {
             return Some(tokio::task::block_in_place(|| library.dispatch(command, args, &root))
                 .unwrap_or_else(|| Err(format!("Unknown Key command: {command}"))));
         }
+        if let Some(result) = self.library.compat(command, args) {
+            return Some(result);
+        }
         let hash = || arg::<String>(args, "hash").ok();
         match command {
             "library_source_info" => self.library.source_info(&hash()?),
@@ -2848,7 +2885,8 @@ impl Host {
             "begin_pdfjs_companion_managed" => {
                 let hash = hash()?;
                 let library = &self.library;
-                tokio::task::block_in_place(|| library.begin_companion(&hash, &self.native, &self.store))
+                let legacy = self.search.library().clone();
+                tokio::task::block_in_place(|| library.begin_companion(&hash, &self.native, &self.store, legacy))
                     .map(|r| r.and_then(json_output))
             }
             "library_annotations" | "library_apply_annotations" | "library_save_annotations" | "library_import_annotations" => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apa, apaInText, bibtex } from "./citation";
 import type { Creator } from "./citation";
 import { Icon } from "./icons";
+import { formulaValue, type PropertyDefinition, type PropertySheetState } from "./PropertySheets";
 import {
   ITEM_TYPES,
   KIND_ICON,
@@ -58,7 +59,15 @@ export default function SourceInspector({
   onChanged,
   onOpen,
   onClose,
+  definitions,
+  onPropertySheet,
+  onAgentFill,
+  onDownload,
 }: {
+  definitions: PropertyDefinition[];
+  onPropertySheet: (state: PropertySheetState) => void;
+  onAgentFill: (propertyName?: string) => void;
+  onDownload: () => Promise<void>;
   source: Source;
   invoke: Invoke;
   workspaceId: string;
@@ -226,7 +235,14 @@ export default function SourceInspector({
 
         <section className="kx-inspector-section">
           <h3>Properties</h3>
-          <PropertyRows properties={source.properties} onCommit={(properties) => void save({ properties })} />
+          <TypedProperties
+            source={source}
+            definitions={definitions}
+            onCommit={(properties) => void save({ properties })}
+            onEdit={(definition) => onPropertySheet({ mode: "edit", definition, targets: [source] })}
+            onAdd={() => onPropertySheet({ mode: "new", targets: [source] })}
+            onFill={onAgentFill}
+          />
         </section>
 
         <section className="kx-inspector-section">
@@ -254,7 +270,7 @@ export default function SourceInspector({
                 <>
                   <div className="kx-file-name" title={source.filePath}>
                     <Icon name={KIND_ICON[source.kind] ?? "doc"} size={14} />
-                    <span>{source.filePath.split("/").pop()}</span>
+                    <span>{/\/\.key\/files\/[0-9a-f]{64}\./.test(source.filePath) ? "Saved in this workspace" : source.filePath.split("/").pop()}</span>
                   </div>
                   <small>
                     {[source.pageCount ? `${source.pageCount} pages` : "", formatBytes(source.fileSize), source.mime].filter(Boolean).join(" · ")}
@@ -273,6 +289,17 @@ export default function SourceInspector({
                 </div>
               )}
               <div className="kx-file-actions">
+                {!source.filePath && (source.doi || source.url) && (
+                  <button
+                    onClick={() => {
+                      setError("");
+                      void onDownload().catch((e) => setError(String(e).replace(/^Error: /, "")));
+                    }}
+                  >
+                    <Icon name="upload" size={12} style={{ transform: "rotate(180deg)" }} />
+                    Find PDF
+                  </button>
+                )}
                 {source.filePath && (
                   <button onClick={() => void bridge().revealPath(source.filePath!)}>
                     <Icon name="folder" size={12} />
@@ -477,10 +504,106 @@ function TagEditor({ tags, suggestions, onCommit }: { tags: string[]; suggestion
   );
 }
 
-function PropertyRows({ properties, onCommit }: { properties: Record<string, unknown>; onCommit: (p: Record<string, unknown>) => void }) {
+/** Defined properties with typed editors, then any free-form keys on this source. */
+function TypedProperties({
+  source,
+  definitions,
+  onCommit,
+  onEdit,
+  onAdd,
+  onFill,
+}: {
+  source: Source;
+  definitions: PropertyDefinition[];
+  onCommit: (p: Record<string, unknown>) => void;
+  onEdit: (d: PropertyDefinition) => void;
+  onAdd: () => void;
+  onFill: (name?: string) => void;
+}) {
+  const defined = new Set(definitions.map((d) => d.name));
+  const extra = Object.fromEntries(Object.entries(source.properties).filter(([key]) => !defined.has(key)));
+  const glyph = (type: string) => (type === "number" ? "#" : type === "boolean" ? "✓" : type === "select" ? "◦" : type === "formula" ? "ƒ" : "Aa");
+  return (
+    <div className="kx-inspector-group">
+      {definitions.map((definition) => {
+        const value = source.properties[definition.name];
+        const text = value === undefined || value === null ? "" : String(value);
+        return (
+          <div className="kx-field-row kx-typed-row" key={definition.name}>
+            <button className="kx-property-name" title={`Edit “${definition.name}”`} aria-label={`Configure ${definition.name} property`} onClick={() => onEdit(definition)}>
+              <span className="kx-type-badge">{glyph(definition.type)}</span>
+              <span>{definition.name}</span>
+            </button>
+            {definition.type === "formula" ? (
+              <output>{formulaValue(definition, source) || "—"}</output>
+            ) : definition.type === "boolean" ? (
+              <input type="checkbox" className="kx-switch" checked={value === true} onChange={(e) => onCommit({ [definition.name]: e.target.checked })} />
+            ) : definition.type === "select" ? (
+              <select value={text} onChange={(e) => onCommit({ [definition.name]: e.target.value || null })}>
+                <option value="">—</option>
+                {(definition.options ?? []).map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                key={`${source.id}:${definition.name}:${text}`}
+                defaultValue={text}
+                placeholder="—"
+                inputMode={definition.type === "number" ? "decimal" : undefined}
+                onBlur={(e) => {
+                  const next = e.target.value.trim();
+                  if (next === text) return;
+                  if (definition.type === "number" && next && !Number.isFinite(Number(next))) {
+                    e.target.value = text;
+                    return;
+                  }
+                  onCommit({ [definition.name]: next === "" ? null : definition.type === "number" ? Number(next) : next });
+                }}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              />
+            )}
+            {definition.type !== "formula" && (
+              <button className="kx-row-remove" title={`Fill “${definition.name}” with AI`} aria-label={`Fill ${definition.name} with AI`} onClick={() => onFill(definition.name)}>
+                <Icon name="sparkle" size={11} />
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {Object.keys(extra).length > 0 && <PropertyRows properties={extra} onCommit={onCommit} embedded />}
+      <button className="kx-row-toggle" onClick={onAdd}>
+        <Icon name="plus" size={11} /> New property…
+      </button>
+      {!definitions.length && !Object.keys(extra).length && <small className="kx-muted">Typed fields for every source: status, rating, method, research question…</small>}
+    </div>
+  );
+}
+
+function PropertyRows({ properties, onCommit, embedded = false }: { properties: Record<string, unknown>; onCommit: (p: Record<string, unknown>) => void; embedded?: boolean }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const entries = Object.entries(properties);
+  if (embedded)
+    return (
+      <>
+        {entries.map(([key, value]) => (
+          <div className="kx-field-row" key={key}>
+            <span title={key}>{key}</span>
+            <input
+              defaultValue={typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}
+              onBlur={(e) => {
+                if (e.target.value !== String(value ?? "")) onCommit({ [key]: e.target.value === "" ? null : coerce(e.target.value) });
+              }}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            />
+            <button className="kx-row-remove" aria-label={`Remove ${key}`} onClick={() => onCommit({ [key]: null })}>
+              <Icon name="close" size={10} />
+            </button>
+          </div>
+        ))}
+      </>
+    );
   return (
     <div className="kx-inspector-group">
       {entries.map(([key, value]) => (

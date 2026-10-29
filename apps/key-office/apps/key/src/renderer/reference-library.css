@@ -1101,7 +1101,7 @@
     position: absolute;
     inset: 0 0 0 auto;
     z-index: 35;
-    width: min(360px, 92%);
+    width: min(360px, 70%);
     box-shadow: var(--kx-shadow-pop);
   }
 }
@@ -1117,4 +1117,263 @@
 .kx-chip > :not(button, svg) {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Table view */
+.kx-table-head,
+.kx-table-row {
+  display: grid;
+  align-items: center;
+  column-gap: 12px;
+  padding: 0 12px 0 20px;
+}
+.kx-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 30px;
+  background: var(--kx-bg);
+  box-shadow: inset 0 -1px 0 var(--kx-line);
+}
+.kx-table-head > button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 500 11.5px var(--kx-font);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kx-table-head > button[data-sorted="true"] {
+  color: var(--kx-text);
+}
+.kx-table-row {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 36px;
+  box-shadow: inset 0 -1px 0 var(--kx-line);
+  font-size: 12.5px;
+  cursor: default;
+  user-select: none;
+}
+.kx-table-row > span,
+.kx-table-row > output {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kx-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-table-row:hover {
+  background: var(--kx-bg-sunken);
+}
+.kx-table-row[aria-selected="true"] {
+  background: var(--kx-accent-soft);
+}
+.kx-list:focus-within .kx-table-row[aria-selected="true"] {
+  background: var(--kx-accent);
+}
+.kx-list:focus-within .kx-table-row[aria-selected="true"] > span {
+  color: var(--kx-accent-ink);
+}
+.kx-cell-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kx-table-row .kx-cell-title > span:last-child {
+  overflow: hidden;
+  color: var(--kx-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+.kx-row-kind-small {
+  width: 20px;
+  height: 22px;
+  border-radius: 3px 5px 3px 3px;
+}
+.kx-cell-number {
+  font-variant-numeric: tabular-nums;
+}
+.kx-cell-muted {
+  color: var(--kx-text-3) !important;
+}
+.kx-cell-property {
+  height: 100%;
+  line-height: 36px;
+}
+.kx-cell-property.computed {
+  font-style: italic;
+}
+.kx-cell-editor {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--kx-accent);
+  border-radius: 6px;
+  outline: none;
+  background: var(--kx-bg);
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+}
+.kx-columns-popover {
+  min-width: 240px;
+}
+.kx-columns-popover > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 4px 0 9px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.kx-columns-popover > label:hover {
+  background: var(--kx-fill);
+}
+.kx-columns-popover > label > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-columns-popover > label > input {
+  accent-color: var(--kx-accent);
+}
+.kx-columns-popover > label > button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-3);
+}
+.kx-columns-popover > label > button:hover {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-tag-popover hr {
+  margin: 4px 4px;
+  border: 0;
+  border-top: 1px solid var(--kx-line);
+}
+.kx-tag-manage {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-accent);
+  font: 500 12.5px var(--kx-font);
+  text-align: left;
+}
+.kx-tag-manage:hover {
+  background: var(--kx-accent-soft);
+}
+
+/* Typed properties in the inspector */
+.kx-typed-row > .kx-property-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 12px var(--kx-font);
+  text-align: left;
+}
+.kx-typed-row > .kx-property-name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-typed-row > .kx-property-name:hover {
+  color: var(--kx-accent);
+}
+.kx-typed-row > select,
+.kx-typed-row > output {
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  outline: none;
+  background: transparent;
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+}
+.kx-typed-row > output {
+  display: flex;
+  align-items: center;
+  color: var(--kx-text-2);
+  font-style: italic;
+}
+.kx-typed-row > select:hover {
+  background: var(--kx-fill);
+}
+.kx-typed-row > .kx-switch {
+  justify-self: start;
+}
+
+/* Add by identifier */
+.kx-identifier-sheet > p {
+  margin: 0 0 14px;
+}
+.kx-identifier-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 10px;
+  background: var(--kx-bg-sunken);
+  color: var(--kx-text-3);
+}
+.kx-identifier-input > input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--kx-text);
+  font: 13px var(--kx-font);
+}
+.kx-identifier-result {
+  display: grid;
+  gap: 3px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--kx-bg);
+  box-shadow: var(--kx-shadow-card);
+}
+.kx-identifier-result > span,
+.kx-identifier-result > small {
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.kx-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+.kx-check > input {
+  accent-color: var(--kx-accent);
 }

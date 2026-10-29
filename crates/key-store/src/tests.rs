@@ -99,3 +99,22 @@ fn reimports_by_origin_key_without_duplicating() {
     let facets = store.facets(&ListQuery::default()).unwrap();
     assert_eq!(facets.kinds[0].value, "reference");
 }
+
+#[test]
+fn property_definitions_rename_and_proposals() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    store.save_property_definition("Status", &json!({"type": "select", "options": ["To read", "Read"]})).unwrap();
+    let source = store.insert_source(input(json!({"kind": "pdf", "title": "A", "properties": {"Status": "Read"}}))).unwrap();
+    assert_eq!(store.property_definitions().unwrap()[0]["options"][1], "Read");
+    store.rename_property("Status", "Reading status").unwrap();
+    let renamed = store.source(&source.id).unwrap().unwrap();
+    assert_eq!(renamed.properties["Reading status"], "Read");
+    assert!(!renamed.properties.contains_key("Status"));
+    // Proposals only land if the value is unchanged since they were generated.
+    assert!(store.apply_property_proposal(&source.id, "Reading status", &json!("To read"), &Json::Null, &json!({})).is_err());
+    store.apply_property_proposal(&source.id, "Reading status", &json!("To read"), &json!("Read"), &json!({"model": "m"})).unwrap();
+    assert_eq!(store.property_provenance(&source.id).unwrap()["Reading status"]["model"], "m");
+    assert_eq!(store.delete_property("Reading status", true).unwrap(), 1);
+    assert!(store.source(&source.id).unwrap().unwrap().properties.is_empty());
+}

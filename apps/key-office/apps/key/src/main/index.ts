@@ -858,7 +858,7 @@ else
             );
           if (command === "library_download_pdf") {
             if (record) throw Error("Download requires the library view");
-            const info = await downloadPdf(registry, targetWorkspace, args.url);
+            const info = await downloadPdf(registry, targetWorkspace, args.url, args.sourceId);
             emit("library-changed");
             return info;
           }
