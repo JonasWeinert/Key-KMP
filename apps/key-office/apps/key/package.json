@@ -69,6 +69,10 @@
         "to": "backend/key-desktop-host"
       },
       {
+        "from": "../../../key/src-tauri/target/debug/llama",
+        "to": "backend/llama"
+      },
+      {
         "from": "../../../../vendor/pdfium/lib/libpdfium.dylib",
         "to": "backend/libpdfium.dylib"
       },

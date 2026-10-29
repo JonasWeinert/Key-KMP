@@ -100,5 +100,6 @@ fn run() -> Result<(), String> {
         });
     }
     // Electron owns this process. EOF must also end helper ownership promptly.
+    key_embed::shutdown();
     std::process::exit(0)
 }

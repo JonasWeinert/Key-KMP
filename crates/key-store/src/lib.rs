@@ -828,13 +828,15 @@ impl Store {
         tx.commit().map_err(e)
     }
 
-    /// Chunks that have text but no vector yet, for back-filling once the model is ready.
+    /// Chunks of finished sources that have text but no vector yet (indexed before the
+    /// model was ready). Sources still in the pipeline are embedded there instead.
     pub fn chunks_without_vectors(&self, limit: usize) -> Result<Vec<(i64, String, String)>> {
         let db = self.db()?;
         let mut statement = db
             .prepare(
                 "SELECT c.id, s.title, c.text FROM chunks c JOIN sources s ON s.id = c.source_id
-                 WHERE NOT EXISTS (SELECT 1 FROM chunk_vectors v WHERE v.rowid = c.id) ORDER BY c.id LIMIT ?",
+                 WHERE s.index_status IN ('ready', 'no_text', 'missing')
+                   AND NOT EXISTS (SELECT 1 FROM chunk_vectors v WHERE v.rowid = c.id) ORDER BY c.id LIMIT ?",
             )
             .map_err(e)?;
         statement

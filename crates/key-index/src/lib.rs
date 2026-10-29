@@ -180,8 +180,20 @@ impl Indexer {
                     self.wake();
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
-                    // Idle: give chunks indexed before the model was ready their vectors.
-                    while !self.paused.load(Ordering::SeqCst) && self.backfill_vectors() {}
+                    // Idle: give chunks indexed before the model was ready their vectors, one
+                    // batch at a time so newly prepared documents are never kept waiting.
+                    while !self.paused.load(Ordering::SeqCst) && self.backfill_vectors() {
+                        if let Ok(prepared) = receiver.try_recv() {
+                            let id = prepared.id.clone();
+                            if let Err(error) = self.embed(prepared) {
+                                let _ = self.store.set_index_status(&id, "failed", Some(&error), 0, 0);
+                            }
+                            if let Ok(mut done) = self.finished.lock() {
+                                done.push(id);
+                            }
+                            self.wake();
+                        }
+                    }
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => return,
             }
@@ -260,7 +272,7 @@ impl Indexer {
         let total = prepared.chunks.len() as i64;
         if let Some(embedder) = self.embedder().filter(|_| total > 0) {
             let mut done = 0;
-            for batch in prepared.chunks.chunks_mut(16) {
+            for batch in prepared.chunks.chunks_mut(32) {
                 let items: Vec<(&str, &str)> = batch.iter().map(|c| (prepared.title.as_str(), c.text.as_str())).collect();
                 let vectors = embedder.embed_documents(&items)?;
                 for (chunk, vector) in batch.iter_mut().zip(vectors) {

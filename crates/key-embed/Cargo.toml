@@ -3,12 +3,9 @@ name = "key-embed"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "EmbeddingGemma 2 text embeddings: first-use model download and ONNX Runtime inference"
+description = "EmbeddingGemma 2 embeddings through a shared llama.cpp server (Metal, CUDA, Vulkan or CPU)"
 
 [dependencies]
-ort = { version = "=2.0.0-rc.12", default-features = false, features = ["ndarray", "std", "api-24", "download-binaries", "tls-rustls"] }
-ndarray = "0.17"
-tokenizers = { version = "0.22.2", default-features = false, features = ["onig"] }
 reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 serde.workspace = true
 serde_json.workspace = true
