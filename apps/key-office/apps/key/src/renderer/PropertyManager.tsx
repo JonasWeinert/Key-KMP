@@ -2,6 +2,7 @@ import { Button, Input } from "@key/design-system";
 import { useState } from "react";
 import type { SourceColumn } from "./LibraryTable";
 import "./property-tools.css";
+import { Icon } from "./icons";
 export default function PropertyManager({
   columns,
   onChange,
@@ -26,7 +27,8 @@ export default function PropertyManager({
       <header>
         <strong>Properties</strong>
         <Button disabled={disabled} onClick={onAdd}>
-          ＋ New property
+          <Icon name="plus" size={13} />
+          New property
         </Button>
       </header>
       <Input
@@ -58,18 +60,20 @@ export default function PropertyManager({
                 disabled={!c.id.startsWith("property:") || disabled}
                 onClick={() => onEdit(c)}
               >
-                <span>
-                  {c.type === "formula"
-                    ? "ƒ"
-                    : c.type === "number"
-                      ? "#"
-                      : c.type === "boolean"
-                        ? "☑"
-                        : c.type === "select"
-                          ? "◉"
-                          : "Aa"}
+                <span className="kx-type-badge" aria-hidden="true">
+                  {c.type === "formula" ? (
+                    "ƒ"
+                  ) : c.type === "number" ? (
+                    "#"
+                  ) : c.type === "boolean" ? (
+                    <Icon name="check" size={11} />
+                  ) : c.type === "select" ? (
+                    <Icon name="list" size={11} />
+                  ) : (
+                    "Aa"
+                  )}
                 </span>
-                {c.label}
+                <span className="kx-property-label">{c.label}</span>
                 <small>{c.type || "Built-in"}</small>
               </Button>
               <Button
@@ -95,7 +99,7 @@ export default function PropertyManager({
                   onChange(next);
                 }}
               >
-                ←
+                <Icon name="chevronRight" size={13} style={{ transform: "scaleX(-1)" }} />
               </Button>
               {c.id.startsWith("property:") && (
                 <>
@@ -104,14 +108,15 @@ export default function PropertyManager({
                     title="Configure inputs and review proposals for selected sources"
                     onClick={() => onFill(c)}
                   >
-                    ✧ Fill
+                    <Icon name="sparkle" size={13} />
+                    Fill
                   </Button>
                   <Button
                     aria-label={`Delete ${c.label}`}
                     disabled={disabled}
                     onClick={() => setConfirm(c)}
                   >
-                    ×
+                    <Icon name="trash" size={13} />
                   </Button>
                 </>
               )}

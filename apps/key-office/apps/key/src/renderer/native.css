@@ -2751,3 +2751,349 @@ html.kx-modal-open :is(.tab-bar, .tab-strip, .kx-sidebar-titlebar) {
 .key-global-drawer input[type="checkbox"] {
   accent-color: var(--kx-accent);
 }
+
+/* ── Polish: narrow panes, overflow, secondary views ── */
+.key-library {
+  position: relative;
+}
+/* In split or narrow panes the inspector floats over the list instead of squeezing it. */
+@container (max-width: 900px) {
+  .key-library .key-library-detail {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 26;
+    width: min(320px, 88%);
+    box-shadow: var(--kx-shadow-pop);
+  }
+}
+@container (max-width: 760px) {
+  .kx-page-title {
+    flex: 1 1 100%;
+  }
+  .kx-page-actions {
+    flex: 1 1 100%;
+  }
+  .kx-controls {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .kx-scopes {
+    flex: 1 1 100%;
+  }
+  .kx-controls-end {
+    margin-left: auto;
+  }
+  .key-library .key-library-results > header {
+    flex-wrap: wrap;
+  }
+}
+@container (max-width: 480px) {
+  .key-shell .key-library .key-primary.kui-button {
+    padding: 0 9px;
+  }
+  .kx-tabs {
+    gap: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .kx-tabs button {
+    white-space: nowrap;
+  }
+}
+.key-library .key-source-grid small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-library .key-source-grid td:not(.key-table-actions, .key-grid-select) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-library .key-source-grid td.key-table-actions {
+  overflow: visible;
+  text-overflow: clip;
+}
+.key-workspace-trigger:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Activity entries */
+.key-shell .key-library .key-activity-item .kui-button {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-shell .key-library .key-activity-item .kui-button:hover {
+  color: var(--kx-accent);
+}
+.key-library .key-activity-item {
+  padding: 10px 12px;
+}
+
+/* Property manager popover */
+.key-library .key-property-manager {
+  margin: 0 24px 12px;
+  padding: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--kx-bg-sunken);
+  animation: kx-pop 160ms var(--kx-ease);
+}
+.key-library .key-property-manager > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.key-shell .key-library .key-property-manager > .kui-input {
+  width: 100%;
+  margin-bottom: 8px;
+  background: var(--kx-bg);
+}
+.key-library .key-property-manager-list {
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--kx-bg);
+  box-shadow: var(--kx-shadow-card);
+}
+.key-library .key-property-manager-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 8px 0 12px;
+}
+.key-library .key-property-manager-row + .key-property-manager-row {
+  box-shadow: inset 0 1px 0 var(--kx-line);
+}
+.key-library .key-property-manager-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  margin: 0 6px 0 0;
+  padding: 0;
+  accent-color: var(--kx-accent);
+}
+.key-shell .key-library .key-property-manager-row .kui-button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--kx-text-2);
+  font-weight: 500;
+  font-size: 12px;
+}
+.key-shell .key-library .key-property-manager-row .kui-button:hover:not(:disabled) {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.key-shell .key-library .key-property-manager-row .kui-button[aria-pressed="true"] {
+  color: var(--kx-accent);
+}
+.key-shell .key-library .key-property-manager-row > .key-property-manager-name.kui-button {
+  flex: 1;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 4px;
+  color: var(--kx-text);
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 1;
+}
+.kx-type-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--kx-fill-2);
+  color: var(--kx-text-2);
+  font: 600 10px/1 var(--kx-font);
+}
+.kx-property-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-library .key-property-manager-name small {
+  margin-left: auto;
+  color: var(--kx-text-3);
+  font-size: 11px;
+}
+
+/* Records browser ("All items") and the page / note editor */
+.key-shell-content > .key-record-editor {
+  flex: 1;
+  overflow: auto;
+  padding: 28px clamp(24px, 6vw, 72px) 64px;
+}
+.key-record-editor > h1 {
+  margin: 0 0 16px;
+  font: 700 22px/1.2 var(--kx-font-display);
+  letter-spacing: -0.02em;
+}
+.key-shell .key-record-editor > .kui-input:not(.key-record-title) {
+  width: min(360px, 100%);
+  min-height: 28px;
+  padding: 0 10px;
+  border-color: transparent;
+  background: var(--kx-fill);
+  font-size: 12.5px;
+}
+.key-record-browser > p {
+  color: var(--kx-text-3);
+  font-size: 12px;
+}
+.key-record-browser .key-source-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+.key-record-browser .key-source-table th {
+  height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--kx-line);
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: left;
+}
+.key-record-browser .key-source-table td {
+  height: 38px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--kx-line);
+  color: var(--kx-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-record-browser .key-source-table tr:hover td {
+  background: var(--kx-bg-sunken);
+}
+.key-shell .key-record-browser .key-source-table td .kui-button {
+  display: block;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--kx-text);
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-shell .key-record-browser .key-source-table td .kui-button:hover {
+  color: var(--kx-accent);
+}
+.key-record-editor .key-record-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--kx-text-3);
+  font-size: 12px;
+}
+.key-shell .key-record-editor .key-record-title.kui-input {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 18px 0 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font: 700 28px/1.2 var(--kx-font-display);
+  letter-spacing: -0.02em;
+}
+.key-shell .key-record-editor .key-record-title.kui-input:focus {
+  box-shadow: none;
+}
+.key-shell .key-record-editor .kui-textarea {
+  width: 100%;
+  min-height: 320px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font: 15px/1.7 var(--kx-font);
+  resize: vertical;
+}
+.key-shell .key-record-editor .kui-textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Other sources list (pre reference-manager) */
+.key-library section[aria-label="Other sources"] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 24px 72px;
+}
+.key-library section[aria-label="Other sources"] h2 {
+  margin: 0;
+  font: 600 15px var(--kx-font-display);
+}
+.key-library section[aria-label="Other sources"] h2 small {
+  color: var(--kx-text-3);
+  font-weight: 500;
+}
+.key-library section[aria-label="Other sources"] > form {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0;
+}
+.key-library section[aria-label="Other sources"] .key-source-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.key-library section[aria-label="Other sources"] .key-source-table :is(th, td) {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--kx-line);
+  text-align: left;
+}
+.key-library section[aria-label="Other sources"] .key-source-table th {
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.key-library .key-property-manager-name .kx-property-label {
+  flex: 1 1 auto;
+  width: auto;
+  color: var(--kx-text);
+  text-align: left;
+}
+.key-library .key-property-manager-name .kx-type-badge {
+  width: 20px;
+}
+.key-shell .key-library .key-table-actions .kui-button {
+  opacity: 0;
+}
+.key-shell .key-library tr:hover .key-table-actions .kui-button,
+.key-shell .key-library tr.selected .key-table-actions .kui-button,
+.key-shell .key-library .key-table-actions .kui-button:focus-visible {
+  opacity: 1;
+}
+.key-shell .key-workspace-trigger.kui-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--kx-accent-soft);
+}
