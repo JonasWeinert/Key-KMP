@@ -54,6 +54,7 @@ export interface LibraryHomeProps {
   workspaceId?: string;
   projectId?: string;
   scopeLabel?: string;
+  scopeDescription?: string;
   openDocumentIds?: ReadonlySet<string>;
   onOpenSource: (
     source: LibrarySource,
@@ -118,6 +119,7 @@ export default function LibraryHome({
   workspaceId,
   projectId,
   scopeLabel = "Library",
+  scopeDescription,
   openDocumentIds = new Set<string>(),
   onOpenSource,
   onDismissSearch,
@@ -236,6 +238,15 @@ export default function LibraryHome({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [roadmap, setRoadmap] = useState(false);
+  useEffect(() => {
+    const closeTools = (event: PointerEvent) => {
+      const menu = libraryRoot.current?.querySelector<HTMLDetailsElement>(".key-library-tools-menu[open]");
+      if (menu && !menu.contains(event.target as Node)) menu.open = false;
+    };
+    document.addEventListener("pointerdown", closeTools);
+    return () => document.removeEventListener("pointerdown", closeTools);
+  }, []);
+
   const [removed, setRemoved] = useState<LibrarySource>();
   const request = useRef(0);
   const submittedArgs = useRef<Record<string, unknown> | undefined>(undefined);
@@ -711,7 +722,7 @@ export default function LibraryHome({
       <div className="key-library-main">
         <header className="key-library-heading">
           <div>
-            <div className="key-library-breadcrumb">Home / Sources</div>
+            <div className="key-library-breadcrumb">{scopeDescription || "All workspaces"}</div>
             <h1>{scopeLabel}</h1>
             <p>
               {total} documents ·{" "}
@@ -723,43 +734,19 @@ export default function LibraryHome({
               processing
             </p>
           </div>
-          <Button onClick={() => setRoadmap(true)}>
-            Roadmap <Badge>Preview</Badge>
-          </Button>
+
         </header>
-        <nav className="key-library-scopes" aria-label="Library views">
-          {[
-            ["all", "All sources"],
-            ["open", "Open"],
-            ["attention", "Needs attention"],
-            ["removed", "Removed"],
-          ].map(([id, label]) => (
-            <Button
-              key={id}
-              aria-pressed={scope === id}
-              onClick={() => setScope(id)}
-            >
-              {label}
-            </Button>
-          ))}
-        </nav>
-        <nav className="key-library-scopes" aria-label="Source types">
-          <Button
-            aria-pressed={sourceKind === "pdf"}
-            onClick={() => setSourceKind("pdf")}
-          >
-            PDFs
-          </Button>
-          <Button
-            aria-pressed={sourceKind === "other"}
-            onClick={() => setSourceKind("other")}
-          >
-            References, web & media
-          </Button>
-          <Button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>
-            ＋ Reference / other source
-          </Button>
-        </nav>
+        <div className="key-source-controls">
+          <nav className="key-library-scopes" aria-label="Source types">
+            <Button aria-pressed={sourceKind === "pdf"} onClick={() => setSourceKind("pdf")}>PDFs</Button>
+            <Button aria-pressed={sourceKind === "other"} onClick={() => setSourceKind("other")}>References, web & media</Button>
+          </nav>
+          <Select aria-label="Library views" value={scope} onChange={e => setScope(e.target.value as typeof scope)}>
+            <option value="all">All sources</option><option value="open">Open documents</option>
+            <option value="attention">Needs attention</option><option value="removed">Removed</option>
+          </Select>
+          {sourceKind === "other" && <Button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>Add reference…</Button>}
+        </div>
         {sourceKind === "other" && (
           <EntriesList
             active={active}
@@ -791,11 +778,11 @@ export default function LibraryHome({
             >
               <Input
                 aria-label="Search passages"
-                placeholder="Search passages · keyword or describe an idea"
+                placeholder="Search your sources"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
-              <Button disabled={searching || !query.trim()}>Search</Button>
+              <Button className="key-search-submit" disabled={searching || !query.trim()}>Search</Button>
             </form>
             <Button
               aria-expanded={showFilters}
@@ -817,6 +804,9 @@ export default function LibraryHome({
             </Button>
           </div>
           <div className="key-library-tools">
+            <details className="key-library-tools-menu" onKeyDown={e => { if(e.key === "Escape") { e.currentTarget.removeAttribute("open"); e.currentTarget.querySelector("summary")?.focus(); } }}>
+            <summary>Library tools <span aria-hidden="true">⌄</span></summary>
+            <div className="key-library-tools-popover" onClick={e => { if((e.target as HTMLElement).closest("button")) { const menu=e.currentTarget.parentElement; menu?.removeAttribute("open"); menu?.querySelector("summary")?.focus(); } }}>
             <Button
               disabled={!workspaceId}
               onClick={() => {
@@ -845,6 +835,9 @@ export default function LibraryHome({
               Properties
             </Button>
             <Button disabled={!workspaceId} title={!workspaceId ? "Choose a workspace to manage properties" : "Create a typed workspace property"} onClick={newProperty}>＋ Property</Button>
+            <Button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>Add reference or other source…</Button>
+            <Button onClick={() => setRoadmap(true)}>Feature roadmap</Button>
+            </div></details>
             {checked.size > 0 && (
               <>
                 <strong>{checked.size} selected</strong>

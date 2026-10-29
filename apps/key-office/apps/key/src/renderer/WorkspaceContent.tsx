@@ -1,3 +1,4 @@
+import HomeView from "./HomeView";
 import { Button, Input, Textarea, Select } from "@key/design-system";
 import type { SearchPreviewState } from "./SearchPreviewBar";
 import { EntryDetails } from "./EntryTools";
@@ -204,7 +205,7 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "sources" | "records" | "record";
+  section: "home" | "sources" | "records" | "record";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
@@ -683,6 +684,9 @@ export default function WorkspaceContent({
           />
         </section>
       )}
+      {section === "home" && <HomeView workspaces={workspaces} active={visible} invoke={invoke}
+        action={action} openSource={source => void task(() => api().openSource(source))}
+        importSources={id => void task(() => api().openSources(id))} />}
       {section === "sources" && (
         <div
           style={{
@@ -696,6 +700,7 @@ export default function WorkspaceContent({
             invoke={invoke}
             workspaceId={workspaceId}
             projectId={projectId}
+            scopeDescription={[selectedWorkspace?.name, selectedProject?.name].filter(Boolean).join(" / ") || "All workspaces"}
             scopeLabel={
               selectedProject
                 ? `${selectedProject.name} · Sources`

@@ -1,0 +1,434 @@
+/* Desktop navigation and document browser. Does not style authored documents or PDF pages. */
+.key-shell-body.key-ui-root {
+  --key-ui-font:
+    -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --key-ui-bg: #fafafa;
+  --key-ui-surface: #f1f1f1;
+  --key-ui-radius: 8px;
+  font-size: 13px;
+}
+.key-ui-root .key-sidebar {
+  padding: 12px 10px;
+  font-size: 13px;
+}
+.key-ui-root .key-sidebar > .kui-button {
+  min-height: 32px;
+  padding: 5px 10px;
+  gap: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 400;
+}
+.key-ui-root .key-sidebar > .kui-button.selected {
+  background: var(--key-ui-selected);
+  font-weight: 600;
+}
+.key-ui-root .key-sidebar .key-sidebar-section {
+  padding: 18px 10px 4px;
+  height: auto;
+  min-height: 32px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--key-ui-muted);
+}
+.key-ui-root .key-sidebar .key-sidebar-section > .kui-button {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
+  font-size: 15px;
+}
+.key-ui-root .key-workspace-trigger {
+  border-radius: 7px;
+  border-color: transparent;
+  background: transparent;
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.key-ui-root .key-workspace-trigger:hover {
+  background: var(--key-ui-hover);
+}
+.key-ui-root .key-sidebar-footer {
+  border-top: 1px solid var(--key-ui-border-subtle);
+  margin-top: auto;
+  padding: 12px 8px 4px;
+}
+.key-ui-root .key-sidebar-footer small {
+  font-size: 10px;
+}
+.key-ui-root .key-library-main {
+  padding: 16px 20px 0;
+  gap: 0;
+}
+.key-ui-root .key-library-heading {
+  margin-bottom: 16px;
+  align-items: center;
+}
+.key-ui-root .key-library-heading h1 {
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  margin: 3px 0 4px;
+}
+.key-ui-root .key-library-heading p {
+  font-size: 11px;
+  margin: 0;
+  color: var(--key-ui-muted);
+}
+.key-ui-root .key-library-breadcrumb {
+  font-size: 11px;
+  margin: 0;
+  color: var(--key-ui-muted);
+}
+.key-source-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.key-ui-root .key-source-controls .key-library-scopes {
+  display: flex;
+  gap: 2px;
+  margin: 0 auto 0 0;
+  padding: 2px;
+  background: var(--key-ui-hover);
+  border-radius: 7px;
+}
+.key-ui-root .key-source-controls .key-library-scopes .kui-button {
+  border: 0;
+  min-height: 26px;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 5px;
+  background: transparent;
+}
+.key-ui-root
+  .key-source-controls
+  .key-library-scopes
+  .kui-button[aria-pressed="true"] {
+  background: var(--key-ui-bg);
+  box-shadow: 0 1px 3px #0002;
+  color: var(--key-ui-text);
+}
+.key-ui-root .key-library-toolbar {
+  gap: 8px;
+  padding: 0 0 12px;
+  align-items: center;
+}
+.key-ui-root
+  :is(.key-library-toolbar, .key-source-controls)
+  :is(.kui-button, .kui-input, .kui-select) {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 12px;
+  line-height: 20px;
+  border-radius: 6px;
+}
+.key-ui-root :is(.key-library-toolbar, .key-source-controls) .kui-select {
+  padding-right: 24px;
+}
+.key-ui-root .key-library-toolbar .key-view-switch {
+  padding: 2px;
+  border-radius: 7px;
+}
+.key-ui-root .key-library-toolbar .key-view-switch .kui-button {
+  border: 0;
+  min-height: 26px;
+  padding: 2px 7px;
+}
+.key-ui-root .key-library-toolbar form {
+  min-width: 160px;
+}
+.key-ui-root .key-library-toolbar form .kui-input {
+  width: 100%;
+  background: var(--key-ui-surface);
+}
+.key-ui-root .key-library-toolbar .key-search-submit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  padding: 0;
+}
+.key-ui-root .key-library-toolbar .key-search-submit:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  min-height: 30px;
+  clip-path: none;
+  padding: 4px 9px;
+}
+.key-ui-root .key-library-tools {
+  border: 0;
+  padding: 0 0 10px;
+  gap: 8px;
+  min-height: 36px;
+  flex-wrap: wrap;
+}
+.key-library-tools-menu {
+  position: relative;
+}
+.key-library-tools-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--key-ui-muted);
+}
+.key-library-tools-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.key-library-tools-menu > summary:hover,
+.key-library-tools-menu[open] > summary {
+  background: var(--key-ui-hover);
+  color: var(--key-ui-text);
+}
+.key-library-tools-popover {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  width: 238px;
+  padding: 5px;
+  background: var(--key-ui-bg);
+  border: 1px solid var(--key-ui-border);
+  border-radius: 9px;
+  box-shadow: var(--key-ui-shadow);
+}
+.key-ui-root .key-library-tools-popover .kui-button {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 5px;
+  padding: 5px 9px;
+  min-height: 30px;
+  font-size: 13px;
+  background: transparent;
+}
+.key-ui-root .key-library-tools-popover .kui-button:hover {
+  background: var(--key-ui-hover);
+}
+.key-ui-root .key-beui-table th {
+  height: 32px;
+  font-size: 11px;
+}
+.key-home {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: clamp(24px, 5vw, 64px);
+}
+.key-home > * {
+  max-width: 840px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.key-home-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.key-home-header h1 {
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin: 0 0 5px;
+}
+.key-home-header p {
+  color: var(--key-ui-muted);
+  margin: 0;
+  font-size: 13px;
+}
+.key-home-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--key-ui-text);
+  color: var(--key-ui-bg);
+  font-size: 26px;
+  font-weight: 600;
+}
+.key-home-workspace {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  font-size: 12px;
+}
+.key-home-workspace select {
+  font: inherit;
+  color: var(--key-ui-text);
+  background: var(--key-ui-bg);
+  padding: 5px 8px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 5px;
+  max-width: 50%;
+}
+.key-home-workspace > span {
+  margin-left: auto;
+  color: var(--key-ui-muted);
+  font-size: 11px;
+}
+.key-home-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 36px;
+}
+.key-home-actions button {
+  text-align: left;
+  position: relative;
+  padding: 16px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: 10px;
+  background: var(--key-ui-bg);
+  color: var(--key-ui-text);
+  cursor: pointer;
+  font: inherit;
+}
+.key-home-actions button:hover {
+  background: var(--key-ui-surface);
+}
+.key-home-actions strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.key-home-actions button > span:not(:last-child) {
+  color: var(--key-ui-muted);
+  font-size: 12px;
+}
+.key-home-actions button > span:last-child {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  color: var(--key-ui-muted);
+}
+.key-home-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.key-home-section-title h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.key-home-section-title button {
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--key-ui-muted);
+  cursor: pointer;
+  padding: 4px;
+}
+.key-home-section-title button:hover {
+  text-decoration: underline;
+}
+.key-home-recents {
+  list-style: none;
+  padding: 0;
+}
+.key-home-recents button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--key-ui-border-subtle);
+  background: none;
+  color: var(--key-ui-text);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.key-home-recents button:hover {
+  background: var(--key-ui-hover);
+}
+.key-home-recents button > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.key-home-recents strong {
+  display: block;
+  font: 500 13px var(--key-ui-font);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-home-recents small {
+  display: block;
+  color: var(--key-ui-muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.key-home-file-icon {
+  border: 1px solid var(--key-ui-border);
+  padding: 9px 4px;
+  border-radius: 4px;
+  font-size: 9px;
+  color: #c6554d;
+}
+.key-home-empty {
+  padding: 28px 0;
+  border-top: 1px solid var(--key-ui-border);
+}
+.key-home-empty h3 {
+  font-size: 14px;
+  font-weight: 500;
+}
+.key-home-empty p {
+  font-size: 13px;
+  color: var(--key-ui-muted);
+  max-width: 440px;
+  line-height: 1.6;
+}
+@media (prefers-color-scheme: dark) {
+  .key-shell-body.key-ui-root {
+    --key-ui-bg: #202020;
+    --key-ui-surface: #292929;
+  }
+}
+@media (max-width: 800px) {
+  .key-home {
+    padding: 24px;
+  }
+  .key-home-workspace > span {
+    display: none;
+  }
+  .key-ui-root .key-library-main {
+    padding: 12px 12px 0;
+  }
+}
+.key-shell-body.key-ui-root[data-theme="dark"] {
+  --key-ui-bg: #202020;
+  --key-ui-surface: #292929;
+}
+.key-shell-body.key-ui-root[data-theme="light"] {
+  --key-ui-bg: #fafafa;
+  --key-ui-surface: #f1f1f1;
+}
+/* Keep the metadata summary usable above results in a split pane. */
+@container (max-width: 720px) {
+  .key-ui-root .key-search-metadata { padding: 10px 20px; }
+  .key-ui-root .key-search-metadata > header { min-height: 24px; margin: 0; font-size: 11px; }
+  .key-ui-root .key-search-metadata h2 { font-size: 14px; margin: 5px 0; }
+  .key-ui-root .key-search-metadata dl { margin: 6px 0; gap: 6px 16px; }
+  .key-ui-root .key-search-metadata dl > div { display: flex; gap: 5px; padding: 0; }
+  .key-ui-root .key-search-metadata :is(dt, dd) { font-size: 11px; }
+  .key-ui-root .key-search-metadata .kui-button { min-height: 24px; padding: 2px 7px; font-size: 11px; border-radius: 5px; }
+}

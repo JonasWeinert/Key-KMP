@@ -18,6 +18,7 @@ const assert = require("node:assert/strict");
   });
   try {
     const page = await app.firstWindow();
+    await page.getByRole("button", { name: "Browse all sources", exact: true }).click();
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor();

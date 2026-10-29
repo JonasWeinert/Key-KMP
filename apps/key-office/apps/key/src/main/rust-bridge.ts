@@ -131,7 +131,11 @@ export class RustHost {
         env: {
           ...process.env,
           ...(this.options.pdfiumPath
-            ? { PDFIUM_DYNAMIC_LIB_PATH: this.options.pdfiumPath }
+            ? {
+                PDFIUM_DYNAMIC_LIB_PATH: this.options.pdfiumPath,
+                // The semantic extractor uses its own PDFium binding.
+                PDFIUM_LIB_PATH: this.options.pdfiumPath,
+              }
             : {}),
         },
       },

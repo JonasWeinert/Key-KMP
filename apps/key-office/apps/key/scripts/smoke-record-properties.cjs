@@ -32,6 +32,7 @@ const assert = require("node:assert/strict");
     page.setDefaultTimeout(20000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
+    await page.getByRole("button", { name: "Browse all sources", exact: true }).click();
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor({ timeout: 60000 });
@@ -222,6 +223,7 @@ const assert = require("node:assert/strict");
       .locator(".key-sidebar > button")
       .filter({ hasText: "Sources" })
       .click();
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page
       .getByRole("button", { name: "Agentic fill", exact: true })
       .click();
@@ -278,6 +280,7 @@ const assert = require("node:assert/strict");
       .getByText("Provider: custom · test-no-inference", { exact: true })
       .waitFor();
     await dialog.getByRole("button", { name: "Close agent settings", exact: true }).click();
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page
       .getByRole("button", { name: "Agentic fill", exact: true })
       .click();

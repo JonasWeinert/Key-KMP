@@ -18,6 +18,7 @@ const assert = require("node:assert/strict");
     const page = await app.firstWindow();
     page.setDefaultTimeout(20000);
     page.on("pageerror", e => console.error("RENDERER", String(e)));
+    await page.getByRole("button", { name: "Browse all sources", exact: true }).click();
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor();
@@ -64,6 +65,7 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("checkbox", { name: "Select all sources on this page" })
       .check();
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page.getByRole("button", { name: "＋ Property", exact: true }).click();
     let dialog = page.getByRole("dialog", { name: "New property", exact: true });
     await dialog.getByRole("textbox", { name: "Property name", exact: true }).fill("Review");
@@ -86,12 +88,14 @@ const assert = require("node:assert/strict");
     await page.screenshot({path:path.join(temp,"property-editor.png")});
     await dialog.getByRole("button", {name:"Save property",exact:true}).click();
     await dialog.waitFor({state:"hidden"});
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page.getByRole("button", { name: "＋ Property", exact: true }).click();
     dialog = page.getByRole("dialog", { name: "New property", exact: true });
     await dialog.getByRole("textbox", { name: "Property name", exact: true }).fill("Rating");
     await dialog.getByRole("button", {name:/Number$/,exact:false}).click();
     await dialog.getByRole("button", {name:"Create property",exact:true}).click();
     await dialog.waitFor({state:"hidden"});
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page.getByRole("button", { name: "＋ Property", exact: true }).click();
     dialog = page.getByRole("dialog", { name: "New property", exact: true });
     await dialog.getByRole("textbox", { name: "Property name", exact: true }).fill("Next page");
@@ -108,9 +112,11 @@ const assert = require("node:assert/strict");
     const definitions=await page.evaluate(s=>window.key.invoke("workspace_attributes",{},s.workspaceId),source);
     assert.deepEqual(definitions.find(d=>d.name==='Reading status').options,['To read','Reviewed','Archived']);
     assert.equal(definitions.find(d=>d.name==='Rating').type,'number');
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page.getByRole("button", { name: "Properties", exact: true }).click();
     await page.getByRole("region",{name:"Manage properties"}).getByRole("checkbox",{name:"Show Authors",exact:true}).uncheck();
     await page.screenshot({path:path.join(temp,"property-manager.png")});
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page.getByRole("button", { name: "Properties", exact: true }).click();
     await page.screenshot({ path: path.join(temp, "attributes.png") });
     if(process.env.KEY_PROPERTY_ONLY==='1'){

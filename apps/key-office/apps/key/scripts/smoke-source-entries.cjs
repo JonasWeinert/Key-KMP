@@ -20,6 +20,7 @@ const assert = require("node:assert/strict");
   try {
     const page = await app.firstWindow();
     page.setDefaultTimeout(20000);
+    await page.getByRole("button", { name: "Browse all sources", exact: true }).click();
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor();
@@ -120,6 +121,7 @@ const assert = require("node:assert/strict");
       .filter({ hasText: "Sources" })
       .click();
     await page.getByRole("button", { name: "PDFs", exact: true }).click();
+    await page.locator(".key-library-tools-menu:visible > summary").click();
     await page
       .getByRole("button", { name: "Agentic fill", exact: true })
       .click();

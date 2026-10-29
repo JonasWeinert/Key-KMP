@@ -9,3 +9,5 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+
+import "./mac-shell.css";

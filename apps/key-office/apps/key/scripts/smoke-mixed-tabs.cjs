@@ -21,6 +21,7 @@ const assert = require("node:assert/strict");
     page.setDefaultTimeout(20000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
+    await page.getByRole("button", { name: "Browse all sources", exact: true }).click();
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor({ timeout: 60000 });

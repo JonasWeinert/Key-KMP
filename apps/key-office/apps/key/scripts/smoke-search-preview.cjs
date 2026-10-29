@@ -9,6 +9,7 @@ const {tmpdir}=require('node:os');const path=require('node:path');const assert=r
  const app=await electron.launch({executablePath:process.env.KEY_ELECTRON_EXECUTABLE,args:process.env.KEY_ELECTRON_EXECUTABLE?[]:[path.resolve(__dirname,'..')],env:{...process.env,KEY_USER_DATA:path.join(temp,'profile'),KEY_WORKSPACE_PARENT:path.join(temp,'workspaces')}});
  try{
   const page=await app.firstWindow();page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+  await page.getByRole('button',{name:'Browse all sources',exact:true}).click();
   await page.getByRole('heading',{name:'All sources',exact:true}).waitFor({timeout:60000});
   const ws=(await page.evaluate(()=>window.key.workspaces()))[0];
   const sources=await page.evaluate(async({files,id})=>{const output=[];for(const path of files){const s=await window.key.invoke('library_import_file',{path},id);await window.key.invoke('begin_pdfjs_companion_managed',{hash:s.hash},id);output.push(s);}return output;},{files,id:ws.id});
@@ -40,6 +41,8 @@ const {tmpdir}=require('node:os');const path=require('node:path');const assert=r
   const metadataBox=await page.getByRole('complementary',{name:'Source metadata'}).boundingBox();
   assert(queryBox && queryBox.y>=80 && queryBox.y+queryBox.height<sourcePane.y+sourcePane.height, 'Query remains visible after navigating');
   assert(metadataBox && metadataBox.y>=80 && metadataBox.width>sourcePane.width-10, 'Compact metadata stays above results');
+  const editBox=await page.getByRole('complementary',{name:'Source metadata'}).getByRole('button',{name:'Edit source properties',exact:true}).boundingBox();
+  assert(editBox && editBox.y+editBox.height<=metadataBox.y+metadataBox.height+1, 'Compact metadata actions are not clipped');
   assert(await page.locator('.key-library-scroll:visible').evaluate(el=>el.scrollHeight>el.clientHeight), 'Results have their own scroll boundary');
   await page.screenshot({path:path.join(temp,'shared-navigation.png')});await pdf.screenshot({path:path.join(temp,'preview-document.png')});
   const currentIds=after.views.map(v=>v.id);

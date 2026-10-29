@@ -298,7 +298,7 @@ function home() {
   const record: OwnedView = {
     id: randomUUID(),
     title: "Home",
-    content: { section: "sources" },
+    content: { section: "home" },
     kind: "home",
     lastUsed: Date.now(),
   };
@@ -1053,6 +1053,11 @@ else
           case "new":
             home();
             break;
+          case "open-home": {
+            const existing = [...views.values()].find(v => v.content?.section === "home");
+            if (existing) focus(existing.id); else home();
+            break;
+          }
           case "open-content": {
             if (!["sources", "records", "record"].includes(p.section))
               throw Error("Invalid content view");

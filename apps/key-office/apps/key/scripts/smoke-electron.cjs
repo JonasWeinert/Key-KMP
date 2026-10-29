@@ -23,6 +23,7 @@ const path = require("node:path");
       if (m.type() === "error") console.error(m.text());
     });
     await page.waitForFunction(() => window.key, { timeout: 30000 });
+    await page.getByRole("button", { name: "Browse all sources", exact: true }).click();
     await page
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor({ timeout: 30000 });

@@ -391,6 +391,10 @@ export default function App() {
                 setWorkspaces(await api().workspaces());
               }}
             />
+            <Button className={section === "home" ? "selected" : ""} onClick={() => action("open-home")} aria-current={section === "home" ? "page" : undefined}>
+              <span aria-hidden="true">⌂</span><span>Home</span>
+            </Button>
+            <div className="key-sidebar-section"><span>Library</span></div>
             <Button
               className={section === "sources" ? "selected" : ""}
               onClick={() =>
@@ -414,7 +418,7 @@ export default function App() {
                 })
               }
             >
-              ▦ <span>All items & linked files</span>
+              ▦ <span>All items</span>
             </Button>
             <div className="key-sidebar-section">
               <span>Projects</span>
@@ -435,7 +439,7 @@ export default function App() {
                   className={!projectId ? "scope-current" : ""}
                   onClick={() => chooseScope(workspaceId)}
                 >
-                  ⌂ <span>Entire workspace</span>
+                  ▱ <span>All projects</span>
                 </Button>
                 {projects.map((p) => (
                   <Button
@@ -454,7 +458,7 @@ export default function App() {
               </p>
             )}
             <div className="key-sidebar-section">
-              <span>Pages & documents</span>
+              <span>Documents</span>
               <Button
                 disabled={!workspaceId}
                 aria-label="Create item"
