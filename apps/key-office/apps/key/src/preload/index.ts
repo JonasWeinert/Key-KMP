@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("key", {
   addWorkspace: () => ipcRenderer.invoke("key:add-workspace"),
   tabs: () => ipcRenderer.invoke("key:tabs"),
   openSources: (id?: string) => ipcRenderer.invoke("key:open-sources", id),
+  importZotero: (options?: unknown) => ipcRenderer.invoke("key:import-zotero", options),
   openSource: (source: unknown, hit?: unknown, results?: unknown[]) =>
     ipcRenderer.invoke("key:open-source", source, hit, results),
   tabAction: (action: string, payload?: unknown) =>

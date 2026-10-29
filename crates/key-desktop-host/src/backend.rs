@@ -3,6 +3,8 @@
 mod native_process;
 #[path = "scholarly_resolver.rs"]
 mod scholarly_resolver;
+#[path = "library_store.rs"]
+mod library_store;
 use crate::ipc;
 use crate::ipc::{HostState, Output, arg, json_output};
 use key_pdf_core::{
@@ -2075,6 +2077,7 @@ fn cached_or_repaired_text_page(
     store: &CompanionStore,
     native: &NativePdfService,
     library: &key_library::Library,
+    linked: Option<&Path>,
     id: &str,
     page: usize,
 ) -> Result<TextPageDto, String> {
@@ -2093,8 +2096,14 @@ fn cached_or_repaired_text_page(
         "repair:{}",
         REPAIR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     );
-    library.verify_source(&hash)?;
-    let path = library.source_path(&hash)?;
+    // Sources in the workspace library are linked files; legacy ones are managed copies.
+    let path = match linked {
+        Some(path) => path.to_path_buf(),
+        None => {
+            library.verify_source(&hash)?;
+            library.source_path(&hash)?
+        }
+    };
     native.request(|reply| Request::OpenFile {
         id: repair_id.clone(),
         path,
@@ -2112,7 +2121,9 @@ fn cached_or_repaired_text_page(
     let Reply::Text(text) = result? else {
         return Err("Unexpected PDF text response".into());
     };
-    library.put(&hash, "native-page", "pdfium-v4", &page.to_string(), &text)?;
+    if linked.is_none() {
+        library.put(&hash, "native-page", "pdfium-v4", &page.to_string(), &text)?;
+    }
     Ok(text)
 }
 
@@ -2120,6 +2131,7 @@ async fn disposable_text_page(
     store: HostState<'_, CompanionStore>,
     native: HostState<'_, NativePdfService>,
     search: HostState<'_, SemanticSearchService>,
+    linked: Option<PathBuf>,
     id: String,
     page: usize,
 ) -> Result<TextPageDto, String> {
@@ -2127,7 +2139,7 @@ async fn disposable_text_page(
     let native = native.inner().clone();
     let library = search.library().clone();
     tokio::task::spawn_blocking(move || {
-        cached_or_repaired_text_page(&store, &native, &library, &id, page)
+        cached_or_repaired_text_page(&store, &native, &library, linked.as_deref(), &id, page)
     })
     .await
     .map_err(|error| error.to_string())?
@@ -2137,6 +2149,7 @@ async fn disposable_search(
     store: HostState<'_, CompanionStore>,
     native: HostState<'_, NativePdfService>,
     search: HostState<'_, SemanticSearchService>,
+    linked: Option<PathBuf>,
     id: String,
     query: String,
 ) -> Result<Vec<SearchMatchDto>, String> {
@@ -2148,7 +2161,7 @@ async fn disposable_search(
         let count = store.storage.snapshot(&id)?.document.pages.len();
         let mut output = Vec::new();
         for page_index in 0..count {
-            let page = cached_or_repaired_text_page(&store, &native, &library, &id, page_index)?;
+            let page = cached_or_repaired_text_page(&store, &native, &library, linked.as_deref(), &id, page_index)?;
             let remaining = 20_000usize.saturating_sub(output.len());
             if remaining == 0 {
                 break;
@@ -2782,6 +2795,8 @@ mod tests {
 }
 
 pub struct Host {
+    root: PathBuf,
+    library: library_store::Library,
     native: NativePdfService,
     store: CompanionStore,
     search: SemanticSearchService,
@@ -2790,9 +2805,15 @@ pub struct Host {
 }
 impl Host {
     pub fn new(root: PathBuf) -> Result<Self, String> {
-        let search = SemanticSearchService::try_start_at(root)?;
+        let search = SemanticSearchService::try_start_at(root.clone())?;
+        let native = NativePdfService::start();
+        // The workspace library lives in key-store; the legacy pipeline is kept but no
+        // longer resumes processing on start.
+        let library = library_store::Library::open(&root, native.clone())?;
         let host = Self {
-            native: NativePdfService::start(),
+            root,
+            library,
+            native,
             store: CompanionStore {
                 reader_ids: Arc::default(),
                 storage: Arc::new(MemoryCompanionStorage {
@@ -2805,41 +2826,61 @@ impl Host {
             sessions: Arc::default(),
         };
         scholarly_resolver::start_retry_worker(host.search.library().clone());
-        for doc in host.search.library_documents()? {
-            if doc.has_source
-                && (matches!(doc.status.as_str(), "queued" | "processing" | "indexing")
-                    || (matches!(doc.status.as_str(), "indexed" | "no_text")
-                        && host.search.library().get::<bool>(
-                            &doc.document_hash,
-                            "native-complete",
-                            "pdfium-v4",
-                            "document",
-                        )? != Some(true)))
-            {
-                let (store, search, native) =
-                    (host.store.clone(), host.search.clone(), host.native.clone());
-                processing_scheduler().submit(doc.document_hash.clone(), "resume", 10, move || {
-                    if let Err(error) = resume_library_document(
-                        store,
-                        search.clone(),
-                        native,
-                        doc.document_hash.clone(),
-                    ) {
-                        let _ = search.set_document_progress(
-                            &doc.document_hash,
-                            "failed",
-                            doc.completed,
-                            doc.total,
-                            Some(error),
-                        );
-                    }
-                });
-            }
-        }
         Ok(host)
     }
+    /// Workspace-library commands and reader commands for sources that live in key-store.
+    async fn library_dispatch(&self, command: &str, args: &serde_json::Value) -> Option<Result<Output, String>> {
+        if command.starts_with("store_") {
+            let library = &self.library;
+            let root = self.root.clone();
+            // Imports and searches can take a while; keep them off the async workers.
+            return Some(tokio::task::block_in_place(|| library.dispatch(command, args, &root))
+                .unwrap_or_else(|| Err(format!("Unknown Key command: {command}"))));
+        }
+        let hash = || arg::<String>(args, "hash").ok();
+        match command {
+            "library_source_info" => self.library.source_info(&hash()?),
+            "library_source_range" => {
+                let offset: u64 = arg(args, "offset").ok()?;
+                let length: usize = arg(args, "length").ok()?;
+                self.library.source_range(&hash()?, offset, length).map(|r| r.map(Output::Binary))
+            }
+            "begin_pdfjs_companion_managed" => {
+                let hash = hash()?;
+                let library = &self.library;
+                tokio::task::block_in_place(|| library.begin_companion(&hash, &self.native, &self.store))
+                    .map(|r| r.and_then(json_output))
+            }
+            "library_annotations" | "library_apply_annotations" | "library_save_annotations" | "library_import_annotations" => {
+                self.library.annotations(command, args)
+            }
+            "resolve_search_target" => self.library.search_target(&arg::<String>(args, "id").ok()?),
+            "library_import_file" => {
+                let path: PathBuf = arg(args, "path").ok()?;
+                let expected: Option<String> = arg(args, "expectedHash").ok().flatten();
+                let library = &self.library;
+                let root = self.root.clone();
+                let result = tokio::task::block_in_place(|| library.import_file(&path, expected.as_deref(), &root, None));
+                library.indexer.wake();
+                Some(result.and_then(json_output))
+            }
+            "library_processing_control" => {
+                let source = self.library.store.source_by_hash(&hash()?).ok()??;
+                let action: String = arg(args, "action").ok()?;
+                let mapped = match action.as_str() {
+                    "pause" => "pause",
+                    "resume" => "resume",
+                    _ => "retry",
+                };
+                let args = serde_json::json!({"action": mapped, "ids": [source.id]});
+                self.library.dispatch("store_index_control", &args, &self.root)
+            }
+            _ => None,
+        }
+    }
     pub fn can_suspend(&self) -> bool {
-        self.imports.is_empty()
+        !self.library.indexer.is_busy()
+            && self.imports.is_empty()
             && self
                 .store
                 .reader_ids
@@ -2888,6 +2929,9 @@ impl Host {
             headers,
             body: &body,
         };
+        if let Some(result) = self.library_dispatch(command, args).await {
+            return result;
+        }
         match command {
             "preprocess_paper" => json_output(
                 preprocess_paper(
@@ -3131,6 +3175,7 @@ impl Host {
                     HostState(&self.store),
                     HostState(&self.native),
                     HostState(&self.search),
+                    arg::<String>(args, "id").ok().and_then(|id| self.library.page_path(&id)),
                     arg(args, "id")?,
                     arg(args, "page")?,
                 )
@@ -3141,6 +3186,7 @@ impl Host {
                     HostState(&self.store),
                     HostState(&self.native),
                     HostState(&self.search),
+                    arg::<String>(args, "id").ok().and_then(|id| self.library.page_path(&id)),
                     arg(args, "id")?,
                     arg(args, "query")?,
                 )

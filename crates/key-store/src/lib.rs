@@ -791,7 +791,7 @@ impl Store {
         let mut statement = db
             .prepare(&format!(
                 "SELECT id FROM sources WHERE trashed_at IS NULL AND index_status IN {statuses}
-                 ORDER BY index_status = 'indexing' DESC, added_at LIMIT ?"
+                 ORDER BY index_status = 'indexing' DESC, file_path IS NULL, added_at DESC LIMIT ?"
             ))
             .map_err(e)?;
         statement
@@ -1113,14 +1113,24 @@ fn refresh_fts(db: &Connection, id: &str) -> Result<()> {
     .map_err(e)
 }
 
+/// Filter syntax: every word must match, as a prefix ("heal inco" finds "health income").
 pub(crate) fn fts_phrase(text: &str) -> Option<String> {
-    // Every word becomes a prefix term, so typing "heal inco" matches "health income".
+    fts_terms(text).map(|terms| terms.join(" "))
+}
+
+/// Ranking syntax: any word may match; bm25 rewards passages that match more of them.
+pub(crate) fn fts_any(text: &str) -> Option<String> {
+    fts_terms(text).map(|terms| terms.join(" OR "))
+}
+
+fn fts_terms(text: &str) -> Option<Vec<String>> {
+    const STOP: &[&str] = &["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "of", "on", "or", "the", "to", "with"];
     let terms: Vec<String> = text
         .split(|c: char| !c.is_alphanumeric())
-        .filter(|t| !t.is_empty())
+        .filter(|t| !t.is_empty() && !STOP.contains(&t.to_lowercase().as_str()))
         .map(|t| format!("\"{}\"*", t.replace('"', "")))
         .collect();
-    (!terms.is_empty()).then(|| terms.join(" "))
+    (!terms.is_empty()).then_some(terms)
 }
 
 fn where_clause(query: &ListQuery) -> (String, Vec<Value>) {

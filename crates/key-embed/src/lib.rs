@@ -202,7 +202,8 @@ impl Embedder {
             .map_err(|e| e.to_string())?;
         let pad_id = tokenizer.token_to_id("<pad>").unwrap_or(0);
         tokenizer.with_padding(Some(PaddingParams { pad_id, pad_token: "<pad>".into(), ..Default::default() }));
-        let threads = std::thread::available_parallelism().map(|n| n.get().clamp(2, 6)).unwrap_or(4);
+        // Inference scales to about the number of performance cores.
+        let threads = std::thread::available_parallelism().map(|n| n.get().clamp(2, 8)).unwrap_or(4);
         let session = Session::builder()
             .map_err(|e| e.to_string())?
             .with_intra_threads(threads)

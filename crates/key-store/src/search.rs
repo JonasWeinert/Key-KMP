@@ -1,6 +1,6 @@
 // Hybrid search: FTS5 keyword ranks and sqlite-vec nearest neighbours are fused
 // with reciprocal-rank fusion, then grouped into one hit per source.
-use crate::{ListQuery, Result, e, fts_phrase, vector_blob, where_clause};
+use crate::{ListQuery, Result, e, fts_any, vector_blob, where_clause};
 use rusqlite::{Connection, params_from_iter, types::Value};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -71,7 +71,7 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
     let mut semantic_passages = 0;
 
     if mode != "semantic" {
-        if let Some(phrase) = fts_phrase(&query.text) {
+        if let Some(phrase) = fts_any(&query.text) {
             let mut args: Vec<Value> = vec![Value::Text(phrase)];
             args.extend(values.iter().cloned());
             let mut statement = db
@@ -123,7 +123,7 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
 
     // Title, author, journal, tag and note matches lift a source even without passages.
     let mut metadata: HashMap<String, f64> = HashMap::new();
-    if let Some(phrase) = fts_phrase(&query.text) {
+    if let Some(phrase) = fts_any(&query.text) {
         let mut args: Vec<Value> = vec![Value::Text(phrase)];
         args.extend(values.iter().cloned());
         let mut statement = db

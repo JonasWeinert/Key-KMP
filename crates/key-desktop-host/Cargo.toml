@@ -20,6 +20,10 @@ key-pdf-core = { path = "../key-pdf-core" }
 key-pdf-runtime = { path = "../key-pdf-runtime" }
 key-pdfium = { path = "../key-pdfium" }
 key-semantic-search = { path = "../key-semantic-search" }
+key-store = { path = "../key-store" }
+key-embed = { path = "../key-embed" }
+key-index = { path = "../key-index" }
+key-zotero = { path = "../key-zotero" }
 key-reference = { path = "../../extensions/key-reference" }
 [features]
 semantic-onnx = ["key-semantic-search/semantic-onnx"]

@@ -662,6 +662,14 @@ async function importSources(workspaceId?: string) {
   }
   emit("library-changed");
 }
+let workspaceParent = "";
+/** Imports the Zotero library into its own "Zotero" workspace beside the default one. */
+async function importZotero(options?: Record<string, unknown>) {
+  const workspace = await registry.add(join(workspaceParent, "Zotero"), "Zotero");
+  const report = await registry.invoke("store_import_zotero", options ?? {}, workspace.id);
+  emit("library-changed");
+  return { workspace, report };
+}
 function baseMenu() {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -714,11 +722,11 @@ else
     .then(async () => {
       setUiLang(normalizeLang(app.getLocale()));
       const root = resolve(app.getAppPath(), "../../../..");
+      workspaceParent =
+        process.env.KEY_WORKSPACE_PARENT ?? join(app.getPath("documents"), "Key");
       registry = new Registry({
         registryDir: join(app.getPath("userData"), "workspaces"),
-        defaultWorkspaceParent:
-          process.env.KEY_WORKSPACE_PARENT ??
-          join(app.getPath("documents"), "Key"),
+        defaultWorkspaceParent: workspaceParent,
         hostExecutable:
           process.env.KEY_HOST_EXECUTABLE ??
           (app.isPackaged
@@ -944,6 +952,10 @@ else
           state = activateWorkspaceTab(state, tab.id);
           layout();
         } else home();
+      });
+      ipcMain.handle("key:import-zotero", async (event, options) => {
+        shell(event.sender.id);
+        return importZotero(options);
       });
       ipcMain.handle("key:open-sources", (event, id) => {
         shell(event.sender.id);

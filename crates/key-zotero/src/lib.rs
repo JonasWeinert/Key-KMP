@@ -232,7 +232,9 @@ pub fn import(store: &Store, options: &ImportOptions) -> Result<ImportReport> {
 
 fn attach(input: &mut SourceInput, file: Option<(PathBuf, String, i32)>, report: &mut ImportReport) {
     let Some((path, content_type, _)) = file else {
-        input.index_status = Some("skipped".into());
+        // Without a file only the abstract is indexed; with neither there is nothing to embed.
+        let has_abstract = input.fields.get("abstract").and_then(Json::as_str).is_some_and(|a| !a.trim().is_empty());
+        input.index_status = Some(if has_abstract { "pending" } else { "skipped" }.into());
         return;
     };
     let kind = match content_type.as_str() {
