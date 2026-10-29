@@ -2,6 +2,10 @@
 members = [
     "crates/key-processing",
     "crates/key-library",
+    "crates/key-store",
+    "crates/key-embed",
+    "crates/key-index",
+    "crates/key-zotero",
     "experiments/gpui-pdf-reader",
     "crates/key-editor-core",
     "crates/key-editor-gpui",

@@ -1,0 +1,13 @@
+[package]
+name = "key-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Background indexing for key-store: text extraction, chunking with page geometry and EmbeddingGemma vectors"
+
+[dependencies]
+key-store = { path = "../key-store" }
+key-embed = { path = "../key-embed" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "key-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Workspace library database: bibliographic sources, user properties, full-text and vector search in one SQLite file"
+
+[dependencies]
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+sqlite-vec = "0.1.6"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

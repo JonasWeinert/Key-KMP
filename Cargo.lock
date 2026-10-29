@@ -4300,6 +4300,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "key-embed"
+version = "0.1.0"
+dependencies = [
+ "ndarray",
+ "ort",
+ "serde",
+ "serde_json",
+ "tokenizers",
+ "zed-reqwest",
+]
+
+[[package]]
 name = "key-extension-api"
 version = "0.1.0"
 dependencies = [
@@ -4353,6 +4365,17 @@ dependencies = [
  "wasmtime",
  "wat",
  "wit-parser",
+]
+
+[[package]]
+name = "key-index"
+version = "0.1.0"
+dependencies = [
+ "key-embed",
+ "key-store",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -4486,6 +4509,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "key-store"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlite-vec",
+ "tempfile",
+]
+
+[[package]]
 name = "key-ui-core"
 version = "0.1.0"
 dependencies = [
@@ -4509,6 +4544,17 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "key-zotero"
+version = "0.1.0"
+dependencies = [
+ "key-store",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -7634,6 +7680,15 @@ dependencies = [
  "nom 7.1.3",
  "serde",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "sqlite-vec"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0ba424237a9a5db2f6071f193319e2b6a32f7f3961debb2fbbfe67067abce3f"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
