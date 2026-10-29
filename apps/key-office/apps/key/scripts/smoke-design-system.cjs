@@ -46,12 +46,11 @@ const assert = require("node:assert/strict");
     const [ws] = await page.evaluate(() => window.key.workspaces());
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${ws.id}"]`).click();
-    await page.getByRole("heading", { name: "Sources", exact: true }).waitFor();
-    await page
-      .getByRole("button", { name: "New project", exact: true })
-      .click();
+    await page.getByRole("heading", { name: /^(All sources|Sources)$/ }).waitFor();
+    await page.locator('summary[aria-label="More ways to add"]:visible').click();
+    await page.getByRole("button", { name: /Add by DOI, ISBN or URL/ }).click();
     const dialog = page.getByRole("dialog", {
-      name: "New project",
+      name: "Add by identifier",
       exact: true,
     });
     await dialog.waitFor();
@@ -63,9 +62,11 @@ const assert = require("node:assert/strict");
     // Shell surfaces use the native system font and macOS control metrics.
     assert(projectField.font.includes('-apple-system'), 'Real dialog field uses the system font');
     assert.equal(projectField.size, '13px', 'Real dialog field uses body type');
-    assert(Math.abs(projectField.height - 32) < 0.5, 'Real dialog field uses default density: ' + JSON.stringify(projectField));
+    // The identifier field is a search well: a borderless input inside a padded container.
+    const well = await appearance(dialog.locator('.kx-identifier-input'));
+    assert(well.height >= 32, 'Real dialog field meets default density: ' + JSON.stringify(well));
     await dialog.evaluate(async el => { await Promise.all(el.getAnimations({subtree: true}).map(a => a.finished.catch(() => {}))); });
-    await page.screenshot({path: path.join(temp, 'project-dialog.png')});
+    await page.screenshot({path: path.join(temp, 'identifier-dialog.png')});
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "hidden" });
     const base = page.url().slice(0, page.url().lastIndexOf("/") + 1);

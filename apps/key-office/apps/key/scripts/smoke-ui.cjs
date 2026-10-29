@@ -25,10 +25,10 @@ const assert = require("node:assert/strict");
       .getByRole("heading", { name: "All sources", exact: true })
       .waitFor({ timeout: 60000 });
     const widths = await page.evaluate(() => ({
-      library: document.querySelector(".key-library").getBoundingClientRect()
+      library: [...document.querySelectorAll(".kx-library")].find((el) => el.offsetParent).getBoundingClientRect()
         .width,
-      content: document
-        .querySelector(".key-shell-content")
+      content: [...document.querySelectorAll(".key-shell-content")]
+        .find((el) => el.offsetParent)
         .getBoundingClientRect().width,
     }));
     assert(

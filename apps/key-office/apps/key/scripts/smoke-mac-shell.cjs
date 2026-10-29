@@ -45,24 +45,7 @@ const assert = require("node:assert/strict");
       .waitFor();
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${ws.id}"]`).click();
-    await page.locator('.key-beui-table:visible tbody tr[data-index="0"]').waitFor();
-    assert.equal(
-      await page
-        .getByRole("button", { name: "Add property", exact: true })
-        .isVisible(),
-      false,
-    );
-    await page.locator(".key-library-tools-menu:visible > summary").click();
-    await page
-      .getByRole("button", { name: "Add property", exact: true })
-      .waitFor();
-    await page.keyboard.press("Escape");
-    assert.equal(
-      await page
-        .locator(".key-library-tools-menu:visible")
-        .getAttribute("open"),
-      null,
-    );
+    await page.locator(".kx-row").first().waitFor();
     await page.screenshot({ path: path.join(temp, "sources.png") });
     await page
       .locator(".key-sidebar")
@@ -100,7 +83,6 @@ const assert = require("node:assert/strict");
         temp,
         home: true,
         recentSources: true,
-        toolsDisclosure: true,
       }),
     );
   } catch (e) {

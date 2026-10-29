@@ -22,6 +22,8 @@ const { tmpdir } = require("node:os");
     const shell = await app.firstWindow();
     await shell.waitForFunction(() => window.key);
     const [w] = await shell.evaluate(() => window.key.workspaces());
+    // The window opens on Home; split each editor beside the Sources library instead.
+    await shell.evaluate((id) => window.key.tabAction("open-content", { section: "sources", workspaceId: id }), w.id);
     const library = (await shell.evaluate(() => window.key.tabs()))
       .activeViewId;
     for (const kind of ["docs", "sheets", "slides", "markdown", "html"]) {

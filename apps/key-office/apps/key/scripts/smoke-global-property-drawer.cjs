@@ -28,7 +28,8 @@ const assert = require("node:assert/strict");
     const [ws] = await page.evaluate(() => window.key.workspaces());
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${ws.id}"]`).click();
-    await page.getByRole("heading", { name: "Sources", exact: true }).waitFor();
+    await page.evaluate((id) => window.key.tabAction("open-content", { section: "sources", workspaceId: id }), ws.id);
+    await page.getByRole("heading", { name: /^(All sources|Sources)$/ }).waitFor();
     const owner = (await page.evaluate(() => window.key.tabs())).activeTabId;
     await page.evaluate(
       async ({ workspaceId, file, owner }) => {
@@ -69,11 +70,12 @@ const assert = require("node:assert/strict");
     }
     await pdf.waitForFunction(() => window.__PDFJS_READY__ === true);
     const before = await page.evaluate(() => window.key.tabs());
+    await page.locator(".kx-row:visible").first().click({ position: { x: 24, y: 20 } });
     await page
       .getByRole("button", { name: "Configure Review property", exact: true })
       .click();
     const drawer = page.getByRole("dialog", {
-      name: "Property details",
+      name: "Edit property",
       exact: true,
     });
     await drawer.waitFor();
@@ -121,13 +123,15 @@ const assert = require("node:assert/strict");
       );
       await page.evaluate((tabId) => window.key.tabAction("activate", { tabId }), owner);
     }
-    await drawer
+    // The agent pane slides in beside the property form, inside the same sheet.
+    const sheet = page.locator(".key-global-drawer");
+    await sheet
       .getByRole("button", { name: "Configure agent fill", exact: false })
       .click();
-    await drawer
+    await sheet
       .getByRole("button", { name: "Back to property", exact: true })
       .waitFor();
-    const instructions = drawer.getByRole("textbox", {
+    const instructions = sheet.getByRole("textbox", {
       name: "Instructions",
       exact: true,
     });
@@ -143,28 +147,28 @@ const assert = require("node:assert/strict");
         ) < 1,
     );
     await page.screenshot({ path: path.join(temp, "agent-detail.png") });
-    await drawer
+    await sheet
       .getByRole("button", { name: "Back to property", exact: true })
       .click();
-    await drawer
+    await sheet
       .getByRole("button", { name: "Configure agent fill", exact: false })
       .click();
     assert.equal(
       await instructions.inputValue(),
       "Retain this unsaved recipe when navigating back.",
     );
-    await drawer
+    await sheet
       .getByRole("button", { name: "Save instructions", exact: true })
       .click();
-    await drawer
+    await sheet
       .getByText("Recipe saved for this property. No inputs have been sent.", {
         exact: true,
       })
       .waitFor();
-    await drawer
+    await sheet
       .getByRole("button", { name: "Back to property", exact: true })
       .click();
-    await drawer
+    await sheet
       .getByRole("button", { name: "Close property editor", exact: true })
       .click();
     await page.locator(".key-global-drawer").waitFor({ state: "detached" });

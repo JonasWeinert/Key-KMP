@@ -34,7 +34,7 @@ const assert = require("node:assert/strict");
     );
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${ws.id}"]`).click();
-    await page.getByRole("heading", { name: "Sources", exact: true }).waitFor();
+    await page.getByRole("heading", { name: /^(All sources|Sources)$/ }).waitFor();
     const sourceState = await page.evaluate(() => window.key.tabs());
     const library = sourceState.activeViewId;
     await page
