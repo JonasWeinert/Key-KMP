@@ -5,6 +5,16 @@ import { Table } from "./motion/table/Table";
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { evaluatePropertyFormula } from "./property-formula";
 import type { LibrarySource } from "./LibraryHome";
+import { Icon } from "./icons";
+
+const statusTone = (status: string) =>
+  status === "indexed"
+    ? "ready"
+    : ["failed", "needs_source", "no_text"].includes(status)
+      ? "attention"
+      : ["queued", "paused"].includes(status)
+        ? "idle"
+        : "busy";
 export interface SourceColumn {
   id: string;
   label: string;
@@ -211,7 +221,7 @@ export default function LibraryTable({
       ),
     );
   return (
-    <Table data={documents} columns={ordered} getRowId={keyOf} rowHeight={view==='list'?72:56} header={
+    <Table data={documents} columns={ordered} getRowId={keyOf} rowHeight={view==='list'?60:40} header={
       <thead>
         <tr>
           <th className="key-grid-select">
@@ -288,7 +298,7 @@ export default function LibraryTable({
               />
             </th>
           ))}
-          <th className="key-table-actions" data-drop={columnDrag.dragKey ? columnDrag.dropIndex===ordered.length : undefined}>{onProperty&&<Button aria-label="Add a property" onClick={()=>onProperty()}>＋</Button>}</th><th aria-hidden="true"/>
+          <th className="key-table-actions" data-drop={columnDrag.dragKey ? columnDrag.dropIndex===ordered.length : undefined}>{onProperty&&<Button aria-label="Add a property" title="Add a property" onClick={()=>onProperty()}><Icon name="plus" size={14} /></Button>}</th><th aria-hidden="true"/>
         </tr>
       </thead>} renderRow={(d) => (
           <tr
@@ -390,13 +400,14 @@ export default function LibraryTable({
                 ) : c.id === "title" ? (
                   <>
                     <span className="key-source-title" title={d.title}>
-                      ▱ {d.title}
+                      <span className="kx-file-glyph" aria-hidden="true">PDF</span>
+                      <span>{d.title}</span>
                     </span>
                     {isOpen(d) && <span className="key-open-badge">Open</span>}
                     {view === "list" && (
                       <small>
                         {d.authors?.join(", ") || "Unknown author"} ·{" "}
-                        {d.year || "—"} · {d.pageCount} pages
+                        {d.year || "—"}{d.pageCount ? ` · ${d.pageCount} pages` : ""}
                       </small>
                     )}
                   </>
@@ -405,7 +416,7 @@ export default function LibraryTable({
                 ) : c.id === "year" ? (
                   d.year || "—"
                 ) : c.id === "pages" ? (
-                  d.pageCount
+                  d.pageCount || "—"
                 ) : c.id === "added" ? (d.addedAtMs?new Date(d.addedAtMs).toLocaleDateString():"—") : c.id === "type" ? (
                   "PDF"
                 ) : c.id === "tags" ? (
@@ -415,6 +426,7 @@ export default function LibraryTable({
                 ) : c.id === "status" ? (
                   <>
                     <span className={`key-source-status ${d.status}`}>
+                      <span className="kx-status-dot" data-tone={statusTone(d.status)} />
                       {status(d)}
                     </span>
                     {["queued", "processing", "indexing"].includes(d.status) &&
@@ -439,7 +451,7 @@ export default function LibraryTable({
                   onSelect(d);
                 }}
               >
-                •••
+                <Icon name="more" />
               </Button>
             </td>
             <td aria-hidden="true"/>

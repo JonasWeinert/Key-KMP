@@ -7,6 +7,7 @@ import "./library.css";
 import { AddEntryDialog, AgentPropertyDialog, EntriesList } from "./EntryTools";
 import TagManagerDialog from "./TagManagerDialog";
 import TagChips from "./TagChips";
+import { Icon } from "./icons";
 import { mergePropertyColumns, type PropertyDefinition } from "./property-columns";
 import { preparePropertyDraft } from "./property-draft";
 import PropertyManager from "./PropertyManager";
@@ -238,6 +239,23 @@ export default function LibraryHome({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [roadmap, setRoadmap] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const activeFilters = Object.entries(filter).filter(
+    ([key, value]) =>
+      value && key !== "type" && key !== "value" && !(key === "annotations" && value === "any"),
+  ).length;
+  useEffect(() => {
+    if (!active) return;
+    const focusSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f" && sourceKind === "pdf") {
+        event.preventDefault();
+        searchInput.current?.focus();
+        searchInput.current?.select();
+      }
+    };
+    document.addEventListener("keydown", focusSearch);
+    return () => document.removeEventListener("keydown", focusSearch);
+  }, [active, sourceKind]);
   useEffect(() => {
     const closeTools = (event: PointerEvent) => {
       const menu = libraryRoot.current?.querySelector<HTMLDetailsElement>(".key-library-tools-menu[open]");
@@ -720,32 +738,100 @@ export default function LibraryHome({
   return (
     <section ref={libraryRoot} className={`key-library ${previewHit && !selected ? "has-search-metadata" : ""}`} aria-label="Library">
       <div className="key-library-main">
-        <header className="key-library-heading">
-          <div>
+        <header className="kx-page-head">
+          <div className="kx-page-title">
             <div className="key-library-breadcrumb">{scopeDescription || "All workspaces"}</div>
             <h1>{scopeLabel}</h1>
-            <p>
-              {total} documents ·{" "}
-              {counts?.searchable ??
-                documents.filter((d) => d.status === "indexed").length}{" "}
-              fully indexed ·{" "}
-              {counts?.processing ??
-                documents.filter((d) => activeStates.has(d.status)).length}{" "}
-              processing
-            </p>
           </div>
-
+          <div className="kx-page-actions">
+            {sourceKind === "pdf" && (
+              <form
+                className="kx-search"
+                role="search"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void search();
+                }}
+              >
+                <Icon name="search" size={14} />
+                <Input
+                  ref={searchInput}
+                  aria-label="Search passages"
+                  placeholder="Search inside your sources"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape" && query) {
+                      e.stopPropagation();
+                      setQuery("");
+                    }
+                  }}
+                />
+                {!query && <kbd aria-hidden="true">⌘F</kbd>}
+                <Button className="key-search-submit" disabled={searching || !query.trim()}>Search</Button>
+              </form>
+            )}
+            <details className="key-library-tools-menu" onKeyDown={e => { if(e.key === "Escape") { e.currentTarget.removeAttribute("open"); e.currentTarget.querySelector("summary")?.focus(); } }}>
+            <summary aria-label="Library tools" title="Library tools"><Icon name="more" /></summary>
+            <div className="key-library-tools-popover" onClick={e => { if((e.target as HTMLElement).closest("button")) { const menu=e.currentTarget.parentElement; menu?.removeAttribute("open"); menu?.querySelector("summary")?.focus(); } }}>
+            <Button
+              disabled={!workspaceId}
+              onClick={() => {
+                setAgentProperty("");
+                setAgentDialog(true);
+              }}
+            >
+              <Icon name="sparkle" />Agentic fill
+            </Button>
+            <Button
+              onClick={() => {
+                setActivity(!activity);
+                setSelected(undefined);
+                setPreviewHit(undefined);
+              }}
+            >
+              <Icon name="activity" />Activity
+            </Button>
+            <hr />
+            <Button
+              aria-expanded={showColumns}
+              onClick={() => setShowColumns(!showColumns)}
+            >
+              <Icon name="columns" />Properties
+            </Button>
+            <Button disabled={!workspaceId} title={!workspaceId ? "Choose a workspace to manage properties" : "Create a typed workspace property"} onClick={newProperty}><Icon name="plus" />Add property</Button>
+            <Button disabled={!workspaceId} onClick={() => setTagManager(true)}>
+              <Icon name="tag" />PDF tags
+            </Button>
+            <hr />
+            <Button disabled={!workspaceId} onClick={() => setEntryDialog(true)}><Icon name="link" />Add reference or other source…</Button>
+            <Button onClick={() => setRoadmap(true)}><Icon name="map" />Feature roadmap</Button>
+            </div></details>
+            {sourceKind === "pdf" ? (
+              <Button variant="primary" className="key-primary" onClick={onAddSources}>
+                <Icon name="plus" size={14} />Add PDFs
+              </Button>
+            ) : (
+              <Button variant="primary" className="key-primary" disabled={!workspaceId} onClick={() => setEntryDialog(true)}>
+                <Icon name="plus" size={14} />Add reference…
+              </Button>
+            )}
+          </div>
         </header>
-        <div className="key-source-controls">
-          <nav className="key-library-scopes" aria-label="Source types">
-            <Button aria-pressed={sourceKind === "pdf"} onClick={() => setSourceKind("pdf")}>PDFs</Button>
-            <Button aria-pressed={sourceKind === "other"} onClick={() => setSourceKind("other")}>References, web & media</Button>
+        <div className="kx-subnav">
+          <nav className="kx-tabs" aria-label="Source types">
+            <button aria-pressed={sourceKind === "pdf"} onClick={() => setSourceKind("pdf")}>PDFs</button>
+            <button aria-pressed={sourceKind === "other"} onClick={() => setSourceKind("other")}>References, web & media</button>
           </nav>
-          <Select aria-label="Library views" value={scope} onChange={e => setScope(e.target.value as typeof scope)}>
-            <option value="all">All sources</option><option value="open">Open documents</option>
-            <option value="attention">Needs attention</option><option value="removed">Removed</option>
-          </Select>
-          {sourceKind === "other" && <Button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>Add reference…</Button>}
+          {sourceKind === "pdf" && (
+            <p className="kx-library-stats" aria-label="Library status">
+              <span><span className="kx-status-dot" data-tone="idle" />{total.toLocaleString()} {total === 1 ? "source" : "sources"}</span>
+              <span><span className="kx-status-dot" data-tone="ready" />{(counts?.searchable ?? documents.filter((d) => d.status === "indexed").length).toLocaleString()} searchable</span>
+              {(counts?.processing ?? documents.filter((d) => activeStates.has(d.status)).length) > 0 && (
+                <span><span className="kx-status-dot" data-tone="busy" />{(counts?.processing ?? documents.filter((d) => activeStates.has(d.status)).length).toLocaleString()} indexing</span>
+              )}
+            </p>
+          )}
         </div>
         {sourceKind === "other" && (
           <EntriesList
@@ -758,124 +844,97 @@ export default function LibraryHome({
           />
         )}
         <div style={{ display: sourceKind === "pdf" ? "contents" : "none" }}>
-          <div className="key-library-toolbar">
-            <div className="key-view-switch">
-              {["table", "list"].map((v) => (
-                <Button
-                  key={v}
-                  aria-pressed={view === v}
-                  onClick={() => setView(v)}
-                >
-                  {v === "table" ? "▤ Table" : "☷ List"}
-                </Button>
+          <div className="kx-controls">
+            <div className="kx-scopes" role="group" aria-label="Library views">
+              {([
+                ["all", "All", counts?.all],
+                ["open", "Open", openDocumentIds.size || undefined],
+                ["attention", "Needs attention", counts?.attention || undefined],
+                ["removed", "Removed", counts?.removed || undefined],
+              ] as const).map(([value, label, count]) => (
+                <button key={value} aria-pressed={scope === value} onClick={() => setScope(value)}>
+                  {label}
+                  {count !== undefined && <span className="kx-count">{count.toLocaleString()}</span>}
+                </button>
               ))}
             </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void search();
-              }}
-            >
-              <Input
-                aria-label="Search passages"
-                placeholder="Search your sources"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              <Button className="key-search-submit" disabled={searching || !query.trim()}>Search</Button>
-            </form>
-            <Button
-              aria-expanded={showFilters}
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              Filter
-            </Button>
-            <Select
-              aria-label="Sort library"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-            >
-              <option value="title">{workspaceId?'Title':'Title · within each workspace'}</option>
-              <option value="year">{workspaceId?'Year':'Year · within each workspace'}</option>
-              <option value="updated">{workspaceId?'Last updated':'Updated · within each workspace'}</option>
-            </Select>
-            <Button variant="primary" className="key-primary" onClick={onAddSources}>
-              ＋ Add PDFs
-            </Button>
-          </div>
-          <div className="key-library-tools">
-            <details className="key-library-tools-menu" onKeyDown={e => { if(e.key === "Escape") { e.currentTarget.removeAttribute("open"); e.currentTarget.querySelector("summary")?.focus(); } }}>
-            <summary>Library tools <span aria-hidden="true">⌄</span></summary>
-            <div className="key-library-tools-popover" onClick={e => { if((e.target as HTMLElement).closest("button")) { const menu=e.currentTarget.parentElement; menu?.removeAttribute("open"); menu?.querySelector("summary")?.focus(); } }}>
-            <Button
-              disabled={!workspaceId}
-              onClick={() => {
-                setAgentProperty("");
-                setAgentDialog(true);
-              }}
-            >
-              Agentic fill
-            </Button>
-            <Button
-              onClick={() => {
-                setActivity(!activity);
-                setSelected(undefined);
-                setPreviewHit(undefined);
-              }}
-            >
-              Activity
-            </Button>
-            <Button disabled={!workspaceId} onClick={() => setTagManager(true)}>
-              PDF tags
-            </Button>
-            <Button
-              aria-expanded={showColumns}
-              onClick={() => setShowColumns(!showColumns)}
-            >
-              Properties
-            </Button>
-            <Button disabled={!workspaceId} title={!workspaceId ? "Choose a workspace to manage properties" : "Create a typed workspace property"} onClick={newProperty}>＋ Property</Button>
-            <Button disabled={!workspaceId} onClick={() => setEntryDialog(true)}>Add reference or other source…</Button>
-            <Button onClick={() => setRoadmap(true)}>Feature roadmap</Button>
-            </div></details>
-            {checked.size > 0 && (
-              <>
-                <strong>{checked.size} selected</strong>
-                <Button disabled={busy} onClick={() => void bulk("pause")}>
-                  Pause
-                </Button>
-                <Button disabled={busy} onClick={() => void bulk("resume")}>
-                  Resume
-                </Button>
-                <Button disabled={busy} onClick={() => void bulk("retry")}>
-                  Retry
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void bulk(scope === "removed" ? "restore" : "remove")
-                  }
+            <div className="kx-controls-end">
+              <button
+                className="kx-control"
+                aria-expanded={showFilters}
+                aria-pressed={showFilters || activeFilters > 0}
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Icon name="filter" size={14} />
+                Filter
+                {activeFilters > 0 && <span className="kx-count">{activeFilters}</span>}
+              </button>
+              <label className="kx-control kx-control-select">
+                <Icon name="sort" size={14} />
+                <select
+                  aria-label="Sort library"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
                 >
-                  {scope === "removed" ? "Restore" : "Remove"}
-                </Button>
+                  <option value="title">{workspaceId?'Title':'Title · within each workspace'}</option>
+                  <option value="year">{workspaceId?'Year':'Year · within each workspace'}</option>
+                  <option value="updated">{workspaceId?'Last updated':'Updated · within each workspace'}</option>
+                </select>
+              </label>
+              <div className="kx-segmented" role="group" aria-label="Layout">
+                {(["table", "list"] as const).map((v) => (
+                  <button
+                    key={v}
+                    aria-pressed={view === v}
+                    aria-label={v === "table" ? "Table" : "List"}
+                    title={v === "table" ? "Table" : "List"}
+                    onClick={() => setView(v)}
+                  >
+                    <Icon name={v} size={15} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {checked.size > 0 && (
+            <div className="kx-bulk-bar" role="toolbar" aria-label="Selected sources">
+              <strong>{checked.size} selected</strong>
+              <span className="kx-bulk-sep" />
+              <Button disabled={busy} onClick={() => void bulk("pause")} title="Pause processing"><Icon name="pause" size={14} />Pause</Button>
+              <Button disabled={busy} onClick={() => void bulk("resume")} title="Resume processing"><Icon name="play" size={14} />Resume</Button>
+              <Button disabled={busy} onClick={() => void bulk("retry")} title="Retry processing"><Icon name="retry" size={14} />Retry</Button>
+              <span className="kx-bulk-sep" />
+              <form
+                className="kx-bulk-tag"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (bulkTag.trim()) void bulk("tag");
+                }}
+              >
+                <Icon name="tag" size={14} />
                 <Input
                   aria-label="Tag selected sources"
                   placeholder="Add tag…"
                   value={bulkTag}
                   onChange={(e) => setBulkTag(e.target.value)}
                 />
-                <Button
-                  disabled={busy || !bulkTag.trim()}
-                  onClick={() => void bulk("tag")}
-                >
-                  Apply tag
-                </Button>
-                <Button onClick={() => setChecked(new Set())}>
-                  Clear selection
-                </Button>
-              </>
-            )}
-          </div>
+                <Button disabled={busy || !bulkTag.trim()}>Apply tag</Button>
+              </form>
+              <span className="kx-bulk-sep" />
+              <Button
+                className="kx-danger"
+                disabled={busy}
+                onClick={() =>
+                  void bulk(scope === "removed" ? "restore" : "remove")
+                }
+              >
+                {scope === "removed" ? <><Icon name="retry" size={14} />Restore</> : <><Icon name="trash" size={14} />Remove</>}
+              </Button>
+              <Button aria-label="Clear selection" title="Clear selection" onClick={() => setChecked(new Set())}>
+                <Icon name="close" size={13} />
+              </Button>
+            </div>
+          )}
           {showColumns && <PropertyManager columns={columns} onChange={updateColumns} disabled={busy||!workspaceId} onAdd={newProperty} onEdit={editProperty} onFill={c=>{setAgentProperty(c.property!);setAgentDialog(true);}} onDelete={(c,deleteValues)=>void run(async()=>{await call('workspace_delete_attribute',{name:c.property,deleteValues});updateColumns(columns.filter(x=>x.id!==c.id));setMetadataRevision(n=>n+1);if(selected)setDetails(await call<Metadata>('library_metadata_details',{hash:selected.documentHash},selected));},deleteValues?'Property and values deleted':'Property definition removed; values retained')} />}
           <div className="key-filter-chips">
             {Object.entries(filter)

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { evaluatePropertyFormula } from "./property-formula";
 import "./property-tools.css";
+import { Icon } from "./icons";
 export interface PropertyDraft {
   name: string;
   type: string;
@@ -13,12 +14,12 @@ export interface PropertyDraft {
   formula: string;
   applyValues: boolean;
 }
-const types = [
-  ["text", "Aa", "Text", "Notes, identifiers and summaries"],
-  ["number", "#", "Number", "Ratings, years and measurements"],
-  ["boolean", "☑", "Checkbox", "A simple true or false value"],
-  ["select", "◉", "Select", "A consistent set of choices"],
-  ["formula", "ƒ", "Formula", "Calculate from other properties"],
+const types: [string, ReactNode, string, string][] = [
+  ["text", <span className="kx-type-glyph">Aa</span>, "Text", "Notes, identifiers and summaries."],
+  ["number", <span className="kx-type-glyph">#</span>, "Number", "Ratings, years and measurements."],
+  ["boolean", <Icon name="check" size={14} />, "Checkbox", "A simple true or false value."],
+  ["select", <Icon name="list" size={14} />, "Select", "One choice from a consistent set of options."],
+  ["formula", <span className="kx-type-glyph kx-formula-glyph">ƒ</span>, "Formula", "Calculated from other properties."],
 ];
 export default function PropertyEditor({
   initial,
@@ -88,7 +89,7 @@ export default function PropertyEditor({
     (draft.type !== "select" || draft.options.length > 0) &&
     (draft.type !== "formula" || !!draft.formula.trim());
   return (
-    <GlobalDrawer onClose={onClose} busy={busy}>
+    <GlobalDrawer onClose={onClose} busy={busy} presentation="sheet">
       <div className="key-drawer-slides">
         <motion.div
           className="key-drawer-slide"
@@ -137,41 +138,46 @@ export default function PropertyEditor({
             }}
           >
             <header>
-              <div>
-                <small>WORKSPACE PROPERTY</small>
-                <h2>{editing ? "Edit property" : "New property"}</h2>
-              </div>
-              <Button
+              <h2>{editing ? "Edit Property" : "New Property"}</h2>
+              <p>
+                {editing
+                  ? "Changes apply to this property across the workspace."
+                  : "Add a typed field to every item in this workspace."}
+              </p>
+              <button
                 type="button"
+                className="kx-sheet-close"
                 aria-label="Close property editor"
                 disabled={busy}
                 onClick={onClose}
               >
-                ×
-              </Button>
+                <Icon name="close" size={12} />
+              </button>
             </header>
             <div className="key-property-body">
-              <label>
-                Property name
-                <Input
-                  required
-                  maxLength={128}
-                  value={draft.name}
-                  disabled={busy}
-                  placeholder="e.g. Reading status"
-                  onChange={(e) => set({ name: e.target.value })}
-                />
-              </label>
+              <div className="kx-form-group">
+                <label className="kx-form-row">
+                  <span>Property name</span>
+                  <Input
+                    required
+                    maxLength={128}
+                    value={draft.name}
+                    disabled={busy}
+                    placeholder="Reading status"
+                    onChange={(e) => set({ name: e.target.value })}
+                  />
+                </label>
+              </div>
               {editing && (
-                <small>
+                <small className="kx-form-note">
                   Renaming keeps existing values and updates formula references.
                 </small>
               )}
-              <fieldset disabled={busy}>
-                <legend>Property type</legend>
-                <div className="key-property-types">
+              <fieldset disabled={busy} className="kx-form-section">
+                <legend>Type</legend>
+                <div className="key-property-types" role="group" aria-label="Property type">
                   {types.map(([id, icon, label, hint]) => (
-                    <Button
+                    <button
                       type="button"
                       key={id}
                       aria-pressed={draft.type === id}
@@ -183,18 +189,42 @@ export default function PropertyEditor({
                         })
                       }
                     >
-                      <span>{icon}</span>
-                      {label}
-                    </Button>
+                      {icon}
+                      <span>{label}</span>
+                    </button>
                   ))}
                 </div>
+                <small className="kx-form-note">
+                  {types.find(([id]) => id === draft.type)?.[3]}
+                </small>
               </fieldset>
               {draft.type === "select" && (
-                <section>
-                  <label>
-                    Options
-                    <div className="key-property-option-entry">
-                      <Input
+                <section className="kx-form-section">
+                  <h3>Options</h3>
+                  <div className="kx-form-group key-property-options">
+                    {draft.options.map((value, i) => (
+                      <div className="kx-option-row" key={value}>
+                        <span className="kx-option-dot" data-color={i % 5} />
+                        <span>{value}</span>
+                        <button
+                          type="button"
+                          aria-label={`Remove option ${value}`}
+                          title="Remove option"
+                          onClick={() =>
+                            set({
+                              options: draft.options.filter((v) => v !== value),
+                              value: draft.value === value ? "" : draft.value,
+                            })
+                          }
+                        >
+                          <Icon name="close" size={11} />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="kx-option-row key-property-option-entry">
+                      <Icon name="plus" size={13} />
+                      <input
+                        aria-label="New option"
                         value={option}
                         placeholder="Add an option…"
                         onChange={(e) => setOption(e.target.value)}
@@ -205,77 +235,63 @@ export default function PropertyEditor({
                           }
                         }}
                       />
-                      <Button
+                      <button
                         type="button"
+                        className="kx-option-add"
                         disabled={!option.trim()}
                         onClick={addOption}
                       >
                         Add
-                      </Button>
+                      </button>
                     </div>
-                  </label>
-                  <div className="key-property-options">
-                    {draft.options.map((value, i) => (
-                      <span key={value} data-color={i % 5}>
-                        {value}
-                        <Button
-                          type="button"
-                          aria-label={`Remove option ${value}`}
-                          onClick={() =>
-                            set({
-                              options: draft.options.filter((v) => v !== value),
-                              value: draft.value === value ? "" : draft.value,
-                            })
-                          }
-                        >
-                          ×
-                        </Button>
-                      </span>
-                    ))}
                   </div>
                 </section>
               )}
               {draft.type === "formula" && (
-                <section>
-                  <label>
-                    Formula
+                <section className="kx-form-section">
+                  <h3>Formula</h3>
+                  <div className="kx-form-group kx-formula">
                     <Textarea
+                      aria-label="Formula"
                       required
                       spellCheck={false}
                       value={draft.formula}
                       placeholder="if({Pages} > 20, 'Long read', 'Short read')"
                       onChange={(e) => set({ formula: e.target.value })}
                     />
-                  </label>
-                  <div className="key-property-references">
-                    {Object.keys(properties)
-                      .slice(0, 24)
-                      .map((name) => (
-                        <Button
-                          type="button"
-                          key={name}
-                          onClick={() =>
-                            set({ formula: draft.formula + `{${name}}` })
-                          }
-                        >
-                          {name}
-                        </Button>
-                      ))}
+                    {Object.keys(properties).length > 0 && (
+                      <div className="key-property-references">
+                        <small>Insert</small>
+                        {Object.keys(properties)
+                          .slice(0, 24)
+                          .map((name) => (
+                            <button
+                              type="button"
+                              key={name}
+                              onClick={() =>
+                                set({ formula: draft.formula + `{${name}}` })
+                              }
+                            >
+                              {name}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                    <div
+                      className="key-property-preview"
+                      role="status"
+                      data-state={formulaError ? "error" : preview ? "ok" : "empty"}
+                    >
+                      <small>
+                        {previewTitle ? `Result for ${previewTitle}` : "Result with empty values"}
+                      </small>
+                      <strong>
+                        {formulaError || preview || "—"}
+                      </strong>
+                    </div>
                   </div>
-                  <div className="key-property-preview" role="status">
-                    <small>
-                      {previewTitle
-                        ? `Preview · ${previewTitle}`
-                        : "Preview with empty source values"}
-                    </small>
-                    <strong>
-                      {formulaError ||
-                        preview ||
-                        "Write a formula to see its result"}
-                    </strong>
-                  </div>
-                  <details>
-                    <summary>Supported formulas and storage</summary>
+                  <details className="kx-form-details">
+                    <summary>Supported functions and storage</summary>
                     <p>
                       Use arithmetic, comparisons, [property] or {"{Property}"},
                       and if, concat, upper, lower, length, round, contains,
@@ -291,60 +307,65 @@ export default function PropertyEditor({
                   </details>
                 </section>
               )}
-              <section className="key-property-apply">
-                <label>
-                  <Input
-                    type="checkbox"
-                    checked={draft.applyValues}
-                    disabled={!targetCount || busy}
-                    onChange={(e) => set({ applyValues: e.target.checked })}
-                  />
-                  {draft.type === "formula"
-                    ? "Recompute stored results"
-                    : "Set a value"}{" "}
-                  on {targetCount} selected{" "}
-                  {targetCount === 1 ? targetLabel : `${targetLabel}s`}
-                </label>
-                {draft.applyValues &&
-                  targetCount > 0 &&
-                  draft.type !== "formula" && (
-                    <label>
-                      Value
-                      {draft.type === "select" ? (
-                        <Select
-                          aria-label="Value"
-                          required
-                          value={draft.value}
-                          onChange={(e) => set({ value: e.target.value })}
-                        >
-                          <option value="">Choose an option…</option>
-                          {draft.options.map((v) => (
-                            <option key={v}>{v}</option>
-                          ))}
-                        </Select>
-                      ) : draft.type === "boolean" ? (
-                        <Select
-                          aria-label="Value"
-                          value={draft.value}
-                          onChange={(e) => set({ value: e.target.value })}
-                        >
-                          <option value="false">Unchecked</option>
-                          <option value="true">Checked</option>
-                        </Select>
-                      ) : (
-                        <Input
-                          required={draft.type === "number"}
-                          type={draft.type === "number" ? "number" : "text"}
-                          step="any"
-                          value={draft.value}
-                          onChange={(e) => set({ value: e.target.value })}
-                        />
-                      )}
-                    </label>
-                  )}
-                <small>
-                  Creating or editing the property alone leaves existing item
-                  values untouched.
+              <section className="kx-form-section key-property-apply">
+                <div className="kx-form-group">
+                  <label className="kx-form-row kx-switch-row">
+                    <span>
+                      {draft.type === "formula" ? "Recompute stored results" : "Set a value"}{" "}
+                      on {targetCount} selected{" "}
+                      {targetCount === 1 ? targetLabel : `${targetLabel}s`}
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="kx-switch"
+                      checked={draft.applyValues}
+                      disabled={!targetCount || busy}
+                      onChange={(e) => set({ applyValues: e.target.checked })}
+                    />
+                  </label>
+                  {draft.applyValues &&
+                    targetCount > 0 &&
+                    draft.type !== "formula" && (
+                      <label className="kx-form-row">
+                        <span>Value</span>
+                        {draft.type === "select" ? (
+                          <Select
+                            aria-label="Value"
+                            required
+                            value={draft.value}
+                            onChange={(e) => set({ value: e.target.value })}
+                          >
+                            <option value="">Choose…</option>
+                            {draft.options.map((v) => (
+                              <option key={v}>{v}</option>
+                            ))}
+                          </Select>
+                        ) : draft.type === "boolean" ? (
+                          <Select
+                            aria-label="Value"
+                            value={draft.value}
+                            onChange={(e) => set({ value: e.target.value })}
+                          >
+                            <option value="false">Unchecked</option>
+                            <option value="true">Checked</option>
+                          </Select>
+                        ) : (
+                          <Input
+                            required={draft.type === "number"}
+                            type={draft.type === "number" ? "number" : "text"}
+                            step="any"
+                            placeholder={draft.type === "number" ? "0" : "Value"}
+                            value={draft.value}
+                            onChange={(e) => set({ value: e.target.value })}
+                          />
+                        )}
+                      </label>
+                    )}
+                </div>
+                <small className="kx-form-note">
+                  {targetCount
+                    ? "Otherwise existing values stay untouched."
+                    : "Select items in the table to set a value on them."}
                 </small>
               </section>
               {error && (
@@ -355,15 +376,21 @@ export default function PropertyEditor({
             </div>
             <footer>
               {allowAgent && (
-                <Button
+                <button
                   type="button"
+                  className="kx-footer-link"
                   disabled={busy || !valid || draft.type === "formula"}
                   title="Save this property, then configure inputs and review AI proposals"
                   onClick={() => onSave({ ...draft, applyValues: false }, true)}
                 >
-                  ✧ Configure agent fill
-                </Button>
+                  <Icon name="sparkle" size={14} />
+                  Configure agent fill…
+                </button>
               )}
+              <span className="kx-footer-spacer" />
+              <Button type="button" disabled={busy} onClick={onClose}>
+                Cancel
+              </Button>
               <Button
                 type="submit"
                 className="key-property-primary"
@@ -396,13 +423,13 @@ export default function PropertyEditor({
             }
           >
             <div className="key-agent-drawer-back">
-              <Button
+              <button
                 type="button"
                 aria-label="Back to property"
                 onClick={onBack}
               >
-                ‹
-              </Button>
+                <Icon name="chevronRight" size={14} style={{ transform: "scaleX(-1)" }} />
+              </button>
               <strong>Agent settings</strong>
             </div>
             {retainedAgent.current}

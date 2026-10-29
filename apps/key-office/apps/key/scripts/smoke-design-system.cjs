@@ -60,9 +60,10 @@ const assert = require("node:assert/strict");
       return {font: css.fontFamily, size: css.fontSize, height: el.getBoundingClientRect().height, padding: css.padding};
     });
     const projectField = await appearance(dialog.locator('input:not([type="checkbox"])').first());
-    assert(projectField.font.includes('Geist'), 'Real dialog field uses Geist');
-    assert.equal(projectField.size, '14px', 'Real dialog field uses body type');
-    assert(Math.abs(projectField.height - 44) < 0.5, 'Real dialog field uses default density');
+    // Shell surfaces use the native system font and macOS control metrics.
+    assert(projectField.font.includes('-apple-system'), 'Real dialog field uses the system font');
+    assert.equal(projectField.size, '13px', 'Real dialog field uses body type');
+    assert(Math.abs(projectField.height - 32) < 0.5, 'Real dialog field uses default density: ' + JSON.stringify(projectField));
     await dialog.evaluate(async el => { await Promise.all(el.getAnimations({subtree: true}).map(a => a.finished.catch(() => {}))); });
     await page.screenshot({path: path.join(temp, 'project-dialog.png')});
     await page.keyboard.press("Escape");

@@ -117,7 +117,7 @@ const assert = require("node:assert/strict");
     await d.getByText("Custom properties", { exact: true }).click();
     await d.getByText("Reviewed: true", { exact: true }).waitFor();
     await page
-      .locator(".key-sidebar > button")
+      .locator(".key-sidebar .kx-nav-item")
       .filter({ hasText: "Sources" })
       .click();
     await page.getByRole("button", { name: "PDFs", exact: true }).click();

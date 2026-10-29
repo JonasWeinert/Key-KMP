@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import "./tabbar.css";
+import { Icon } from "./icons";
 import type { WorkspaceViewDrop } from "../shared/tab-model";
 export interface TabSummary {
   id: string;
@@ -186,12 +187,12 @@ function HtmlIcon() {
 
 const KIND_ICON: Record<TabSummary["kind"], ReactElement> = {
   home: <HomeIcon />,
-  library: <span aria-hidden="true">▤</span>,
-  records: <span aria-hidden="true">▦</span>,
-  note: <span aria-hidden="true">≡</span>,
-  page: <span aria-hidden="true">▱</span>,
-  database: <span aria-hidden="true">▦</span>,
-  source: <span aria-hidden="true">↗</span>,
+  library: <Icon name="books" size={15} />,
+  records: <Icon name="layers" size={15} />,
+  note: <Icon name="note" size={15} />,
+  page: <Icon name="doc" size={15} />,
+  database: <Icon name="database" size={15} />,
+  source: <Icon name="link" size={15} />,
   docs: <DocIcon />,
   sheets: <SheetIcon />,
   slides: <SlideIcon />,
@@ -541,7 +542,7 @@ export function TabBar({
                     className="tab-split-badge"
                     title="Split group — drag to move both documents"
                   >
-                    ◫
+                    <Icon name="split" size={14} />
                   </span>
                   {tab.views.map((view, i) => (
                     <span
@@ -579,7 +580,7 @@ export function TabBar({
                     void api.close(tab.id);
                   }}
                 >
-                  ×
+                  <Icon name="close" size={12} />
                 </button>
               )}
             </div>

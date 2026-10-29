@@ -1,5 +1,6 @@
 import { Button, Input } from "@key/design-system";
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "./icons";
 export interface WorkspaceAppearance {
   id: string;
   name: string;
@@ -115,10 +116,10 @@ export default function WorkspaceSwitcher({
             background: `color-mix(in srgb, ${selected?.color || colors[0]} 12%, transparent)`,
           }}
         >
-          {selected?.icon || (selected ? "📚" : "◈")}
+          {selected?.icon || (selected ? "📚" : <Icon name="layers" size={15} />)}
         </span>
         <strong>{selected?.name || "All workspaces"}</strong>
-        <span aria-hidden="true">⌄</span>
+        <span aria-hidden="true"><Icon name="chevronUpDown" size={14} /></span>
       </Button>
       {open && (
         <div
@@ -176,8 +177,9 @@ export default function WorkspaceSwitcher({
                     setOpen(false);
                   }}
                 >
-                  ◈ <span>All workspaces</span>
-                  {!selectedId && "✓"}
+                  <span className="key-workspace-icon"><Icon name="layers" size={13} /></span>
+                  <span>All workspaces</span>
+                  {!selectedId && <Icon name="check" size={14} />}
                 </Button>
                 {workspaces
                   .filter((w) =>
@@ -204,7 +206,7 @@ export default function WorkspaceSwitcher({
                         {w.icon || "📚"}
                       </span>
                       <span>{w.name}</span>
-                      {w.id === selectedId && "✓"}
+                      {w.id === selectedId && <Icon name="check" size={14} />}
                     </Button>
                   ))}
                 {query &&
@@ -226,7 +228,8 @@ export default function WorkspaceSwitcher({
                   disabled={busy}
                   onClick={() => void run(onAdd)}
                 >
-                  ＋ Add workspace…
+                  <Icon name="plus" size={14} />
+                  <span>Add workspace…</span>
                 </Button>
               </div>
             </div>

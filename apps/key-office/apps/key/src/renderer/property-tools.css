@@ -7,206 +7,6 @@
   place-items: center;
   padding: 24px;
 }
-.key-property-editor {
-  width: min(560px, 100%);
-  max-height: calc(100vh - 48px);
-  display: flex;
-  flex-direction: column;
-  background: var(--surface, #fff);
-  color: var(--text-primary, #202124);
-  border: 1px solid var(--border, #e5e5e5);
-  border-radius: 12px;
-  box-shadow: 0 20px 80px #0003;
-  font-size: 13px;
-  animation: key-property-enter 0.13s ease-out;
-}
-.key-property-editor header,
-.key-property-editor footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 22px;
-  gap: 12px;
-}
-.key-property-editor header {
-  border-bottom: 1px solid var(--border, #eee);
-}
-.key-property-editor h2 {
-  font-size: 19px;
-  margin: 4px 0 0;
-  font-weight: 600;
-}
-.key-property-editor small {
-  font-size: 11px;
-  color: var(--text-secondary, #737373);
-  line-height: 1.5;
-}
-.key-property-editor header small {
-  letter-spacing: 0.08em;
-}
-.key-property-body {
-  padding: 20px 22px;
-  overflow: auto;
-  display: grid;
-  gap: 18px;
-}
-.key-property-editor label {
-  display: grid;
-  gap: 7px;
-  font-weight: 500;
-}
-.key-property-editor input,
-.key-property-editor textarea,
-.key-property-editor select {
-  min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid var(--border, #ddd);
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-}
-.key-property-editor button {
-  font: inherit;
-  color: inherit;
-  border: 1px solid var(--border, #ddd);
-  background: transparent;
-  border-radius: 6px;
-  padding: 7px 10px;
-  cursor: pointer;
-}
-.key-property-editor button:hover {
-  background: var(--surface-subtle, #f4f4f5);
-}
-.key-property-editor button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.key-property-editor button:focus-visible,
-.key-property-editor input:focus-visible,
-.key-property-editor textarea:focus-visible {
-  outline: 2px solid var(--color-brand-secondary, #a1a1aa);
-  outline-offset: 2px;
-}
-.key-property-editor fieldset {
-  padding: 0;
-  border: 0;
-  margin: 0;
-}
-.key-property-editor legend {
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-.key-property-types {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.key-property-types button {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-}
-.key-property-types button span {
-  color: var(--text-secondary, #737373);
-}
-.key-property-types button[aria-pressed="true"] {
-  background: var(--active-bg, #f0f0f0);
-  border-color: var(--text-primary, #555);
-}
-.key-property-option-entry {
-  display: flex;
-  gap: 8px;
-}
-.key-property-option-entry input {
-  flex: 1;
-}
-.key-property-options {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-.key-property-options > span {
-  background: #e8edf5;
-  color: #34455f;
-  border-radius: 5px;
-  padding-left: 9px;
-}
-.key-property-options > span[data-color="1"] {
-  background: #eee8f5;
-  color: #594472;
-}
-.key-property-options > span[data-color="2"] {
-  background: #e4eee7;
-  color: #375742;
-}
-.key-property-options > span[data-color="3"] {
-  background: #f7ebda;
-  color: #70522a;
-}
-.key-property-options button {
-  border: 0;
-  padding: 4px 7px;
-  color: inherit;
-}
-.key-property-editor textarea {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 85px;
-  font-family: ui-monospace, monospace;
-  resize: vertical;
-}
-.key-property-references {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin: 8px 0;
-}
-.key-property-references button {
-  font-size: 11px;
-  padding: 3px 6px;
-}
-.key-property-preview {
-  padding: 12px;
-  background: var(--surface-subtle, #f6f6f6);
-  border-radius: 6px;
-  display: grid;
-  gap: 4px;
-  overflow-wrap: anywhere;
-}
-.key-property-editor details {
-  font-size: 12px;
-  color: var(--text-secondary, #737373);
-  margin-top: 10px;
-  line-height: 1.5;
-}
-.key-property-apply {
-  display: grid;
-  gap: 12px;
-  border-top: 1px solid var(--border, #eee);
-  padding-top: 16px;
-}
-.key-property-apply > label:first-child {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.key-property-editor footer {
-  border-top: 1px solid var(--border, #eee);
-}
-.key-property-editor .key-property-primary {
-  background: var(--color-btn-primary, #202124);
-  color: var(--color-btn-primary-text, #fff);
-  border-color: transparent;
-}
-.key-property-error {
-  color: #b42318;
-  font-size: 12px;
-}
-.key-property-editor input:disabled {
-  opacity: 0.65;
-}
 @keyframes key-property-enter {
   from {
     opacity: 0;
@@ -215,11 +15,6 @@
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .key-property-editor {
-    animation: none;
   }
 }
 .key-property-manager {
@@ -330,16 +125,10 @@
   outline: 2px solid var(--color-brand-secondary, #aaa);
   outline-offset: -2px;
 }
-/* Override the library's general stacked form labels for this inline checkbox. */
-.key-property-editor .key-property-apply > label:first-child {
-  flex-direction: row;
-  justify-content: flex-start;
-}
 .key-library .key-property-manager-row > .key-property-manager-name:disabled {
   opacity: 1;
   cursor: default;
 }
-
 /* Keep dialogs inside their owned pane: native PDF/Office siblings sit above DOM. */
 .key-content-pane .key-property-overlay {
   position: absolute;

@@ -15,7 +15,7 @@ type Entry = {
   children: ReactNode;
   onClose: () => void;
   busy?: boolean;
-  presentation?: "drawer" | "dialog";
+  presentation?: "drawer" | "dialog" | "sheet";
   label?: string;
 };
 let current: Entry | null = null;
@@ -40,7 +40,7 @@ export function GlobalDrawer({
   children: ReactNode;
   onClose: () => void;
   busy?: boolean;
-  presentation?: "drawer" | "dialog";
+  presentation?: "drawer" | "dialog" | "sheet";
   label?: string;
 }) {
   const id = useId();
@@ -122,10 +122,15 @@ export function GlobalDrawerHost() {
       });
   }, [entry?.id]);
   useEffect(() => {
-    const body = document.querySelector<HTMLElement>(".key-shell-body");
-    if (body) body.inert = ready;
+    // The modal covers the whole window, so all of the shell behind it goes inert.
+    const behind = Array.from(
+      document.querySelectorAll<HTMLElement>(".key-shell-body, .key-sidebar-slot, .tab-bar"),
+    );
+    behind.forEach((el) => (el.inert = ready));
+    document.documentElement.classList.toggle("kx-modal-open", ready);
     return () => {
-      if (body) body.inert = false;
+      behind.forEach((el) => (el.inert = false));
+      document.documentElement.classList.remove("kx-modal-open");
     };
   }, [ready]);
   useEffect(

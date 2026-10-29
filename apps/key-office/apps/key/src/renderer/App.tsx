@@ -1,4 +1,5 @@
 import { Button, Input } from "@key/design-system";
+import { Icon, type IconName } from "./icons";
 import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
 import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
@@ -168,6 +169,24 @@ export default function App() {
     [dialog, setDialog] = useState<"project" | "folder" | null>(null),
     [dialogValue, setDialogValue] = useState("");
 
+  useEffect(() => {
+    if (!createMenu) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (
+        event instanceof PointerEvent &&
+        (event.target as Element).closest?.(".key-create-menu, [aria-label='Create item']")
+      )
+        return;
+      setCreateMenu(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [createMenu]);
   const invoke = useCallback(
     <T,>(command: string, args?: Record<string, unknown>, id?: string) =>
       api().invoke<T>(command, args, id),
@@ -302,9 +321,226 @@ export default function App() {
       setSection("");
     }
   }, [activeView?.id, activeView?.content?.record?.id]);
+  const recordIcon = (r: RecordItem): IconName =>
+    r.kind === "note" ? "note" : r.kind === "database" ? "database" : "doc";
+  const sidebarToggle = (
+    <button
+      className="key-sidebar-toggle"
+      aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      aria-expanded={!sidebarCollapsed}
+      title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+      onClick={() => setSidebarCollapsed((v) => !v)}
+    >
+      <Icon name="sidebar" />
+    </button>
+  );
+  const navItem = (
+    label: string,
+    icon: IconName,
+    current: boolean,
+    onClick: () => void,
+    disabled = false,
+  ) => (
+    <button
+      className="kx-nav-item"
+      aria-current={current ? "page" : undefined}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+      <span>{label}</span>
+    </button>
+  );
   return (
-    <div className="key-shell">
+    <div
+      className="key-shell"
+      data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
+    >
       <GlobalDrawerHost />
+      <div
+        ref={sidebarSlot}
+        className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
+      >
+        <aside
+          className="key-sidebar key-ui-root"
+          style={
+            {
+              "--workspace-accent": selectedWorkspace?.color || "#64748b",
+            } as React.CSSProperties
+          }
+          inert={sidebarCollapsed}
+          aria-hidden={sidebarCollapsed}
+        >
+          <div className="kx-sidebar-titlebar">{sidebarToggle}</div>
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            selectedId={workspaceId}
+            onSelect={chooseScope}
+            onAdd={async () => {
+              const added = await api().addWorkspace();
+              setWorkspaces(await api().workspaces());
+              if (added) chooseScope(added.id);
+            }}
+            onSave={async (id, icon, color) => {
+              await api().invoke(
+                "workspace_set_appearance",
+                { icon, color },
+                id,
+              );
+              setWorkspaces(await api().workspaces());
+            }}
+          />
+          <nav className="kx-nav" aria-label="Library">
+            {navItem("Home", "home", section === "home", () =>
+              action("open-home"),
+            )}
+            {navItem("Sources", "books", section === "sources", () =>
+              action("open-content", {
+                section: "sources",
+                workspaceId,
+                projectId,
+              }),
+            )}
+            {navItem(
+              "All items",
+              "layers",
+              section === "records",
+              () =>
+                action("open-content", {
+                  section: "records",
+                  workspaceId,
+                  projectId,
+                }),
+              !workspaceId,
+            )}
+          </nav>
+          <div className="kx-sidebar-scroll">
+            <div className="key-sidebar-section">
+              <span>Projects</span>
+              <button
+                aria-label="New project"
+                title="New project"
+                disabled={!workspaceId}
+                onClick={() => {
+                  setDialog("project");
+                  setDialogValue("");
+                }}
+              >
+                <Icon name="plus" size={14} />
+              </button>
+            </div>
+            {workspaceId ? (
+              <nav className="kx-nav" aria-label="Projects">
+                {navItem("All projects", "layers", !projectId, () =>
+                  chooseScope(workspaceId),
+                )}
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    className="kx-nav-item"
+                    aria-current={projectId === p.id ? "page" : undefined}
+                    onClick={() => chooseScope(workspaceId, p.id)}
+                    title={p.folder}
+                  >
+                    <Icon name="folder" />
+                    <span>{p.name}</span>
+                  </button>
+                ))}
+              </nav>
+            ) : (
+              <p className="key-sidebar-hint">
+                Choose a workspace to see its projects and pages.
+              </p>
+            )}
+            <div className="key-sidebar-section">
+              <span>Pages</span>
+              <button
+                disabled={!workspaceId}
+                aria-label="Create item"
+                title="New page, note or document"
+                aria-expanded={createMenu}
+                onClick={() => setCreateMenu(!createMenu)}
+              >
+                <Icon name="plus" size={14} />
+              </button>
+            </div>
+            {createMenu && (
+              <div className="key-create-menu">
+                {(
+                  [
+                    ["note", "Note", "note"],
+                    ["page", "Page", "doc"],
+                    ["database", "Database", "database"],
+                  ] as const
+                ).map(([kind, label, icon]) => (
+                  <button
+                    key={kind}
+                    onClick={() => createRecord(kind)}
+                  >
+                    <Icon name={icon} />
+                    New {label.toLowerCase()}
+                  </button>
+                ))}
+                <hr />
+                {["docs", "sheets", "slides", "markdown", "html"].map(
+                  (kind) => (
+                    <button
+                      key={kind}
+                      onClick={() => {
+                        setCreateMenu(false);
+                        action("create-office", { kind, workspaceId });
+                      }}
+                    >
+                      <Icon name="doc" />
+                      New {kind === "docs" ? "document" : kind}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+            <nav className="kx-nav" aria-label="Pages">
+              {records
+                .filter((r) => r.kind !== "source")
+                .map((r) => (
+                  <button
+                    key={r.id}
+                    className="kx-nav-item"
+                    aria-current={record?.id === r.id ? "page" : undefined}
+                    onClick={() => selectRecord(r)}
+                  >
+                    <Icon name={recordIcon(r)} />
+                    <span>{r.title || "Untitled"}</span>
+                  </button>
+                ))}
+              {workspaceId &&
+                !records.some((r) => r.kind !== "source") &&
+                !createMenu && (
+                  <p className="key-sidebar-hint">No pages yet.</p>
+                )}
+            </nav>
+          </div>
+          <div className="key-sidebar-footer">
+            {projectId && (
+              <button
+                className="kx-nav-item"
+                onClick={() =>
+                  action("link-folder", { workspaceId, projectId })
+                }
+              >
+                <Icon name="link" />
+                <span>Link folder…</span>
+              </button>
+            )}
+            <small>
+              <Icon name="disk" size={13} />
+              {selectedWorkspace
+                ? "Stored on this Mac"
+                : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`}
+            </small>
+          </div>
+        </aside>
+      </div>
+      <div className="kx-main">
       <TabBar
         api={officeTabs}
         trailingControls={
@@ -316,7 +552,7 @@ export default function App() {
                   aria-label="Swap panes"
                   onClick={() => action("swap")}
                 >
-                  ⇄
+                  <Icon name="swap" />
                 </button>
                 <button
                   title="Separate panes"
@@ -325,7 +561,7 @@ export default function App() {
                     action("separate", { viewId: tabs.activeViewId })
                   }
                 >
-                  ↗
+                  <Icon name="detach" />
                 </button>
               </>
             )}
@@ -340,200 +576,13 @@ export default function App() {
               }
               onClick={() => action("split-menu")}
             >
-              ◫
+              <Icon name="split" />
             </button>
           </div>
         }
-        chromeControl={
-          <button
-            className="key-sidebar-toggle"
-            aria-label={
-              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-            }
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={() => setSidebarCollapsed((v) => !v)}
-          >
-            ◧
-          </button>
-        }
+        chromeControl={sidebarCollapsed ? sidebarToggle : undefined}
       />
       <div className="key-shell-body key-ui-root">
-        <div
-          ref={sidebarSlot}
-          className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
-        >
-          <aside
-            className="key-sidebar"
-            style={
-              {
-                "--workspace-accent": selectedWorkspace?.color || "#64748b",
-              } as React.CSSProperties
-            }
-            inert={sidebarCollapsed}
-            aria-hidden={sidebarCollapsed}
-          >
-            <WorkspaceSwitcher
-              workspaces={workspaces}
-              selectedId={workspaceId}
-              onSelect={chooseScope}
-              onAdd={async () => {
-                const added = await api().addWorkspace();
-                setWorkspaces(await api().workspaces());
-                if (added) chooseScope(added.id);
-              }}
-              onSave={async (id, icon, color) => {
-                await api().invoke(
-                  "workspace_set_appearance",
-                  { icon, color },
-                  id,
-                );
-                setWorkspaces(await api().workspaces());
-              }}
-            />
-            <Button className={section === "home" ? "selected" : ""} onClick={() => action("open-home")} aria-current={section === "home" ? "page" : undefined}>
-              <span aria-hidden="true">⌂</span><span>Home</span>
-            </Button>
-            <div className="key-sidebar-section"><span>Library</span></div>
-            <Button
-              className={section === "sources" ? "selected" : ""}
-              onClick={() =>
-                action("open-content", {
-                  section: "sources",
-                  workspaceId,
-                  projectId,
-                })
-              }
-            >
-              ▤ <span>Sources</span>
-            </Button>
-            <Button
-              disabled={!workspaceId}
-              className={section === "records" ? "selected" : ""}
-              onClick={() =>
-                action("open-content", {
-                  section: "records",
-                  workspaceId,
-                  projectId,
-                })
-              }
-            >
-              ▦ <span>All items</span>
-            </Button>
-            <div className="key-sidebar-section">
-              <span>Projects</span>
-              <Button
-                aria-label="New project"
-                disabled={!workspaceId}
-                onClick={() => {
-                  setDialog("project");
-                  setDialogValue("");
-                }}
-              >
-                ＋
-              </Button>
-            </div>
-            {workspaceId ? (
-              <>
-                <Button
-                  className={!projectId ? "scope-current" : ""}
-                  onClick={() => chooseScope(workspaceId)}
-                >
-                  ▱ <span>All projects</span>
-                </Button>
-                {projects.map((p) => (
-                  <Button
-                    key={p.id}
-                    className={projectId === p.id ? "scope-current" : ""}
-                    onClick={() => chooseScope(workspaceId, p.id)}
-                    title={p.folder}
-                  >
-                    ▱ <span>{p.name}</span>
-                  </Button>
-                ))}
-              </>
-            ) : (
-              <p className="key-sidebar-hint">
-                Choose a workspace to browse its projects and pages.
-              </p>
-            )}
-            <div className="key-sidebar-section">
-              <span>Documents</span>
-              <Button
-                disabled={!workspaceId}
-                aria-label="Create item"
-                onClick={() => setCreateMenu(!createMenu)}
-              >
-                ＋
-              </Button>
-            </div>
-            {createMenu && (
-              <div className="key-create-menu">
-                {["note", "page", "database"].map((kind) => (
-                  <Button key={kind} onClick={() => createRecord(kind)}>
-                    New {kind}
-                  </Button>
-                ))}
-                {["docs", "sheets", "slides", "markdown", "html"].map(
-                  (kind) => (
-                    <Button
-                      key={kind}
-                      onClick={() => {
-                        setCreateMenu(false);
-                        action("create-office", { kind, workspaceId });
-                      }}
-                    >
-                      New {kind === "docs" ? "document" : kind}
-                    </Button>
-                  ),
-                )}
-              </div>
-            )}
-            {records
-              .filter((r) => r.kind !== "source")
-              .map((r) => (
-                <Button
-                  key={r.id}
-                  className={record?.id === r.id ? "selected" : ""}
-                  onClick={() =>
-                    r.documentHash
-                      ? void task(() =>
-                          api().openSource({
-                            documentId: r.documentHash!,
-                            documentHash: r.documentHash!,
-                            title: r.title,
-                            status: "indexed",
-                            pageCount: 0,
-                            completed: 0,
-                            total: 0,
-                            workspaceId,
-                          }),
-                        )
-                      : selectRecord(r)
-                  }
-                >
-                  <span>{r.kind === "note" ? "≡" : "▱"}</span>
-                  <span>{r.title}</span>
-                </Button>
-              ))}
-            <div className="key-sidebar-footer">
-              {projectId && (
-                <Button
-                  onClick={() =>
-                    action("link-folder", { workspaceId, projectId })
-                  }
-                >
-                  ＋ Link folder
-                </Button>
-              )}
-              <small>
-                {selectedWorkspace
-                  ? "Local workspace · saved on this Mac"
-                  : `${workspaces.length} local workspaces`}
-              </small>
-            </div>
-          </aside>
-        </div>
         <div className="key-content-panes">
           {tabs.searchPreview && <SearchPreviewBar preview={tabs.searchPreview} action={action}/>}
           {tabs.tabs
@@ -580,11 +629,12 @@ export default function App() {
             })}
           {error && (
             <div className="key-shell-error" role="alert">
-              {error}
+              <span>{error}</span>
               <Button onClick={() => setError("")}>Dismiss</Button>
             </div>
           )}
         </div>
+      </div>
       </div>
       {activeTab?.views.length === 2 && (
         <div

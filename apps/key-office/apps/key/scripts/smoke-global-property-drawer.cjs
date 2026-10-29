@@ -77,17 +77,14 @@ const assert = require("node:assert/strict");
       exact: true,
     });
     await drawer.waitFor();
-    await page.waitForFunction(
-      () =>
-        Math.abs(
-          document.querySelector(".key-global-drawer").getBoundingClientRect()
-            .x,
-        ) < 1,
-    );
+    // The property editor is a sheet: centred on the window, just below the toolbar.
+    await page.waitForFunction(() => {
+      const box = document.querySelector(".key-global-drawer").getBoundingClientRect();
+      return Math.abs(box.x + box.width / 2 - innerWidth / 2) < 2 && box.y >= 40;
+    });
     const bounds = await drawer.boundingBox();
-    assert.equal(bounds.y, 40);
-    assert(bounds.x < 1);
-    assert(bounds.width > 240);
+    assert(bounds.y >= 40 && bounds.y < 60);
+    assert(bounds.width > 400);
     assert.equal(
       await app.evaluate(
         ({ BrowserWindow }) =>
@@ -110,9 +107,11 @@ const assert = require("node:assert/strict");
     );
     await page.screenshot({ path: path.join(temp, "property-over-split.png") });
     // Tab switching retains the globally owned property and its workspace scope.
+    // The modal dims and disables the tab bar, so switch through the shell API (as ⌘⇧] would).
     const home = before.tabs.find((t) => t.id !== owner);
     if (home) {
-      await page.locator(`[data-tab-id="${home.id}"]`).click();
+      assert.equal(await page.locator(".tab-bar").evaluate((el) => el.inert), true);
+      await page.evaluate((tabId) => window.key.tabAction("activate", { tabId }), home.id);
       await drawer.waitFor();
       assert.equal(
         await drawer
@@ -120,7 +119,7 @@ const assert = require("node:assert/strict");
           .inputValue(),
         "Review",
       );
-      await page.locator(`[data-tab-id="${owner}"]`).click();
+      await page.evaluate((tabId) => window.key.tabAction("activate", { tabId }), owner);
     }
     await drawer
       .getByRole("button", { name: "Configure agent fill", exact: false })
@@ -133,12 +132,14 @@ const assert = require("node:assert/strict");
       exact: true,
     });
     await instructions.fill("Retain this unsaved recipe when navigating back.");
+    // The agent slide has settled when it lines up with the sheet's left edge.
     await page.waitForFunction(
       () =>
         Math.abs(
           document
             .querySelector(".key-drawer-slide:last-child")
-            .getBoundingClientRect().x,
+            .getBoundingClientRect().x -
+            document.querySelector(".key-global-drawer").getBoundingClientRect().x,
         ) < 1,
     );
     await page.screenshot({ path: path.join(temp, "agent-detail.png") });

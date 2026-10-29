@@ -742,7 +742,15 @@ else
         minHeight: 600,
         title: "Key",
         titleBarStyle: "hiddenInset",
-        trafficLightPosition: { x: 13, y: 12 },
+        trafficLightPosition: { x: 16, y: 14 },
+        // The renderer leaves the sidebar translucent; the content column stays opaque.
+        ...(process.platform === "darwin"
+          ? {
+              vibrancy: "sidebar" as const,
+              visualEffectState: "followWindow" as const,
+              backgroundColor: "#00000000",
+            }
+          : {}),
         webPreferences: {
           preload,
           contextIsolation: true,

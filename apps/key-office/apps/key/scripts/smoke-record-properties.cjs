@@ -220,7 +220,7 @@ const assert = require("node:assert/strict");
     await record.getByText("Saved", { exact: true }).waitFor();
     await page.screenshot({ path: path.join(temp, "typed-record.png") });
     await page
-      .locator(".key-sidebar > button")
+      .locator(".key-sidebar .kx-nav-item")
       .filter({ hasText: "Sources" })
       .click();
     await page.locator(".key-library-tools-menu:visible > summary").click();

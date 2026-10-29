@@ -686,7 +686,7 @@ export default function WorkspaceContent({
       )}
       {section === "home" && <HomeView workspaces={workspaces} active={visible} invoke={invoke}
         action={action} openSource={source => void task(() => api().openSource(source))}
-        importSources={id => void task(() => api().openSources(id))} />}
+        importSources={id => void task(() => api().openSources(id))} refreshKey={refreshKey} />}
       {section === "sources" && (
         <div
           style={{

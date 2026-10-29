@@ -74,7 +74,7 @@ function Frame({
 }) {
   if (drawer)
     return (
-      <GlobalDrawer onClose={onClose}>
+      <GlobalDrawer onClose={onClose} presentation="sheet">
         <Frame title={title} onClose={onClose} className={className} embedded>
           {children}
         </Frame>

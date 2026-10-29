@@ -68,7 +68,7 @@ const assert = require("node:assert/strict");
     }, addedPath);
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page
-      .getByRole("menuitem", { name: "＋ Add workspace…", exact: true })
+      .getByRole("menuitem", { name: "Add workspace…", exact: true })
       .click();
     await page.locator(".key-workspace-dropdown").waitFor({ state: "hidden" });
     const entries = await page.evaluate(() => window.key.workspaces());

@@ -49,7 +49,7 @@ const assert = require("node:assert/strict");
       .fill("Keep this unsaved text through splits and switches.");
     const note = (await page.evaluate(() => window.key.tabs())).activeViewId;
     await page
-      .locator(".key-sidebar > button")
+      .locator(".key-sidebar .kx-nav-item")
       .filter({ hasText: "Sources" })
       .click();
     assert.equal(

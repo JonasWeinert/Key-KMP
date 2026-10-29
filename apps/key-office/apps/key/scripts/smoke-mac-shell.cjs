@@ -22,7 +22,7 @@ const assert = require("node:assert/strict");
     page.setDefaultTimeout(20000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
-    await page.getByRole("heading", { name: "Home", exact: true }).waitFor();
+    await page.getByRole("region", { name: "Home", exact: true }).waitFor();
     await page.getByText("Your library starts here", { exact: true }).waitFor();
     await page.screenshot({ path: path.join(temp, "home-empty.png") });
     const [ws] = await page.evaluate(() => window.key.workspaces());
@@ -48,13 +48,13 @@ const assert = require("node:assert/strict");
     await page.locator('.key-beui-table:visible tbody tr[data-index="0"]').waitFor();
     assert.equal(
       await page
-        .getByRole("button", { name: "＋ Property", exact: true })
+        .getByRole("button", { name: "Add property", exact: true })
         .isVisible(),
       false,
     );
     await page.locator(".key-library-tools-menu:visible > summary").click();
     await page
-      .getByRole("button", { name: "＋ Property", exact: true })
+      .getByRole("button", { name: "Add property", exact: true })
       .waitFor();
     await page.keyboard.press("Escape");
     assert.equal(
@@ -68,7 +68,7 @@ const assert = require("node:assert/strict");
       .locator(".key-sidebar")
       .getByRole("button", { name: "Home", exact: true })
       .click();
-    await page.locator(".key-home-recents li").waitFor();
+    await page.locator(".kx-cover-grid li").waitFor();
     await page.screenshot({ path: path.join(temp, "home.png") });
     await page
       .getByRole("button", { name: "Collapse sidebar", exact: true })

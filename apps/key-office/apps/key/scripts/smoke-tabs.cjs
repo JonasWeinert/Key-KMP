@@ -202,12 +202,13 @@ const assert = require("node:assert/strict");
       return { label, expected, actual };
     }
     const nativeBounds = [await verifyNativeBounds("expanded sidebar")];
+    // Expanded: the toggle sits in the sidebar's titlebar, right of the traffic lights.
     const toggleBox = await page
-      .locator(".tab-bar .key-sidebar-toggle")
+      .locator(".key-sidebar .key-sidebar-toggle")
       .boundingBox();
     assert(
-      toggleBox.x >= 78 && toggleBox.x < 120 && toggleBox.y < 10,
-      "Sidebar toggle belongs beside traffic lights",
+      toggleBox.x >= 78 && toggleBox.x + toggleBox.width <= 240 && toggleBox.y < 10,
+      "Sidebar toggle belongs in the sidebar titlebar",
     );
     await page
       .getByRole("button", { name: "Collapse sidebar", exact: true })
@@ -224,6 +225,14 @@ const assert = require("node:assert/strict");
         ),
     );
     nativeBounds.push(await verifyNativeBounds("collapsed sidebar"));
+    // Collapsed: the toggle moves into the tab bar, beside the traffic lights.
+    const collapsedToggle = await page
+      .locator(".tab-bar .key-sidebar-toggle")
+      .boundingBox();
+    assert(
+      collapsedToggle.x >= 78 && collapsedToggle.x < 120 && collapsedToggle.y < 10,
+      "Collapsed sidebar toggle belongs beside traffic lights",
+    );
     assert.equal(await page.locator(".key-sidebar-rail").count(), 0);
     await page.screenshot({ path: path.join(temp, "collapsed-sidebar.png") });
     const divider = page.getByRole("separator", { name: "Resize split panes" });
