@@ -9,6 +9,7 @@ import LibraryHome, {
   type LibraryHit,
 } from "./LibraryHome";
 import "./shell.css";
+import ReferenceLibrary from "./ReferenceLibrary";
 
 interface Workspace {
   id: string;
@@ -270,7 +271,11 @@ export default function WorkspaceContent({
       .workspaces()
       .then(setWorkspaces)
       .catch((e) => setError(String(e)));
-    return api().on("library-changed", () => setRefreshKey((k) => k + 1));
+    // Imports can create workspaces (Zotero), so the list refreshes with the library.
+    return api().on("library-changed", () => {
+      setRefreshKey((k) => k + 1);
+      void api().workspaces().then(setWorkspaces).catch(() => {});
+    });
   }, []);
   useEffect(() => {
     if (record?.properties.sourceType) return;
@@ -687,59 +692,46 @@ export default function WorkspaceContent({
       {section === "home" && <HomeView workspaces={workspaces} active={visible} invoke={invoke}
         action={action} openSource={source => void task(() => api().openSource(source))}
         importSources={id => void task(() => api().openSources(id))} refreshKey={refreshKey} />}
-      {section === "sources" && (
-        <div
-          style={{
-            display: section === "sources" ? "flex" : "none",
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
-          <LibraryHome
+      {section === "sources" && (() => {
+        // Each workspace has its own library; without a choice, use the first one.
+        const library = selectedWorkspace ?? workspaces[0];
+        if (!library) return null;
+        return (
+          <ReferenceLibrary
             active={visible}
             invoke={invoke}
-            workspaceId={workspaceId}
-            projectId={projectId}
-            scopeDescription={[selectedWorkspace?.name, selectedProject?.name].filter(Boolean).join(" / ") || "All workspaces"}
-            scopeLabel={
-              selectedProject
-                ? `${selectedProject.name} · Sources`
-                : selectedWorkspace
-                  ? "Sources"
-                  : "All sources"
-            }
-            openDocumentIds={openIds}
-            onAddSources={() =>
-              workspaceId
-                ? void task(() => api().openSources(workspaceId))
-                : setError("Choose a destination workspace before adding PDFs.")
-            }
-            onOpenItem={(item) => selectRecord(item as RecordItem)}
-            activePreview={
-              tabs.searchPreview?.sourceViewId === viewId
-                ? tabs.searchPreview.hit
-                : undefined
-            }
-            onDismissSearch={() =>
-              action("preview-dismiss", { sourceViewId: viewId })
-            }
-            onOpenSource={(source, hit, results, query) =>
+            workspaceId={library.id}
+            workspaceName={library.name}
+            refreshKey={refreshKey}
+            onOpen={(source) =>
               void task(() =>
-                hit
-                  ? api().tabAction("preview-result", {
-                      sourceViewId: viewId,
-                      source,
-                      hit,
-                      results,
-                      query,
-                    })
-                  : api().openSource(source),
+                api().openSource({
+                  documentId: source.fileHash ?? source.id,
+                  documentHash: source.fileHash ?? source.id,
+                  title: source.title || "Untitled",
+                  status: "indexed",
+                  pageCount: source.pageCount ?? 0,
+                  completed: 0,
+                  total: 0,
+                  workspaceId: library.id,
+                }),
               )
             }
-            refreshKey={refreshKey}
+            onOpenHit={({ source, passage, results, query }) => {
+              const hash = "documentHash" in source ? source.documentHash : (source.fileHash ?? source.id);
+              void task(() =>
+                api().tabAction("preview-result", {
+                  sourceViewId: viewId,
+                  source: { documentHash: hash, documentId: hash, title: source.title, workspaceId: library.id },
+                  hit: { id: passage.id, documentHash: hash, documentTitle: source.title, page: passage.page ?? 0, workspaceId: library.id },
+                  results: results.map((r) => ({ ...r, workspaceId: library.id })),
+                  query,
+                }),
+              );
+            }}
           />
-        </div>
-      )}
+        );
+      })()}
     </main>
   );
 }

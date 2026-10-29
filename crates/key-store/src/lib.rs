@@ -1115,22 +1115,30 @@ fn refresh_fts(db: &Connection, id: &str) -> Result<()> {
 
 /// Filter syntax: every word must match, as a prefix ("heal inco" finds "health income").
 pub(crate) fn fts_phrase(text: &str) -> Option<String> {
-    fts_terms(text).map(|terms| terms.join(" "))
+    let terms: Vec<String> = words(text).into_iter().map(|t| format!("\"{t}\"*")).collect();
+    (!terms.is_empty()).then(|| terms.join(" "))
 }
 
-/// Ranking syntax: any word may match; bm25 rewards passages that match more of them.
+/// Ranking syntax: any word may match and bm25 rewards passages that match more of them.
+/// Whole words only, so "off" does not match "offer"; a longer last word is still a
+/// prefix, which keeps search-as-you-type useful.
 pub(crate) fn fts_any(text: &str) -> Option<String> {
-    fts_terms(text).map(|terms| terms.join(" OR "))
+    let words = words(text);
+    let last = words.len().saturating_sub(1);
+    let terms: Vec<String> = words
+        .iter()
+        .enumerate()
+        .map(|(i, t)| if i == last && t.chars().count() >= 4 { format!("\"{t}\"*") } else { format!("\"{t}\"") })
+        .collect();
+    (!terms.is_empty()).then(|| terms.join(" OR "))
 }
 
-fn fts_terms(text: &str) -> Option<Vec<String>> {
+fn words(text: &str) -> Vec<String> {
     const STOP: &[&str] = &["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "of", "on", "or", "the", "to", "with"];
-    let terms: Vec<String> = text
-        .split(|c: char| !c.is_alphanumeric())
+    text.split(|c: char| !c.is_alphanumeric())
         .filter(|t| !t.is_empty() && !STOP.contains(&t.to_lowercase().as_str()))
-        .map(|t| format!("\"{}\"*", t.replace('"', "")))
-        .collect();
-    (!terms.is_empty()).then_some(terms)
+        .map(|t| t.replace('"', ""))
+        .collect()
 }
 
 fn where_clause(query: &ListQuery) -> (String, Vec<Value>) {

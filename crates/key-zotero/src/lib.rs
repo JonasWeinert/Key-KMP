@@ -360,7 +360,21 @@ pub fn map_item(zotero_type: &str, fields: Option<&Vec<(String, String)>>) -> So
 }
 
 fn put(fields: &mut Map<String, Json>, name: &str, value: &str) {
-    fields.entry(name.to_string()).or_insert_with(|| Json::from(value.trim()));
+    fields.entry(name.to_string()).or_insert_with(|| Json::from(decode_entities(value.trim())));
+}
+
+/// Zotero keeps some imported fields HTML-escaped ("Social &amp; Personality").
+fn decode_entities(value: &str) -> String {
+    if !value.contains('&') {
+        return value.to_string();
+    }
+    value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
 }
 
 fn label(field: &str) -> String {
@@ -497,5 +511,7 @@ mod tests {
         assert_eq!(parse_zotero_date("1970-01-02 00:00:01"), Some(86_401_000));
         assert_eq!(html_to_text("<p>One &amp; two</p><p>Three<br/>four</p>"), "One & two\nThree\nfour");
         assert_eq!(duration_seconds("1:02:03"), Some(3723.0));
+        let escaped = vec![("publicationTitle".to_string(), "Social &amp; Personality Psych".to_string())];
+        assert_eq!(map_item("journalArticle", Some(&escaped)).fields["containerTitle"], "Social & Personality Psych");
     }
 }

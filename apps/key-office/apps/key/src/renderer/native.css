@@ -20,6 +20,7 @@
   --kx-sidebar-selected: rgb(0 0 0 / 0.085);
   --kx-accent: #0a6cff;
   --kx-accent-ink: #ffffff;
+  --kx-on-accent: rgb(255 255 255 / 0.2);
   --kx-accent-soft: rgb(10 108 255 / 0.11);
   --kx-green: #1f9d55;
   --kx-amber: #c77700;
@@ -3096,4 +3097,119 @@ html.kx-modal-open :is(.tab-bar, .tab-strip, .kx-sidebar-titlebar) {
 .key-shell .key-workspace-trigger.kui-button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--kx-accent-soft);
+}
+
+/* Collection tree in the sidebar */
+.kx-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.kx-tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding-right: 4px;
+  border-radius: 6px;
+}
+.kx-tree-row:hover {
+  background: var(--kx-fill);
+}
+.kx-tree-row[data-current="true"] {
+  background: var(--kx-sidebar-selected);
+}
+.kx-tree-row[data-drop="true"] {
+  background: var(--kx-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--kx-accent);
+}
+.kx-tree-row > svg {
+  flex: none;
+  margin: 0 6px 0 2px;
+  color: var(--kx-accent);
+}
+.kx-tree-disclosure {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text-3);
+}
+.kx-tree-disclosure svg {
+  transition: transform 140ms var(--kx-ease);
+}
+.kx-tree-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text);
+  font: 13px var(--kx-font);
+  text-align: left;
+}
+.kx-tree-label > svg {
+  flex: none;
+  color: var(--kx-accent);
+}
+.kx-tree-label > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-tree-row[data-current="true"] .kx-tree-label {
+  font-weight: 500;
+}
+.kx-tree-label > small {
+  color: var(--kx-text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.kx-tree-actions {
+  display: none;
+  gap: 1px;
+}
+.kx-tree-row:hover .kx-tree-actions {
+  display: flex;
+}
+.kx-tree-row:hover .kx-tree-label > small {
+  display: none;
+}
+.kx-tree-actions > button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-2);
+}
+.kx-tree-actions > button:hover {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-tree-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--kx-accent);
+  border-radius: 5px;
+  outline: none;
+  background: var(--kx-bg);
+  color: var(--kx-text);
+  font: 13px var(--kx-font);
 }

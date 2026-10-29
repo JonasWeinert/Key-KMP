@@ -1,6 +1,26 @@
 import { useEffect, useState } from "react";
 import type { LibrarySource } from "./LibraryHome";
 import { Icon, type IconName } from "./icons";
+import { shortCreators, type Source, type SourcePage } from "./library-api";
+
+const STATUS: Record<string, string> = { ready: "indexed", pending: "queued", missing: "needs_source", skipped: "reference" };
+/** Home cards reuse the reader's source shape; non-PDF items open in the library instead. */
+function toCard(item: Source, workspaceId: string): LibrarySource & { kind: string } {
+  const hash = item.fileHash ?? item.id;
+  return {
+    kind: item.kind,
+    documentId: hash,
+    documentHash: hash,
+    title: item.title || "Untitled",
+    pageCount: item.pageCount ?? 0,
+    status: STATUS[item.indexStatus] ?? item.indexStatus,
+    year: item.year,
+    authors: shortCreators(item.creators) ? [shortCreators(item.creators)] : [],
+    completed: item.indexedChunks,
+    total: item.indexTotal,
+    workspaceId,
+  };
+}
 
 type Workspace = { id: string; name: string; icon?: string; root: string };
 type Counts = { all: number; searchable: number; processing: number; attention: number };
@@ -10,8 +30,7 @@ const greeting = (hour: number) =>
 // Stable cover tint per document; the palette lives in native.css tokens.
 const coverTone = (hash: string) => (parseInt(hash.slice(0, 6), 16) || 0) % 6;
 const byline = (source: LibrarySource) => {
-  const [first, ...rest] = source.authors || [];
-  const who = first ? `${first.split(",")[0]}${rest.length ? " et al." : ""}` : "";
+  const who = source.authors?.[0] ?? "";
   return [who, source.year].filter(Boolean).join(" · ");
 };
 function statusChip(source: LibrarySource) {
@@ -19,6 +38,7 @@ function statusChip(source: LibrarySource) {
   if (["failed", "needs_source", "no_text"].includes(source.status))
     return { tone: "attention", label: source.status === "no_text" ? "No text" : "Needs attention" };
   if (source.status === "paused") return { tone: "idle", label: "Paused" };
+  if (source.status === "reference") return { tone: "idle", label: "Reference" };
   if (source.status === "queued") return { tone: "idle", label: "Queued" };
   return { tone: "busy", label: "Indexing" };
 }
@@ -45,8 +65,14 @@ export default function HomeView({
   refreshKey?: number;
 }) {
   const [choice, setChoice] = useState("");
-  const workspace = workspaces.find((w) => w.id === choice) || workspaces[0];
-  const [recent, setRecent] = useState<LibrarySource[]>([]);
+  // Until the user picks one here, Home follows the library they used last.
+  let remembered = "";
+  try {
+    remembered = localStorage.getItem("key.library.last") ?? "";
+  } catch {}
+  const workspace =
+    workspaces.find((w) => w.id === choice) || workspaces.find((w) => w.id === remembered) || workspaces[0];
+  const [recent, setRecent] = useState<(LibrarySource & { kind: string })[]>([]);
   const [summary, setSummary] = useState<{ total: number; counts?: Counts }>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,15 +86,14 @@ export default function HomeView({
     let current = true;
     setError("");
     setLoading(true);
-    invoke<{ documents: LibrarySource[]; total: number; counts?: Counts }>(
-      "semantic_library_page",
-      { limit: 6, offset: 0, sort: "updated" },
-      workspace.id,
-    )
+    invoke<SourcePage>("store_sources", { limit: 6, offset: 0, sort: "added", descending: true }, workspace.id)
       .then((page) => {
         if (!current) return;
-        setRecent(page.documents.map((d) => ({ ...d, workspaceId: workspace.id })));
-        setSummary({ total: page.total, counts: page.counts });
+        setRecent(page.items.map((item) => toCard(item, workspace.id)));
+        setSummary({
+          total: page.counts.all,
+          counts: { all: page.counts.all, searchable: page.counts.ready, processing: page.counts.indexing, attention: page.counts.attention },
+        });
       })
       .catch((e) => {
         if (current) setError(String(e));
@@ -215,9 +240,17 @@ export default function HomeView({
               const chip = statusChip(source);
               return (
                 <li key={source.documentHash}>
-                  <button className="kx-cover-card" onClick={() => openSource(source)} title={source.title}>
+                  <button
+                    className="kx-cover-card"
+                    onClick={() =>
+                      source.kind === "pdf"
+                        ? openSource(source)
+                        : action("open-content", { section: "sources", workspaceId: workspace?.id })
+                    }
+                    title={source.title}
+                  >
                     <span className="kx-cover" data-tone={coverTone(source.documentHash)} aria-hidden="true">
-                      <span className="kx-cover-kind">PDF</span>
+                      <span className="kx-cover-kind">{source.kind === "pdf" ? "PDF" : source.kind.toUpperCase()}</span>
                       <span className="kx-cover-title">{source.title.replace(/\.pdf$/i, "").replace(/_+/g, " ")}</span>
                       {source.pageCount > 0 && <span className="kx-cover-pages">{source.pageCount} pp.</span>}
                     </span>

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 contextBridge.exposeInMainWorld("key", {
   invoke: (
     command: string,
@@ -11,6 +11,13 @@ contextBridge.exposeInMainWorld("key", {
   tabs: () => ipcRenderer.invoke("key:tabs"),
   openSources: (id?: string) => ipcRenderer.invoke("key:open-sources", id),
   importZotero: (options?: unknown) => ipcRenderer.invoke("key:import-zotero", options),
+  addFiles: (workspaceId: string, collectionId?: string) =>
+    ipcRenderer.invoke("key:add-files", workspaceId, collectionId),
+  importPaths: (workspaceId: string, paths: string[], collectionId?: string) =>
+    ipcRenderer.invoke("key:import-paths", workspaceId, paths, collectionId),
+  openPath: (path: string) => ipcRenderer.invoke("key:open-path", path),
+  revealPath: (path: string) => ipcRenderer.invoke("key:reveal-path", path),
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
   openSource: (source: unknown, hit?: unknown, results?: unknown[]) =>
     ipcRenderer.invoke("key:open-source", source, hit, results),
   tabAction: (action: string, payload?: unknown) =>

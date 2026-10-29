@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
+import CollectionTree from "./CollectionTree";
 import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
 interface Workspace {
   id: string;
@@ -213,7 +214,10 @@ export default function App() {
         .then(setTabs)
         .catch((e) => setError(String(e)));
     });
-    const b = api().on("library-changed", () => setRefreshKey((k) => k + 1));
+    const b = api().on("library-changed", () => {
+      setRefreshKey((k) => k + 1);
+      void api().workspaces().then(setWorkspaces).catch(() => {});
+    });
     return () => {
       a();
       b();
@@ -415,41 +419,17 @@ export default function App() {
             )}
           </nav>
           <div className="kx-sidebar-scroll">
-            <div className="key-sidebar-section">
-              <span>Projects</span>
-              <button
-                aria-label="New project"
-                title="New project"
-                disabled={!workspaceId}
-                onClick={() => {
-                  setDialog("project");
-                  setDialogValue("");
-                }}
-              >
-                <Icon name="plus" size={14} />
-              </button>
-            </div>
             {workspaceId ? (
-              <nav className="kx-nav" aria-label="Projects">
-                {navItem("All projects", "layers", !projectId, () =>
-                  chooseScope(workspaceId),
-                )}
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    className="kx-nav-item"
-                    aria-current={projectId === p.id ? "page" : undefined}
-                    onClick={() => chooseScope(workspaceId, p.id)}
-                    title={p.folder}
-                  >
-                    <Icon name="folder" />
-                    <span>{p.name}</span>
-                  </button>
-                ))}
-              </nav>
+              <CollectionTree
+                invoke={invoke}
+                workspaceId={workspaceId}
+                onShowSources={() =>
+                  action("open-content", { section: "sources", workspaceId })
+                }
+              />
             ) : (
               <p className="key-sidebar-hint">
-                Choose a workspace to see its projects and pages.
+                Choose a workspace to see its collections and pages.
               </p>
             )}
             <div className="key-sidebar-section">

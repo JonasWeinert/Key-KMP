@@ -953,6 +953,47 @@ else
           layout();
         } else home();
       });
+      ipcMain.handle("key:add-files", async (event, workspaceId, collectionId) => {
+        shell(event.sender.id);
+        const result = await dialog.showOpenDialog(window, {
+          title: "Add sources",
+          properties: ["openFile", "multiSelections"],
+          filters: [
+            {
+              name: "Sources",
+              extensions: ["pdf", "html", "htm", "txt", "md", "mp4", "mov", "m4v", "webm", "mp3", "m4a", "wav", "aac", "flac", "png", "jpg", "jpeg", "gif", "webp", "heic", "tif", "tiff"],
+            },
+            { name: "All files", extensions: ["*"] },
+          ],
+        });
+        if (result.canceled) return [];
+        const created = await registry.invoke(
+          "store_import_files",
+          { paths: result.filePaths, collectionId: collectionId ?? null },
+          workspaceId,
+        );
+        emit("library-changed");
+        return created;
+      });
+      ipcMain.handle("key:import-paths", async (event, workspaceId, paths, collectionId) => {
+        shell(event.sender.id);
+        const created = await registry.invoke(
+          "store_import_files",
+          { paths, collectionId: collectionId ?? null },
+          workspaceId,
+        );
+        emit("library-changed");
+        return created;
+      });
+      ipcMain.handle("key:open-path", async (event, path) => {
+        shell(event.sender.id);
+        const error = await systemShell.openPath(String(path));
+        if (error) throw Error(error);
+      });
+      ipcMain.handle("key:reveal-path", (event, path) => {
+        shell(event.sender.id);
+        systemShell.showItemInFolder(String(path));
+      });
       ipcMain.handle("key:import-zotero", async (event, options) => {
         shell(event.sender.id);
         return importZotero(options);
