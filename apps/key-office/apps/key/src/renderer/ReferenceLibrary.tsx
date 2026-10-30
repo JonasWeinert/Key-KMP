@@ -437,6 +437,10 @@ export default function ReferenceLibrary({
   const open = (source: Source) => {
     if (source.trashedAt) return;
     if (waitingToIndex(source)) prioritize([source.id], "opened");
+    onOpen(source);
+  };
+  /** The file or link itself, outside Key (videos, web pages, other files). */
+  const openExternal = (source: Source) => {
     if (source.filePath && source.kind === "pdf") onOpen(source);
     else if (source.filePath) void bridge().openPath(source.filePath).catch((e) => setError(String(e)));
     else if (source.url) window.open(source.url, "_blank");
@@ -862,7 +866,10 @@ export default function ReferenceLibrary({
             updateSource(source);
             if (source.collections.length !== inspector.collections.length || source.tags.join("\n") !== inspector.tags.join("\n")) libraryChanged();
           }}
-          onOpen={open}
+          onOpen={openExternal}
+          onOpenPage={(source) =>
+            void bridge().tabAction("open-source-page", { workspaceId, sourceId: source.id, title: source.title || "Untitled", read: false })
+          }
           onClose={() => setFocusId(undefined)}
           definitions={definitions}
           progress={jobProgress(activity, inspector.id)}

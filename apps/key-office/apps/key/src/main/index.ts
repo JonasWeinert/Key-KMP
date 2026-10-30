@@ -48,6 +48,7 @@ type OwnedView = {
     projectId?: string;
     record?: any;
     noteId?: string;
+    sourceId?: string;
   };
   contentKey?: string;
   returnViewId?: string;
@@ -323,7 +324,9 @@ function snapshot(w: ShellWindow) {
                 ? "library"
                 : views.get(id)?.content?.section === "note"
                   ? "note"
-                  : "records"
+                  : views.get(id)?.content?.section === "source"
+                    ? "page"
+                    : "records"
               : views.get(id)?.kind,
         content: views.get(id)?.content,
       })),
@@ -856,6 +859,53 @@ function moveTab(from: ShellWindow, tabId: string, to?: ShellWindow) {
   if (!from.state.tabs.length) from.window.close();
   else layout(from);
 }
+/** A source's page, opened on its own or (with `read`) beside its PDF in one split tab. */
+async function openSourcePage(
+  w: ShellWindow,
+  p: { workspaceId: string; sourceId: string; title?: string; read?: boolean; pdf?: any },
+) {
+  const key = JSON.stringify(["source", p.workspaceId, null, p.sourceId]);
+  let page = [...views.values()].find((v) => v.contentKey === key);
+  if (!page) {
+    page = {
+      id: randomUUID(),
+      kind: "home",
+      title: String(p.title || "Untitled").slice(0, 200),
+      workspaceId: p.workspaceId,
+      lastUsed: Date.now(),
+      contentKey: key,
+      content: { section: "source", workspaceId: p.workspaceId, sourceId: p.sourceId },
+    };
+    views.set(page.id, page);
+  }
+  if (!p.read || !p.pdf?.documentHash) {
+    if (shellOfView(page.id)) focus(page.id);
+    else add(page, w);
+    return;
+  }
+  await sourceOpen({ ...p.pdf, workspaceId: p.workspaceId }, undefined, undefined, w);
+  const pdfId = `pdf:${p.workspaceId}:${p.pdf.documentHash}`;
+  const host = shellOfView(pdfId) ?? w;
+  const pdfTab = host.state.tabs.find((t) => t.viewIds.includes(pdfId));
+  if (!pdfTab || pdfTab.viewIds.includes(page.id)) {
+    focus(pdfId);
+    return;
+  }
+  // The page leaves wherever it was and joins the reader: reader left, page right.
+  const owner = shellOfView(page.id);
+  if (owner) {
+    owner.state = closeWorkspaceView(owner.state, page.id);
+    if (owner !== host) layout(owner);
+  }
+  const tab = host.state.tabs.find((t) => t.viewIds.includes(pdfId))!;
+  if (tab.viewIds.length === 1) {
+    host.state = {
+      tabs: host.state.tabs.map((t) => (t.id === tab.id ? { ...t, viewIds: [pdfId, page!.id], activeViewId: pdfId, splitRatio: 0.6 } : t)),
+      activeTabId: tab.id,
+    };
+    layout(host);
+  } else add(page, host);
+}
 function windowLabel(w: ShellWindow, index: number) {
   const titles = w.state.tabs.map((t) => views.get(t.activeViewId)?.title ?? "Key");
   return `Window ${index + 2}: ${titles.slice(0, 3).join(", ")}${titles.length > 3 ? "…" : ""}`;
@@ -1122,6 +1172,11 @@ else
             ].includes(command)
           )
             emit("library-changed");
+          // Every view showing a note or a PDF's highlights stays in step with edits made elsewhere.
+          if (command === "store_note_save" || command === "store_note_delete")
+            emit("note-changed", { workspaceId: targetWorkspace, noteId: (result as any)?.id ?? args?.id, sourceId: (result as any)?.sourceId ?? args?.sourceId });
+          if (["library_apply_annotations", "library_save_annotations", "library_import_annotations"].includes(command))
+            emit("annotations-changed", { workspaceId: targetWorkspace });
           return result;
         },
       );
@@ -1237,6 +1292,32 @@ else
         const hit = v.searchResults[index];
         if (!hit) return;
         return sourceOpen(hit, hit, v.searchResults, shellOfView(v.id));
+      });
+      // The reader's Notes button: show or hide the source's page beside the PDF.
+      ipcMain.handle("key:reader-notes", async (event) => {
+        const v = bound(event.sender.id);
+        if (v?.kind !== "pdf" || !v.workspaceId) throw Error("Not a PDF reader");
+        const w = shellOfView(v.id) ?? focusedShell();
+        const tab = w.state.tabs.find((t) => t.viewIds.includes(v.id));
+        const besides = tab?.viewIds.find((id) => id !== v.id);
+        if (tab && besides && views.get(besides)?.content?.section === "source") {
+          w.state = separateWorkspaceTab(w.state, tab.id);
+          w.state = activateWorkspaceTab(w.state, w.state.tabs.find((t) => t.viewIds.includes(v.id))!.id);
+          layout(w);
+          return false;
+        }
+        const hash = v.source?.hash ?? v.id.split(":").at(-1);
+        const page = await registry.invoke<{ items: any[] }>("store_sources", { ids: [hash], limit: 1, scope: "all" }, v.workspaceId);
+        const source = page.items[0];
+        if (!source) throw Error("This PDF is not in the library");
+        await openSourcePage(w, {
+          workspaceId: v.workspaceId,
+          sourceId: source.id,
+          title: source.title,
+          read: true,
+          pdf: { documentHash: hash, documentId: hash, title: v.title, workspaceId: v.workspaceId },
+        });
+        return true;
       });
       // × in the reader's result bar: end the search session but keep the document.
       ipcMain.handle("key:reader-dismiss", (event) => {
@@ -1433,8 +1514,8 @@ else
           // A note's tab follows its title as it is edited.
           case "content-title": {
             const view = views.get(p.viewId);
-            if (view?.content?.section !== "note") throw Error("Not a note view");
-            view.title = String(p.title || "Untitled note").slice(0, 200);
+            if (view?.content?.section !== "note" && view?.content?.section !== "source") throw Error("Not a note or source page");
+            view.title = String(p.title || (view.content.section === "note" ? "Untitled note" : "Untitled")).slice(0, 200);
             tabsChanged(w);
             return snapshot(w);
           }
@@ -1519,6 +1600,10 @@ else
                 },
               })),
             ).popup({ window: w.window, x: Math.round(p.x), y: Math.round(p.y) });
+            return snapshot(w);
+          case "open-source-page":
+            if (!p.workspaceId || !p.sourceId) throw Error("Choose a source");
+            await openSourcePage(w, p);
             return snapshot(w);
           // Multiple windows: move a tab out to a new window or into another one.
           case "pop-out":

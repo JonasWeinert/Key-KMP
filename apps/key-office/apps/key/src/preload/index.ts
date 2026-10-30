@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("key", {
     ipcRenderer.invoke("key:tab-action", action, payload),
   readerBack: () => ipcRenderer.invoke("key:reader-back"),
   readerDismiss: () => ipcRenderer.invoke("key:reader-dismiss"),
+  readerNotes: () => ipcRenderer.invoke("key:reader-notes"),
   readerResult: (direction: number) =>
     ipcRenderer.invoke("key:reader-result", direction),
   readerReady: () => ipcRenderer.invoke("key:reader-ready"),
@@ -39,6 +40,8 @@ contextBridge.exposeInMainWorld("key", {
         "property-definitions-changed",
         "library-changed",
         "open-settings",
+        "note-changed",
+        "annotations-changed",
         "search-target",
         "search-navigation",
         "operation-error",

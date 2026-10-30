@@ -24,7 +24,7 @@ const COMMON_TAIL: FieldSpec[] = [
   ["doi", "DOI", "doi"],
   ["url", "URL", "url"],
 ];
-const FIELDS: Record<string, FieldSpec[]> = {
+export const FIELDS: Record<string, FieldSpec[]> = {
   article: [["containerTitle", "Journal"], ["year", "Year", "number"], ["volume", "Volume"], ["issue", "Issue"], ["pages", "Pages"], ...COMMON_TAIL, ["issn", "ISSN"], ["pmid", "PMID"]],
   "magazine-article": [["containerTitle", "Magazine"], ["date", "Date"], ["pages", "Pages"], ...COMMON_TAIL],
   "newspaper-article": [["containerTitle", "Newspaper"], ["date", "Date"], ["pages", "Pages"], ...COMMON_TAIL],
@@ -41,8 +41,8 @@ const FIELDS: Record<string, FieldSpec[]> = {
   dataset: [["publisher", "Repository"], ["year", "Year", "number"], ["genre", "Version"], ...COMMON_TAIL],
   software: [["publisher", "Company"], ["year", "Year", "number"], ["genre", "Version"], ["url", "URL", "url"]],
 };
-const DEFAULT_FIELDS: FieldSpec[] = [["containerTitle", "Published in"], ["publisher", "Publisher"], ["year", "Year", "number"], ...COMMON_TAIL];
-const MORE_FIELDS: FieldSpec[] = [
+export const DEFAULT_FIELDS: FieldSpec[] = [["containerTitle", "Published in"], ["publisher", "Publisher"], ["year", "Year", "number"], ...COMMON_TAIL];
+export const MORE_FIELDS: FieldSpec[] = [
   ["shortTitle", "Short title"],
   ["containerShort", "Journal abbr."],
   ["language", "Language"],
@@ -61,6 +61,7 @@ export default function SourceInspector({
   tagSuggestions,
   onChanged,
   onOpen,
+  onOpenPage,
   onClose,
   definitions,
   progress,
@@ -81,6 +82,8 @@ export default function SourceInspector({
   tagSuggestions: Facet[];
   onChanged: (source: Source) => void;
   onOpen: (source: Source) => void;
+  /** The source as a full page with its note (beside the PDF when reading). */
+  onOpenPage: (source: Source) => void;
   onClose: () => void;
 }) {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -140,6 +143,9 @@ export default function SourceInspector({
           </select>
         </span>
         <span className="kx-spacer" />
+        <button className="kx-icon-button" title="Open as page" aria-label="Open as page" onClick={() => onOpenPage(source)}>
+          <Icon name="doc" size={14} />
+        </button>
         <button className="kx-icon-button" data-active={source.starred} aria-pressed={source.starred} title={source.starred ? "Unstar" : "Star"} onClick={() => void save({ starred: !source.starred })}>
           <Icon name="star" size={15} fill={source.starred ? "currentColor" : "none"} />
         </button>
@@ -359,7 +365,7 @@ export function indexLabel(source: Source): { tone: string; label: string } {
 }
 
 /** A textarea that grows with its content and commits on blur. */
-function AutoText({ value, onCommit, className, placeholder, label }: { value: string; onCommit: (v: string) => void; className?: string; placeholder?: string; label: string }) {
+export function AutoText({ value, onCommit, className, placeholder, label }: { value: string; onCommit: (v: string) => void; className?: string; placeholder?: string; label: string }) {
   const [draft, setDraft] = useState(value);
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => setDraft(value), [value]);
@@ -393,7 +399,7 @@ function AutoText({ value, onCommit, className, placeholder, label }: { value: s
   );
 }
 
-function FieldRow({ label, value, kind, onCommit }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void }) {
+export function FieldRow({ label, value, kind, onCommit }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void }) {
   const text = value === undefined || value === null ? "" : String(value);
   const [draft, setDraft] = useState(text);
   useEffect(() => setDraft(text), [text]);
@@ -424,7 +430,7 @@ function FieldRow({ label, value, kind, onCommit }: { label: string; value?: str
   );
 }
 
-function Creators({ creators, onCommit }: { creators: Creator[]; onCommit: (c: Creator[]) => void }) {
+export function Creators({ creators, onCommit }: { creators: Creator[]; onCommit: (c: Creator[]) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(creators);
   useEffect(() => setDraft(creators), [creators]);
@@ -477,7 +483,7 @@ function Creators({ creators, onCommit }: { creators: Creator[]; onCommit: (c: C
   );
 }
 
-function TagEditor({ tags, suggestions, onCommit }: { tags: string[]; suggestions: Facet[]; onCommit: (t: string[]) => void }) {
+export function TagEditor({ tags, suggestions, onCommit }: { tags: string[]; suggestions: Facet[]; onCommit: (t: string[]) => void }) {
   const [draft, setDraft] = useState("");
   const listId = useMemo(() => `tags-${Math.random().toString(36).slice(2)}`, []);
   const add = () => {
@@ -521,7 +527,7 @@ function TagEditor({ tags, suggestions, onCommit }: { tags: string[]; suggestion
 }
 
 /** Defined properties with typed editors, then any free-form keys on this source. */
-function TypedProperties({
+export function TypedProperties({
   source,
   definitions,
   onCommit,

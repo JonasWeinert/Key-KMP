@@ -1,6 +1,7 @@
 import HomeView from "./HomeView";
 import { Button, Input, Textarea, Select } from "@key/design-system";
 import NotePage from "./NotePage";
+import SourcePage from "./SourcePage";
 import type { SearchPreviewState } from "./search-preview";
 import { EntryDetails } from "./EntryTools";
 import { RecordProperties } from "./RecordProperties";
@@ -207,11 +208,12 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "home" | "sources" | "records" | "record" | "note";
+  section: "home" | "sources" | "records" | "record" | "note" | "source";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
   noteId?: string;
+  sourceId?: string;
 }
 export default function WorkspaceContent({
   viewId,
@@ -691,6 +693,9 @@ export default function WorkspaceContent({
           />
         </section>
       )}
+      {section === "source" && workspaceId && spec.sourceId && (
+        <SourcePage invoke={invoke} workspaceId={workspaceId} sourceId={spec.sourceId} viewId={viewId} />
+      )}
       {section === "note" && workspaceId && spec.noteId && (
         <NotePage invoke={invoke} workspaceId={workspaceId} noteId={spec.noteId} viewId={viewId} />
       )}
@@ -708,17 +713,15 @@ export default function WorkspaceContent({
             workspaceId={library.id}
             workspaceName={library.name}
             refreshKey={refreshKey}
+            // A source opens as its page; a PDF opens beside its reader.
             onOpen={(source) =>
               void task(() =>
-                api().openSource({
-                  documentId: source.fileHash ?? source.id,
-                  documentHash: source.fileHash ?? source.id,
-                  title: source.title || "Untitled",
-                  status: "indexed",
-                  pageCount: source.pageCount ?? 0,
-                  completed: 0,
-                  total: 0,
+                api().tabAction("open-source-page", {
                   workspaceId: library.id,
+                  sourceId: source.id,
+                  title: source.title || "Untitled",
+                  read: !!source.filePath && source.kind === "pdf",
+                  pdf: { documentId: source.fileHash, documentHash: source.fileHash, title: source.title || "Untitled", pageCount: source.pageCount ?? 0, workspaceId: library.id },
                 }),
               )
             }

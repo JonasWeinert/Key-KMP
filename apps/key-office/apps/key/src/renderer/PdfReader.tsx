@@ -34,6 +34,7 @@ interface ReaderBridge {
   on(event: string, listener: (payload: unknown) => void): () => void;
   readerBack?(): void;
   readerDismiss?(): Promise<void>;
+  readerNotes?(): Promise<boolean>;
   readerResult?(direction: number): Promise<void>;
 }
 const bridge = () => (window as unknown as { key: ReaderBridge }).key;
@@ -215,6 +216,11 @@ export default function PdfReader() {
           >
             Comments{chrome?.commentCount ? ` ${chrome.commentCount}` : ""}
           </Button>
+          {bridge().readerNotes && (
+            <Button size="compact" variant="ghost" title="Show or hide this source's page and note beside the PDF" onClick={() => void bridge().readerNotes?.()}>
+              Notes
+            </Button>
+          )}
         </div>
       </header>
       {showSearch && (
