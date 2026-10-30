@@ -186,3 +186,64 @@ fn standalone_and_source_notes_stay_searchable() {
     store.delete_note(&attached.id).unwrap();
     assert_eq!(find("larval"), 0);
 }
+
+#[test]
+fn suggestions_become_filters_that_narrow_lists_and_search() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let thesis = store.create_collection("Thesis chapters", None, None).unwrap();
+    let a = store
+        .insert_source(input(json!({
+            "kind": "pdf", "title": "Health versus income", "year": 2022, "containerTitle": "PLoS ONE",
+            "creators": [{"given": "Mohamed", "family": "Ali"}, {"given": "Marco", "family": "Palma"}],
+            "tags": ["covid"], "properties": {"Status": "To read"}, "collections": [thesis.id]
+        })))
+        .unwrap();
+    let b = store
+        .insert_source(input(json!({
+            "kind": "reference", "title": "Malaria nets", "year": 2019, "containerTitle": "The Lancet",
+            "creators": [{"given": "Sara", "family": "Mohamedi"}], "tags": ["malaria"]
+        })))
+        .unwrap();
+    store.replace_chunks(&b.id, &[ChunkInput { page: Some(0), text: "Bed nets reduce transmission.".into(), ..Default::default() }]).unwrap();
+    store.save_property_definition("Status", &json!({"type": "select", "options": ["To read", "Read"]})).unwrap();
+
+    // Word starts match: "moh" finds both names, the exact first-word match first.
+    let people: Vec<_> = store
+        .suggest("moh", &ListQuery::default(), 6)
+        .unwrap()
+        .into_iter()
+        .filter(|s| s.filter.field == "creator")
+        .map(|s| (s.label, s.count))
+        .collect();
+    assert_eq!(people, vec![("Mohamed Ali".to_string(), 1), ("Sara Mohamedi".to_string(), 1)]);
+    // A later word in a name ("Ali"), a journal, a tag, a collection, a property value and a year.
+    let labels = |text: &str| store.suggest(text, &ListQuery::default(), 6).unwrap().into_iter().map(|s| (s.filter.field, s.label)).collect::<Vec<_>>();
+    assert!(labels("ali").contains(&("creator".into(), "Mohamed Ali".into())));
+    assert!(labels("lan").contains(&("container".into(), "The Lancet".into())));
+    assert!(labels("mal").contains(&("tag".into(), "malaria".into())));
+    assert!(labels("chap").contains(&("collection".into(), "Thesis chapters".into())));
+    assert!(labels("to r").contains(&("property".into(), "To read".into())));
+    assert_eq!(labels("2019"), vec![("year".to_string(), "2019".to_string())]);
+    assert!(labels("m").is_empty(), "one letter suggests nothing");
+
+    // Each filter narrows the list; several must all match; search respects them too.
+    let count = |filters: Vec<Filter>| store.list_sources(&ListQuery { filters, ..Default::default() }).unwrap().total;
+    let f = |field: &str, op: &str, value: &str| Filter { field: field.into(), op: Some(op.into()), value: value.into(), key: None };
+    assert_eq!(count(vec![f("creator", "is", "mohamed ali")]), 1);
+    assert_eq!(count(vec![f("creator", "contains", "moham")]), 2);
+    assert_eq!(count(vec![f("container", "contains", "lancet")]), 1);
+    assert_eq!(count(vec![f("tag", "is", "COVID")]), 1);
+    assert_eq!(count(vec![f("collection", "is", &thesis.id)]), 1);
+    assert_eq!(count(vec![f("year", "is", "2019")]), 1);
+    assert_eq!(count(vec![f("fulltext", "contains", "transmission")]), 1);
+    assert_eq!(count(vec![Filter { field: "property".into(), op: Some("is".into()), value: "to read".into(), key: Some("Status".into()) }]), 1);
+    assert_eq!(count(vec![f("creator", "contains", "moham"), f("year", "is", "2022")]), 1);
+    let found = store
+        .search(&SearchQuery { text: "nets".into(), filter: ListQuery { filters: vec![f("year", "is", "2022")], ..Default::default() }, ..Default::default() }, Some(&unit(0)))
+        .unwrap();
+    assert!(found.hits.iter().all(|h| h.source_id == a.id));
+    // Suggestion counts follow the current view.
+    let in_view = store.suggest("moh", &ListQuery { filters: vec![f("year", "is", "2019")], ..Default::default() }, 6).unwrap();
+    assert_eq!(in_view.iter().filter(|s| s.filter.field == "creator").map(|s| s.label.as_str()).collect::<Vec<_>>(), vec!["Sara Mohamedi"]);
+}

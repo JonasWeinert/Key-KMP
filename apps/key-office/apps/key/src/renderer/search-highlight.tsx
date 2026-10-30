@@ -30,6 +30,14 @@ export function queryPattern(query: string): RegExp | undefined {
   return new RegExp(`(?<![\\p{L}\\p{N}])(?:${terms.join("|")})(?![\\p{L}\\p{N}])`, "giu");
 }
 
+/** Only the typed part at the start of each word ("Alex" in "Alexandru"), as Mail's suggestions show it. */
+export function prefixPattern(query: string): RegExp | undefined {
+  const words = fold(query).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (!words.length) return undefined;
+  const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${words.map(escape).sort((a, b) => b.length - a.length).join("|")})`, "giu");
+}
+
 export function hasMatch(text: string | undefined, pattern?: RegExp) {
   if (!text || !pattern) return false;
   pattern.lastIndex = 0;

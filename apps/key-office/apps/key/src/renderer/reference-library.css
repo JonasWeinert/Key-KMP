@@ -1589,3 +1589,146 @@
 .kx-note-card-bar {
   padding-left: 22px;
 }
+
+/* Search field with filter tokens, and its suggestion menu (Apple Mail style). */
+.kx-library .kx-search[data-tokens="true"] {
+  width: clamp(300px, 44vw, 580px);
+}
+.kx-search-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px 34px 2px 29px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--kx-fill);
+  cursor: text;
+}
+.kx-search-field:focus-within {
+  border-color: var(--kx-accent);
+  background: var(--kx-bg);
+  box-shadow: 0 0 0 3px var(--kx-accent-soft);
+}
+.kx-search-field .kx-search-input,
+.kx-search-field .kx-search-input:focus {
+  flex: 1;
+  width: auto;
+  min-width: 90px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.kx-token {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  max-width: 240px;
+  height: 20px;
+  padding: 0 2px 0 6px;
+  border-radius: 5px;
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent);
+  font-size: 11.5px;
+  line-height: 1;
+}
+.kx-token-scope {
+  color: color-mix(in srgb, var(--kx-accent) 75%, var(--kx-text-2));
+  white-space: nowrap;
+}
+.kx-token-value {
+  overflow: hidden;
+  color: var(--kx-text);
+  font-weight: 550;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-token button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+}
+.kx-token button:hover {
+  background: color-mix(in srgb, var(--kx-accent) 18%, transparent);
+}
+.kx-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  width: max(100%, 360px);
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: 10px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+  animation: kx-pop 120ms var(--kx-ease);
+}
+.kx-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--kx-text-2);
+  font-size: 13px;
+  cursor: default;
+}
+.kx-suggest-item > svg {
+  flex: none;
+  color: var(--kx-text-3);
+}
+.kx-suggest-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* The typed part of a match reads in full colour, the rest in grey, as in Mail. */
+.kx-suggest-value {
+  color: var(--kx-text-2);
+}
+.kx-suggest-value mark {
+  background: none;
+  color: var(--kx-text);
+}
+.kx-suggest-scope + .kx-suggest-value,
+.kx-suggest-scope ~ .kx-suggest-value:only-of-type {
+  color: var(--kx-text);
+}
+.kx-suggest-scope {
+  color: var(--kx-text-2);
+}
+.kx-suggest-count {
+  flex: none;
+  color: var(--kx-text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.kx-suggest-item[aria-selected="true"],
+.kx-suggest-item[aria-selected="true"] :is(svg, .kx-suggest-value, .kx-suggest-value mark, .kx-suggest-scope, .kx-suggest-count) {
+  background: none;
+  color: var(--kx-accent-ink);
+}
+.kx-suggest-item[aria-selected="true"] {
+  background: var(--kx-accent);
+}
+.key-shell .kx-search-field .kx-search-input:focus-visible {
+  outline: none;
+}

@@ -1,8 +1,10 @@
 // Workspace library database. One SQLite file holds sources (fixed bibliographic
 // columns plus user JSON properties), collections, notes, annotations and the
 // chunked text that full-text and vector search run over.
+mod filters;
 mod properties;
 mod search;
+pub use filters::{Filter, Suggestion};
 pub use search::{SearchHit, SearchPassage, SearchQuery, SearchResult};
 
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter, types::Value};
@@ -176,6 +178,9 @@ pub struct ListQuery {
     /// Matches title, creators, container, abstract, tags, notes and identifiers.
     #[serde(default)]
     pub text: Option<String>,
+    /// Filters picked from search suggestions; all must match.
+    #[serde(default)]
+    pub filters: Vec<Filter>,
     #[serde(default)]
     pub year_from: Option<i64>,
     #[serde(default)]
@@ -581,32 +586,38 @@ impl Store {
     pub fn facets(&self, query: &ListQuery) -> Result<Facets> {
         let db = self.read()?;
         let (clause, values) = where_clause(query);
-        let facet = |sql: String| -> Result<Vec<Facet>> {
-            let mut statement = db.prepare(&sql).map_err(e)?;
-            let rows = statement
-                .query_map(params_from_iter(values.iter()), |r| {
-                    Ok(Facet { value: r.get::<_, Option<String>>(0)?.unwrap_or_default(), count: r.get(1)? })
-                })
-                .map_err(e)?
-                .collect::<std::result::Result<Vec<_>, _>>()
-                .map_err(e);
-            rows
-        };
-        Ok(Facets {
-            tags: facet(format!(
-                "SELECT t.value, count(*) FROM sources s, json_each(s.tags) t {clause} GROUP BY t.value ORDER BY count(*) DESC, t.value LIMIT 500"
-            ))?,
-            item_types: facet(format!(
-                "SELECT s.item_type, count(*) FROM sources s {clause} GROUP BY s.item_type ORDER BY count(*) DESC"
-            ))?,
-            kinds: facet(format!(
-                "SELECT s.kind, count(*) FROM sources s {clause} GROUP BY s.kind ORDER BY count(*) DESC"
-            ))?,
-            years: facet(format!(
-                "SELECT CAST(s.year AS TEXT), count(*) FROM sources s {clause} {} s.year IS NOT NULL GROUP BY s.year ORDER BY s.year DESC",
-                if clause.is_empty() { "WHERE" } else { "AND" }
-            ))?,
-        })
+        // The view is evaluated once; every facet is counted from it in a single pass.
+        let mut statement = db
+            .prepare(&format!(
+                "WITH v AS MATERIALIZED (SELECT s.tags, s.item_type, s.kind, s.year FROM sources s {clause})
+                 SELECT 'tag', t.value, count(*) FROM v, json_each(v.tags) t GROUP BY t.value
+                 UNION ALL SELECT 'type', item_type, count(*) FROM v GROUP BY item_type
+                 UNION ALL SELECT 'kind', kind, count(*) FROM v GROUP BY kind
+                 UNION ALL SELECT 'year', CAST(year AS TEXT), count(*) FROM v WHERE year IS NOT NULL GROUP BY year"
+            ))
+            .map_err(e)?;
+        let rows = statement
+            .query_map(params_from_iter(values.iter()), |r| {
+                Ok((r.get::<_, String>(0)?, Facet { value: r.get::<_, Option<String>>(1)?.unwrap_or_default(), count: r.get(2)? }))
+            })
+            .map_err(e)?;
+        let mut facets = Facets { tags: Vec::new(), item_types: Vec::new(), kinds: Vec::new(), years: Vec::new() };
+        for row in rows {
+            let (group, facet) = row.map_err(e)?;
+            match group.as_str() {
+                "tag" => facets.tags.push(facet),
+                "type" => facets.item_types.push(facet),
+                "kind" => facets.kinds.push(facet),
+                _ => facets.years.push(facet),
+            }
+        }
+        let by_count = |a: &Facet, b: &Facet| b.count.cmp(&a.count).then_with(|| a.value.cmp(&b.value));
+        facets.tags.sort_by(by_count);
+        facets.tags.truncate(500);
+        facets.item_types.sort_by(by_count);
+        facets.kinds.sort_by(by_count);
+        facets.years.sort_by(|a, b| b.value.cmp(&a.value));
+        Ok(facets)
     }
 
     // ── Collections ─────────────────────────────────────────
@@ -1290,6 +1301,10 @@ fn where_clause(query: &ListQuery) -> (String, Vec<Value>) {
     if let Some(phrase) = query.text.as_deref().and_then(fts_phrase) {
         conditions.push("s.rowid IN (SELECT rowid FROM sources_fts WHERE sources_fts MATCH ?)".into());
         values.push(Value::Text(phrase));
+    }
+    for (condition, bound) in query.filters.iter().filter_map(filters::condition) {
+        conditions.push(condition);
+        values.extend(bound);
     }
     (format!("WHERE {}", conditions.join(" AND ")), values)
 }

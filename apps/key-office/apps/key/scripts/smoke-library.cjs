@@ -114,7 +114,7 @@ const assert = require("node:assert/strict");
       if (i === 119) throw Error(`Indexing did not finish: ${JSON.stringify({ counts: status.counts, busy: status.busy, activity: status.activity })}`);
       await page.waitForTimeout(500);
     }
-    const search = page.getByRole("textbox", { name: "Search the library", exact: true });
+    const search = page.getByRole("combobox", { name: "Search the library", exact: true });
     await search.fill("Select this sentence");
     await search.press("Enter");
     await page.locator(".kx-passage").first().waitFor();
@@ -193,6 +193,22 @@ const assert = require("node:assert/strict");
     await search.press("Escape");
     await page.locator(".kx-tree-label", { hasText: "All sources" }).click();
     report.search = true;
+
+    // Suggestions turn into filter tokens: an author, picked with the keyboard, narrows the list;
+    // Backspace in the empty field removes it again.
+    await call("store_update", { id: created[0].id, patch: { creators: [{ given: "Marco", family: "Palma" }] } });
+    await search.click();
+    await search.pressSequentially("pal", { delay: 40 });
+    await page.locator(".kx-suggest-item", { hasText: "Marco Palma" }).waitFor();
+    assert.equal(await page.locator(".kx-suggest-item", { hasText: "Marco Palma" }).locator("mark").innerText(), "Pal", "only the typed part is highlighted");
+    await search.press("ArrowDown");
+    await search.press("Enter");
+    await page.locator(".kx-token", { hasText: "Author" }).filter({ hasText: "Marco Palma" }).waitFor();
+    await page.waitForFunction(() => document.querySelectorAll(".kx-row").length === 1);
+    await search.press("Backspace");
+    assert.equal(await page.locator(".kx-token").count(), 0);
+    await page.waitForFunction(() => document.querySelectorAll(".kx-row").length === 2);
+    report.tokens = true;
 
     // Trash with undo.
     await page.locator(".kx-row").first().click({ position: { x: 24, y: 20 } });

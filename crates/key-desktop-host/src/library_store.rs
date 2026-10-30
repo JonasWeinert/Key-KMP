@@ -137,6 +137,13 @@ impl Library {
                 json_output(self.store.save_note(id.as_deref(), source.as_deref(), &title.unwrap_or_default(), &body, None)?)
             })(),
             "store_note_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_note(&id)?)),
+            // Filters to offer while the user types, counted within the current view.
+            "store_suggest" => (|| {
+                let text: String = arg(args, "text")?;
+                let per_group: Option<usize> = arg(args, "perGroup")?;
+                let view: ListQuery = self.parse(args)?;
+                json_output(self.store.suggest(&text, &view, per_group.unwrap_or(5))?)
+            })(),
             "store_search" => self.parse::<SearchQuery>(args).and_then(|query| {
                 // One or two letters are still being typed; meaning needs a real word.
                 let letters = query.text.chars().filter(|c| c.is_alphanumeric()).count();

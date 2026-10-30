@@ -23,6 +23,7 @@ import {
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 import type { Creator } from "./citation";
 import { Highlight, Snippet, hasMatch, queryPattern } from "./search-highlight";
+import SearchField, { storeFilters, type SearchFilter } from "./search-suggest";
 import SourceInspector, { indexLabel } from "./SourceInspector";
 import {
   AgentFillSheet,
@@ -86,6 +87,8 @@ export default function ReferenceLibrary({
   const [sort, setSort] = useState("added");
   const [descending, setDescending] = useState(true);
   const [text, setText] = useState("");
+  // Filter tokens picked from search suggestions; they narrow the list and any search.
+  const [filters, setFilters] = useState<SearchFilter[]>([]);
   const [items, setItems] = useState<Source[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<SourcePage["counts"]>();
@@ -210,8 +213,8 @@ export default function ReferenceLibrary({
   }, [active, workspaceId]);
 
   const query = useMemo(
-    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, text: null, sort, descending }),
-    [collectionId, scope, kind, tag, sort, descending],
+    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, filters: storeFilters(filters), text: null, sort, descending }),
+    [collectionId, scope, kind, tag, filters, sort, descending],
   );
 
   const load = useCallback(
@@ -345,7 +348,7 @@ export default function ReferenceLibrary({
       try {
         const result = await invoke<SearchResult>(
           "store_search",
-          { text: value, collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, limit, passagesPerSource: 3 },
+          { text: value, collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, filters: storeFilters(filters), limit, passagesPerSource: 3 },
           workspaceId,
         );
         if (id === searchRequest.current) setSearch({ query: value, result, busy: false, limit });
@@ -355,7 +358,7 @@ export default function ReferenceLibrary({
           setSearch({ query: value, busy: false, limit, error: String(e).replace(/^Error: (Error invoking remote method '[^']+': )?(Error: )?/, "") });
       }
     },
-    [invoke, workspaceId, collectionId, scope, kind, tag],
+    [invoke, workspaceId, collectionId, scope, kind, tag, filters],
   );
   useEffect(() => {
     const value = text.trim();
@@ -549,45 +552,31 @@ export default function ReferenceLibrary({
             <h1>{title}</h1>
           </div>
           <div className="kx-page-actions">
-            <form
-              className="kx-search"
-              role="search"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <SearchField
+              invoke={invoke}
+              workspaceId={workspaceId}
+              view={{ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null }}
+              text={text}
+              onText={setText}
+              filters={filters}
+              onFilters={setFilters}
+              busy={search?.busy}
+              inputRef={searchInput}
+              onSubmit={() => {
                 const first = search?.result?.hits[0];
                 if (first) {
                   setSelected(new Set());
                   setFocusId(first.sourceId);
                 }
               }}
-            >
-              <Icon name="search" size={14} />
-              <input
-                ref={searchInput}
-                className="kx-search-input"
-                aria-label="Search the library"
-                placeholder="Search titles, authors, notes and full text"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.stopPropagation();
-                    setText("");
-                  } else if (e.key === "ArrowDown" && search?.result?.hits.length) {
-                    e.preventDefault();
-                    setSelected(new Set());
-                    setFocusId(search.result.hits[0].sourceId);
-                    document.querySelector<HTMLElement>(".kx-results")?.focus();
-                  }
-                }}
-              />
-              {search?.busy ? <span className="kx-search-spinner" aria-label="Searching" /> : !text && <kbd aria-hidden="true">⌘F</kbd>}
-              {text && (
-                <button type="button" className="kx-search-clear" aria-label="Clear search" onClick={() => setText("")}>
-                  <Icon name="close" size={10} />
-                </button>
-              )}
-            </form>
+              onArrowIntoResults={() => {
+                const first = search?.result?.hits[0]?.sourceId ?? items[0]?.id;
+                if (!first) return;
+                setSelected(new Set());
+                setFocusId(first);
+                document.querySelector<HTMLElement>(search ? ".kx-results" : ".kx-list")?.focus();
+              }}
+            />
             <AddMenu
               onFiles={() =>
                 void bridge()
@@ -723,7 +712,7 @@ export default function ReferenceLibrary({
         ) : (
           <div className="kx-list" ref={listRef} tabIndex={0} role="listbox" aria-label={`${title}, ${total} items`} aria-multiselectable>
             {!loading && !items.length ? (
-              <EmptyState scope={scope} filtered={!!(kind || tag)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />
+              <EmptyState scope={scope} filtered={!!(kind || tag || filters.length)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />
             ) : (
               <>
               {view === "table" && (

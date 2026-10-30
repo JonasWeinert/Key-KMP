@@ -14,4 +14,10 @@ fn main() {
     let started = Instant::now();
     let page = store.list_sources(&key_store::ListQuery { limit: Some(0), ..Default::default() }).unwrap();
     println!("status counts: {} in {:.0?}", page.counts.all, started.elapsed());
+    for typed in ["mo", "moh", "palma", "health", "2021", "covid"] {
+        let started = Instant::now();
+        let found = store.suggest(typed, &key_store::ListQuery::default(), 5).unwrap();
+        let shown: Vec<String> = found.iter().take(6).map(|s| format!("{}:{}({})", s.filter.field, s.label, s.count)).collect();
+        println!("suggest {typed:>7}: {} in {:.0?}  {}", found.len(), started.elapsed(), shown.join(", "));
+    }
 }
