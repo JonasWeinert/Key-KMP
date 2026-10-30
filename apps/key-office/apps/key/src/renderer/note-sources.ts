@@ -29,26 +29,25 @@ export function noteSources(invoke: Invoke, workspaceId: string) {
       const source = await load(id);
       return source && sourceRef(source);
     },
-    onOpenSource: (id: string, page?: number) => {
+    onOpenSource: (id: string, page?: number, annotationId?: string) => {
       void (async () => {
         const source = await load(id);
         if (!source) return;
         if (source.filePath && source.kind === "pdf") {
-          const chunk = page === undefined ? undefined : await invoke<string | null>("store_page_chunk", { sourceId: id, page }, workspaceId).catch(() => null);
-          const open = (window as unknown as { key: { openSource: OpenSource } }).key.openSource;
-          await open(
-            {
-              documentId: source.fileHash ?? source.id,
-              documentHash: source.fileHash ?? source.id,
-              title: source.title || "Untitled",
-              status: "indexed",
-              pageCount: source.pageCount ?? 0,
-              completed: 0,
-              total: 0,
-              workspaceId,
-            },
-            chunk ? { id: chunk, workspaceId } : undefined,
-          );
+          const documentHash = source.fileHash ?? source.id;
+          const key = (window as unknown as { key: { openSource: OpenSource; tabAction(action: string, payload?: unknown): Promise<unknown> } }).key;
+          await key.openSource({
+            documentId: documentHash,
+            documentHash,
+            title: source.title || "Untitled",
+            status: "indexed",
+            pageCount: source.pageCount ?? 0,
+            completed: 0,
+            total: 0,
+            workspaceId,
+          });
+          // A place in the PDF (a highlight or a quoted page): scroll there and light it up.
+          if (page !== undefined || annotationId) await key.tabAction("reader-focus", { workspaceId, documentHash, page, annotationId });
         } else if (source.filePath) await bridge().openPath(source.filePath);
         else if (source.url || source.doi) window.open(source.url || `https://doi.org/${source.doi}`, "_blank");
       })();

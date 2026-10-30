@@ -440,7 +440,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
                         <Icon name="quote" size={11} /> Quote in note
                       </button>
                       {isPdf && (
-                        <button onClick={() => sources.onOpenSource(sourceId, pageIndex)}>
+                        <button onClick={() => sources.onOpenSource(sourceId, pageIndex, h.id)}>
                           <Icon name="book" size={11} /> Show in PDF
                         </button>
                       )}

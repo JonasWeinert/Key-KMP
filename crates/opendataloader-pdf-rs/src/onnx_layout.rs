@@ -87,6 +87,10 @@ impl Engine {
         builder = builder
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .map_err(ort_error)?;
+        // Background callers (library indexing) cap the threads so the machine stays responsive.
+        if let Some(threads) = std::env::var("KEY_LAYOUT_THREADS").ok().and_then(|t| t.parse::<usize>().ok()).filter(|t| *t > 0) {
+            builder = builder.with_intra_threads(threads).map_err(ort_error)?;
+        }
         let session = builder
             .commit_from_file(path)
             .map_err(ort_error)

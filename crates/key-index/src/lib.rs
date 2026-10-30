@@ -8,7 +8,9 @@
 // user is working with goes first (opened in the reader, then selected, then on
 // screen); everything else follows files-before-references, newest first.
 mod chunk;
+mod layout;
 pub use chunk::{PageText, TextChar, chunk_pages};
+pub use layout::{Layout, LayoutBlock, LayoutSentence, chunk_layout};
 
 use key_embed::{Embedder, ModelDir};
 use key_store::{ChunkInput, Source, Store};
@@ -33,6 +35,11 @@ pub type Result<T> = std::result::Result<T, String>;
 /// `progress(done, total)` is called as pages are read.
 pub trait PdfText: Send + Sync + 'static {
     fn pages(&self, path: &Path, hash: &str, progress: &dyn Fn(usize, usize)) -> Result<Vec<PageText>>;
+    /// Layout analysis (blocks in reading order, Markdown), with the layout model when
+    /// `model` is set. `None` when the host has none; errors fall back to `pages`.
+    fn layout(&self, _path: &Path, _hash: &str, _model: bool) -> Result<Option<Layout>> {
+        Ok(None)
+    }
 }
 
 /// Why a source jumps the queue, strongest first.
@@ -120,6 +127,8 @@ pub struct Indexer {
     finished: Arc<Mutex<Vec<String>>>,
     live: Arc<Mutex<Live>>,
     priorities: Arc<Mutex<HashMap<String, (Priority, Instant)>>>,
+    /// Run the layout model during layout analysis (on by default).
+    layout_model: Arc<AtomicBool>,
 }
 
 impl Indexer {
@@ -134,6 +143,7 @@ impl Indexer {
             finished: Arc::default(),
             live: Arc::default(),
             priorities: Arc::default(),
+            layout_model: Arc::new(AtomicBool::new(true)),
         };
         let worker = indexer.clone();
         thread::Builder::new()
@@ -152,6 +162,13 @@ impl Indexer {
     pub fn set_paused(&self, paused: bool) {
         self.paused.store(paused, Ordering::SeqCst);
         self.wake();
+    }
+    /// Whether layout analysis uses the layout model; applies to sources analysed from now on.
+    pub fn set_layout_model(&self, enabled: bool) {
+        self.layout_model.store(enabled, Ordering::SeqCst);
+    }
+    pub fn layout_model(&self) -> bool {
+        self.layout_model.load(Ordering::SeqCst)
     }
     pub fn is_busy(&self) -> bool {
         self.busy.load(Ordering::SeqCst)
@@ -435,6 +452,7 @@ impl Indexer {
         self.set_reading(Some(job.clone()));
         let mut chunks = abstract_chunk(&source).into_iter().collect::<Vec<_>>();
         let mut status = "ready";
+        let mut analysis = None;
         if let Some(path) = source.file_path() {
             if !path.is_file() {
                 self.store.replace_chunks(id, &chunks)?;
@@ -446,27 +464,50 @@ impl Indexer {
             if source.file_hash() != Some(hash.as_str()) {
                 patch.insert("fileHash".into(), serde_json::Value::from(hash.clone()));
             }
-            let pages = match source.kind.as_str() {
-                "pdf" => pdf.pages(&path, &hash, &|done, total| {
-                    self.set_reading(Some(Job { stage: "reading".into(), done: done as u64, total: total as u64, ..job.clone() }))
-                })?,
-                "web" | "file" if is_text_like(&path, source.field("mime")) => vec![PageText::plain(read_text(&path)?)],
-                _ => Vec::new(),
+            // PDFs go through layout analysis (reading order, sections, no page furniture);
+            // plain PDF text is the fallback when it is unavailable or fails.
+            let mut analysed = None;
+            if source.kind == "pdf" {
+                self.set_reading(Some(Job { stage: "analysing".into(), ..job.clone() }));
+                match pdf.layout(&path, &hash, self.layout_model()) {
+                    Ok(layout) => analysed = layout,
+                    Err(error) => eprintln!("Key layout analysis for {id} fell back to PDF text: {error}"),
+                }
+            }
+            let (body, page_count, engine, markdown) = match analysed {
+                Some(layout) => {
+                    self.set_reading(Some(Job { stage: "chunking".into(), done: layout.page_count as u64, total: layout.page_count as u64, ..job.clone() }));
+                    (chunk_layout(&layout.blocks), layout.page_count, layout.engine, Some(layout.markdown))
+                }
+                None => {
+                    let pages = match source.kind.as_str() {
+                        "pdf" => pdf.pages(&path, &hash, &|done, total| {
+                            self.set_reading(Some(Job { stage: "reading".into(), done: done as u64, total: total as u64, ..job.clone() }))
+                        })?,
+                        "web" | "file" if is_text_like(&path, source.field("mime")) => vec![PageText::plain(read_text(&path)?)],
+                        _ => Vec::new(),
+                    };
+                    self.set_reading(Some(Job { stage: "chunking".into(), done: pages.len() as u64, total: pages.len() as u64, ..job.clone() }));
+                    let engine = if source.kind == "pdf" { "pdfium" } else { "text" };
+                    (chunk_pages(&pages), pages.len(), engine.to_string(), None)
+                }
             };
             if source.kind == "pdf" {
-                patch.insert("pageCount".into(), serde_json::Value::from(pages.len()));
+                patch.insert("pageCount".into(), serde_json::Value::from(page_count));
             }
             if !patch.is_empty() {
                 self.store.update_source(id, &patch)?;
             }
-            self.set_reading(Some(Job { stage: "chunking".into(), done: pages.len() as u64, total: pages.len() as u64, ..job.clone() }));
-            let body = chunk_pages(&pages);
             if body.is_empty() && matches!(source.kind.as_str(), "pdf" | "web") {
                 status = "no_text";
             }
             chunks.extend(body);
+            analysis = Some((engine, markdown, source.kind == "pdf"));
         }
         self.store.replace_chunks(id, &chunks)?;
+        if let Some((engine, markdown, references)) = analysis {
+            self.store.set_analysis(id, &engine, markdown.as_deref(), references && status == "ready")?;
+        }
         self.store.set_index_status(id, "indexing", None, 0, chunks.len() as i64)?;
         Ok(Some(Prepared { id: id.to_string(), title: source.title().to_string(), kind: source.kind.clone(), chunks, status }))
     }
@@ -570,6 +611,7 @@ mod tests {
             finished: Arc::default(),
             live: Arc::default(),
             priorities: Arc::default(),
+            layout_model: Arc::new(AtomicBool::new(true)),
         }
     }
 

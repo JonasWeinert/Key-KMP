@@ -100,6 +100,10 @@ function gutterPlugin(editor: Editor): Plugin {
         const firstLine = Math.min(lineHeight, blockRect.height / scale);
         hoverPos = pos;
         gutter.style.display = "flex";
+        // In a narrow gutter only the grip fits; "/" still inserts blocks.
+        plus.hidden = false;
+        const room = (blockRect.left - containerRect.left) / scale;
+        if (gutter.offsetWidth + 4 > room) plus.hidden = true;
         const gutterHeight = gutter.offsetHeight || 24;
         const top = (blockRect.top - containerRect.top) / scale + container.scrollTop + paddingTop + (firstLine - gutterHeight) / 2;
         gutter.style.top = `${Math.max(0, top)}px`;

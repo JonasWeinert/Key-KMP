@@ -1,9 +1,11 @@
 // Workspace library database. One SQLite file holds sources (fixed bibliographic
 // columns plus user JSON properties), collections, notes, annotations and the
 // chunked text that full-text and vector search run over.
+mod analysis;
 mod filters;
 mod properties;
 mod search;
+pub use analysis::{ReferenceInput, SourceAnalysis, SourceReference};
 pub use filters::{Filter, Suggestion};
 pub use search::{SearchHit, SearchPassage, SearchQuery, SearchResult};
 
@@ -22,6 +24,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/001_initial.sql"),
     include_str!("migrations/002_properties.sql"),
     include_str!("migrations/003_embedded.sql"),
+    include_str!("migrations/004_analysis.sql"),
 ];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
@@ -265,6 +268,9 @@ pub struct ChunkInput {
     pub text: String,
     pub rects: Vec<[u16; 4]>,
     pub embedding: Option<Vec<f32>>,
+    /// The layout block it came from (paragraph, list, table …) and the heading above it.
+    pub kind: Option<String>,
+    pub section: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -900,7 +906,7 @@ impl Store {
         tx.execute("DELETE FROM chunks WHERE source_id = ?", [source_id]).map_err(e)?;
         {
             let mut insert = tx
-                .prepare("INSERT INTO chunks(source_id, seq, page, start_seconds, text, rects, embedded) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
+                .prepare("INSERT INTO chunks(source_id, seq, page, start_seconds, text, rects, embedded, kind, section) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")
                 .map_err(e)?;
             let mut vector = tx
                 .prepare("INSERT INTO chunk_vectors(rowid, embedding) VALUES (?1, ?2)")
@@ -908,7 +914,7 @@ impl Store {
             for (seq, chunk) in chunks.iter().enumerate() {
                 let rects = (!chunk.rects.is_empty()).then(|| serde_json::to_string(&chunk.rects).unwrap_or_default());
                 insert
-                    .execute(params![source_id, seq as i64, chunk.page, chunk.start_seconds, chunk.text, rects, chunk.embedding.is_some()])
+                    .execute(params![source_id, seq as i64, chunk.page, chunk.start_seconds, chunk.text, rects, chunk.embedding.is_some(), chunk.kind, chunk.section])
                     .map_err(e)?;
                 if let Some(embedding) = &chunk.embedding {
                     vector

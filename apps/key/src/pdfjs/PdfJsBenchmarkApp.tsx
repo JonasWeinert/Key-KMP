@@ -3,6 +3,7 @@ import { managedSourceFor } from './reader-model';
 import {
   forwardRef,
   type ComponentPropsWithoutRef,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -1434,6 +1435,12 @@ interface PdfJsBenchmarkAppProps {
   onRequestControlMode?: (mode: 'search' | 'comments' | null) => void;
   /** When set, the selection toolbar sends the passage to the source's note instead of a comment. */
   onAddToNote?: (passage: { text: string; page: number; color?: string }) => void;
+  /** References kept by the host's library; when given they replace the reader's own analysis. */
+  references?: Array<{ number: number; page: number; xFraction?: number; yFraction?: number; text: string }>;
+  /** Shown at the top of the References panel (e.g. the library's analysis status). */
+  referencesHeader?: ReactNode;
+  /** Extra details under a reference (e.g. what it resolved to, a link into the library). */
+  referenceAside?: (reference: { number: number; page: number; text: string }) => ReactNode;
 }
 
 export type PdfReaderPanel = ReaderPanel;
@@ -1474,6 +1481,8 @@ export interface PdfReaderHandle {
   nextSearchResult(): void;
   activateSearchResult(index: number): void;
   activateComment(id: string): void;
+  /** Brings an annotation into view and lights it up briefly; `page` when it is not known. */
+  focusAnnotation(id: string | undefined, page?: number): void;
   closeSearch(): void;
   togglePanel(panel: PdfReaderPanel): void;
   closePanel(): void;
@@ -1498,6 +1507,9 @@ function PdfJsBenchmarkApp({
   initialControlState,
   onRequestControlMode,
   onAddToNote,
+  referencesHeader,
+  referenceAside,
+  references: libraryReferences,
 }: PdfJsBenchmarkAppProps = {}, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -2546,6 +2558,30 @@ function PdfJsBenchmarkApp({
         if (!annotation) return;
         void openAnnotationEditor(annotation);
       },
+      focusAnnotation: (id, fallbackPage) => {
+        const controller = controllerRef.current;
+        const overlay = overlayRef.current;
+        if (!controller) return;
+        const annotation = id ? annotations.find(a => a.id === id) : undefined;
+        const anchor = annotation?.anchor?.pages[0];
+        const page = anchor?.page ?? annotation?.range.start.page ?? fallbackPage;
+        if (page === undefined) return;
+        const bounds = anchor?.bounds ?? [];
+        // The whole highlight, so it can be centred.
+        const box = bounds.length
+          ? {
+              left: Math.min(...bounds.map(b => b.left)),
+              top: Math.min(...bounds.map(b => b.top)),
+              right: Math.max(...bounds.map(b => b.right)),
+              bottom: Math.max(...bounds.map(b => b.bottom)),
+            }
+          : undefined;
+        void controller.preparePage(page).then(() => {
+          controller.centerOnBounds(page, box);
+          if (!overlay || !annotation) return;
+          void overlay.ensurePage(page).then(() => overlay.flashAnnotation(annotation.id)).catch(() => {});
+        }).catch(error => setStatus(`Could not show the highlight: ${error}`));
+      },
       closeSearch: () => {
         setSearchQuery('');
         setActivePanel(current => (current === 'search' ? null : current));
@@ -2557,6 +2593,7 @@ function PdfJsBenchmarkApp({
     [
       activateSearch,
       activeSearchIndex,
+      annotations,
       comments,
       openAnnotationEditor,
       searchMatches,
@@ -2593,7 +2630,7 @@ function PdfJsBenchmarkApp({
       })),
       activeCommentId: activeAnnotation?.comment ? activeAnnotation.id : null,
       outlineCount: analysis?.document.toc.length ?? 0,
-      referenceCount: analysis?.references.length ?? 0,
+      referenceCount: libraryReferences?.length || analysis?.references.length || 0,
     });
   }, [
     activePanel,
@@ -3234,40 +3271,47 @@ function PdfJsBenchmarkApp({
         <PanelShell
           title="Paper references"
           detail={
-            analysis
-              ? `${analysis.references.length} references · processed in ${Math.round(analysis.processingMs)} ms`
-              : 'Analysing paper structure…'
+            libraryReferences?.length
+              ? `${libraryReferences.length} references`
+              : analysis
+                ? `${analysis.references.length} references · processed in ${Math.round(analysis.processingMs)} ms`
+                : libraryReferences
+                  ? 'From your library'
+                  : 'Analysing paper structure…'
           }
           icon="highlight"
           onClose={() => setActivePanel(null)}
           className="pdfjs-reader-panel references"
         >
-          {analysis?.references.length ? (
+          {referencesHeader}
+          {(libraryReferences?.length ? libraryReferences : analysis?.references)?.length ? (
             <div className="pdfjs-reference-list">
-              {analysis.references.map(reference => (
-                <button
-                  type="button"
-                  key={`${reference.number}-${reference.page}`}
-                  onClick={() =>
-                    controllerRef.current?.scrollToBounds(reference.page, {
-                      left: reference.xFraction ?? 0,
-                      right: reference.xFraction ?? 0,
-                      top: reference.yFraction ?? 0,
-                      bottom: reference.yFraction ?? 0,
-                    })
-                  }
-                >
-                  <strong>[{reference.number}]</strong>
-                  <p>{reference.text}</p>
-                  <small>Page {reference.page + 1}</small>
-                </button>
+              {(libraryReferences?.length ? libraryReferences : analysis!.references).map(reference => (
+                <div className="pdfjs-reference-item" key={`${reference.number}-${reference.page}`}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      controllerRef.current?.scrollToBounds(reference.page, {
+                        left: reference.xFraction ?? 0,
+                        right: reference.xFraction ?? 0,
+                        top: reference.yFraction ?? 0,
+                        bottom: reference.yFraction ?? 0,
+                      })
+                    }
+                  >
+                    <strong>[{reference.number}]</strong>
+                    <p>{reference.text}</p>
+                    <small>Page {reference.page + 1}</small>
+                  </button>
+                  {referenceAside?.(reference)}
+                </div>
               ))}
             </div>
-          ) : (
+          ) : (analysis || libraryReferences) && (
             <EmptyState
               icon="highlight"
               title="No references detected"
-              detail="The backend did not find a sufficiently reliable reference section."
+              detail="No reliable reference list was found in this PDF."
             />
           )}
         </PanelShell>

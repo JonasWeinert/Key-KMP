@@ -50,7 +50,7 @@ const assert = require("node:assert/strict");
     await page.getByRole("heading", { name: /^(All sources|Sources)$/ }).waitFor();
     await welcome.waitFor({ state: "detached" });
     const stored = JSON.parse(await readFile(path.join(temp, "profile", "app-settings.json"), "utf8"));
-    assert.deepEqual(stored, { theme: "dark", onboarded: true });
+    assert.deepEqual(stored, { theme: "dark", onboarded: true, layoutModel: true });
 
     // Settings: sidebar button, sections, pause indexing, appearance back to automatic.
     await page.locator(".key-sidebar").getByRole("button", { name: "Settings", exact: true }).click();

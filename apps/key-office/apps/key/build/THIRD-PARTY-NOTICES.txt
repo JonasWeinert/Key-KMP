@@ -27588,7 +27588,7 @@ SOFTWARE.
 2. Rust crates (Key PDF/search host and spreadsheet worker)
 ========================================================================
 
-607 crates, all under permissive terms:
+616 crates, all under permissive terms:
 
   adler2 2.0.1  —  0BSD OR MIT OR Apache-2.0
     https://github.com/oyvindln/adler2
@@ -27832,6 +27832,8 @@ SOFTWARE.
     https://github.com/knurling-rs/defmt
   der 0.7.10  —  Apache-2.0 OR MIT
     https://github.com/RustCrypto/formats/tree/master/der
+  der 0.8.1  —  Apache-2.0 OR MIT
+    https://github.com/RustCrypto/formats
   deranged 0.5.8  —  MIT OR Apache-2.0
     https://github.com/jhpratt/deranged
   derive_arbitrary 1.4.2  —  MIT OR Apache-2.0
@@ -27906,6 +27908,10 @@ SOFTWARE.
     https://github.com/servo/rust-fnv
   foldhash 0.2.0  —  Zlib
     https://github.com/orlp/foldhash
+  foreign-types 0.3.2  —  MIT/Apache-2.0
+    https://github.com/sfackler/foreign-types
+  foreign-types-shared 0.1.1  —  MIT/Apache-2.0
+    https://github.com/sfackler/foreign-types
   form_urlencoded 1.2.2  —  MIT OR Apache-2.0
     https://github.com/servo/rust-url
   franken-decision 0.3.10  —  LicenseRef-MIT-OpenAI-Anthropic-Rider
@@ -28166,6 +28172,8 @@ SOFTWARE.
     https://github.com/quickwit-inc/murmurhash32
   nanorand 0.7.0  —  Zlib
     https://github.com/Absolucy/nanorand-rs
+  native-tls 0.2.18  —  MIT OR Apache-2.0
+    https://github.com/rust-native-tls/rust-native-tls
   ndarray 0.17.2  —  MIT OR Apache-2.0
     https://github.com/rust-ndarray/ndarray
   new_debug_unreachable 1.0.6  —  MIT
@@ -28222,8 +28230,14 @@ SOFTWARE.
     https://github.com/rust-onig/rust-onig
   opendataloader-pdf 0.1.0  —  Apache-2.0
     https://crates.io/crates/opendataloader-pdf
+  openssl 0.10.81  —  Apache-2.0
+    https://github.com/rust-openssl/rust-openssl
+  openssl-macros 0.1.1  —  MIT/Apache-2.0
+    https://crates.io/crates/openssl-macros
   openssl-probe 0.2.1  —  MIT OR Apache-2.0
     https://github.com/rustls/openssl-probe
+  openssl-sys 0.9.117  —  MIT
+    https://github.com/rust-openssl/rust-openssl
   ordered-float 5.5.0  —  MIT
     https://github.com/reem/rust-ordered-float
   ort 2.0.0-rc.12  —  MIT OR Apache-2.0
@@ -28252,6 +28266,8 @@ SOFTWARE.
     https://github.com/ajrcarey/pdfium-render
   pem-rfc7468 0.7.0  —  Apache-2.0 OR MIT
     https://github.com/RustCrypto/formats/tree/master/pem-rfc7468
+  pem-rfc7468 1.0.0  —  Apache-2.0 OR MIT
+    https://github.com/RustCrypto/formats
   percent-encoding 2.3.2  —  MIT OR Apache-2.0
     https://github.com/servo/rust-url/
   phf 0.12.1  —  MIT
@@ -28656,6 +28672,8 @@ SOFTWARE.
     https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys
   web-time 1.1.0  —  MIT OR Apache-2.0
     https://github.com/daxpedda/web-time
+  webpki-root-certs 1.0.9  —  CDLA-Permissive-2.0
+    https://github.com/rustls/webpki-roots
   webpki-roots 1.0.9  —  CDLA-Permissive-2.0
     https://github.com/rustls/webpki-roots
   weezl 0.1.12  —  MIT OR Apache-2.0
@@ -31137,6 +31155,23 @@ information.
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
 
+[first seen in openssl]
+Copyright 2011-2017 Google Inc.
+          2013 Jack Lloyd
+          2013-2014 Steven Fackler
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
 [first seen in pdfium-render]
 Upstream `pdfium-render` is licensed under either of
 
@@ -32628,7 +32663,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-[first seen in webpki-roots]
+[first seen in webpki-root-certs]
 # Community Data License Agreement - Permissive - Version 2.0
 
 This is the Community Data License Agreement - Permissive, Version

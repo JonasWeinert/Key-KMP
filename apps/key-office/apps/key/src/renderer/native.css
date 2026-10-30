@@ -242,7 +242,7 @@ body {
 .key-sidebar-slot {
   position: relative;
   flex: none;
-  width: 240px;
+  width: var(--kx-sidebar-width, 240px);
   overflow: hidden;
   background: var(--kx-sidebar-tint);
   transition: width 220ms var(--kx-ease);
@@ -253,10 +253,26 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 .key-sidebar-slot.collapsed {
   width: 0;
 }
+.key-sidebar-slot[data-resizing] {
+  transition: none;
+  cursor: col-resize;
+}
+/* Drag handle on the sidebar's trailing edge (App.tsx clamps the width to 180–360px). */
+.kx-sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
 .key-sidebar.key-ui-root {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 240px;
+  width: var(--kx-sidebar-width, 240px);
   display: flex;
   flex-direction: column;
   padding: 0 10px 10px;
@@ -366,7 +382,14 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   font-weight: 600;
   letter-spacing: 0.01em;
 }
+.key-sidebar-section > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .key-sidebar-section > button {
+  flex: none;
   display: grid;
   place-items: center;
   width: 22px;
@@ -418,7 +441,13 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   text-align: left;
   cursor: default;
 }
+.key-create-menu > button {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .key-create-menu > button svg {
+  flex: none;
   color: var(--kx-text-2);
 }
 .key-create-menu > button:hover {
@@ -448,6 +477,15 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   padding: 4px 8px 0;
   color: var(--kx-text-3);
   font-size: 11px;
+}
+.key-sidebar-footer > small > svg {
+  flex: none;
+}
+.key-sidebar-footer > small > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* Workspace switcher */
@@ -484,6 +522,7 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   text-align: left;
 }
 .key-workspace-trigger > span:last-child {
+  flex: none;
   color: var(--kx-text-3);
   display: grid;
 }
@@ -1288,12 +1327,14 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
   color: var(--kx-text);
   font-weight: 550;
   font-variant-numeric: tabular-nums;
 }
 .kx-model-pill > span > svg {
+  flex: none;
   color: var(--kx-accent);
 }
 .kx-model-pill em {
@@ -3437,11 +3478,13 @@ html.kx-modal-open :is(.tab-bar, .tab-strip, .kx-sidebar-titlebar) {
   font-weight: 500;
 }
 .kx-tree-label > small {
+  flex: none;
   color: var(--kx-text-3);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 .kx-tree-actions {
+  flex: none;
   display: none;
   gap: 1px;
 }
@@ -4164,6 +4207,7 @@ button.kx-note-source:hover {
   color: var(--kx-text);
   font: 700 34px/1.2 var(--kx-font-display);
   letter-spacing: -0.02em;
+  text-overflow: ellipsis;
 }
 .kx-note-page .kx-note-page-inner .kx-note-title:focus,
 .kx-note-page .kx-note-page-inner .kx-note-title:focus-visible {
@@ -4185,8 +4229,21 @@ button.kx-note-source:hover {
   color: var(--kx-text-2);
   text-align: center;
 }
-@media (max-width: 760px) {
+/* Sized by the pane, not the window: a note in a split is often narrow. */
+@container (max-width: 760px) {
   .kx-note-page-inner {
-    padding: 20px 28px 120px;
+    padding: 20px 28px 120px 12px;
+  }
+}
+/* A narrow pane keeps a slim gutter that fits the drag grip alone (blockGutter.ts hides "+"). */
+@container (max-width: 560px) {
+  .kx-note-page-inner {
+    padding: 16px 16px 120px 4px;
+  }
+  .kx-note-page :is(.ne-root, .kx-note-title) {
+    --ne-gutter: 26px;
+  }
+  .kx-note-page .kx-note-title {
+    font-size: 26px;
   }
 }

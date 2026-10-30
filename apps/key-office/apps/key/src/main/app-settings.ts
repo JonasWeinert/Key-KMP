@@ -10,8 +10,10 @@ export type Theme = 'system' | 'light' | 'dark'
 export interface AppSettings {
   theme: Theme
   onboarded: boolean
+  /** Run the layout model when analysing PDFs (better reading order, tables, headings). */
+  layoutModel: boolean
 }
-const DEFAULTS: AppSettings = { theme: 'system', onboarded: false }
+const DEFAULTS: AppSettings = { theme: 'system', onboarded: false, layoutModel: true }
 
 export class AppSettingsStore {
   private value: AppSettings = { ...DEFAULTS }
@@ -45,12 +47,15 @@ function sanitize(input: AppSettings): AppSettings {
   return {
     theme: (['system', 'light', 'dark'] as const).includes(input.theme) ? input.theme : 'system',
     onboarded: input.onboarded === true,
+    layoutModel: input.layoutModel !== false,
   }
 }
 
 // Every view (shell, readers, office editors) follows prefers-color-scheme, which this sets.
+// Library hosts read the layout setting from the environment when they start.
 function apply(settings: AppSettings) {
   nativeTheme.themeSource = settings.theme
+  process.env.KEY_LAYOUT_MODEL_ENABLED = settings.layoutModel ? '1' : '0'
 }
 
 /** Versions, data locations and whether a Zotero library is present on this Mac. */

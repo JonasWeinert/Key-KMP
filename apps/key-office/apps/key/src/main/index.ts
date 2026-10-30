@@ -59,6 +59,8 @@ type OwnedView = {
   path?: string;
   source?: any;
   searchTarget?: any;
+  /** Where the reader should go once it is ready: a page, and the annotation to light up. */
+  pendingFocus?: { page?: number; annotationId?: string };
   searchResults?: {
     id: string;
     documentHash: string;
@@ -1011,6 +1013,8 @@ else
       );
       appSettings = new AppSettingsStore(join(app.getPath("userData"), "app-settings.json"));
       await appSettings.load();
+      // The bundled layout model, for packaged builds (development finds it in the crate).
+      if (app.isPackaged) process.env.KEY_LAYOUT_MODEL ??= join(process.resourcesPath, "models/layout/model_fp16.onnx");
       await registry.list();
       const first = createShell({ load: false });
       configureOfficeEditors(first.window, {
@@ -1189,9 +1193,15 @@ else
         if (process.env.KEY_SKIP_ONBOARDING) settings.onboarded = true;
         return { settings, info: await appInfo(workspaceParent) };
       });
-      ipcMain.handle("key:set-app-settings", (event, patch) => {
+      ipcMain.handle("key:set-app-settings", async (event, patch) => {
         shell(event.sender.id);
-        return appSettings.update(patch ?? {});
+        const before = appSettings.get();
+        const next = await appSettings.update(patch ?? {});
+        // Running library hosts pick up the layout setting at once.
+        if (before.layoutModel !== next.layoutModel)
+          for (const workspace of await registry.list())
+            void registry.invoke("store_analysis_options", { layoutModel: next.layoutModel }, workspace.id).catch(() => {});
+        return next;
       });
       ipcMain.handle("key:workspaces", (event) => {
         shell(event.sender.id);
@@ -1344,6 +1354,30 @@ else
         });
         emit("note-append", { sourceId: source.id });
       });
+      // The References panel: how this PDF was analysed, its references and what they
+      // link to; Re-run analyses it again; a linked reference opens beside the reader.
+      const readerSource = async (sender: number) => {
+        const v = bound(sender);
+        if (v?.kind !== "pdf" || !v.workspaceId) throw Error("Not a PDF reader");
+        const hash = v.source?.hash ?? v.id.split(":").at(-1);
+        const found = await registry.invoke<{ items: any[] }>("store_sources", { ids: [hash], limit: 1, scope: "all" }, v.workspaceId);
+        return { v, source: found.items[0] as { id: string; title?: string } | undefined };
+      };
+      ipcMain.handle("key:reader-analysis", async (event) => {
+        const { v, source } = await readerSource(event.sender.id);
+        if (!source) return null;
+        return registry.invoke("store_analysis", { id: source.id }, v.workspaceId);
+      });
+      ipcMain.handle("key:reader-reanalyze", async (event) => {
+        const { v, source } = await readerSource(event.sender.id);
+        if (!source) throw Error("This PDF is not in the library");
+        await registry.invoke("store_reanalyze", { id: source.id }, v.workspaceId);
+      });
+      ipcMain.handle("key:reader-open-source", async (event, sourceId: string) => {
+        const v = bound(event.sender.id);
+        if (v?.kind !== "pdf" || !v.workspaceId) throw Error("Not a PDF reader");
+        await openSourcePage(shellOfView(v.id) ?? focusedShell(), { workspaceId: v.workspaceId, sourceId: String(sourceId) });
+      });
       // × in the reader's result bar: end the search session but keep the document.
       ipcMain.handle("key:reader-dismiss", (event) => {
         const v = bound(event.sender.id);
@@ -1357,7 +1391,10 @@ else
         if (v?.kind !== "pdf") throw Error("Not a PDF reader");
         const tab = shellOfView(v.id)?.state.tabs.find((t) => t.viewIds.includes(v.id));
         const besides = tab?.viewIds.find((id) => id !== v.id);
+        const focus = v.pendingFocus;
+        v.pendingFocus = undefined;
         return {
+          focus,
           notesOpen: !!besides && views.get(besides)?.content?.section === "source",
           source: v.source,
           viewState: v.viewState,
@@ -1633,6 +1670,15 @@ else
             const queued = pendingAppends.get(String(p.sourceId)) ?? [];
             pendingAppends.delete(String(p.sourceId));
             return queued;
+          }
+          // "Show in PDF" on a highlight or quote: no search session, just go there.
+          case "reader-focus": {
+            const v = views.get(`pdf:${p.workspaceId}:${p.documentHash}`);
+            if (v?.kind !== "pdf") throw Error("The PDF is not open");
+            const target = { page: typeof p.page === "number" ? p.page : undefined, annotationId: p.annotationId ? String(p.annotationId) : undefined };
+            v.pendingFocus = target;
+            v.view?.webContents.send("reader-focus", target);
+            return snapshot(w);
           }
           case "open-source-page":
             if (!p.workspaceId || !p.sourceId) throw Error("Choose a source");

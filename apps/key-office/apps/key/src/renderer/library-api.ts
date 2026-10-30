@@ -142,6 +142,7 @@ export type Theme = "system" | "light" | "dark";
 export interface AppSettings {
   theme: Theme;
   onboarded: boolean;
+  layoutModel: boolean;
 }
 export interface AppInfo {
   version: string;

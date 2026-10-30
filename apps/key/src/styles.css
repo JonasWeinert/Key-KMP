@@ -2011,6 +2011,19 @@ button { color: inherit; }
 .pdfjs-highlight.color-purple,
 .pdfjs-color-button.color-purple,
 .pdfjs-comment-swatch.color-purple { --annotation-color: 164 110 244; }
+/* "Show in PDF": the highlight glows twice so the eye finds it. */
+.pdfjs-highlight.flash {
+  animation: pdfjs-highlight-flash 900ms ease-in-out 2;
+}
+@keyframes pdfjs-highlight-flash {
+  50% {
+    background: rgb(var(--annotation-color) / 85%);
+    box-shadow: 0 0 0 3px rgb(var(--annotation-color) / 45%), 0 0 18px 4px rgb(var(--annotation-color) / 55%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdfjs-highlight.flash { animation: none; outline: 2px solid rgb(var(--annotation-color)); }
+}
 .pdfjs-highlight.has-comment {
   box-shadow: inset 0 -2px rgb(var(--annotation-color) / 90%);
 }
@@ -2825,7 +2838,7 @@ button { color: inherit; }
    look like a stack of cards. */
 .pdfjs-result-list > button,
 .pdfjs-outline-list > button,
-.pdfjs-reference-list > button,
+.pdfjs-reference-item > button,
 .pdfjs-comment-list > button {
   width: 100%;
   border: 0;
@@ -2838,13 +2851,13 @@ button { color: inherit; }
 }
 
 .pdfjs-result-list > button,
-.pdfjs-reference-list > button {
+.pdfjs-reference-item > button {
   padding: 9px 10px;
 }
 
 .pdfjs-result-list > button:hover,
 .pdfjs-outline-list > button:hover,
-.pdfjs-reference-list > button:hover,
+.pdfjs-reference-item > button:hover,
 .pdfjs-comment-list > button:hover {
   background: var(--key-hover);
 }
@@ -2899,7 +2912,7 @@ button { color: inherit; }
   font-variant-numeric: tabular-nums;
 }
 
-.pdfjs-reference-list > button {
+.pdfjs-reference-item > button {
   position: relative;
 }
 

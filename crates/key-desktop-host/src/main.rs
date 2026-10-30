@@ -1,11 +1,13 @@
 mod backend;
 mod ipc;
+mod layout_helper;
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 fn main() {
-    if let Some(code) = backend::maybe_run_interactive_helper()
+    if let Some(code) = layout_helper::maybe_run_layout_helper()
+        .or_else(backend::maybe_run_interactive_helper)
         .or_else(backend::maybe_run_semantic_helper)
         .or_else(backend::maybe_run_preprocess_helper)
     {

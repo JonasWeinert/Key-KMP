@@ -64,7 +64,7 @@ export default function Settings({
           <div className="kx-settings-scroll">
             {section === "general" && <General settings={settings} onSettings={onSettings} onShowWelcome={onShowWelcome} />}
             {section === "libraries" && <Libraries invoke={invoke} workspaces={workspaces} info={info} onOpenLibrary={onOpenLibrary} onChanged={onWorkspacesChanged} />}
-            {section === "search" && <SearchSettings invoke={invoke} workspaces={workspaces} info={info} />}
+            {section === "search" && <SearchSettings invoke={invoke} workspaces={workspaces} info={info} settings={settings} onSettings={onSettings} />}
             {section === "ai" && <AiSettings invoke={invoke} workspaceId={workspaces[0]?.id} />}
             {section === "about" && <About info={info} />}
           </div>
@@ -224,7 +224,19 @@ function Libraries({
   );
 }
 
-function SearchSettings({ invoke, workspaces, info }: { invoke: Invoke; workspaces: WorkspaceSummary[]; info: AppInfo }) {
+function SearchSettings({
+  invoke,
+  workspaces,
+  info,
+  settings,
+  onSettings,
+}: {
+  invoke: Invoke;
+  workspaces: WorkspaceSummary[];
+  info: AppInfo;
+  settings: AppSettings;
+  onSettings: (patch: Partial<AppSettings>) => void;
+}) {
   const [workspaceId, setWorkspaceId] = useState(workspaces[0]?.id);
   const status = useLibraryStatus(invoke, workspaceId);
   const model = useModelProgress(invoke, workspaceId);
@@ -237,6 +249,14 @@ function SearchSettings({ invoke, workspaces, info }: { invoke: Invoke; workspac
     setPausing(value);
     void invoke("store_index_control", { action: value ? "pause" : "resume" }, workspaceId);
   };
+  // PDFs read before the current analysis (or with the other layout setting).
+  const [outdated, setOutdated] = useState<number>();
+  useEffect(() => {
+    void invoke<{ outdated: number }>("store_analysis_options", {}, workspaceId)
+      .then((o) => setOutdated(o.outdated))
+      .catch(() => setOutdated(undefined));
+  }, [invoke, workspaceId, settings.layoutModel]);
+  const references = (status as { references?: { title?: string; stage: string; done: number; total: number } | null } | undefined)?.references;
   const accelerator = (status?.model as { accelerator?: string } | undefined)?.accelerator;
   const counts = status?.counts;
   const failed = counts?.attention ?? 0;
@@ -306,6 +326,14 @@ function SearchSettings({ invoke, workspaces, info }: { invoke: Invoke; workspac
             />
           </div>
         )}
+        {references && (
+          <Row
+            label={references.stage === "detecting" ? "Finding references" : "Looking up references"}
+            detail={`${references.title || "Untitled"}${references.total ? ` · ${references.done} of ${references.total}` : ""}`}
+          >
+            <span className="kx-search-spinner" aria-hidden="true" />
+          </Row>
+        )}
         <Row label="Pause indexing" detail="Stops reading and indexing until you resume. Search keeps working.">
           <input
             type="checkbox"
@@ -325,6 +353,42 @@ function SearchSettings({ invoke, workspaces, info }: { invoke: Invoke; workspac
             }}
           >
             Retry
+          </button>
+        </Row>
+      </Group>
+      <Group
+        title="Document analysis"
+        footer="Each PDF is read with layout analysis: reading order, headings, tables and columns, without running headers and page numbers. Its references are then found and looked up, and linked to sources already in your library."
+      >
+        <Row label="Use the layout model" detail="PP-DocLayout, on this Mac. Recognises complex layouts more reliably; takes about a second per page.">
+          <input
+            type="checkbox"
+            className="kx-switch"
+            aria-label="Use the layout model"
+            checked={settings.layoutModel}
+            onChange={(e) => onSettings({ layoutModel: e.target.checked })}
+          />
+        </Row>
+        <Row
+          label="Analyse PDFs again"
+          detail={
+            outdated === undefined
+              ? "Reads PDFs again with the current settings."
+              : outdated
+                ? `${outdated.toLocaleString()} ${outdated === 1 ? "PDF was" : "PDFs were"} read without the current analysis.`
+                : "Every PDF uses the current analysis."
+          }
+        >
+          <button
+            className="kx-settings-button"
+            disabled={!outdated}
+            onClick={async () => {
+              const result = await invoke<{ outdated: number }>("store_analysis_options", { reanalyzeOutdated: true }, workspaceId);
+              setMessage(`Queued ${outdated?.toLocaleString()} PDFs for analysis.`);
+              setOutdated(result.outdated);
+            }}
+          >
+            Analyse
           </button>
         </Row>
       </Group>

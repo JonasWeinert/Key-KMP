@@ -17,6 +17,7 @@ use std::{
 pub struct Library {
     pub store: Store,
     pub indexer: Indexer,
+    pub references: super::reference_worker::ReferenceWorker,
 }
 
 struct HostPdfText(NativePdfService);
@@ -45,6 +46,9 @@ impl PdfText for HostPdfText {
         let _ = self.0.request(|reply| Request::Close { id, reply });
         result.map(|()| pages)
     }
+    fn layout(&self, path: &Path, _hash: &str, model: bool) -> Result<Option<key_index::Layout>, String> {
+        crate::layout_helper::analyze(path, model).map(Some)
+    }
 }
 
 fn page_text(page: usize, text: TextPageDto) -> PageText {
@@ -59,10 +63,13 @@ fn page_text(page: usize, text: TextPageDto) -> PageText {
 }
 
 impl Library {
-    pub fn open(root: &Path, native: NativePdfService) -> Result<Self, String> {
+    pub fn open(root: &Path, native: NativePdfService, cache: key_library::Library) -> Result<Self, String> {
         let store = Store::open(root)?;
-        let indexer = Indexer::start(store.clone(), key_embed::ModelDir::from_env(), std::sync::Arc::new(HostPdfText(native)));
-        Ok(Self { store, indexer })
+        let indexer = Indexer::start(store.clone(), key_embed::ModelDir::from_env(), std::sync::Arc::new(HostPdfText(native.clone())));
+        // The app turns the layout model off through the environment (Settings).
+        indexer.set_layout_model(std::env::var("KEY_LAYOUT_MODEL_ENABLED").map_or(true, |v| v != "0"));
+        let references = super::reference_worker::ReferenceWorker::start(store.clone(), native, cache);
+        Ok(Self { store, indexer, references })
     }
 
     /// A key-store source the reader knows by content hash (or id, before hashing).
@@ -157,6 +164,7 @@ impl Library {
                     "model": self.indexer.model_status(),
                     "busy": self.indexer.is_busy(),
                     "activity": self.indexer.activity(),
+                    "references": self.store.references_activity()?,
                     "vectors": self.store.vector_count()?,
                     "counts": counts,
                 }))
@@ -213,6 +221,33 @@ impl Library {
                 let source = self.attach_file(&id, &path, root)?;
                 self.indexer.wake();
                 json_output(source)
+            })(),
+            // Document analysis: how a source was read, its Markdown and its bibliography.
+            "store_analysis" => arg::<String>(args, "id").and_then(|id| {
+                json_output(json!({
+                    "analysis": self.store.analysis(&id)?,
+                    "references": self.store.references(&id)?,
+                    "layoutModel": self.indexer.layout_model(),
+                    "indexStatus": self.store.source(&id)?.map(|s| s.index_status),
+                }))
+            }),
+            "store_markdown" => arg::<String>(args, "id").and_then(|id| json_output(self.store.markdown(&id)?)),
+            "store_reanalyze" => arg::<String>(args, "id").and_then(|id| {
+                self.store.reanalyze(&id)?;
+                self.indexer.prioritize(std::slice::from_ref(&id), key_index::Priority::Opened);
+                self.references.focus(&id);
+                json_output(true)
+            }),
+            "store_analysis_options" => (|| {
+                if let Some(model) = arg::<Option<bool>>(args, "layoutModel")? {
+                    self.indexer.set_layout_model(model);
+                }
+                let engine = if self.indexer.layout_model() { "layout-onnx" } else { "layout" };
+                if arg::<Option<bool>>(args, "reanalyzeOutdated")?.unwrap_or(false) {
+                    self.store.reanalyze_outdated(engine)?;
+                    self.indexer.wake();
+                }
+                json_output(json!({ "layoutModel": self.indexer.layout_model(), "outdated": self.store.outdated_analyses(engine)? }))
             })(),
             "store_provenance" => arg::<String>(args, "id").and_then(|id| json_output(self.store.property_provenance(&id)?)),
             _ => return None,
@@ -457,6 +492,9 @@ impl Library {
         legacy: key_library::Library,
     ) -> Option<Result<super::CompanionSnapshotDto, String>> {
         let (source, path) = self.reader_source(hash)?;
+        // An open document's analysis goes first.
+        self.indexer.prioritize(std::slice::from_ref(&source.id), key_index::Priority::Opened);
+        self.references.focus(&source.id);
         Some((|| {
             if let Ok(snapshot) = companions.storage.snapshot(hash) {
                 companions.reader_ids.lock().map_err(|_| "Reader registry poisoned")?.insert(hash.to_string());

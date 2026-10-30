@@ -3,6 +3,9 @@ import { Icon } from "./icons";
 import type { Collection, Invoke } from "./library-api";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 
+/** Nesting indent, capped so deep levels still leave room for the name in a narrow sidebar. */
+const indent = (depth: number) => `min(${4 + depth * 14}px, 30%)`;
+
 /** The sidebar's collection tree for one workspace library. */
 export default function CollectionTree({
   invoke,
@@ -76,7 +79,7 @@ export default function CollectionTree({
           className="kx-tree-row"
           data-current={current}
           data-drop={dropTarget === c.id}
-          style={{ paddingLeft: 4 + depth * 14 }}
+          style={{ paddingLeft: indent(depth) }}
           onDragOver={(e) => {
             if (e.dataTransfer.types.includes(SOURCE_DRAG_TYPE)) {
               e.preventDefault();
@@ -177,7 +180,7 @@ export default function CollectionTree({
 
 function NewRow({ depth, onDone }: { depth: number; onDone: (name: string) => void }) {
   return (
-    <div className="kx-tree-row" style={{ paddingLeft: 4 + depth * 14 }}>
+    <div className="kx-tree-row" style={{ paddingLeft: indent(depth) }}>
       <span className="kx-tree-disclosure" />
       <Icon name="folder" />
       <input

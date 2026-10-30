@@ -1889,8 +1889,10 @@
 .kx-page-note .ne-root {
   margin-left: calc(-1 * var(--ne-gutter, 52px));
 }
+/* Matches the page's narrow padding, so the text stays in line with the title and the
+   drag grip sits in the padding (blockGutter.ts drops "+" when it doesn't fit). */
 .kx-source-page[data-narrow="true"] .kx-page-note .ne-root {
-  --ne-gutter: 30px;
+  --ne-gutter: 24px;
 }
 .kx-page-note .ProseMirror:focus {
   outline: none;

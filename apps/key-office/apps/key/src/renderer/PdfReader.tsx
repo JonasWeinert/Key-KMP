@@ -22,8 +22,10 @@ type Target = {
   rects: number[][];
   targetText: string;
 };
+type Focus = { page?: number; annotationId?: string };
 interface Ready {
   source: ManagedSource;
+  focus?: Focus;
   notesOpen?: boolean;
   viewState?: PdfJsViewState;
   searchTarget?: Target;
@@ -38,9 +40,81 @@ interface ReaderBridge {
   readerDismiss?(): Promise<void>;
   readerNotes?(): Promise<boolean>;
   readerAddToNote?(passage: { text: string; page: number; color?: string }): Promise<void>;
+  readerAnalysis?(): Promise<AnalysisReport | null>;
+  readerReanalyze?(): Promise<void>;
+  readerOpenSource?(sourceId: string): Promise<void>;
   readerResult?(direction: number): Promise<void>;
 }
 const bridge = () => (window as unknown as { key: ReaderBridge }).key;
+
+/** What the library knows about this PDF's analysis (key-store). */
+interface AnalysisReport {
+  analysis: {
+    engine: string;
+    analyzedAt: number;
+    referencesStatus: string;
+    referencesError?: string | null;
+    referencesTotal: number;
+    referencesDone: number;
+    referencesMatched: number;
+  } | null;
+  references: {
+    number?: number | null;
+    page?: number | null;
+    rects?: number[][];
+    text: string;
+    metadata?: { title?: string; year?: number | string; authors?: string[]; doi?: string } | null;
+    matchedSourceId?: string | null;
+  }[];
+  layoutModel: boolean;
+  indexStatus?: string | null;
+}
+const ENGINES: Record<string, string> = {
+  "layout-onnx": "Layout analysis with the layout model",
+  layout: "Layout analysis",
+  pdfium: "Plain PDF text",
+};
+const working = (report: AnalysisReport | null | undefined) =>
+  !!report &&
+  (["pending", "indexing"].includes(report.indexStatus ?? "") ||
+    ["pending", "detecting", "resolving"].includes(report.analysis?.referencesStatus ?? ""));
+
+/** How far analysis has got, and a way to run it again. */
+function AnalysisStatus({ report, onRerun }: { report: AnalysisReport | null | undefined; onRerun: () => void }) {
+  if (report === undefined) return null;
+  const a = report?.analysis;
+  const indexing = ["pending", "indexing"].includes(report?.indexStatus ?? "");
+  let line: string;
+  let progress: number | undefined;
+  if (!report) line = "This PDF is not in a library, so it is analysed only while open.";
+  else if (indexing) line = report.layoutModel ? "Analysing the layout of this PDF…" : "Reading this PDF…";
+  else if (!a) line = "Not analysed with the current method yet.";
+  else if (a.referencesStatus === "detecting" || a.referencesStatus === "pending") line = "Finding references…";
+  else if (a.referencesStatus === "resolving") {
+    line = `Looking up references · ${a.referencesDone} of ${a.referencesTotal}`;
+    progress = a.referencesTotal ? a.referencesDone / a.referencesTotal : 0;
+  } else if (a.referencesStatus === "none") line = "No reference list found.";
+  else if (a.referencesStatus === "failed") line = `Reference lookup failed: ${a.referencesError ?? "unknown error"}`;
+  else line = `${a.referencesTotal} references looked up${a.referencesMatched ? ` · ${a.referencesMatched} in your library` : ""}`;
+  return (
+    <div className="key-pdf-analysis" role="status" data-working={working(report) || undefined}>
+      <div>
+        <span>{line}</span>
+        {a && !indexing && <small>{ENGINES[a.engine] ?? a.engine} · {new Date(a.analyzedAt).toLocaleDateString()}</small>}
+      </div>
+      {report && !indexing && (
+        <button type="button" onClick={onRerun} title="Read this PDF again and look up its references">
+          {a ? "Re-run" : "Analyse"}
+        </button>
+      )}
+      {progress !== undefined && (
+        <span className="key-pdf-analysis-bar" aria-hidden="true">
+          <i style={{ width: `${Math.round(progress * 100)}%` }} />
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function PdfReader() {
   const reader = useRef<PdfReaderHandle>(null);
@@ -56,6 +130,41 @@ export default function PdfReader() {
   const [query, setQuery] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [report, setReport] = useState<AnalysisReport | null>();
+  // "Show in PDF": go to the place once the document is ready. Annotations load just after
+  // the document, so a second try lights the highlight up if the first was too early.
+  const [focus, setFocus] = useState<Focus>();
+  useEffect(() => bridge().on("reader-focus", (payload) => setFocus({ ...(payload as Focus) })), []);
+  useEffect(() => {
+    if (!focus || !chrome?.ready) return;
+    const go = () => reader.current?.focusAnnotation(focus.annotationId, focus.page);
+    go();
+    setTimeout(go, 700);
+    setFocus(undefined);
+  }, [focus, chrome?.ready]);
+  const refreshAnalysis = useCallback(() => {
+    void bridge()
+      .readerAnalysis?.()
+      .then((next) => setReport(next ?? null))
+      .catch(() => setReport(null));
+  }, []);
+  useEffect(() => {
+    if (!document) return;
+    refreshAnalysis();
+  }, [document, refreshAnalysis]);
+  // Poll while the library is still analysing this PDF.
+  useEffect(() => {
+    if (!working(report)) return;
+    const timer = setTimeout(refreshAnalysis, 2000);
+    return () => clearTimeout(timer);
+  }, [report, refreshAnalysis]);
+  const rerun = () => {
+    setReport((r) => (r ? { ...r, analysis: null, references: [], indexStatus: "pending" } : r));
+    void bridge()
+      .readerReanalyze?.()
+      .then(refreshAnalysis)
+      .catch((e) => setNotice(String(e).replace(/^Error: (Error invoking remote method '[^']+': )?(Error: )?/, "")));
+  };
   const latestState = useRef<PdfJsViewState | undefined>(undefined);
   const stateTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -85,6 +194,7 @@ export default function PdfReader() {
         registerManagedSource(file, initial.source);
         setDocument({ file, initial });
         setNotesOpen(!!initial.notesOpen);
+        if (initial.focus) setFocus(initial.focus);
         setTarget((current) => current ?? initial.searchTarget);
         if (initial.searchNavigation) setNavigation(initial.searchNavigation);
         setPage((initial.viewState?.pageIndex ?? 0) + 1);
@@ -328,6 +438,40 @@ export default function PdfReader() {
           onChromeStateChange={setChrome}
           onRequestControlMode={(mode) => {
             setShowSearch(mode === "search");
+          }}
+          references={
+            report?.references.length || ["done", "none", "failed"].includes(report?.analysis?.referencesStatus ?? "")
+              ? report!.references
+                  .filter((r) => r.number != null && r.page != null)
+                  .map((r) => ({
+                    number: r.number!,
+                    page: r.page!,
+                    xFraction: r.rects?.[0] ? r.rects[0][0] / 65535 : undefined,
+                    yFraction: r.rects?.[0] ? r.rects[0][1] / 65535 : undefined,
+                    text: r.text,
+                  }))
+              : undefined
+          }
+          referencesHeader={bridge().readerAnalysis ? <AnalysisStatus report={report} onRerun={rerun} /> : undefined}
+          referenceAside={(reference) => {
+            const known = report?.references.find((r) => r.number === reference.number);
+            const meta = known?.metadata;
+            if (!meta?.title && !known?.matchedSourceId) return null;
+            return (
+              <div className="key-pdf-reference-aside">
+                {meta?.title && (
+                  <span title={meta.doi ? `doi:${meta.doi}` : undefined}>
+                    {meta.title}
+                    {meta.year ? ` (${meta.year})` : ""}
+                  </span>
+                )}
+                {known?.matchedSourceId && (
+                  <button type="button" onClick={() => void bridge().readerOpenSource?.(known.matchedSourceId!)}>
+                    In your library →
+                  </button>
+                )}
+              </div>
+            );
           }}
           onAddToNote={
             bridge().readerAddToNote

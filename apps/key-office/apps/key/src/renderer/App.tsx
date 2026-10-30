@@ -83,6 +83,12 @@ const api = () =>
       };
     }
   ).key;
+// The sidebar can be dragged between these widths; below the minimum its rows stop being readable.
+const SIDEBAR_MIN = 180,
+  SIDEBAR_MAX = 360,
+  SIDEBAR_DEFAULT = 240;
+const clampSidebar = (width: number) => Math.round(Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, width)));
+
 const emptyTabs: TabState = { tabs: [], activeTabId: "", activeViewId: "" };
 
 const tabSummary = (state: TabState): TabSummary[] =>
@@ -135,6 +141,14 @@ export default function App() {
   );
   const sidebarSlot = useRef<HTMLDivElement>(null);
   const [sidebarWidth, setSidebarWidth] = useState(sidebarCollapsed ? 0 : 240);
+  // The open width the user dragged to, remembered; the slot animates between it and 0.
+  const [sidebarSize, setSidebarSize] = useState(() =>
+    clampSidebar(Number(localStorage.getItem("key.sidebar.width")) || SIDEBAR_DEFAULT),
+  );
+  const [sidebarResizing, setSidebarResizing] = useState(false);
+  useEffect(() => {
+    localStorage.setItem("key.sidebar.width", String(sidebarSize));
+  }, [sidebarSize]);
   useEffect(() => {
     localStorage.setItem("key.sidebar.collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
@@ -448,6 +462,8 @@ export default function App() {
       <div
         ref={sidebarSlot}
         className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
+        data-resizing={sidebarResizing || undefined}
+        style={{ "--kx-sidebar-width": `${sidebarSize}px` } as React.CSSProperties}
       >
         <aside
           className="key-sidebar key-ui-root"
@@ -623,12 +639,37 @@ export default function App() {
             </button>
             <small>
               <Icon name="disk" size={13} />
-              {selectedWorkspace
-                ? "Stored on this Mac"
-                : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`}
+              <span>
+                {selectedWorkspace
+                  ? "Stored on this Mac"
+                  : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`}
+              </span>
             </small>
           </div>
         </aside>
+        {!sidebarCollapsed && (
+          <div
+            className="kx-sidebar-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuemin={SIDEBAR_MIN}
+            aria-valuemax={SIDEBAR_MAX}
+            aria-valuenow={sidebarSize}
+            title="Drag to resize · double-click to reset"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setSidebarResizing(true);
+            }}
+            onPointerMove={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) setSidebarSize(clampSidebar(e.clientX));
+            }}
+            onPointerUp={() => setSidebarResizing(false)}
+            onPointerCancel={() => setSidebarResizing(false)}
+            onDoubleClick={() => setSidebarSize(SIDEBAR_DEFAULT)}
+          />
+        )}
       </div>
       <div className="kx-main">
       <TabBar

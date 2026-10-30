@@ -2185,6 +2185,7 @@ dependencies = [
  "key-semantic-search",
  "key-store",
  "key-zotero",
+ "opendataloader-pdf",
  "serde",
  "serde_json",
  "sha2 0.10.9",

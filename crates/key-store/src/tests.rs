@@ -247,3 +247,45 @@ fn suggestions_become_filters_that_narrow_lists_and_search() {
     let in_view = store.suggest("moh", &ListQuery { filters: vec![f("year", "is", "2019")], ..Default::default() }, 6).unwrap();
     assert_eq!(in_view.iter().filter(|s| s.filter.field == "creator").map(|s| s.label.as_str()).collect::<Vec<_>>(), vec!["Sara Mohamedi"]);
 }
+
+#[test]
+fn analysis_keeps_references_with_their_place_and_links_cited_works() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let citing = store.insert_source(input(json!({"kind": "pdf", "title": "Health versus income", "filePath": "/tmp/a.pdf"}))).unwrap();
+    let cited = store.insert_source(input(json!({"kind": "pdf", "title": "Income and health over the life course", "doi": "10.1/Cited"}))).unwrap();
+    store
+        .replace_chunks(&citing.id, &[ChunkInput { page: Some(2), text: "Health and income".into(), kind: Some("paragraph".into()), section: Some("1 Introduction".into()), ..Default::default() }])
+        .unwrap();
+    store.set_analysis(&citing.id, "layout-onnx", Some("# Health versus income\n\nHealth and income"), true).unwrap();
+    assert_eq!(store.next_reference_job(&[]).unwrap(), Some(citing.id.clone()));
+    store
+        .replace_references(
+            &citing.id,
+            &[
+                ReferenceInput { number: Some(1), page: Some(9), rects: vec![[1, 2, 3, 4]], text: "Someone (2020) Income and health.".into(), metadata: None },
+                ReferenceInput { number: Some(2), page: Some(9), rects: vec![], text: "Nobody (2019) Unknown.".into(), metadata: None },
+            ],
+        )
+        .unwrap();
+    let matched = store.resolve_reference(&citing.id, 0, Some(&json!({"title": "Something else", "doi": "10.1/cited"})), None).unwrap();
+    assert_eq!(matched.as_deref(), Some(cited.id.as_str()), "matched by DOI, case-insensitively");
+    store.resolve_reference(&citing.id, 1, None, Some("Not found")).unwrap();
+    store.set_references_status(&citing.id, "done", None, 2, 2).unwrap();
+
+    let analysis = store.analysis(&citing.id).unwrap().unwrap();
+    assert_eq!((analysis.engine.as_str(), analysis.references_status.as_str(), analysis.references_matched), ("layout-onnx", "done", 1));
+    assert!(analysis.has_markdown);
+    let references = store.references(&citing.id).unwrap();
+    assert_eq!(references[0].rects, vec![[1, 2, 3, 4]]);
+    assert_eq!(references[1].error.as_deref(), Some("Not found"));
+    assert_eq!(store.next_reference_job(&[]).unwrap(), None);
+    assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 0, "a PDF without a file is not counted");
+
+    // Running it again starts from scratch.
+    store.reanalyze(&citing.id).unwrap();
+    assert!(store.analysis(&citing.id).unwrap().is_none());
+    assert!(store.references(&citing.id).unwrap().is_empty());
+    assert_eq!(store.source(&citing.id).unwrap().unwrap().index_status, "pending");
+    assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 1);
+}

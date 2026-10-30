@@ -89,6 +89,10 @@
         "to": "backend/libpdfium.dylib"
       },
       {
+        "from": "../../../../crates/opendataloader-pdf-rs/models/model_fp16.onnx",
+        "to": "models/layout/model_fp16.onnx"
+      },
+      {
         "from": "../../../../crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q",
         "to": "models/snowflake-arctic-embed-xs-q"
       },

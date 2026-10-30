@@ -101,6 +101,9 @@ export class PdfJsTextOverlayManager {
   private searchMatches: ReaderSearchMatch[] = [];
   private activeSearchId: string | null = null;
   private resultTarget: ReaderSearchMatch | null = null;
+  /** An annotation briefly lit up to draw the eye (after "Show in PDF"). */
+  private flashId: string | null = null;
+  private flashTimer: ReturnType<typeof setTimeout> | undefined;
   private links: Array<NativeLink & { synthetic?: boolean }> = [];
   private citations: ScientificCitation[] = [];
   private liveSelection: TextRange | null = null;
@@ -242,6 +245,16 @@ export class PdfJsTextOverlayManager {
     this.renderAll();
   }
 
+  flashAnnotation(id: string, duration = 1800) {
+    clearTimeout(this.flashTimer);
+    this.flashId = id;
+    this.renderAll();
+    this.flashTimer = setTimeout(() => {
+      this.flashId = null;
+      this.renderAll();
+    }, duration);
+  }
+
   setResultTarget(target: ReaderSearchMatch | null) {
     this.resultTarget = target;
     this.renderAll();
@@ -377,7 +390,7 @@ export class PdfJsTextOverlayManager {
       if (page < annotation.range.start.page || page > annotation.range.end.page) continue;
       const className = `pdfjs-highlight color-${annotation.color}${
         annotation.comment ? ' has-comment' : ''
-      }`;
+      }${annotation.id === this.flashId ? ' flash' : ''}`;
       this.paintBounds(
         layer,
         annotation.anchor?.pages.find(p => p.page === page)?.bounds ?? (text ? boundsForRange(text, annotation.range) : []),

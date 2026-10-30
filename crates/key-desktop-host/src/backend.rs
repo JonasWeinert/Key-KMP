@@ -5,6 +5,8 @@ mod native_process;
 mod scholarly_resolver;
 #[path = "library_store.rs"]
 mod library_store;
+#[path = "reference_worker.rs"]
+mod reference_worker;
 use crate::ipc;
 use crate::ipc::{HostState, Output, arg, json_output};
 use key_pdf_core::{
@@ -2843,7 +2845,7 @@ impl Host {
         let native = NativePdfService::start();
         // The workspace library lives in key-store; the legacy pipeline is kept but no
         // longer resumes processing on start.
-        let library = library_store::Library::open(&root, native.clone())?;
+        let library = library_store::Library::open(&root, native.clone(), search.library().clone())?;
         let host = Self {
             root,
             library,

@@ -359,3 +359,100 @@ body,
     animation: none;
   }
 }
+
+/* The References panel's analysis line: what the library has done with this PDF. */
+.key-pdf-analysis {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 6px 2px;
+  padding: 9px 10px 9px 12px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--key-ui-text) 4%, transparent);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.key-pdf-analysis > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.key-pdf-analysis small {
+  color: var(--key-ui-muted);
+  font-size: 10.5px;
+}
+.key-pdf-analysis[data-working] > div > span::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--key-ui-focus);
+  vertical-align: 1px;
+  animation: key-pdf-pulse 1.2s ease-in-out infinite;
+}
+@keyframes key-pdf-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+.key-pdf-analysis > button,
+.key-pdf-reference-aside button {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--key-ui-text) 7%, transparent);
+  color: var(--key-ui-text);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 550;
+}
+.key-pdf-analysis > button:hover,
+.key-pdf-reference-aside button:hover {
+  background: color-mix(in srgb, var(--key-ui-text) 12%, transparent);
+}
+.key-pdf-analysis-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: color-mix(in srgb, var(--key-ui-focus) 15%, transparent);
+}
+.key-pdf-analysis-bar i {
+  display: block;
+  height: 100%;
+  background: var(--key-ui-focus);
+  transition: width 300ms ease;
+}
+.key-pdf-reference-aside {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 10px 6px;
+  color: var(--key-ui-muted);
+  font-size: 11px;
+}
+.key-pdf-reference-aside span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-pdf-reference-aside button {
+  color: var(--key-ui-focus);
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-pdf-analysis[data-working] > div > span::before {
+    animation: none;
+  }
+}

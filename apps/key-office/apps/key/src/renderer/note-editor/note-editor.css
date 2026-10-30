@@ -28,7 +28,7 @@
   padding: 2px 0 40vh var(--ne-gutter);
   outline: none;
   caret-color: var(--kx-accent);
-  word-wrap: break-word;
+  overflow-wrap: anywhere;
   -webkit-font-smoothing: antialiased;
 }
 .ne-root--compact .ne-prose {
@@ -227,12 +227,21 @@
 
 /* ── placeholder ─────────────────────────────────────────────────────────── */
 
+/* One line, cut with an ellipsis: a wrapped hint has no height of its own and would run
+   under the next block (or out of a callout) in a narrow pane. */
+.ne-prose .is-empty,
+.ne-prose .is-editor-empty:first-child {
+  position: relative;
+}
 .ne-prose .is-empty::before,
 .ne-prose .is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  float: left;
-  height: 0;
+  position: absolute;
+  inset: 0 0 auto;
+  overflow: hidden;
   color: var(--kx-text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
   pointer-events: none;
 }
 
@@ -566,6 +575,9 @@
   color: var(--kx-text-3);
   cursor: pointer;
   transition: background-color 0.12s var(--kx-ease), color 0.12s var(--kx-ease);
+}
+.ne-gutter-btn[hidden] {
+  display: none;
 }
 .ne-gutter-btn:hover {
   background: var(--kx-fill);

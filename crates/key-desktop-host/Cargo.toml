@@ -25,6 +25,7 @@ key-embed = { path = "../key-embed" }
 key-index = { path = "../key-index" }
 key-zotero = { path = "../key-zotero" }
 key-reference = { path = "../../extensions/key-reference" }
+opendataloader-pdf = { path = "../opendataloader-pdf-rs", default-features = false, features = ["onnx"] }
 [features]
 semantic-onnx = ["key-semantic-search/semantic-onnx"]
 [patch.crates-io]
@@ -35,4 +36,11 @@ pdfium-render = { path = "../../vendor/pdfium-render-tile" }
 [profile.dev.package.libsqlite3-sys]
 opt-level = 3
 [profile.dev.package.sqlite-vec]
+opt-level = 3
+# Layout analysis runs on every imported PDF.
+[profile.dev.package.opendataloader-pdf]
+opt-level = 3
+[profile.dev.package.pdfium-render]
+opt-level = 3
+[profile.dev.package.image]
 opt-level = 3
