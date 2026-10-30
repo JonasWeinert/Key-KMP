@@ -13,6 +13,7 @@ import {
 import "@key-reader/styles.css";
 import "./pdf-reader.css";
 import "./pdf-ui-adapter.css";
+import { Icon } from "./icons";
 
 type Target = {
   id: string;
@@ -23,6 +24,7 @@ type Target = {
 };
 interface Ready {
   source: ManagedSource;
+  notesOpen?: boolean;
   viewState?: PdfJsViewState;
   searchTarget?: Target;
   searchNavigation?: Navigation;
@@ -35,6 +37,7 @@ interface ReaderBridge {
   readerBack?(): void;
   readerDismiss?(): Promise<void>;
   readerNotes?(): Promise<boolean>;
+  readerAddToNote?(passage: { text: string; page: number; color?: string }): Promise<void>;
   readerResult?(direction: number): Promise<void>;
 }
 const bridge = () => (window as unknown as { key: ReaderBridge }).key;
@@ -51,6 +54,8 @@ export default function PdfReader() {
   const [page, setPage] = useState(1);
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notice, setNotice] = useState("");
   const latestState = useRef<PdfJsViewState | undefined>(undefined);
   const stateTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -79,6 +84,7 @@ export default function PdfReader() {
         );
         registerManagedSource(file, initial.source);
         setDocument({ file, initial });
+        setNotesOpen(!!initial.notesOpen);
         setTarget((current) => current ?? initial.searchTarget);
         if (initial.searchNavigation) setNavigation(initial.searchNavigation);
         setPage((initial.viewState?.pageIndex ?? 0) + 1);
@@ -136,90 +142,74 @@ export default function PdfReader() {
     <main className="key-ui-root key-pdf-reader">
       <header className="key-pdf-toolbar" aria-label="PDF controls">
         <div className="key-pdf-toolbar-group">
-          <Button
-            size="icon"
-            variant="ghost"
-            title="Document outline"
-            aria-label="Document outline"
-            aria-pressed={chrome?.activePanel === "outline"}
-            onClick={() => panel("outline")}
-          >
-            ☷
-          </Button>
-          <span className="key-pdf-page">
-            {page} <span>/ {chrome?.pageCount || "…"}</span>
+          <span className="key-pdf-seg">
+            <button
+              className="key-pdf-tool"
+              title="Document outline"
+              aria-label="Document outline"
+              aria-pressed={chrome?.activePanel === "outline"}
+              onClick={() => panel("outline")}
+            >
+              <Icon name="list" />
+            </button>
+          </span>
+          <span className="key-pdf-page" aria-label={`Page ${page} of ${chrome?.pageCount || "…"}`}>
+            {page}
+            <span> of {chrome?.pageCount || "…"}</span>
           </span>
         </div>
-        <div className="key-pdf-toolbar-group">
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Zoom out"
-            title="Zoom out"
-            onClick={() => reader.current?.zoomOut()}
-          >
-            −
-          </Button>
-          <Button
-            size="compact"
-            variant="ghost"
-            className="key-pdf-zoom"
-            title="Actual size"
-            onClick={() => reader.current?.actualSize()}
-          >
-            {Math.round((chrome?.zoom ?? 1) * 100)}%
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Zoom in"
-            title="Zoom in"
-            onClick={() => reader.current?.zoomIn()}
-          >
-            +
-          </Button>
-          <Button
-            size="compact"
-            variant="ghost"
-            title="Fit width"
-            onClick={() => reader.current?.fitWidth()}
-          >
-            Fit width
-          </Button>
+        <div className="key-pdf-toolbar-group key-pdf-toolbar-middle">
+          <span className="key-pdf-seg">
+            <button className="key-pdf-tool" aria-label="Zoom out" title="Zoom out" onClick={() => reader.current?.zoomOut()}>
+              <Icon name="minus" />
+            </button>
+            <button className="key-pdf-tool key-pdf-zoom" title="Actual size" onClick={() => reader.current?.actualSize()}>
+              {Math.round((chrome?.zoom ?? 1) * 100)}%
+            </button>
+            <button className="key-pdf-tool" aria-label="Zoom in" title="Zoom in" onClick={() => reader.current?.zoomIn()}>
+              <Icon name="plus" />
+            </button>
+            <span className="key-pdf-seg-divider" aria-hidden="true" />
+            <button className="key-pdf-tool" aria-label="Fit width" title="Fit width" onClick={() => reader.current?.fitWidth()}>
+              <Icon name="fitWidth" />
+            </button>
+          </span>
         </div>
         <div className="key-pdf-toolbar-group key-pdf-toolbar-end">
-          <Button
-            size="compact"
-            variant="ghost"
-            aria-pressed={showSearch}
-            onClick={() => {
-              setShowSearch(!showSearch);
-              if (showSearch) closeSearch();
-            }}
-          >
-            Find
-          </Button>
-          <Button
-            size="compact"
-            variant="ghost"
-            aria-pressed={chrome?.activePanel === "references"}
-            onClick={() => panel("references")}
-          >
-            References
-            {chrome?.referenceCount ? ` ${chrome.referenceCount}` : ""}
-          </Button>
-          <Button
-            size="compact"
-            variant="ghost"
-            aria-pressed={chrome?.activePanel === "comments"}
-            onClick={() => panel("comments")}
-          >
-            Comments{chrome?.commentCount ? ` ${chrome.commentCount}` : ""}
-          </Button>
+          <span className="key-pdf-seg">
+            <button
+              className="key-pdf-tool"
+              aria-label="Find"
+              title="Find in this PDF (⌘F)"
+              aria-pressed={showSearch}
+              onClick={() => {
+                setShowSearch(!showSearch);
+                if (showSearch) closeSearch();
+              }}
+            >
+              <Icon name="search" />
+            </button>
+            <button
+              className="key-pdf-tool key-pdf-tool-label"
+              aria-label="References"
+              title="References cited in this PDF"
+              aria-pressed={chrome?.activePanel === "references"}
+              onClick={() => panel("references")}
+            >
+              <Icon name="book" />
+              {chrome?.referenceCount ? <span className="key-pdf-count">{chrome.referenceCount}</span> : null}
+            </button>
+          </span>
           {bridge().readerNotes && (
-            <Button size="compact" variant="ghost" title="Show or hide this source's page and note beside the PDF" onClick={() => void bridge().readerNotes?.()}>
-              Notes
-            </Button>
+            <button
+              className="key-pdf-details"
+              aria-pressed={notesOpen}
+              title="Show or hide this source's details and note beside the PDF"
+              onClick={() => void bridge().readerNotes?.().then((open) => setNotesOpen(open))}
+            >
+              <Icon name="panelRight" />
+              <span>Details &amp; notes</span>
+            </button>
           )}
         </div>
       </header>
@@ -276,6 +266,11 @@ export default function PdfReader() {
         </form>
       )}
       <section className="key-pdf-surface">
+        {notice && (
+          <div className="key-pdf-notice" role="alert">
+            {notice}
+          </div>
+        )}
         {/* The search result bar floats under the toolbar, over the page. */}
         {target && (
           <div className="key-pdf-result" role="toolbar" aria-label="Search result">
@@ -334,6 +329,18 @@ export default function PdfReader() {
           onRequestControlMode={(mode) => {
             setShowSearch(mode === "search");
           }}
+          onAddToNote={
+            bridge().readerAddToNote
+              ? (passage) =>
+                  void bridge()
+                    .readerAddToNote?.(passage)
+                    .then(() => setNotesOpen(true))
+                    .catch((e) => {
+                      setNotice(String(e).replace(/^Error: (Error invoking remote method '[^']+': )?(Error: )?/, ""));
+                      setTimeout(() => setNotice(""), 4000);
+                    })
+              : undefined
+          }
         />
       </section>
     </main>

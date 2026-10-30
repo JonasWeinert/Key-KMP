@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apa, apaInText, bibtex } from "./citation";
 import { Icon } from "./icons";
-import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, itemTypeLabel, type Collection, type Facet, type Invoke, type Note, type Source } from "./library-api";
+import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, itemTypeLabel, shortCreators, type Collection, type Facet, type Invoke, type Note, type Source } from "./library-api";
 import { libraryChanged } from "./library-nav";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
@@ -25,11 +25,12 @@ const bridge = () =>
     key: { on(event: string, cb: (value: unknown) => void): () => void; tabAction(action: string, payload?: unknown): Promise<unknown> };
   }).key;
 const highlightPage = (h: Highlight) => h.anchor?.pages?.[0]?.page ?? h.range?.start?.page;
-const quoteBlock = (text: string, sourceId: string, page?: number) => {
+const quoteBlock = (text: string, sourceId: string, page?: number, color?: string) => {
   const body = text.replace(/\r\n?/g, "\n").replace(/[ \t]*\n[ \t]*/g, " ").trim();
   const longest = Math.max(2, ...[...body.matchAll(/`+/g)].map((m) => m[0].length));
   const fence = "`".repeat(longest + 1);
-  return `${fence}quote source="${sourceId}"${page === undefined ? "" : ` page="${page}"`}\n${body}\n${fence}`;
+  const attrs = [`source="${sourceId}"`, page === undefined ? "" : `page="${page}"`, color ? `color="${color}"` : ""].filter(Boolean).join(" ");
+  return `${fence}quote ${attrs}\n${body}\n${fence}`;
 };
 
 export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { invoke: Invoke; workspaceId: string; sourceId: string; viewId: string }) {
@@ -40,18 +41,19 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
   const [tagSuggestions, setTagSuggestions] = useState<Facet[]>([]);
   const [moreFields, setMoreFields] = useState(false);
   const [abstractOpen, setAbstractOpen] = useState(false);
-  // Properties can fold into one summary line so the note starts right under the title.
-  const [propertiesOpen, setPropertiesOpen] = useState(() => {
+  // Authors, properties and abstract fold together into one summary line (open by default),
+  // so highlights and the note can start right under the title.
+  const [detailsOpen, setDetailsOpen] = useState(() => {
     try {
-      return localStorage.getItem("key.page.properties") !== "closed";
+      return localStorage.getItem("key.page.details") !== "closed";
     } catch {
       return true;
     }
   });
-  const toggleProperties = (open: boolean) => {
-    setPropertiesOpen(open);
+  const toggleDetails = (open: boolean) => {
+    setDetailsOpen(open);
     try {
-      localStorage.setItem("key.page.properties", open ? "open" : "closed");
+      localStorage.setItem("key.page.details", open ? "open" : "closed");
     } catch {}
   };
   const [sheet, setSheet] = useState<PropertySheetState>();
@@ -66,6 +68,16 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
   const lastSent = useRef<string | undefined>(undefined);
   const pending = useRef(0);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  // Narrow layout beside a PDF, from the measured width (see reference-library.css).
+  const pageRef = useRef<HTMLElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < 640));
+    observer.observe(el);
+    return () => observer.disconnect();
+  });
 
   const loadSource = useCallback(
     () =>
@@ -101,11 +113,10 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
   );
   useEffect(() => {
     void loadSource();
-    void loadNotes();
     void loadHighlights();
     void invoke<Collection[]>("store_collections", {}, workspaceId).then(setCollections).catch(() => {});
     void invoke<{ tags: Facet[] }>("store_facets", {}, workspaceId).then((f) => setTagSuggestions(f.tags)).catch(() => {});
-  }, [invoke, workspaceId, loadSource, loadNotes, loadHighlights]);
+  }, [invoke, workspaceId, loadSource, loadHighlights]);
   useEffect(() => {
     const offs = [
       bridge().on("library-changed", () => void loadSource()),
@@ -145,12 +156,53 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
     queue.current = run.catch(() => {});
     return run;
   };
-  const quote = (h: Highlight) => {
-    const block = quoteBlock(h.text?.trim() || h.comment?.trim() || "", sourceId, highlightPage(h));
-    const next = pageBody.current.trim() ? `${pageBody.current.trimEnd()}\n\n${block}\n` : `${block}\n`;
-    setNotes((list) => (list.length ? [{ ...list[0], body: next }, ...list.slice(1)] : list));
-    void savePage(next).then(() => void loadNotes());
-  };
+  /** Appends Markdown to the page note and scrolls to it, briefly flashing it. */
+  const jump = useRef(false);
+  const append = useCallback((markdown: string) => {
+    const next = pageBody.current.trim() ? `${pageBody.current.trimEnd()}\n\n${markdown}\n` : `${markdown}\n`;
+    jump.current = true;
+    setNotes((list) => (list.length ? [{ ...list[0], body: next }, ...list.slice(1)] : [{ id: "", sourceId, title: "", body: next, createdAt: 0, updatedAt: 0 }]));
+    void savePage(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceId]);
+  const quote = (h: Highlight) => append(quoteBlock(h.text?.trim() || h.comment?.trim() || "", sourceId, highlightPage(h), h.color));
+  useEffect(() => {
+    if (!jump.current) return;
+    jump.current = false;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const quotes = pageRef.current?.querySelectorAll<HTMLElement>(".kx-page-note .ne-squote");
+        const target = quotes?.[quotes.length - 1] ?? pageRef.current?.querySelector<HTMLElement>(".kx-page-note .ProseMirror > :last-child");
+        if (!target) return;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        target.classList.add("kx-flash");
+        setTimeout(() => target.classList.remove("kx-flash"), 1800);
+      }),
+    );
+  }, [notes]);
+  // Passages sent from the PDF ("Add to note") wait in the main process until the page,
+  // once its note has loaded, takes and appends them.
+  const notesLoaded = useRef(false);
+  const takeAppends = useCallback(async () => {
+    if (!notesLoaded.current) return;
+    const queued = (await bridge().tabAction("take-note-appends", { sourceId })) as { text: string; page: number; color?: string }[];
+    for (const p of queued ?? []) append(quoteBlock(p.text, sourceId, p.page, p.color));
+  }, [sourceId, append]);
+  useEffect(() => {
+    notesLoaded.current = false;
+    void loadNotes().then(() => {
+      notesLoaded.current = true;
+      void takeAppends();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceId]);
+  useEffect(
+    () =>
+      bridge().on("note-append", (p) => {
+        if ((p as { sourceId?: string })?.sourceId === sourceId) void takeAppends();
+      }),
+    [sourceId, takeAppends],
+  );
   const copy = async (label: string, text: string, html?: string) => {
     try {
       if (html && "ClipboardItem" in window)
@@ -176,6 +228,15 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
   const names = new Map(collections.map((c) => [c.id, c.name]));
   const isPdf = !!source.filePath && source.kind === "pdf";
   const pageNote = page?.body ?? "";
+  /** The PDF on its own: jumps to it when it is already open anywhere. */
+  const openReaderTab = () =>
+    void (window as unknown as { key: { openSource(s: unknown): Promise<unknown> } }).key.openSource({
+      documentHash: source.fileHash,
+      documentId: source.fileHash,
+      title: source.title || "Untitled",
+      workspaceId,
+      pageCount: source.pageCount ?? 0,
+    });
   const openReader = () =>
     void bridge().tabAction("open-source-page", {
       workspaceId,
@@ -186,7 +247,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
     });
 
   return (
-    <article className="kx-source-page">
+    <article className="kx-source-page" ref={pageRef} data-narrow={narrow}>
       <div className="kx-source-page-inner">
         <header className="kx-source-page-bar">
           <span className="kx-kind-badge" data-kind={source.kind}>
@@ -216,10 +277,25 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             </div>
           </details>
           {isPdf ? (
-            <button className="kx-page-action kx-page-action-primary" onClick={openReader}>
-              <Icon name="book" size={13} />
-              Read
-            </button>
+            <div className="kx-page-split">
+              <button className="kx-page-action kx-page-action-primary" onClick={openReader} title="Read the PDF beside this page">
+                <Icon name="book" size={13} />
+                Read
+              </button>
+              <details className="kx-menu">
+                <summary className="kx-page-action kx-page-action-primary" aria-label="More ways to read">
+                  <Icon name="chevronDown" size={11} />
+                </summary>
+                <div className="kx-menu-popover" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
+                  <button onClick={openReader}>
+                    <Icon name="split" size={13} /> Read beside this page
+                  </button>
+                  <button onClick={openReaderTab}>
+                    <Icon name="book" size={13} /> Open PDF in its own tab
+                  </button>
+                </div>
+              </details>
+            </div>
           ) : source.filePath ? (
             <button className="kx-page-action kx-page-action-primary" onClick={() => void libraryBridge().openPath(source.filePath!)}>
               <Icon name="external" size={13} />
@@ -236,23 +312,24 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
         </header>
 
         <AutoText className="kx-inspector-title kx-source-page-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />
-        <Creators creators={source.creators} onCommit={(creators) => void save({ creators })} />
-
-        {!propertiesOpen && (
-          <button className="kx-page-properties-summary" onClick={() => toggleProperties(true)}>
+        {!detailsOpen && (
+          <button className="kx-page-properties-summary" onClick={() => toggleDetails(true)} aria-expanded={false}>
             <Icon name="chevronRight" size={11} />
             {[
+              shortCreators(source.creators),
               source.containerShort || source.containerTitle,
               source.year,
               source.tags.length && `${source.tags.length} ${source.tags.length === 1 ? "tag" : "tags"}`,
               source.collections.length && `${source.collections.length} ${source.collections.length === 1 ? "collection" : "collections"}`,
             ]
               .filter(Boolean)
-              .join(" · ") || "Show properties"}
+              .join(" · ") || "Show details"}
           </button>
         )}
+        {detailsOpen && (
+          <div className="kx-page-details">
+        <Creators creators={source.creators} onCommit={(creators) => void save({ creators })} />
         {/* One grid: bibliographic fields, tags, collections and the user's properties. */}
-        {propertiesOpen && (
         <section className="kx-page-properties" aria-label="Properties">
           {shown.map(([key, label, kind]) => (
             <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
@@ -318,11 +395,8 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             <button onClick={() => setSheet({ mode: "new", targets: [source] })}>
               <Icon name="plus" size={11} /> Add a property
             </button>
-            <span className="kx-spacer" />
-            <button onClick={() => toggleProperties(false)}>Hide properties</button>
           </div>
         </section>
-        )}
 
         <section className="kx-page-abstract" data-open={abstractOpen}>
           <button className="kx-page-abstract-toggle" onClick={() => setAbstractOpen(!abstractOpen)} aria-expanded={abstractOpen}>
@@ -339,19 +413,13 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             )
           )}
         </section>
-        {error && <p className="kx-inline-error">{error}</p>}
+          <button className="kx-page-details-hide" onClick={() => toggleDetails(false)} aria-expanded>
+            <Icon name="chevronDown" size={11} /> Hide details
+          </button>
+          </div>
+        )}
 
-        <div className="kx-page-note">
-          <NoteEditor
-            key={page?.id ?? "new"}
-            value={pageNote}
-            onChange={(body) => void savePage(body)}
-            searchSources={sources.searchSources}
-            resolveSource={sources.resolveSource}
-            onOpenSource={sources.onOpenSource}
-            placeholder="Write about this source. Type / for blocks, @ to link another source"
-          />
-        </div>
+        {error && <p className="kx-inline-error">{error}</p>}
 
         {highlights.length > 0 && (
           <section className="kx-page-section">
@@ -363,7 +431,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
                 const pageIndex = highlightPage(h);
                 return (
                   <li key={h.id} data-color={h.color || "yellow"}>
-                    {h.text && <blockquote>{h.text.replace(/\s*\r?\n\s*/g, " ")}</blockquote>}
+                    {h.text && <blockquote title={h.text}>{h.text.replace(/\s*\r?\n\s*/g, " ")}</blockquote>}
                     {h.comment && <p className="kx-page-highlight-comment">{h.comment}</p>}
                     <footer>
                       {pageIndex !== undefined && <span>p. {pageIndex + 1}</span>}
@@ -383,6 +451,18 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             </ul>
           </section>
         )}
+
+        <div className="kx-page-note">
+          {/* One editor for the page's life: creating the note on the first keystroke must not remount it. */}
+          <NoteEditor
+            value={pageNote}
+            onChange={(body) => void savePage(body)}
+            searchSources={sources.searchSources}
+            resolveSource={sources.resolveSource}
+            onOpenSource={sources.onOpenSource}
+            placeholder="Write about this source. Type / for blocks, @ to link another source"
+          />
+        </div>
 
         {notes.length > 1 && (
           <section className="kx-page-section">

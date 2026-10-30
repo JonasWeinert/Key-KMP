@@ -96,7 +96,8 @@ export function BubbleToolbar({ editor }: { editor: Editor }) {
     <BubbleMenu
       editor={editor}
       className="ne-bubble"
-      options={{ placement: "top", offset: 8, flip: true, shift: { padding: 8 } }}
+      appendTo={() => document.body}
+      options={{ placement: "top", offset: 8, flip: true, shift: { padding: 8 }, strategy: "fixed" }}
       shouldShow={({ editor: e, state: s, from, to }) => {
         if (!e.isEditable || from === to) return false;
         if (s.selection instanceof NodeSelection) return false;

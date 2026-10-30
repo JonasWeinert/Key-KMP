@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import type { AnyExtension } from "@tiptap/core";
@@ -209,8 +210,10 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
     <div className={rootClass}>
       <EditorContent editor={editor} className="ne-content" />
       {editor && <BubbleToolbar editor={editor} />}
-      <SuggestionMenu ref={menuRef} state={menu} />
-      {prompt && <UrlPrompt request={prompt.request} rect={prompt.rect} onClose={() => setPrompt(null)} />}
+      {/* Floating menus live at the document root: the shell's panes use CSS containment, which
+          would otherwise make them the frame for these fixed-position menus. */}
+      {createPortal(<SuggestionMenu ref={menuRef} state={menu} />, document.body)}
+      {prompt && createPortal(<UrlPrompt request={prompt.request} rect={prompt.rect} onClose={() => setPrompt(null)} />, document.body)}
     </div>
   );
 }

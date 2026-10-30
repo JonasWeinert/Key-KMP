@@ -185,6 +185,12 @@ export const SourceQuote = Node.create({
         parseHTML: (el) => parsePage(el.getAttribute("data-page")),
         renderHTML: (attrs) => (attrs.page === null || attrs.page === undefined ? {} : { "data-page": String(attrs.page) }),
       },
+      /** The colour of the PDF highlight it came from (yellow, blue, green, red, purple…). */
+      color: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-color"),
+        renderHTML: (attrs) => (attrs.color ? { "data-color": String(attrs.color) } : {}),
+      },
     };
   },
 
@@ -201,7 +207,7 @@ export const SourceQuote = Node.create({
   parseMarkdown(token, helpers) {
     return helpers.createNode(
       "sourceQuote",
-      { source: token.attrs?.source ?? "", page: parsePage(token.attrs?.page) },
+      { source: token.attrs?.source ?? "", page: parsePage(token.attrs?.page), color: token.attrs?.color || null },
       helpers.parseInline(token.tokens ?? []),
     );
   },
@@ -214,6 +220,7 @@ export const SourceQuote = Node.create({
       [
         ["source", String(node.attrs?.source ?? "")],
         ["page", page === null || page === undefined ? null : String(page)],
+        ["color", node.attrs?.color ? String(node.attrs.color) : null],
       ],
       body,
     );

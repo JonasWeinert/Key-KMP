@@ -455,6 +455,22 @@
   padding: 2px 0 2px 16px;
   border-left: 3px solid var(--kx-accent);
 }
+/* A quote taken from a PDF highlight keeps that highlight's colour. */
+.ne-squote[data-color="yellow"] {
+  border-left-color: var(--kx-amber);
+}
+.ne-squote[data-color="blue"] {
+  border-left-color: var(--kx-accent);
+}
+.ne-squote[data-color="green"] {
+  border-left-color: var(--kx-green);
+}
+.ne-squote:is([data-color="red"], [data-color="pink"]) {
+  border-left-color: var(--kx-red);
+}
+.ne-squote[data-color="purple"] {
+  border-left-color: var(--kx-indigo);
+}
 .ne-squote-text {
   margin: 0;
   padding: 0;
@@ -842,4 +858,12 @@
     animation: none;
     transition: none;
   }
+}
+
+/* Menus, the link prompt and the selection toolbar render at the document root (outside
+   .ne-root), so they carry the editor's own variables too. */
+.ne-popover,
+.ne-bubble {
+  --ne-radius: 8px;
+  --ne-mono: ui-monospace, "SF Mono", Menlo, monospace;
 }

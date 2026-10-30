@@ -1737,7 +1737,6 @@
 .kx-source-page {
   height: 100%;
   overflow-y: auto;
-  container-type: inline-size;
   background: var(--kx-bg);
   color: var(--kx-text);
   font: 13px/1.45 var(--kx-font);
@@ -1747,10 +1746,10 @@
   margin: 0 auto;
   padding: 18px 56px 160px;
 }
-@container (max-width: 640px) {
-  .kx-source-page-inner {
-    padding: 14px 24px 120px;
-  }
+/* Narrow (beside a PDF): set from the measured width. Not a CSS container, which would
+   become the frame for the note editor's fixed-position menus and push them off-screen. */
+.kx-source-page[data-narrow="true"] .kx-source-page-inner {
+  padding: 14px 24px 120px;
 }
 .kx-source-page-bar {
   display: flex;
@@ -1890,10 +1889,8 @@
 .kx-page-note .ne-root {
   margin-left: calc(-1 * var(--ne-gutter, 52px));
 }
-@container (max-width: 640px) {
-  .kx-page-note .ne-root {
-    --ne-gutter: 30px;
-  }
+.kx-source-page[data-narrow="true"] .kx-page-note .ne-root {
+  --ne-gutter: 30px;
 }
 .kx-page-note .ProseMirror:focus {
   outline: none;
@@ -2024,4 +2021,61 @@
 .kx-page-note .ne-prose {
   min-height: 5em;
   padding-bottom: 1.5em;
+}
+.kx-page-split {
+  display: inline-flex;
+}
+.kx-page-split > .kx-page-action {
+  border-radius: 7px 0 0 7px;
+}
+.kx-page-split summary.kx-page-action {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 0 7px 7px 0;
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--kx-accent-ink) 30%, transparent);
+}
+.kx-page-details-hide {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 10px 0 0 -2px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-3);
+  font: 12px var(--kx-font);
+}
+.kx-page-details-hide:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+/* Highlights sit above the note, two lines each; the full text is in the tooltip. */
+.kx-page-highlights blockquote {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.kx-page-highlight-comment {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+/* Something just added to the note (a quote) flashes once where it landed. */
+.kx-page-note .kx-flash {
+  animation: kx-flash 1.6s var(--kx-ease);
+}
+@keyframes kx-flash {
+  0%,
+  35% {
+    background: var(--kx-accent-soft);
+    box-shadow: 0 0 0 6px var(--kx-accent-soft);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
 }

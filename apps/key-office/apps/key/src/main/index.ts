@@ -860,6 +860,8 @@ function moveTab(from: ShellWindow, tabId: string, to?: ShellWindow) {
   else layout(from);
 }
 /** A source's page, opened on its own or (with `read`) beside its PDF in one split tab. */
+/** Passages sent from a PDF selection to a source's note, until its page takes them. */
+const pendingAppends = new Map<string, { text: string; page: number; color?: string }[]>();
 async function openSourcePage(
   w: ShellWindow,
   p: { workspaceId: string; sourceId: string; title?: string; read?: boolean; pdf?: any },
@@ -1319,6 +1321,29 @@ else
         });
         return true;
       });
+      // "Add to note" on a PDF selection: the passage waits here until the source's page
+      // (opened beside the PDF when needed) takes it, appends it and scrolls to it.
+      ipcMain.handle("key:reader-add-to-note", async (event, passage: { text: string; page: number; color?: string }) => {
+        const v = bound(event.sender.id);
+        if (v?.kind !== "pdf" || !v.workspaceId) throw Error("Not a PDF reader");
+        if (!String(passage?.text ?? "").trim()) return;
+        const hash = v.source?.hash ?? v.id.split(":").at(-1);
+        const found = await registry.invoke<{ items: any[] }>("store_sources", { ids: [hash], limit: 1, scope: "all" }, v.workspaceId);
+        const source = found.items[0];
+        if (!source) throw Error("This PDF is not in the library");
+        const queued = pendingAppends.get(source.id) ?? [];
+        queued.push({ text: String(passage.text), page: Number(passage.page) || 0, color: passage.color });
+        pendingAppends.set(source.id, queued);
+        const w = shellOfView(v.id) ?? focusedShell();
+        await openSourcePage(w, {
+          workspaceId: v.workspaceId,
+          sourceId: source.id,
+          title: source.title,
+          read: true,
+          pdf: { documentHash: hash, documentId: hash, title: v.title, workspaceId: v.workspaceId },
+        });
+        emit("note-append", { sourceId: source.id });
+      });
       // × in the reader's result bar: end the search session but keep the document.
       ipcMain.handle("key:reader-dismiss", (event) => {
         const v = bound(event.sender.id);
@@ -1330,7 +1355,10 @@ else
       ipcMain.handle("key:reader-ready", (event) => {
         const v = bound(event.sender.id);
         if (v?.kind !== "pdf") throw Error("Not a PDF reader");
+        const tab = shellOfView(v.id)?.state.tabs.find((t) => t.viewIds.includes(v.id));
+        const besides = tab?.viewIds.find((id) => id !== v.id);
         return {
+          notesOpen: !!besides && views.get(besides)?.content?.section === "source",
           source: v.source,
           viewState: v.viewState,
           searchTarget: v.searchTarget,
@@ -1601,6 +1629,11 @@ else
               })),
             ).popup({ window: w.window, x: Math.round(p.x), y: Math.round(p.y) });
             return snapshot(w);
+          case "take-note-appends": {
+            const queued = pendingAppends.get(String(p.sourceId)) ?? [];
+            pendingAppends.delete(String(p.sourceId));
+            return queued;
+          }
           case "open-source-page":
             if (!p.workspaceId || !p.sourceId) throw Error("Choose a source");
             await openSourcePage(w, p);

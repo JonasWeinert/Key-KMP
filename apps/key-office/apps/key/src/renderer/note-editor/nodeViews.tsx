@@ -224,7 +224,7 @@ export function SourceQuoteView({ node, editor }: ReactNodeViewProps) {
   if (!ref) parts.push(ref === null ? "Unknown source" : "Loading source…");
   if (page !== null) parts.push(`p. ${page + 1}`);
   return (
-    <NodeViewWrapper as="figure" className="ne-squote">
+    <NodeViewWrapper as="figure" className="ne-squote" data-color={node.attrs.color || undefined}>
       <NodeViewContent<"blockquote"> as="blockquote" className="ne-squote-text" />
       <figcaption className="ne-squote-cite" contentEditable={false}>
         <button

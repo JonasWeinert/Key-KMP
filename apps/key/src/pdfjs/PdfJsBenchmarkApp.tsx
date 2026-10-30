@@ -1432,6 +1432,8 @@ interface PdfJsBenchmarkAppProps {
   onChromeStateChange?: (state: PdfReaderChromeState) => void;
   initialControlState?: { searchQuery: string };
   onRequestControlMode?: (mode: 'search' | 'comments' | null) => void;
+  /** When set, the selection toolbar sends the passage to the source's note instead of a comment. */
+  onAddToNote?: (passage: { text: string; page: number; color?: string }) => void;
 }
 
 export type PdfReaderPanel = ReaderPanel;
@@ -1495,6 +1497,7 @@ function PdfJsBenchmarkApp({
   onChromeStateChange,
   initialControlState,
   onRequestControlMode,
+  onAddToNote,
 }: PdfJsBenchmarkAppProps = {}, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -2829,15 +2832,35 @@ function PdfJsBenchmarkApp({
           >
             <Icon name="copy" />
           </button>
-          <button
-            type="button"
-            className="pdfjs-selection-action"
-            aria-label={activeAnnotation?.comment ? 'Edit note' : 'Add note'}
-            title={activeAnnotation?.comment ? 'Edit note' : 'Add note'}
-            onClick={openCommentEditor}
-          >
-            <Icon name="note" />
-          </button>
+          {onAddToNote ? (
+            <button
+              type="button"
+              className="pdfjs-selection-action pdfjs-selection-to-note"
+              aria-label="Add to note"
+              title="Quote this passage in the source's note"
+              onClick={() => {
+                const text = (selection?.text ?? activeAnnotation?.text ?? '').trim();
+                const page = selection?.range.start.page ?? activeAnnotation?.range.start.page ?? 0;
+                if (!text) return;
+                onAddToNote({ text, page, color: activeAnnotation?.color });
+                window.getSelection()?.removeAllRanges();
+                setStatus('Added to note');
+              }}
+            >
+              <Icon name="note" />
+              <span>Add to note</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="pdfjs-selection-action"
+              aria-label={activeAnnotation?.comment ? 'Edit note' : 'Add note'}
+              title={activeAnnotation?.comment ? 'Edit note' : 'Add note'}
+              onClick={openCommentEditor}
+            >
+              <Icon name="note" />
+            </button>
+          )}
           {activeAnnotation && (
             <button
               type="button"

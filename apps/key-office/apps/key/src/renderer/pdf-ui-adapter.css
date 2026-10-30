@@ -432,3 +432,8 @@
 .key-pdf-reader :is(.key-icon-button, .selection-actions button:not(.color-dot)) {
   min-height: var(--key-ui-control-compact);
 }
+.key-pdf-reader .pdfjs-selection-toolbar .pdfjs-selection-to-note {
+  width: auto;
+  padding: 0 10px 0 8px;
+  color: var(--key-ui-focus);
+}

@@ -2132,6 +2132,16 @@ button { color: inherit; }
   width: 15px;
   height: 15px;
 }
+.pdfjs-selection-toolbar .pdfjs-selection-to-note {
+  display: inline-flex;
+  width: auto;
+  gap: 5px;
+  padding: 0 9px 0 7px;
+  color: var(--key-accent);
+  font-weight: 550;
+  white-space: nowrap;
+}
+.pdfjs-selection-toolbar .pdfjs-selection-to-note:hover { color: var(--key-accent); }
 .pdfjs-selection-toolbar button.danger { color: var(--key-danger); }
 .pdfjs-selection-toolbar .pdfjs-color-button {
   width: 18px;

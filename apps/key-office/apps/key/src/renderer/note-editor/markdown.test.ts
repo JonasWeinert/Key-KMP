@@ -145,6 +145,14 @@ describe("note markdown round-trip", () => {
     expect(resolved.out).toBe('```source id="zz9"\nDoe 2020 — Fresh title\n```');
   });
 
+  it("quote keeps the highlight colour", () => {
+    const md = '```quote source="abc123" page="4" color="blue"\nFrom a blue highlight.\n```';
+    const { out, doc, stable } = roundTrip(md);
+    expect(doc.content?.[0]).toMatchObject({ type: "sourceQuote", attrs: { source: "abc123", page: 4, color: "blue" } });
+    expect(out).toBe(md);
+    expect(stable).toBe(true);
+  });
+
   it("quote with page", () => {
     const md = '```quote source="abc123" page="4"\nThe quoted *passage*…\n```';
     const { out, doc, stable } = roundTrip(md);
