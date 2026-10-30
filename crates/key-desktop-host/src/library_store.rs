@@ -127,7 +127,9 @@ impl Library {
             })(),
             "store_note_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_note(&id)?)),
             "store_search" => self.parse::<SearchQuery>(args).and_then(|query| {
-                let wants_vector = query.mode.as_deref() != Some("keyword");
+                // One or two letters are still being typed; meaning needs a real word.
+                let letters = query.text.chars().filter(|c| c.is_alphanumeric()).count();
+                let wants_vector = query.mode.as_deref() != Some("keyword") && letters >= 3;
                 let vector = if wants_vector { self.indexer.embed_query(&query.text) } else { None };
                 json_output(self.store.search(&query, vector.as_deref())?)
             }),

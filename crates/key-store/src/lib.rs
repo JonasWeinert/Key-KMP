@@ -1126,18 +1126,24 @@ pub(crate) fn fts_phrase(text: &str) -> Option<String> {
 /// Whole words only, so "off" does not match "offer"; a longer last word is still a
 /// prefix, which keeps search-as-you-type useful.
 pub(crate) fn fts_any(text: &str) -> Option<String> {
+    fts_any_prefix(text, 4)
+}
+
+/// Any word matches; the last one also as a prefix once it has `min_prefix` characters.
+pub(crate) fn fts_any_prefix(text: &str, min_prefix: usize) -> Option<String> {
     let words = words(text);
     let last = words.len().saturating_sub(1);
     let terms: Vec<String> = words
         .iter()
         .enumerate()
-        .map(|(i, t)| if i == last && t.chars().count() >= 4 { format!("\"{t}\"*") } else { format!("\"{t}\"") })
+        .map(|(i, t)| if i == last && t.chars().count() >= min_prefix { format!("\"{t}\"*") } else { format!("\"{t}\"") })
         .collect();
     (!terms.is_empty()).then(|| terms.join(" OR "))
 }
 
 fn words(text: &str) -> Vec<String> {
-    const STOP: &[&str] = &["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "of", "on", "or", "the", "to", "with"];
+    // Function words carry no topic; questions like "how do people…" match on the rest.
+    const STOP: &[&str] = &["a", "an", "and", "are", "as", "at", "be", "by", "can", "did", "do", "does", "for", "from", "has", "have", "how", "i", "in", "is", "it", "its", "of", "on", "or", "than", "that", "the", "their", "there", "these", "they", "this", "to", "was", "we", "were", "what", "when", "where", "which", "who", "why", "with"];
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|t| !t.is_empty() && !STOP.contains(&t.to_lowercase().as_str()))
         .map(|t| t.replace('"', ""))

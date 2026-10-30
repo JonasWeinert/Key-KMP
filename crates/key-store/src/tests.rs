@@ -118,3 +118,31 @@ fn property_definitions_rename_and_proposals() {
     assert_eq!(store.delete_property("Reading status", true).unwrap(), 1);
     assert!(store.source(&source.id).unwrap().unwrap().properties.is_empty());
 }
+
+#[test]
+fn search_reports_matching_fields_and_follows_typing() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let source = store
+        .insert_source(input(json!({
+            "kind": "reference", "title": "Health versus income",
+            "creators": [{"family": "Ozdemir"}, {"family": "Palma", "given": "Marco"}],
+            "abstract": "Public efforts to battle COVID-19 trade health against income."
+        })))
+        .unwrap();
+    store
+        .replace_chunks(&source.id, &[ChunkInput { text: "Public efforts to battle COVID-19 trade health against income.".into(), ..Default::default() }])
+        .unwrap();
+
+    // Two letters already find the second author, and say where the match is.
+    let typing = store.search(&SearchQuery { text: "pa".into(), ..Default::default() }, None).unwrap();
+    let hit = &typing.hits[0];
+    assert_eq!(hit.source.as_ref().unwrap().id, source.id);
+    assert_eq!(hit.fields[0].field, "creators");
+    assert!(hit.fields[0].snippet.contains("[[Palma]]"));
+
+    // An abstract match is reported once, as the field, not again as a passage.
+    let result = store.search(&SearchQuery { text: "battle".into(), ..Default::default() }, None).unwrap();
+    assert!(result.hits[0].fields.iter().any(|f| f.field == "abstract" && f.snippet.contains("[[battle]]")));
+    assert!(result.hits[0].passages.is_empty());
+}

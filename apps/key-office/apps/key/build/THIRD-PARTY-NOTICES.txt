@@ -27588,7 +27588,7 @@ SOFTWARE.
 2. Rust crates (Key PDF/search host and spreadsheet worker)
 ========================================================================
 
-602 crates, all under permissive terms:
+607 crates, all under permissive terms:
 
   adler2 2.0.1  —  0BSD OR MIT OR Apache-2.0
     https://github.com/oyvindln/adler2
@@ -28074,6 +28074,10 @@ SOFTWARE.
     https://github.com/rust-lang/jobserver-rs
   js-sys 0.3.103  —  MIT OR Apache-2.0
     https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys
+  key-embed 0.1.0  —  MIT
+    https://crates.io/crates/key-embed
+  key-index 0.1.0  —  MIT
+    https://crates.io/crates/key-index
   key-library 0.1.0  —  MIT
     https://crates.io/crates/key-library
   key-pdf-core 0.1.0  —  MIT
@@ -28090,6 +28094,10 @@ SOFTWARE.
     https://crates.io/crates/key-safe-http
   key-semantic-search 0.1.0  —  MIT
     https://crates.io/crates/key-semantic-search
+  key-store 0.1.0  —  MIT
+    https://crates.io/crates/key-store
+  key-zotero 0.1.0  —  MIT
+    https://crates.io/crates/key-zotero
   levenshtein_automata 0.2.1  —  MIT
     https://github.com/tantivy-search/levenshtein-automata
   libc 0.2.186  —  MIT OR Apache-2.0
@@ -28474,6 +28482,8 @@ SOFTWARE.
     https://github.com/RustCrypto/formats/tree/master/spki
   spm_precompiled 0.1.4  —  Apache-2.0
     https://github.com/huggingface/spm_precompiled
+  sqlite-vec 0.1.9  —  MIT/Apache-2.0
+    https://github.com/asg017/sqlite-vec
   sqlite-wasm-rs 0.5.5  —  MIT
     https://github.com/Spxg/sqlite-wasm-rs
   stable_deref_trait 1.2.1  —  MIT OR Apache-2.0

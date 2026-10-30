@@ -1,12 +1,18 @@
 // Hybrid search: FTS5 keyword ranks and sqlite-vec nearest neighbours are fused
-// with reciprocal-rank fusion, then grouped into one hit per source.
-use crate::{ListQuery, Result, e, fts_any, vector_blob, where_clause};
-use rusqlite::{Connection, params_from_iter, types::Value};
+// with reciprocal-rank fusion, then grouped into one hit per source. Each hit carries
+// the source itself, the metadata fields that matched and its best passages.
+use crate::{ListQuery, Result, Source, e, fts_any, fts_any_prefix, read_source, select_sources, vector_blob, where_clause};
+use rusqlite::{Connection, OptionalExtension, params_from_iter, types::Value};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 const CANDIDATES: usize = 300;
 const RRF_K: f64 = 60.0;
+/// Passages found only by meaning must be at least this close (cosine distance). Measured on
+/// a 4,400-item library: relevant passages sit below 0.26, unrelated queries never reach 0.30.
+const MAX_SEMANTIC_DISTANCE: f64 = 0.27;
+/// sources_fts columns shown as field matches, by index. The title is always on screen.
+const FIELDS: [(usize, &str); 6] = [(1, "creators"), (2, "container"), (3, "abstract"), (4, "tags"), (5, "notes"), (6, "identifiers")];
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,6 +37,17 @@ pub struct SearchPassage {
     pub snippet: String,
     pub text: String,
     pub score: f64,
+    /// Found by meaning only: no query word occurs in it.
+    pub related: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldMatch {
+    /// creators | container | abstract | tags | notes | identifiers
+    pub field: String,
+    /// The matching stretch with matches wrapped in `[[` `]]`.
+    pub snippet: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,6 +58,8 @@ pub struct SearchHit {
     pub title: String,
     pub score: f64,
     pub metadata_match: bool,
+    pub source: Option<Source>,
+    pub fields: Vec<FieldMatch>,
     pub passages: Vec<SearchPassage>,
 }
 
@@ -100,11 +119,13 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
                     "SELECT knn.rowid, c.source_id
                      FROM (SELECT rowid, distance FROM chunk_vectors WHERE embedding MATCH ?1 AND k = {CANDIDATES}) knn
                      JOIN chunks c ON c.id = knn.rowid
-                     WHERE c.source_id IN ({eligible})
+                     WHERE c.source_id IN ({eligible}) AND (knn.distance <= {MAX_SEMANTIC_DISTANCE} OR knn.rowid IN (SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?2))
                      ORDER BY knn.distance"
                 ))
                 .map_err(e)?;
-            let mut args: Vec<Value> = vec![Value::Blob(vector_blob(vector)?)];
+            // Keyword passages keep their semantic credit at any distance; the rest must be close.
+            let keyword = fts_any(&query.text).unwrap_or_else(|| "\"\"".into());
+            let mut args: Vec<Value> = vec![Value::Blob(vector_blob(vector)?), Value::Text(keyword)];
             args.extend(values.iter().cloned());
             let rows = statement
                 .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))
@@ -122,9 +143,11 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
     }
 
     // Title, author, journal, tag and note matches lift a source even without passages.
+    // The last word matches as a prefix from two letters, so results follow typing.
+    let metadata_phrase = fts_any_prefix(&query.text, 2);
     let mut metadata: HashMap<String, f64> = HashMap::new();
-    if let Some(phrase) = fts_any(&query.text) {
-        let mut args: Vec<Value> = vec![Value::Text(phrase)];
+    if let Some(phrase) = &metadata_phrase {
+        let mut args: Vec<Value> = vec![Value::Text(phrase.clone())];
         args.extend(values.iter().cloned());
         let mut statement = db
             .prepare(&format!(
@@ -167,29 +190,64 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
     let mut text_of = db
         .prepare("SELECT page, start_seconds, text FROM chunks WHERE id = ?")
         .map_err(e)?;
-    let mut source_of = db
-        .prepare("SELECT title, coalesce(file_hash, id) FROM sources WHERE id = ?")
+    let mut source_of = db.prepare(&format!("{} WHERE s.id = ?", select_sources())).map_err(e)?;
+    let snippets = FIELDS
+        .iter()
+        .map(|(column, _)| {
+            let tokens = if matches!(column, 3 | 5) { 28 } else { 16 };
+            format!("snippet(sources_fts, {column}, '[[', ']]', '…', {tokens})")
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut fields_of = db
+        .prepare(&format!(
+            "SELECT {snippets} FROM sources_fts WHERE sources_fts MATCH ?1 AND rowid = (SELECT rowid FROM sources WHERE id = ?2)"
+        ))
         .map_err(e)?;
     for (source_id, score) in ranked {
-        let (title, document_hash): (String, String) = source_of
-            .query_row([&source_id], |r| Ok((r.get(0)?, r.get(1)?)))
-            .map_err(e)?;
+        let Some(source) = source_of.query_row([&source_id], read_source).optional().map_err(e)? else { continue };
+        let mut fields = Vec::new();
+        if let (Some(phrase), true) = (&metadata_phrase, metadata.contains_key(&source_id)) {
+            let found = fields_of
+                .query_row([phrase.as_str(), source_id.as_str()], |r| {
+                    (0..FIELDS.len()).map(|i| r.get::<_, Option<String>>(i)).collect::<rusqlite::Result<Vec<_>>>()
+                })
+                .optional()
+                .map_err(e)?
+                .unwrap_or_default();
+            for ((_, field), snippet) in FIELDS.iter().zip(found) {
+                if let Some(snippet) = snippet.filter(|s| s.contains("[[")) {
+                    fields.push(FieldMatch { field: (*field).into(), snippet });
+                }
+            }
+        }
+        // The abstract is also indexed as a passage; show it once, as the field.
+        let abstract_shown = fields.iter().any(|f| f.field == "abstract");
         let mut list = by_source.remove(&source_id).unwrap_or_default();
         list.sort_by(|a, b| b.1.score.total_cmp(&a.1.score));
         let mut passages = Vec::new();
-        for (id, candidate) in list.into_iter().take(per_source) {
+        for (id, candidate) in list {
+            if passages.len() == per_source {
+                break;
+            }
             let (page, start_seconds, text): (Option<i64>, Option<f64>, String) = text_of
                 .query_row([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
                 .map_err(e)?;
+            if abstract_shown && page.is_none() && start_seconds.is_none() {
+                continue;
+            }
+            let related = candidate.snippet.is_none();
             let snippet = candidate.snippet.unwrap_or_else(|| excerpt(&text, 220));
-            passages.push(SearchPassage { id: id.to_string(), page, start_seconds, snippet, text, score: candidate.score });
+            passages.push(SearchPassage { id: id.to_string(), page, start_seconds, snippet, text, score: candidate.score, related });
         }
         hits.push(SearchHit {
             metadata_match: metadata.contains_key(&source_id),
+            document_hash: source.file_hash().unwrap_or(&source_id).to_string(),
+            title: source.title().to_string(),
             source_id,
-            document_hash,
-            title,
             score,
+            source: Some(source),
+            fields,
             passages,
         });
     }

@@ -1,5 +1,6 @@
 import { Button, Input } from "@key/design-system";
 import { Icon, type IconName } from "./icons";
+import { ModelProgressPill, useModelProgress } from "./model-progress";
 import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
 import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
@@ -308,6 +309,8 @@ export default function App() {
       },
     });
   };
+  // The model is shared by every workspace, so any host can report it.
+  const model = useModelProgress(invoke, workspaceId || workspaces[0]?.id);
   const selectedWorkspace = workspaces.find((w) => w.id === workspaceId),
     selectedProject = projects.find((p) => p.id === projectId);
   const activeTab = tabs.tabs.find((t) => t.id === tabs.activeTabId),
@@ -500,6 +503,7 @@ export default function App() {
             </nav>
           </div>
           <div className="key-sidebar-footer">
+            <ModelProgressPill progress={model} />
             {projectId && (
               <button
                 className="kx-nav-item"

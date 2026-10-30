@@ -134,6 +134,10 @@ const assert = require("node:assert/strict");
     assert(pdf, "The reader opened");
     await pdf.waitForFunction(() => window.__PDFJS_FEATURES_READY__);
     await page.evaluate(() => window.key.tabAction("preview-dismiss"));
+    // Results follow typing: a partial word finds the title, highlighted, without Enter.
+    await search.fill("interac");
+    await page.locator(".kx-hit .kx-hit-title mark", { hasText: /^Interaction$/ }).first().waitFor();
+    assert.match(await page.locator(".kx-results-head").innerText(), /in titles and details/);
     await search.fill("");
     await search.press("Escape");
     report.search = true;

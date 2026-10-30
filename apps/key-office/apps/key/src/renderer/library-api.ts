@@ -87,6 +87,12 @@ export interface Passage {
   snippet: string;
   text: string;
   score: number;
+  /** Found by meaning only: none of the query words occur in it. */
+  related?: boolean;
+}
+export interface FieldMatch {
+  field: "creators" | "container" | "abstract" | "tags" | "notes" | "identifiers";
+  snippet: string;
 }
 export interface SearchHit {
   sourceId: string;
@@ -94,6 +100,8 @@ export interface SearchHit {
   title: string;
   score: number;
   metadataMatch: boolean;
+  source?: Source;
+  fields: FieldMatch[];
   passages: Passage[];
 }
 export interface SearchResult {

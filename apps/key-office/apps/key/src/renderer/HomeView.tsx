@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { LibrarySource } from "./LibraryHome";
+import { ModelProgressCard, useModelProgress } from "./model-progress";
 import { Icon, type IconName } from "./icons";
 import { shortCreators, type Source, type SourcePage } from "./library-api";
 
@@ -105,6 +106,7 @@ export default function HomeView({
       current = false;
     };
   }, [workspace?.id, active, invoke, refreshKey]);
+  const model = useModelProgress(invoke, workspace?.id, active);
   const total = summary?.total ?? 0,
     searchable = summary?.counts?.searchable ?? recent.filter((d) => d.status === "indexed").length,
     processing = summary?.counts?.processing ?? 0;
@@ -194,6 +196,7 @@ export default function HomeView({
             </button>
           ))}
         </div>
+        <ModelProgressCard progress={model} />
         {processing > 0 && total > 0 && (
           <div className="kx-home-progress" role="status">
             <div>

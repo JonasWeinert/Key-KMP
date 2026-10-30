@@ -1,5 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ModelProgressCard, useModelProgress } from "./model-progress";
 import { Icon } from "./icons";
 import {
   KIND_ICON,
@@ -7,17 +8,20 @@ import {
   bridge,
   relativeDate,
   shortCreators,
-  snippetParts,
   type Collection,
+  type FieldMatch,
   type Facets,
   type Invoke,
   type LibraryStatus,
+  type Passage,
   type SearchHit,
   type SearchResult,
   type Source,
   type SourcePage,
 } from "./library-api";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
+import type { Creator } from "./citation";
+import { Highlight, Snippet, hasMatch, queryPattern } from "./search-highlight";
 import SourceInspector, { indexLabel } from "./SourceInspector";
 import {
   AgentFillSheet,
@@ -81,7 +85,6 @@ export default function ReferenceLibrary({
   const [sort, setSort] = useState("added");
   const [descending, setDescending] = useState(true);
   const [text, setText] = useState("");
-  const [filterText, setFilterText] = useState("");
   const [items, setItems] = useState<Source[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<SourcePage["counts"]>();
@@ -94,10 +97,11 @@ export default function ReferenceLibrary({
   const [focusId, setFocusId] = useState<string>();
   const [anchor, setAnchor] = useState<string>();
   const [inspector, setInspector] = useState<Source>();
-  const [search, setSearch] = useState<{ query: string; result?: SearchResult; busy: boolean }>();
+  const [search, setSearch] = useState<SearchState>();
   const [dropping, setDropping] = useState(false);
   const [toast, setToast] = useState<{ text: string; undo?: () => void }>();
   const { definitions, reload: reloadDefinitions } = usePropertyDefinitions(invoke, workspaceId);
+  const model = useModelProgress(invoke, workspaceId, active);
   const [sheet, setSheet] = useState<PropertySheetState>();
   const [agent, setAgent] = useState<{ targets: Source[]; name?: string }>();
   const [tagManager, setTagManager] = useState(false);
@@ -136,7 +140,7 @@ export default function ReferenceLibrary({
         if (s.workspaceId !== workspaceId) return;
         setCollectionId(s.collectionId);
         setScope(s.scope ?? "all");
-        setSearch(undefined);
+        setText("");
       }),
     [workspaceId],
   );
@@ -146,14 +150,10 @@ export default function ReferenceLibrary({
       localStorage.setItem("key.library.last", workspaceId);
     } catch {}
   }, [active, workspaceId]);
-  useEffect(() => {
-    const t = setTimeout(() => setFilterText(text), 160);
-    return () => clearTimeout(t);
-  }, [text]);
 
   const query = useMemo(
-    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, text: filterText || null, sort, descending }),
-    [collectionId, scope, kind, tag, filterText, sort, descending],
+    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, text: null, sort, descending }),
+    [collectionId, scope, kind, tag, sort, descending],
   );
 
   const load = useCallback(
@@ -203,6 +203,7 @@ export default function ReferenceLibrary({
   }, [active, focusId, reloadDefinitions]);
 
   // Indexing progress: poll while anything is in flight, refresh visible statuses gently.
+  const knownCount = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!active) return;
     let stopped = false;
@@ -212,6 +213,10 @@ export default function ReferenceLibrary({
         const next = await invoke<LibraryStatus>("store_status", {}, workspaceId);
         if (stopped) return;
         setStatus(next);
+        // Sources added elsewhere (another window, the agent, a direct import) appear without a reload.
+        const known = knownCount.current;
+        knownCount.current = next.counts.all;
+        if (known !== undefined && known !== next.counts.all && !search) return void load(0);
         if ((next.busy || next.counts.indexing > 0) && ++ticks % 4 === 0 && !search) {
           const page = await invoke<SourcePage>("store_sources", { ...query, offset: 0, limit: Math.max(PAGE, items.length) }, workspaceId);
           if (!stopped) {
@@ -227,14 +232,19 @@ export default function ReferenceLibrary({
       stopped = true;
       clearInterval(timer);
     };
-  }, [active, invoke, workspaceId, query, search, items.length]);
+  }, [active, invoke, workspaceId, query, search, items.length, load]);
 
+  // While searching, selection, arrow keys and bulk actions work on the results.
+  const rows = useMemo(
+    () => (search?.result ? search.result.hits.flatMap((h) => (h.source ? [h.source] : [])) : items),
+    [search?.result, items],
+  );
   // Keep the inspector in step with the focused row.
   useEffect(() => {
     if (!focusId) return setInspector(undefined);
-    const row = items.find((s) => s.id === focusId);
+    const row = rows.find((s) => s.id === focusId);
     if (row) setInspector(row);
-  }, [focusId, items]);
+  }, [focusId, rows]);
 
   useEffect(() => {
     virtualizerRef.current?.measure();
@@ -255,33 +265,54 @@ export default function ReferenceLibrary({
     }
   }, [virtualItems, items.length, total, load]);
 
-  const runSearch = async (value: string) => {
-    if (!value.trim()) return setSearch(undefined);
-    setSearch({ query: value, busy: true });
-    try {
-      const result = await invoke<SearchResult>(
-        "store_search",
-        { text: value, collectionId: collectionId ?? null, scope: scope === "trashed" ? "trashed" : "all", kind: kind ?? null, tag: tag ?? null, limit: 60, passagesPerSource: 3 },
-        workspaceId,
-      );
-      setSearch({ query: value, result, busy: false });
-    } catch (e) {
+  // Search follows typing: metadata and full text together, newest request wins.
+  const searchRequest = useRef(0);
+  const runSearch = useCallback(
+    async (value: string, limit = 60) => {
+      const id = ++searchRequest.current;
+      setSearch((previous) => ({ query: value, result: previous?.result, busy: true, limit }));
+      try {
+        const result = await invoke<SearchResult>(
+          "store_search",
+          { text: value, collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, limit, passagesPerSource: 3 },
+          workspaceId,
+        );
+        if (id === searchRequest.current) setSearch({ query: value, result, busy: false, limit });
+      } catch (e) {
+        if (id !== searchRequest.current) return;
+        setSearch((previous) => previous && { ...previous, busy: false });
+        setError(String(e));
+      }
+    },
+    [invoke, workspaceId, collectionId, scope, kind, tag],
+  );
+  useEffect(() => {
+    const value = text.trim();
+    if (!value) {
+      ++searchRequest.current;
       setSearch(undefined);
-      setError(String(e));
+      return;
     }
-  };
+    const t = setTimeout(() => void runSearch(value), 180);
+    return () => clearTimeout(t);
+  }, [text, runSearch]);
 
   const updateSource = (source: Source) => {
     setItems((list) => list.map((s) => (s.id === source.id ? source : s)));
+    setSearch((current) =>
+      current?.result
+        ? { ...current, result: { ...current.result, hits: current.result.hits.map((h) => (h.sourceId === source.id ? { ...h, source } : h)) } }
+        : current,
+    );
     setInspector(source);
   };
   const selection = selected.size ? [...selected] : focusId ? [focusId] : [];
   const select = (id: string, event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
     if (event.shiftKey && anchor) {
-      const a = items.findIndex((s) => s.id === anchor);
-      const b = items.findIndex((s) => s.id === id);
+      const a = rows.findIndex((s) => s.id === anchor);
+      const b = rows.findIndex((s) => s.id === id);
       const [from, to] = a < b ? [a, b] : [b, a];
-      setSelected(new Set(items.slice(from, to + 1).map((s) => s.id)));
+      setSelected(new Set(rows.slice(from, to + 1).map((s) => s.id)));
     } else if (event.metaKey || event.ctrlKey) {
       const next = new Set(selected);
       if (!next.size && focusId) next.add(focusId);
@@ -295,8 +326,8 @@ export default function ReferenceLibrary({
     setFocusId(id);
   };
   const move = (delta: number, extend: boolean) => {
-    const index = Math.max(0, Math.min(items.length - 1, items.findIndex((s) => s.id === focusId) + delta));
-    const next = items[index];
+    const index = Math.max(0, Math.min(rows.length - 1, rows.findIndex((s) => s.id === focusId) + delta));
+    const next = rows[index];
     if (!next) return;
     if (extend) {
       const set = new Set(selected.size ? selected : focusId ? [focusId] : []);
@@ -307,7 +338,8 @@ export default function ReferenceLibrary({
       setAnchor(next.id);
     }
     setFocusId(next.id);
-    virtualizer.scrollToIndex(index, { align: "auto" });
+    if (search) document.querySelector(`[data-hit="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: "nearest" });
+    else virtualizer.scrollToIndex(index, { align: "auto" });
   };
 
   const trash = async (ids: string[], trashed = true) => {
@@ -342,17 +374,17 @@ export default function ReferenceLibrary({
       e.preventDefault();
       move(e.key === "ArrowDown" ? 1 : -1, e.shiftKey);
     } else if (e.key === "Enter" && focusId) {
-      const source = items.find((s) => s.id === focusId);
+      const source = rows.find((s) => s.id === focusId);
       if (source) open(source);
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
       e.preventDefault();
-      setSelected(new Set(items.map((s) => s.id)));
+      setSelected(new Set(rows.map((s) => s.id)));
     } else if ((e.key === "Backspace" || e.key === "Delete") && selection.length && scope !== "trashed") {
       e.preventDefault();
       void trash(selection);
     } else if (e.key === "Escape") {
       if (selected.size) setSelected(new Set());
-      else if (search) setSearch(undefined);
+      else if (search) setText("");
       else setFocusId(undefined);
     }
   };
@@ -382,9 +414,35 @@ export default function ReferenceLibrary({
     }
   };
 
+  // Results only re-render when they change, not on every keystroke; handlers stay stable.
+  const latest = useRef({ select, open, runSearch, onOpenHit, search });
+  latest.current = { select, open, runSearch, onOpenHit, search };
+  const resultHandlers = useMemo<ResultHandlers>(
+    () => ({
+      onPointer: (id, e) => latest.current.select(id, e),
+      onOpen: (source) => latest.current.open(source),
+      onMore: () => {
+        const current = latest.current.search;
+        if (current) void latest.current.runSearch(current.query, current.limit + 120);
+      },
+      onOpenPassage: (hit, passage) => {
+        const current = latest.current.search;
+        if (!current) return;
+        latest.current.onOpenHit({
+          source: hit,
+          passage,
+          query: current.query,
+          results: (current.result?.hits ?? []).flatMap((h) =>
+            h.passages.filter((p) => p.page !== null).map((p) => ({ id: p.id, documentHash: h.documentHash, documentTitle: h.title, page: p.page })),
+          ),
+        });
+      },
+    }),
+    [],
+  );
+
   const collectionName = collections.find((c) => c.id === collectionId)?.name;
   const title = scope === "trashed" ? "Trash" : collectionName ?? (scope === "starred" ? "Starred" : scope === "unfiled" ? "Unfiled" : scope === "attention" ? "Needs attention" : "All sources");
-  const model = status?.model;
   const indexing = status?.counts.indexing ?? 0;
 
   return (
@@ -421,7 +479,11 @@ export default function ReferenceLibrary({
               role="search"
               onSubmit={(e) => {
                 e.preventDefault();
-                void runSearch(text);
+                const first = search?.result?.hits[0];
+                if (first) {
+                  setSelected(new Set());
+                  setFocusId(first.sourceId);
+                }
               }}
             >
               <Icon name="search" size={14} />
@@ -429,21 +491,27 @@ export default function ReferenceLibrary({
                 ref={searchInput}
                 className="kx-search-input"
                 aria-label="Search the library"
-                placeholder="Filter, or ↵ to search full text"
+                placeholder="Search titles, authors, notes and full text"
                 value={text}
-                onChange={(e) => {
-                  setText(e.target.value);
-                  if (!e.target.value) setSearch(undefined);
-                }}
+                onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") {
                     e.stopPropagation();
                     setText("");
-                    setSearch(undefined);
+                  } else if (e.key === "ArrowDown" && search?.result?.hits.length) {
+                    e.preventDefault();
+                    setSelected(new Set());
+                    setFocusId(search.result.hits[0].sourceId);
+                    document.querySelector<HTMLElement>(".kx-results")?.focus();
                   }
                 }}
               />
-              {!text && <kbd aria-hidden="true">⌘F</kbd>}
+              {search?.busy ? <span className="kx-search-spinner" aria-label="Searching" /> : !text && <kbd aria-hidden="true">⌘F</kbd>}
+              {text && (
+                <button type="button" className="kx-search-clear" aria-label="Clear search" onClick={() => setText("")}>
+                  <Icon name="close" size={10} />
+                </button>
+              )}
             </form>
             <AddMenu
               onFiles={() =>
@@ -479,21 +547,21 @@ export default function ReferenceLibrary({
           </div>
         </header>
 
-        {!search && (
-        <div className="kx-filter-bar">
+        {(
+        <div className="kx-filter-bar" data-searching={!!search}>
           <div className="kx-scopes" role="group" aria-label="Library views">
             {SCOPES.map(([value, label]) => {
               const count = value === "all" ? counts?.all : value === "trashed" ? counts?.trashed : value === "starred" ? counts?.starred : value === "unfiled" ? counts?.unfiled : counts?.attention;
               if (value !== "all" && value !== "trashed" && !count && scope !== value) return null;
               return (
-                <button key={value} aria-pressed={scope === value} onClick={() => { setScope(value); setSearch(undefined); }}>
+                <button key={value} aria-pressed={scope === value} onClick={() => setScope(value)}>
                   {label}
                   {!!count && <span className="kx-count">{count.toLocaleString()}</span>}
                 </button>
               );
             })}
           </div>
-          <div className="kx-controls-end">
+          {!search && <div className="kx-controls-end">
             <label className="kx-control kx-control-select" title="Sort">
               <Icon name="sort" size={14} />
               <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)}>
@@ -549,10 +617,10 @@ export default function ReferenceLibrary({
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
         )}
-        {!search && (facets.kinds.length > 1 || facets.tags.length > 0) && (
+        {(facets.kinds.length > 1 || facets.tags.length > 0) && (
           <div className="kx-facet-bar">
             {facets.kinds.length > 1 &&
               facets.kinds.map((k) => (
@@ -565,23 +633,7 @@ export default function ReferenceLibrary({
             {facets.tags.length > 0 && <TagPicker tags={facets.tags} value={tag} onChange={setTag} onManage={() => setTagManager(true)} />}
           </div>
         )}
-        {model && model.state !== "ready" && (
-          <div className="kx-banner" role="status">
-            <Icon name="sparkle" size={14} />
-            {model.state === "downloading" ? (
-              <>
-                <span>Downloading the on-device search model · {Math.round(model.received / 1e6)} of {Math.round(model.total / 1e6)} MB</span>
-                <div className="kx-meter">
-                  <span style={{ width: `${model.total ? Math.round((model.received / model.total) * 100) : 0}%` }} />
-                </div>
-              </>
-            ) : model.state === "failed" ? (
-              <span>The search model could not be downloaded ({model.error}). Keyword search still works; Key retries automatically.</span>
-            ) : (
-              <span>Preparing on-device semantic search…</span>
-            )}
-          </div>
-        )}
+        <ModelProgressCard progress={model} compact />
         {error && (
           <div className="kx-banner kx-banner-error" role="alert">
             <span>{error}</span>
@@ -590,27 +642,12 @@ export default function ReferenceLibrary({
         )}
 
         {search ? (
-          <SearchResults
-            search={search}
-            onBack={() => setSearch(undefined)}
-            onSelect={(id) => setFocusId(id)}
-            focusId={focusId}
-            onOpenPassage={(hit, passage) =>
-              onOpenHit({
-                source: hit,
-                passage,
-                query: search.query,
-                results: (search.result?.hits ?? []).flatMap((h) =>
-                  h.passages.filter((p) => p.page !== null).map((p) => ({ id: p.id, documentHash: h.documentHash, documentTitle: h.title, page: p.page })),
-                ),
-              })
-            }
-            items={items}
+          <SearchResults search={search} focusId={focusId} selected={selected} handlers={resultHandlers}
           />
         ) : (
           <div className="kx-list" ref={listRef} tabIndex={0} role="listbox" aria-label={`${title}, ${total} items`} aria-multiselectable>
             {!loading && !items.length ? (
-              <EmptyState scope={scope} filtered={!!(filterText || kind || tag)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />
+              <EmptyState scope={scope} filtered={!!(kind || tag)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />
             ) : (
               <>
               {view === "table" && (
@@ -995,71 +1032,197 @@ function TableRow({
   );
 }
 
-function SearchResults({
+type SearchState = { query: string; result?: SearchResult; busy: boolean; limit: number };
+
+const FIELD_LABEL: Record<FieldMatch["field"], string> = {
+  creators: "Authors",
+  container: "Published in",
+  abstract: "Abstract",
+  tags: "Tags",
+  notes: "Notes",
+  identifiers: "Identifiers",
+};
+
+function creatorList(creators: Creator[], max: number) {
+  const authors = creators.filter((c) => !c.role || c.role === "author");
+  const list = (authors.length ? authors : creators).map((c) => c.literal || [c.given, c.family].filter(Boolean).join(" "));
+  return list.length > max ? `${list.slice(0, max).join(", ")} et al.` : list.join(", ");
+}
+function passagePlace(passage: Passage) {
+  if (passage.page !== null) return `p. ${passage.page + 1}`;
+  if (passage.startSeconds !== null) {
+    const s = Math.round(passage.startSeconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+  return "Abstract";
+}
+
+/** Live results: one row per source, with every place the query matched underneath. */
+interface ResultHandlers {
+  onPointer: (id: string, e: React.MouseEvent) => void;
+  onOpen: (source: Source) => void;
+  onOpenPassage: (hit: SearchHit, passage: Passage) => void;
+  onMore: () => void;
+}
+
+const SearchResults = memo(function SearchResults({
   search,
-  items,
   focusId,
-  onBack,
-  onSelect,
-  onOpenPassage,
+  selected,
+  handlers,
 }: {
-  search: { query: string; result?: SearchResult; busy: boolean };
-  items: Source[];
+  search: SearchState;
   focusId?: string;
-  onBack: () => void;
-  onSelect: (id: string) => void;
-  onOpenPassage: (hit: SearchHit, passage: { id: string; page: number | null }) => void;
+  selected: Set<string>;
+  handlers: ResultHandlers;
 }) {
   const result = search.result;
+  const pattern = useMemo(() => queryPattern(search.query), [search.query]);
+  const hits = result?.hits ?? [];
+  const inDetails = hits.filter((h) => h.metadataMatch).length;
+  const inText = hits.filter((h) => h.passages.length).length;
   return (
-    <div className="kx-results">
-      <div className="kx-results-head">
-        <button className="kx-link-button" onClick={onBack}>
-          <Icon name="chevronRight" size={12} style={{ transform: "scaleX(-1)" }} /> Library
-        </button>
-        <span>
-          {search.busy
-            ? "Searching…"
-            : `${result?.hits.length ?? 0} sources for “${search.query}”${result?.semantic ? " · meaning + keywords" : " · keywords"}`}
-        </span>
-      </div>
-      {search.busy && (
+    <div className="kx-results" role="listbox" aria-label="Search results" aria-multiselectable tabIndex={0} data-busy={search.busy}>
+      {result ? (
+        <div className="kx-results-head">
+          <strong>{hits.length ? `${hits.length === search.limit ? `Top ${hits.length}` : hits.length} ${hits.length === 1 ? "source" : "sources"}` : "No matches"}</strong>
+          {!!hits.length && (
+            <span>
+              {[inDetails && `${inDetails} in titles and details`, inText && `${inText} in full text`].filter(Boolean).join(" · ")}
+              {result.semantic ? " · matched by words and meaning" : ""}
+            </span>
+          )}
+        </div>
+      ) : (
         <div className="kx-results-loading">
           {Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="kx-skeleton-line" />
           ))}
         </div>
       )}
-      {!search.busy && result && !result.hits.length && <p className="kx-results-empty">Nothing matched. Try other words or a broader collection.</p>}
-      {result?.hits.map((hit) => {
-        const source = items.find((s) => s.id === hit.sourceId);
-        return (
-          <article key={hit.sourceId} className="kx-result" data-focused={focusId === hit.sourceId}>
-            <button className="kx-result-title" onClick={() => onSelect(hit.sourceId)}>
-              <strong>{hit.title || "Untitled"}</strong>
-              {source && <span>{[shortCreators(source.creators), source.year, source.containerTitle].filter(Boolean).join(" · ")}</span>}
-              {hit.metadataMatch && !hit.passages.length && <span className="kx-result-why">Matched title, authors or notes</span>}
-            </button>
-            {hit.passages.map((passage) => (
-              <button
-                key={passage.id}
-                className="kx-passage"
-                disabled={passage.page === null}
-                title={passage.page === null ? "From the abstract" : `Open page ${passage.page + 1}`}
-                onClick={() => passage.page !== null && onOpenPassage(hit, passage)}
-              >
-                <span className="kx-passage-page">{passage.page === null ? "Abstract" : `p. ${passage.page + 1}`}</span>
-                <span className="kx-passage-text">
-                  {snippetParts(passage.snippet).map((part, i) => (part.match ? <mark key={i}>{part.text}</mark> : <span key={i}>{part.text}</span>))}
-                </span>
-              </button>
-            ))}
-          </article>
-        );
-      })}
+      {result && !hits.length && <p className="kx-results-empty">Nothing matched “{search.query}”. Try other words or a broader collection.</p>}
+      {hits.map((hit) => (
+        <SearchHitRow
+          key={hit.sourceId}
+          hit={hit}
+          pattern={pattern}
+          selected={selected.has(hit.sourceId) || (!selected.size && focusId === hit.sourceId)}
+          focused={focusId === hit.sourceId}
+          handlers={handlers}
+        />
+      ))}
+      {hits.length === search.limit && search.limit < 300 && (
+        <button className="kx-results-more" onClick={handlers.onMore}>
+          Show more results
+        </button>
+      )}
     </div>
   );
-}
+});
+
+const SearchHitRow = memo(function SearchHitRow({
+  hit,
+  pattern,
+  selected,
+  focused,
+  handlers,
+}: {
+  hit: SearchHit;
+  pattern?: RegExp;
+  selected: boolean;
+  focused: boolean;
+  handlers: ResultHandlers;
+}) {
+        const source = hit.source;
+        if (!source) return null;
+        const authors = creatorList(source.creators, 6);
+        const container = source.containerTitle || source.publisher;
+        const tags = source.tags.filter((t) => hasMatch(t, pattern));
+        // Matches already visible in the row need no extra line.
+        const fields = hit.fields.filter(
+          (f) => f.field !== "tags" && !(f.field === "creators" && hasMatch(authors, pattern)) && !(f.field === "container" && hasMatch(container, pattern)),
+        );
+        return (
+          <article
+            className="kx-hit"
+            role="option"
+            aria-selected={selected}
+            data-focused={focused}
+            data-hit={source.id}
+            onMouseDown={(e) => {
+              if (!(e.target as HTMLElement).closest(".kx-passage")) handlers.onPointer(source.id, e);
+            }}
+            onDoubleClick={(e) => {
+              if (!(e.target as HTMLElement).closest(".kx-passage")) handlers.onOpen(source);
+            }}
+          >
+            <span className="kx-row-kind" data-kind={source.kind}>
+              <Icon name={KIND_ICON[source.kind] ?? "doc"} size={15} />
+            </span>
+            <div className="kx-hit-body">
+              <strong className="kx-hit-title">
+                <Highlight text={source.title || "Untitled"} pattern={pattern} />
+              </strong>
+              <span className="kx-hit-meta">
+                {authors && (
+                  <span>
+                    <Highlight text={authors} pattern={pattern} />
+                  </span>
+                )}
+                {source.year && <span>{source.year}</span>}
+                {container && (
+                  <span>
+                    <Highlight text={container} pattern={pattern} />
+                  </span>
+                )}
+              </span>
+              {!!tags.length && (
+                <span className="kx-hit-tags">
+                  {tags.map((t) => (
+                    <span key={t} className="kx-hit-tag">
+                      <Highlight text={t} pattern={pattern} />
+                    </span>
+                  ))}
+                </span>
+              )}
+              {(fields.length > 0 || hit.passages.length > 0) && (
+                <ul className="kx-hit-matches">
+                  {fields.map((f) => (
+                    <li key={f.field} className="kx-field-match">
+                      <span className="kx-match-where">{FIELD_LABEL[f.field]}</span>
+                      <span className="kx-match-text">
+                        <Snippet snippet={f.snippet} pattern={pattern} />
+                      </span>
+                    </li>
+                  ))}
+                  {hit.passages.map((passage) => {
+                    const openable = passage.page !== null;
+                    return (
+                      <li key={passage.id}>
+                        <button
+                          className="kx-passage"
+                          data-related={!!passage.related}
+                          disabled={!openable}
+                          title={openable ? `Open page ${passage.page! + 1}` : undefined}
+                          onClick={() => openable && handlers.onOpenPassage(hit, passage)}
+                        >
+                          <span className="kx-match-where">
+                            {passagePlace(passage)}
+                            {passage.related && <em>related</em>}
+                          </span>
+                          <span className="kx-match-text">
+                            <Snippet snippet={passage.snippet} pattern={pattern} />
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </article>
+        );
+      });
 
 function AddMenu({ onFiles, onBlank, onIdentifier, onZotero }: { onFiles: () => void; onBlank: () => void; onIdentifier: () => void; onZotero: () => void }) {
   return (
