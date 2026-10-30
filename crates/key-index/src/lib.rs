@@ -282,7 +282,11 @@ impl Indexer {
         thread::spawn(move || {
             loop {
                 match models.download() {
-                    Ok(true) => break signal.wake(),
+                    Ok(true) => {
+                        // Start the search model now, so the first search does not wait for it.
+                        let _ = signal.embedder();
+                        break signal.wake();
+                    }
                     Ok(false) => thread::sleep(Duration::from_secs(5)),
                     Err(error) => {
                         eprintln!("Key search model download: {error}");
