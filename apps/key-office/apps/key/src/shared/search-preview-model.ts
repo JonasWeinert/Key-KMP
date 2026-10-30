@@ -4,40 +4,44 @@ import {
   type WorkspaceTab,
 } from "./tab-model";
 
-/** Install a preview beside its result list without ever duplicating a view owner.
- * An ordinary displaced view is retained as a tab; only a caller-approved transient
- * preview is removed. Existing preview owners are detached, preserving their peers.
+/** Open a search result in its own tab, right after the results it came from.
+ * Stepping to a result in another document reuses the result's tab (when the
+ * caller marks the old view replaceable) instead of piling up tabs; a view that is
+ * already open anywhere is simply brought forward.
  */
-export function placeSearchPreview(
+export function placeSearchResultTab(
   state: WorkspaceTabsState,
   sourceViewId: string,
-  previewViewId: string,
+  resultViewId: string,
   replaceableViewId?: string,
 ): WorkspaceTabsState {
   const source = state.tabs.find((t) => t.viewIds.includes(sourceViewId));
-  if (!source || sourceViewId === previewViewId) return state;
-  if (source.viewIds.includes(previewViewId))
-    return { ...state, activeTabId: source.id };
-  const displaced = source.viewIds.find((id) => id !== sourceViewId);
-  let tabs: WorkspaceTab[] = [];
-  for (const tab of state.tabs) {
-    if (tab.id === source.id) {
-      const ids =
-        tab.viewIds.length === 1
-          ? [sourceViewId, previewViewId]
-          : tab.viewIds.map((id) => (id === sourceViewId ? id : previewViewId));
-      tabs.push({
-        ...tab,
-        viewIds: ids as [string, string],
-        activeViewId: sourceViewId,
-      });
-      if (displaced && displaced !== replaceableViewId)
-        tabs.push(singleWorkspaceTab(displaced));
-    } else if (tab.viewIds.includes(previewViewId)) {
-      const survivor = tab.viewIds.find((id) => id !== previewViewId);
-      if (survivor)
-        tabs.push({ ...tab, viewIds: [survivor], activeViewId: survivor });
-    } else tabs.push(tab);
+  if (!source || sourceViewId === resultViewId) return state;
+  const open = state.tabs.find((t) => t.viewIds.includes(resultViewId));
+  if (open)
+    return {
+      tabs: state.tabs.map((t) =>
+        t.id === open.id ? { ...t, activeViewId: resultViewId } : t,
+      ),
+      activeTabId: open.id,
+    };
+  const reusable =
+    replaceableViewId &&
+    state.tabs.find(
+      (t) => t.viewIds.length === 1 && t.viewIds[0] === replaceableViewId,
+    );
+  if (reusable) {
+    const tabs = state.tabs.map((t): WorkspaceTab =>
+      t.id === reusable.id
+        ? { ...t, viewIds: [resultViewId], activeViewId: resultViewId }
+        : t,
+    );
+    return { tabs, activeTabId: reusable.id };
   }
-  return { tabs, activeTabId: source.id };
+  const tab = singleWorkspaceTab(resultViewId);
+  const at = state.tabs.findIndex((t) => t.id === source.id) + 1;
+  return {
+    tabs: [...state.tabs.slice(0, at), tab, ...state.tabs.slice(at)],
+    activeTabId: tab.id,
+  };
 }

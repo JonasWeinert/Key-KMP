@@ -25,13 +25,15 @@ export default function SearchPreviewBar({
   return (
     <div className="key-search-session" aria-label="Search result navigation">
       <Button
-        className="key-search-session-origin"
-        title="Focus the results list"
+        className="key-search-session-back"
+        title="Back to the search results"
         onClick={() => action("preview-focus-list")}
       >
-        <span aria-hidden="true">⌕</span>{" "}
-        {preview.query ? `“${preview.query}”` : "Search results"}
+        <span aria-hidden="true">←</span> Back to search
       </Button>
+      <span className="key-search-session-origin" title={preview.query}>
+        {preview.query ? `“${preview.query}”` : "Search results"}
+      </span>
       <span
         className="key-search-session-document"
         title={preview.hit?.documentTitle}
@@ -64,7 +66,7 @@ export default function SearchPreviewBar({
         </Button>
         <Button
           aria-label="Dismiss search navigation"
-          title="Dismiss search navigation — keep this split"
+          title="Hide search navigation; the document stays open"
           onClick={() =>
             action("preview-dismiss", { sourceViewId: preview.sourceViewId })
           }

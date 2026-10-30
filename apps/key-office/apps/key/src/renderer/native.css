@@ -825,6 +825,16 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 .key-search-session button:disabled {
   opacity: 0.35;
 }
+.key-search-session button.key-search-session-back {
+  flex: none;
+  padding: 4px 10px;
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent);
+  font-weight: 600;
+}
+.key-search-session button.key-search-session-back:hover {
+  background: color-mix(in srgb, var(--kx-accent) 20%, transparent);
+}
 .key-search-session-origin {
   max-width: 25%;
   overflow: hidden;

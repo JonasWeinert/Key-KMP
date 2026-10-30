@@ -119,8 +119,15 @@ const assert = require("node:assert/strict");
     await search.press("Enter");
     await page.locator(".kx-passage").first().waitFor();
     assert((await page.locator(".kx-passage mark").count()) > 0, "Matches are highlighted");
+    const libraryTab = (await page.evaluate(() => window.key.tabs())).activeTabId;
     await page.locator(".kx-passage").first().click();
     await page.locator(".key-search-session").waitFor();
+    // The result opens in its own tab right after the results, not as a split.
+    const opened = await page.evaluate(() => window.key.tabs());
+    const resultTab = opened.tabs.find((t) => t.id === opened.activeTabId);
+    assert.notEqual(opened.activeTabId, libraryTab);
+    assert.equal(resultTab.views.length, 1);
+    assert.equal(opened.tabs[opened.tabs.findIndex((t) => t.id === libraryTab) + 1].id, opened.activeTabId);
     await page.waitForFunction(async () => {
       const s = (await window.key.tabs()).searchPreview;
       return !!s?.previewViewId && !s.busy;
@@ -135,11 +142,19 @@ const assert = require("node:assert/strict");
     }
     assert(pdf, "The reader opened");
     await pdf.waitForFunction(() => window.__PDFJS_FEATURES_READY__);
-    await page.evaluate(() => window.key.tabAction("preview-dismiss"));
+    // Back to search returns to the results as they were; the result tab keeps its bar.
+    await page.getByRole("button", { name: "Back to search" }).click();
+    await page.waitForFunction((id) => window.key.tabs().then((t) => t.activeTabId === id), libraryTab);
+    await page.locator(".kx-passage").first().waitFor();
+    assert.equal(await page.locator(".key-search-session").count(), 0);
+    await page.evaluate((id) => window.key.tabAction("activate", { tabId: id }), resultTab.id);
+    await page.locator(".key-search-session").waitFor();
+    await page.evaluate((id) => window.key.tabAction("close", { tabId: id }), resultTab.id);
+    await page.waitForFunction((id) => window.key.tabs().then((t) => t.activeTabId === id), libraryTab);
     // Results follow typing: a partial word finds the title, highlighted, without Enter.
     await search.fill("interac");
     await page.locator(".kx-hit .kx-hit-title mark", { hasText: /^Interaction$/ }).first().waitFor();
-    assert.match(await page.locator(".kx-results-head").innerText(), /in titles and details/);
+    await page.locator(".kx-results-head", { hasText: /in titles and details/ }).waitFor();
     await search.fill("");
     await search.press("Escape");
     // Inside a collection the filter adds bound values next to the query vector.
@@ -152,8 +167,7 @@ const assert = require("node:assert/strict");
     await page.locator(".kx-tree-label", { hasText: "All sources" }).click();
     report.search = true;
 
-    // Trash with undo. The reader stays split beside the list, so the inspector overlays
-    // most of each row; click its leading edge.
+    // Trash with undo.
     await page.locator(".kx-row").first().click({ position: { x: 24, y: 20 } });
     await page.locator(".kx-list").press("Backspace");
     await page.locator(".kx-toast", { hasText: "Trash" }).getByRole("button", { name: "Undo" }).click();

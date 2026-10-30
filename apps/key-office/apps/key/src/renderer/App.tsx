@@ -111,6 +111,7 @@ const officeTabs: TabsApi = {
   reorder: (tabId, index) => api().tabAction("reorder", { tabId, index }),
   showNewMenu: () => api().tabAction("new"),
   showMenu: (x, y) => api().tabAction("tab-menu", { x, y }),
+  showTabMenu: (tabId, x, y) => api().tabAction("tab-context-menu", { tabId, x, y }),
   dropView: (drop) => api().tabAction("drop-view", drop),
   notifyChromePressed: () => {
     void api().tabAction("chrome-pressed");
@@ -653,6 +654,15 @@ export default function App() {
                   <Icon name="detach" />
                 </button>
               </>
+            )}
+            {tabs.tabs.length > 1 && (
+              <button
+                title="Move this tab to a new window"
+                aria-label="Move tab to new window"
+                onClick={() => action("pop-out", { tabId: tabs.activeTabId })}
+              >
+                <Icon name="external" />
+              </button>
             )}
             <button
               title="Split with another tab"

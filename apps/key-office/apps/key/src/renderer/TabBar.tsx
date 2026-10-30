@@ -33,6 +33,8 @@ export interface TabsApi {
   dropView?(drop: WorkspaceViewDrop): Promise<unknown>;
   showNewMenu(x: number, y: number): Promise<unknown>;
   showMenu(x: number, y: number): Promise<unknown>;
+  /** Right-click on a tab: move it to another window, close it. */
+  showTabMenu?(id: string, x: number, y: number): Promise<unknown>;
   notifyChromePressed?(): void;
   focusView?(id: string): void;
 }
@@ -423,6 +425,11 @@ export function TabBar({
               }}
               title={tab.title}
               style={dragStyle}
+              onContextMenu={(event) => {
+                if (!api.showTabMenu) return;
+                event.preventDefault();
+                void api.showTabMenu(tab.id, event.clientX, event.clientY);
+              }}
               onPointerDown={(event) => {
                 if (event.button !== 0) return;
                 if ((event.target as HTMLElement).closest(".tab-close")) return;

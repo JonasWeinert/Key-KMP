@@ -95,6 +95,15 @@ let callbacks: OfficeCallbacks | null = null;
 let active: OfficeRecord | null = null;
 const closing = new Map<number, Promise<boolean>>();
 
+/** Office editors parent their dialogs and menus to the window in use. */
+export function setOfficeShellWindow(window: BrowserWindow): void {
+  if (!configured && !callbacks) return;
+  parent = window;
+  setDocsShellWindow(window);
+  setSheetsShellWindow(window);
+  setSlidesShellWindow(window);
+}
+
 export function configureOfficeEditors(
   window: BrowserWindow,
   hooks: OfficeCallbacks,
