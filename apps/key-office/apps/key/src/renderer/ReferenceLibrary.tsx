@@ -1,5 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityBanner, ActivityPill, ProgressRing, jobProgress, useLibraryStatus } from "./index-activity";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
 import { Icon } from "./icons";
 import {
@@ -90,7 +91,6 @@ export default function ReferenceLibrary({
   const [counts, setCounts] = useState<SourcePage["counts"]>();
   const [facets, setFacets] = useState<Facets>({ tags: [], itemTypes: [], kinds: [], years: [] });
   const [collections, setCollections] = useState<Collection[]>([]);
-  const [status, setStatus] = useState<LibraryStatus>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -202,43 +202,47 @@ export default function ReferenceLibrary({
     if (active && focusId) reloadDefinitions();
   }, [active, focusId, reloadDefinitions]);
 
-  // Indexing progress: poll while anything is in flight, refresh visible statuses gently.
+  // Indexing progress: the status poll speeds up while anything is in flight; rows refresh gently.
+  const status = useLibraryStatus(invoke, workspaceId, active);
+  const activity = status?.activity;
   const knownCount = useRef<number | undefined>(undefined);
+  const lastRefresh = useRef(0);
   useEffect(() => {
-    if (!active) return;
-    let stopped = false;
-    let ticks = 0;
-    const poll = async () => {
-      try {
-        const next = await invoke<LibraryStatus>("store_status", {}, workspaceId);
-        if (stopped) return;
-        setStatus(next);
-        // Sources added elsewhere (another window, the agent, a direct import) appear without a reload.
-        const known = knownCount.current;
-        knownCount.current = next.counts.all;
-        if (known !== undefined && known !== next.counts.all && !search) return void load(0);
-        if ((next.busy || next.counts.indexing > 0) && ++ticks % 4 === 0 && !search) {
-          const page = await invoke<SourcePage>("store_sources", { ...query, offset: 0, limit: Math.max(PAGE, items.length) }, workspaceId);
-          if (!stopped) {
-            setItems(page.items);
-            setCounts(page.counts);
-          }
-        }
-      } catch {}
-    };
-    void poll();
-    const timer = setInterval(poll, 2500);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-    };
-  }, [active, invoke, workspaceId, query, search, items.length, load]);
+    if (!status || search) return;
+    // Sources added elsewhere (another window, the agent, a direct import) appear without a reload.
+    const known = knownCount.current;
+    knownCount.current = status.counts.all;
+    if (known !== undefined && known !== status.counts.all) return void load(0);
+    if ((status.busy || status.counts.indexing > 0) && Date.now() - lastRefresh.current > 3000) {
+      lastRefresh.current = Date.now();
+      void invoke<SourcePage>("store_sources", { ...query, offset: 0, limit: Math.max(PAGE, items.length) }, workspaceId)
+        .then((page) => {
+          setItems(page.items);
+          setCounts(page.counts);
+        })
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+  // Indexing follows the user: what they open, select and scroll to is read first.
+  const prioritize = useCallback(
+    (ids: string[], reason: "opened" | "selected" | "visible") => {
+      if (ids.length) void invoke("store_index_priority", { ids, reason }, workspaceId).catch(() => {});
+    },
+    [invoke, workspaceId],
+  );
+  const pauseIndexing = (paused: boolean) => void invoke("store_index_control", { action: paused ? "pause" : "resume" }, workspaceId);
 
   // While searching, selection, arrow keys and bulk actions work on the results.
   const rows = useMemo(
     () => (search?.result ? search.result.hits.flatMap((h) => (h.source ? [h.source] : [])) : items),
     [search?.result, items],
   );
+  useEffect(() => {
+    const source = rows.find((s) => s.id === focusId);
+    if (source && waitingToIndex(source)) prioritize([source.id], "selected");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, prioritize]);
   // Keep the inspector in step with the focused row.
   useEffect(() => {
     if (!focusId) return setInspector(undefined);
@@ -257,6 +261,15 @@ export default function ReferenceLibrary({
   });
   virtualizerRef.current = virtualizer;
   const virtualItems = virtualizer.getVirtualItems();
+  const onScreen = (search ? rows.slice(0, 20) : virtualItems.map((v) => items[v.index]))
+    .filter((s): s is Source => !!s && waitingToIndex(s))
+    .map((s) => s.id)
+    .join(",");
+  useEffect(() => {
+    if (!onScreen) return;
+    const t = setTimeout(() => prioritize(onScreen.split(",").slice(0, 40), "visible"), 600);
+    return () => clearTimeout(t);
+  }, [onScreen, prioritize]);
   useEffect(() => {
     const last = virtualItems.at(-1);
     if (last && last.index > items.length - 40 && items.length < total && !loadingMore.current) {
@@ -362,6 +375,7 @@ export default function ReferenceLibrary({
 
   const open = (source: Source) => {
     if (source.trashedAt) return;
+    if (waitingToIndex(source)) prioritize([source.id], "opened");
     if (source.filePath && source.kind === "pdf") onOpen(source);
     else if (source.filePath) void bridge().openPath(source.filePath).catch((e) => setError(String(e)));
     else if (source.url) window.open(source.url, "_blank");
@@ -443,7 +457,6 @@ export default function ReferenceLibrary({
 
   const collectionName = collections.find((c) => c.id === collectionId)?.name;
   const title = scope === "trashed" ? "Trash" : collectionName ?? (scope === "starred" ? "Starred" : scope === "unfiled" ? "Unfiled" : scope === "attention" ? "Needs attention" : "All sources");
-  const indexing = status?.counts.indexing ?? 0;
 
   return (
     <section
@@ -634,6 +647,7 @@ export default function ReferenceLibrary({
           </div>
         )}
         <ModelProgressCard progress={model} compact />
+        <ActivityBanner status={status} minimum={12} onPause={pauseIndexing} />
         {error && (
           <div className="kx-banner kx-banner-error" role="alert">
             <span>{error}</span>
@@ -691,6 +705,7 @@ export default function ReferenceLibrary({
                     <SourceRow
                       key={source.id}
                       source={source}
+                      progress={jobProgress(activity, source.id)}
                       top={row.start}
                       selected={isSelected}
                       focused={focusId === source.id}
@@ -714,16 +729,7 @@ export default function ReferenceLibrary({
             {selected.size > 1 ? ` · ${selected.size} selected` : ""}
           </span>
           <span className="kx-spacer" />
-          {indexing > 0 ? (
-            <span className="kx-status-indexing">
-              <span className="kx-status-dot" data-tone="busy" />
-              Indexing {indexing.toLocaleString()} {indexing === 1 ? "source" : "sources"}
-            </span>
-          ) : status ? (
-            <span>
-              <span className="kx-status-dot" data-tone="ready" /> {status.counts.ready.toLocaleString()} searchable
-            </span>
-          ) : null}
+          <ActivityPill status={status} onPause={pauseIndexing} />
         </footer>
 
         {selected.size > 1 && (
@@ -789,6 +795,7 @@ export default function ReferenceLibrary({
           onOpen={open}
           onClose={() => setFocusId(undefined)}
           definitions={definitions}
+          progress={jobProgress(activity, inspector.id)}
           onPropertySheet={setSheet}
           onAgentFill={(name) => setAgent({ targets: [inspector], name })}
           onDownload={async () => {
@@ -852,6 +859,7 @@ export default function ReferenceLibrary({
 
 function SourceRow({
   source,
+  progress,
   top,
   selected,
   focused,
@@ -861,6 +869,7 @@ function SourceRow({
   dragIds,
 }: {
   source: Source;
+  progress?: { fraction: number; label: string };
   top: number;
   selected: boolean;
   focused: boolean;
@@ -892,7 +901,10 @@ function SourceRow({
       </span>
       <span className="kx-row-text">
         <strong>{source.title || "Untitled"}</strong>
-        <span>{meta || <em>No details yet</em>}</span>
+        <span>
+          {progress && <b className="kx-row-stage">{progress.label}</b>}
+          {meta || (!progress && <em>No details yet</em>)}
+        </span>
       </span>
       <span className="kx-row-end">
         {(source.noteCount > 0 || source.annotationCount > 0) && (
@@ -901,10 +913,17 @@ function SourceRow({
             {source.noteCount + source.annotationCount}
           </span>
         )}
-        {source.indexStatus !== "skipped" && source.indexStatus !== "ready" && (
-          <span className="kx-row-status" title={status.label}>
-            <span className="kx-status-dot" data-tone={status.tone} />
+        {progress ? (
+          <span className="kx-row-status" title={progress.label}>
+            <ProgressRing fraction={progress.fraction} size={15} />
           </span>
+        ) : (
+          source.indexStatus !== "skipped" &&
+          source.indexStatus !== "ready" && (
+            <span className="kx-row-status" title={status.label}>
+              <span className="kx-status-dot" data-tone={status.tone} />
+            </span>
+          )
         )}
         <span className="kx-row-date">{relativeDate(source.addedAt)}</span>
         <button
@@ -1031,6 +1050,8 @@ function TableRow({
     </div>
   );
 }
+
+const waitingToIndex = (s: Source) => s.indexStatus === "pending" || s.indexStatus === "indexing";
 
 type SearchState = { query: string; result?: SearchResult; busy: boolean; limit: number };
 

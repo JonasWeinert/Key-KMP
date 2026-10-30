@@ -22,7 +22,7 @@ pub struct Library {
 struct HostPdfText(NativePdfService);
 
 impl PdfText for HostPdfText {
-    fn pages(&self, path: &Path, _hash: &str) -> Result<Vec<PageText>, String> {
+    fn pages(&self, path: &Path, _hash: &str, progress: &dyn Fn(usize, usize)) -> Result<Vec<PageText>, String> {
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let id = format!("index:{}", NEXT.fetch_add(1, Ordering::Relaxed));
         let Reply::Document(document) = self.0.request(|reply| Request::OpenFile { id: id.clone(), path: path.to_path_buf(), reply })? else {
@@ -30,7 +30,9 @@ impl PdfText for HostPdfText {
         };
         let mut pages = Vec::with_capacity(document.pages.len());
         let mut result = Ok(());
-        for page in 0..document.pages.len() {
+        let total = document.pages.len();
+        for page in 0..total {
+            progress(page, total);
             match self.0.request(|reply| Request::Text { id: id.clone(), page, reply }) {
                 Ok(Reply::Text(text)) => pages.push(page_text(page, text)),
                 Ok(_) => {}
@@ -138,9 +140,18 @@ impl Library {
                 json_output(json!({
                     "model": self.indexer.model_status(),
                     "busy": self.indexer.is_busy(),
+                    "activity": self.indexer.activity(),
                     "vectors": self.store.vector_count()?,
                     "counts": counts,
                 }))
+            })(),
+            // The renderer reports what the user is working with, so indexing follows them.
+            "store_index_priority" => (|| {
+                let ids: Vec<String> = arg(args, "ids")?;
+                let reason: String = arg(args, "reason")?;
+                let priority = key_index::Priority::parse(&reason).ok_or_else(|| format!("Unknown priority {reason}"))?;
+                self.indexer.prioritize(&ids, priority);
+                json_output(true)
             })(),
             "store_index_control" => (|| {
                 let action: String = arg(args, "action")?;

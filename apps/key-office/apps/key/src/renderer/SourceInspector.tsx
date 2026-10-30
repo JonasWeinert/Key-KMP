@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apa, apaInText, bibtex } from "./citation";
 import type { Creator } from "./citation";
 import { Icon } from "./icons";
+import { ProgressRing } from "./index-activity";
 import { formulaValue, type PropertyDefinition, type PropertySheetState } from "./PropertySheets";
 import {
   ITEM_TYPES,
@@ -60,11 +61,14 @@ export default function SourceInspector({
   onOpen,
   onClose,
   definitions,
+  progress,
   onPropertySheet,
   onAgentFill,
   onDownload,
 }: {
   definitions: PropertyDefinition[];
+  /** Live stage while this source is being read or indexed. */
+  progress?: { fraction: number; label: string };
   onPropertySheet: (state: PropertySheetState) => void;
   onAgentFill: (propertyName?: string) => void;
   onDownload: () => Promise<void>;
@@ -279,13 +283,13 @@ export default function SourceInspector({
               ) : (
                 <small>No file. Title and abstract are searchable.</small>
               )}
-              <div className="kx-index-line" data-tone={status.tone}>
-                <span className="kx-status-dot" data-tone={status.tone} />
-                <span>{status.label}</span>
+              <div className="kx-index-line" data-tone={progress ? "busy" : status.tone}>
+                {progress ? <ProgressRing fraction={progress.fraction} size={14} /> : <span className="kx-status-dot" data-tone={status.tone} />}
+                <span>{progress ? progress.label : status.label}</span>
               </div>
-              {source.indexStatus === "indexing" && source.indexTotal > 0 && (
+              {progress && (
                 <div className="kx-meter">
-                  <span style={{ width: `${Math.round((source.indexedChunks / source.indexTotal) * 100)}%` }} />
+                  <span style={{ width: `${progress.fraction * 100}%` }} />
                 </div>
               )}
               <div className="kx-file-actions">

@@ -110,11 +110,32 @@ export interface SearchResult {
   keywordPassages: number;
   semanticPassages: number;
 }
+export interface IndexJob {
+  id: string;
+  title: string;
+  kind: string;
+  /** opening | reading | chunking | embedding | queued */
+  stage: string;
+  done: number;
+  total: number;
+  priority?: "visible" | "selected" | "opened" | null;
+}
+export interface IndexActivity {
+  paused: boolean;
+  reading?: IndexJob | null;
+  embedding?: IndexJob | null;
+  upNext: IndexJob[];
+  batchDone: number;
+  batchTotal: number;
+  secondsPerSource?: number | null;
+  vectorsPending: number;
+}
 export interface LibraryStatus {
   model: { state: string; received: number; total: number; error?: string | null };
   busy: boolean;
   vectors: number;
   counts: Counts;
+  activity?: IndexActivity;
 }
 
 export interface Bridge {

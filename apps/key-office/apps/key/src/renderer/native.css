@@ -1054,6 +1054,211 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   to { transform: translateX(340%); }
 }
 
+/* Indexing activity: progress ring, footer pill and panel, banner */
+.kx-ring {
+  flex: none;
+  transform: rotate(-90deg);
+}
+.kx-ring circle {
+  fill: none;
+  stroke-width: 2.2;
+}
+.kx-ring-track {
+  stroke: color-mix(in srgb, var(--kx-accent) 18%, transparent);
+}
+.kx-ring-value {
+  stroke: var(--kx-accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 500ms var(--kx-ease);
+}
+.kx-ring[data-indeterminate="true"] {
+  animation: kx-ring-spin 1s linear infinite;
+}
+@keyframes kx-ring-spin {
+  from { transform: rotate(-90deg); }
+  to { transform: rotate(270deg); }
+}
+.kx-activity {
+  position: relative;
+}
+.kx-activity > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  list-style: none;
+  cursor: default;
+}
+.kx-activity > summary::-webkit-details-marker {
+  display: none;
+}
+.kx-activity > summary:hover,
+.kx-activity[open] > summary {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-activity-popover {
+  top: auto;
+  bottom: calc(100% + 8px);
+  width: 360px;
+  padding: 0;
+}
+.kx-activity-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 12px;
+}
+.kx-activity-panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.kx-activity-panel header > div {
+  display: grid;
+  gap: 2px;
+}
+.kx-activity-panel header strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.kx-activity-panel header span {
+  color: var(--kx-text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.kx-activity-panel section {
+  display: grid;
+  gap: 4px;
+}
+.kx-activity-panel h3 {
+  margin: 0;
+  color: var(--kx-text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.kx-activity-panel ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kx-activity-job {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  color: var(--kx-text-3);
+}
+.kx-activity-job > span {
+  display: grid;
+  min-width: 0;
+}
+.kx-activity-job strong {
+  overflow: hidden;
+  color: var(--kx-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-activity-job small {
+  display: flex;
+  gap: 6px;
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.kx-activity-job em,
+.kx-row-stage {
+  color: var(--kx-accent);
+  font-style: normal;
+  font-weight: 500;
+}
+.kx-activity-note {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--kx-line);
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.kx-activity-pause {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--kx-fill);
+  color: var(--kx-text);
+  font: 500 12px var(--kx-font);
+}
+.kx-activity-pause:hover {
+  background: var(--kx-accent-soft);
+}
+.kx-row-stage + *::before {
+  content: " · ";
+  color: var(--kx-text-3);
+}
+.kx-activity-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--kx-bg-sunken);
+  box-shadow: var(--kx-shadow-card);
+}
+.kx-library .kx-activity-banner {
+  margin: 8px 20px 0;
+}
+.kx-activity-banner-text {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+.kx-activity-banner-text strong {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.kx-activity-banner-text strong span {
+  color: var(--kx-text-2);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.kx-activity-banner-text small {
+  overflow: hidden;
+  color: var(--kx-text-2);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-activity-banner-text small em {
+  color: var(--kx-text);
+  font-style: normal;
+}
+.kx-activity-banner-text .kx-meter {
+  height: 4px;
+  margin-top: 2px;
+}
+
 /* Search model download: Home and Sources card, sidebar pill */
 .kx-model-card {
   display: grid;
@@ -2341,6 +2546,8 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   .key-workspace-dropdown,
   .key-library-tools-popover,
   .key-library-detail,
+  .kx-ring,
+  .kx-meter > span,
   .kx-status-dot,
   .kx-skeleton > * {
     animation: none;

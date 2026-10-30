@@ -798,6 +798,25 @@ impl Store {
             .map_err(e)
     }
 
+    /// How many sources wait for (or are in) indexing.
+    pub fn index_queue_len(&self) -> Result<i64> {
+        self.read()?
+            .query_row("SELECT count(*) FROM sources WHERE trashed_at IS NULL AND index_status IN ('pending','indexing')", [], |r| r.get(0))
+            .map_err(e)
+    }
+
+    /// Passages of finished sources still waiting for their vector.
+    pub fn unembedded_chunks(&self) -> Result<i64> {
+        self.read()?
+            .query_row(
+                "SELECT count(*) FROM chunks c JOIN sources s ON s.id = c.source_id
+                 WHERE c.embedded = 0 AND s.index_status IN ('ready', 'no_text', 'missing')",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(e)
+    }
+
     /// Ids waiting for indexing, oldest first. `include_failed` also retries failures.
     pub fn pending_sources(&self, limit: usize, include_failed: bool) -> Result<Vec<String>> {
         let db = self.db()?;

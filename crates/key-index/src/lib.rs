@@ -3,13 +3,19 @@
 // text), cut into overlapping chunks that keep page geometry for highlighting,
 // and embedded with EmbeddingGemma 2 when the model is available. Text becomes
 // keyword-searchable immediately; vectors are back-filled once the model arrives.
+//
+// Scheduling: one source is extracted while the previous one is embedded. What the
+// user is working with goes first (opened in the reader, then selected, then on
+// screen); everything else follows files-before-references, newest first.
 mod chunk;
 pub use chunk::{PageText, TextChar, chunk_pages};
 
 use key_embed::{Embedder, ModelDir};
 use key_store::{ChunkInput, Source, Store};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::{HashMap, VecDeque},
     io::Read,
     path::Path,
     sync::{
@@ -18,14 +24,82 @@ use std::{
         mpsc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub type Result<T> = std::result::Result<T, String>;
 
 /// Page text for a PDF on disk. Implemented by the host, which owns PDFium.
+/// `progress(done, total)` is called as pages are read.
 pub trait PdfText: Send + Sync + 'static {
-    fn pages(&self, path: &Path, hash: &str) -> Result<Vec<PageText>>;
+    fn pages(&self, path: &Path, hash: &str, progress: &dyn Fn(usize, usize)) -> Result<Vec<PageText>>;
+}
+
+/// Why a source jumps the queue, strongest first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Priority {
+    Visible,
+    Selected,
+    Opened,
+}
+impl Priority {
+    pub fn parse(reason: &str) -> Option<Self> {
+        match reason {
+            "visible" => Some(Self::Visible),
+            "selected" => Some(Self::Selected),
+            "opened" => Some(Self::Opened),
+            _ => None,
+        }
+    }
+    /// How long a request stays in force: rows scroll away, selections change.
+    fn lifetime(self) -> Duration {
+        Duration::from_secs(match self {
+            Self::Visible => 120,
+            Self::Selected => 600,
+            Self::Opened => 3600,
+        })
+    }
+}
+
+/// One source moving through a stage.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Job {
+    pub id: String,
+    pub title: String,
+    pub kind: String,
+    /// opening | reading | chunking | embedding
+    pub stage: String,
+    /// Pages read, or passages embedded, so far.
+    pub done: u64,
+    pub total: u64,
+    pub priority: Option<Priority>,
+}
+
+/// What indexing is doing right now, for progress displays.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Activity {
+    pub paused: bool,
+    pub reading: Option<Job>,
+    pub embedding: Option<Job>,
+    pub up_next: Vec<Job>,
+    /// Sources finished since indexing last went idle, and that batch's size.
+    pub batch_done: u64,
+    pub batch_total: u64,
+    /// Recent average time per source, once a few have finished.
+    pub seconds_per_source: Option<f64>,
+    /// Passages waiting for vectors (indexed before the search model was ready).
+    pub vectors_pending: u64,
+}
+
+#[derive(Default)]
+struct Live {
+    reading: Option<Job>,
+    embedding: Option<Job>,
+    batch_done: u64,
+    finishes: VecDeque<Instant>,
 }
 
 #[derive(Default)]
@@ -44,6 +118,8 @@ pub struct Indexer {
     paused: Arc<AtomicBool>,
     busy: Arc<AtomicBool>,
     finished: Arc<Mutex<Vec<String>>>,
+    live: Arc<Mutex<Live>>,
+    priorities: Arc<Mutex<HashMap<String, (Priority, Instant)>>>,
 }
 
 impl Indexer {
@@ -56,6 +132,8 @@ impl Indexer {
             paused: Arc::default(),
             busy: Arc::default(),
             finished: Arc::default(),
+            live: Arc::default(),
+            priorities: Arc::default(),
         };
         let worker = indexer.clone();
         thread::Builder::new()
@@ -77,6 +155,97 @@ impl Indexer {
     }
     pub fn is_busy(&self) -> bool {
         self.busy.load(Ordering::SeqCst)
+    }
+
+    /// Moves sources ahead in the queue. A stronger reason is never downgraded by a weaker one.
+    pub fn prioritize(&self, ids: &[String], priority: Priority) {
+        let Ok(mut wanted) = self.priorities.lock() else { return };
+        let now = Instant::now();
+        for id in ids {
+            let entry = wanted.entry(id.clone()).or_insert((priority, now));
+            if priority >= entry.0 || entry.1.elapsed() > entry.0.lifetime() {
+                *entry = (priority, now);
+            }
+        }
+        drop(wanted);
+        self.wake();
+    }
+
+    pub fn activity(&self) -> Activity {
+        let (reading, embedding, batch_done, seconds_per_source) = match self.live.lock() {
+            Ok(live) => {
+                let pace = (live.finishes.len() >= 3).then(|| {
+                    let span = live.finishes.back().unwrap().duration_since(*live.finishes.front().unwrap());
+                    span.as_secs_f64() / (live.finishes.len() - 1) as f64
+                });
+                (live.reading.clone(), live.embedding.clone(), live.batch_done, pace)
+            }
+            Err(_) => Default::default(),
+        };
+        let queued = self.store.index_queue_len().unwrap_or(0).max(0) as u64;
+        let busy = [&reading, &embedding].into_iter().flatten().map(|j| j.id.as_str()).collect::<Vec<_>>();
+        let up_next = self
+            .queue(6, &busy.iter().map(|s| s.to_string()).collect::<Vec<_>>())
+            .into_iter()
+            .take(5)
+            .filter_map(|(id, priority)| {
+                let source = self.store.source(&id).ok()??;
+                Some(Job { title: source.title().to_string(), kind: source.kind.clone(), stage: "queued".into(), priority, id, ..Default::default() })
+            })
+            .collect();
+        Activity {
+            paused: self.paused.load(Ordering::SeqCst),
+            reading,
+            embedding,
+            up_next,
+            batch_done,
+            batch_total: if queued > 0 { batch_done + queued } else { 0 },
+            seconds_per_source,
+            vectors_pending: self.store.unembedded_chunks().unwrap_or(0).max(0) as u64,
+        }
+    }
+
+    /// The next sources to index: requested ones first, then the store's order.
+    fn queue(&self, limit: usize, skip: &[String]) -> Vec<(String, Option<Priority>)> {
+        let mut out: Vec<(String, Option<Priority>)> = Vec::new();
+        if let Ok(mut wanted) = self.priorities.lock() {
+            wanted.retain(|_, (priority, at)| at.elapsed() <= priority.lifetime());
+            let mut ranked: Vec<(String, Priority, Instant)> = wanted.iter().map(|(id, (p, at))| (id.clone(), *p, *at)).collect();
+            ranked.sort_by(|a, b| b.1.cmp(&a.1).then(b.2.cmp(&a.2)));
+            for (id, priority, _) in ranked {
+                if out.len() == limit {
+                    break;
+                }
+                if skip.contains(&id) {
+                    continue;
+                }
+                match self.store.source(&id) {
+                    Ok(Some(s)) if s.trashed_at.is_none() && matches!(s.index_status.as_str(), "pending" | "indexing") => {
+                        out.push((id, Some(priority)))
+                    }
+                    // Already indexed (or gone): the request is spent.
+                    _ => {
+                        wanted.remove(&id);
+                    }
+                }
+            }
+        }
+        if out.len() < limit {
+            let rest = self.store.pending_sources(limit + skip.len() + out.len(), false).unwrap_or_default();
+            for id in rest {
+                if out.len() == limit {
+                    break;
+                }
+                if !skip.contains(&id) && !out.iter().any(|(o, _)| *o == id) {
+                    out.push((id, None));
+                }
+            }
+        }
+        out
+    }
+
+    fn priority_of(&self, id: &str) -> Option<Priority> {
+        self.priorities.lock().ok()?.get(id).map(|(p, _)| *p)
     }
     pub fn model_status(&self) -> key_embed::ModelStatus {
         self.models.status()
@@ -138,14 +307,13 @@ impl Indexer {
             if let Ok(done) = self.finished.lock().map(|mut done| std::mem::take(&mut *done)) {
                 in_flight.retain(|id| !done.contains(id));
             }
-            let next = self
-                .store
-                .pending_sources(in_flight.len() + 1, false)
-                .ok()
-                .and_then(|ids| ids.into_iter().find(|id| !in_flight.contains(id)));
+            let next = self.queue(1, &in_flight).into_iter().next().map(|(id, _)| id);
             let Some(id) = next else {
                 if in_flight.is_empty() {
                     self.busy.store(false, Ordering::SeqCst);
+                    if let Ok(mut live) = self.live.lock() {
+                        *live = Live::default();
+                    }
                 }
                 self.wait(Duration::from_secs(if in_flight.is_empty() { 60 } else { 2 }));
                 continue;
@@ -174,10 +342,7 @@ impl Indexer {
                     if let Err(error) = self.embed(prepared) {
                         let _ = self.store.set_index_status(&id, "failed", Some(&error), 0, 0);
                     }
-                    if let Ok(mut done) = self.finished.lock() {
-                        done.push(id);
-                    }
-                    self.wake();
+                    self.finish(id);
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     // Idle: give chunks indexed before the model was ready their vectors, one
@@ -188,15 +353,32 @@ impl Indexer {
                             if let Err(error) = self.embed(prepared) {
                                 let _ = self.store.set_index_status(&id, "failed", Some(&error), 0, 0);
                             }
-                            if let Ok(mut done) = self.finished.lock() {
-                                done.push(id);
-                            }
-                            self.wake();
+                            self.finish(id);
                         }
                     }
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => return,
             }
+        }
+    }
+
+    fn finish(&self, id: String) {
+        if let Ok(mut live) = self.live.lock() {
+            live.batch_done += 1;
+            live.finishes.push_back(Instant::now());
+            while live.finishes.len() > 20 {
+                live.finishes.pop_front();
+            }
+        }
+        if let Ok(mut done) = self.finished.lock() {
+            done.push(id);
+        }
+        self.wake();
+    }
+
+    fn set_reading(&self, job: Option<Job>) {
+        if let Ok(mut live) = self.live.lock() {
+            live.reading = job;
         }
     }
 
@@ -230,8 +412,23 @@ impl Indexer {
 
     /// Stage one: hash, extract and chunk. Chunks are saved so keyword search works at once.
     fn prepare(&self, id: &str, pdf: &dyn PdfText) -> Result<Option<Prepared>> {
+        let result = self.prepare_inner(id, pdf);
+        self.set_reading(None);
+        result
+    }
+
+    fn prepare_inner(&self, id: &str, pdf: &dyn PdfText) -> Result<Option<Prepared>> {
         let Some(source) = self.store.source(id)? else { return Ok(None) };
         self.store.set_index_status(id, "indexing", None, 0, 0)?;
+        let job = Job {
+            id: id.to_string(),
+            title: source.title().to_string(),
+            kind: source.kind.clone(),
+            stage: "opening".into(),
+            priority: self.priority_of(id),
+            ..Default::default()
+        };
+        self.set_reading(Some(job.clone()));
         let mut chunks = abstract_chunk(&source).into_iter().collect::<Vec<_>>();
         let mut status = "ready";
         if let Some(path) = source.file_path() {
@@ -246,7 +443,9 @@ impl Indexer {
                 patch.insert("fileHash".into(), serde_json::Value::from(hash.clone()));
             }
             let pages = match source.kind.as_str() {
-                "pdf" => pdf.pages(&path, &hash)?,
+                "pdf" => pdf.pages(&path, &hash, &|done, total| {
+                    self.set_reading(Some(Job { stage: "reading".into(), done: done as u64, total: total as u64, ..job.clone() }))
+                })?,
                 "web" | "file" if is_text_like(&path, source.field("mime")) => vec![PageText::plain(read_text(&path)?)],
                 _ => Vec::new(),
             };
@@ -256,6 +455,7 @@ impl Indexer {
             if !patch.is_empty() {
                 self.store.update_source(id, &patch)?;
             }
+            self.set_reading(Some(Job { stage: "chunking".into(), done: pages.len() as u64, total: pages.len() as u64, ..job.clone() }));
             let body = chunk_pages(&pages);
             if body.is_empty() && matches!(source.kind.as_str(), "pdf" | "web") {
                 status = "no_text";
@@ -264,13 +464,33 @@ impl Indexer {
         }
         self.store.replace_chunks(id, &chunks)?;
         self.store.set_index_status(id, "indexing", None, 0, chunks.len() as i64)?;
-        Ok(Some(Prepared { id: id.to_string(), title: source.title().to_string(), chunks, status }))
+        Ok(Some(Prepared { id: id.to_string(), title: source.title().to_string(), kind: source.kind.clone(), chunks, status }))
     }
 
     /// Stage two: embed the chunks and mark the source ready.
-    fn embed(&self, mut prepared: Prepared) -> Result<()> {
+    fn embed(&self, prepared: Prepared) -> Result<()> {
+        let result = self.embed_inner(prepared);
+        if let Ok(mut live) = self.live.lock() {
+            live.embedding = None;
+        }
+        result
+    }
+
+    fn embed_inner(&self, mut prepared: Prepared) -> Result<()> {
         let total = prepared.chunks.len() as i64;
+        let job = Job {
+            id: prepared.id.clone(),
+            title: prepared.title.clone(),
+            kind: prepared.kind.clone(),
+            stage: "embedding".into(),
+            total: total as u64,
+            priority: self.priority_of(&prepared.id),
+            ..Default::default()
+        };
         if let Some(embedder) = self.embedder().filter(|_| total > 0) {
+            if let Ok(mut live) = self.live.lock() {
+                live.embedding = Some(job.clone());
+            }
             let mut done = 0;
             for batch in prepared.chunks.chunks_mut(32) {
                 let items: Vec<(&str, &str)> = batch.iter().map(|c| (prepared.title.as_str(), c.text.as_str())).collect();
@@ -280,6 +500,9 @@ impl Indexer {
                 }
                 done += batch.len() as i64;
                 self.store.set_index_status(&prepared.id, "indexing", None, done, total)?;
+                if let Ok(mut live) = self.live.lock() {
+                    live.embedding = Some(Job { done: done as u64, ..job.clone() });
+                }
             }
             self.store.replace_chunks(&prepared.id, &prepared.chunks)?;
         }
@@ -290,6 +513,7 @@ impl Indexer {
 struct Prepared {
     id: String,
     title: String,
+    kind: String,
     chunks: Vec<ChunkInput>,
     status: &'static str,
 }
@@ -324,4 +548,53 @@ fn read_text(path: &Path) -> Result<String> {
     let text = String::from_utf8_lossy(&bytes).to_string();
     let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     Ok(if matches!(extension.as_str(), "html" | "htm") { chunk::html_text(&text) } else { text })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An indexer without its worker threads, to inspect scheduling.
+    fn idle(store: &Store, models: &Path) -> Indexer {
+        Indexer {
+            store: store.clone(),
+            models: ModelDir::new(models),
+            embedder: Arc::default(),
+            signal: Arc::default(),
+            paused: Arc::default(),
+            busy: Arc::default(),
+            finished: Arc::default(),
+            live: Arc::default(),
+            priorities: Arc::default(),
+        }
+    }
+
+    #[test]
+    fn what_the_user_works_with_goes_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let add = |title: &str| {
+            let input = serde_json::from_value(serde_json::json!({"kind": "reference", "title": title, "indexStatus": "pending"})).unwrap();
+            let id = store.insert_source(input).unwrap().id;
+            thread::sleep(Duration::from_millis(5));
+            id
+        };
+        let (old, middle, new) = (add("old"), add("middle"), add("new"));
+        let indexer = idle(&store, dir.path());
+        let order = |indexer: &Indexer| indexer.queue(3, &[]).into_iter().map(|(id, p)| (id, p)).collect::<Vec<_>>();
+
+        // Default: newest first.
+        assert_eq!(order(&indexer)[0].0, new);
+        // A selected row, then an opened one, move ahead in that order.
+        indexer.prioritize(&[old.clone()], Priority::Selected);
+        indexer.prioritize(&[middle.clone()], Priority::Opened);
+        assert_eq!(order(&indexer), vec![(middle.clone(), Some(Priority::Opened)), (old.clone(), Some(Priority::Selected)), (new.clone(), None)]);
+        // Scrolling past never downgrades a stronger request.
+        indexer.prioritize(&[middle.clone()], Priority::Visible);
+        assert_eq!(order(&indexer)[0].1, Some(Priority::Opened));
+        // Once indexed, the request is spent.
+        store.set_index_status(&middle, "ready", None, 1, 1).unwrap();
+        assert_eq!(order(&indexer)[0].0, old);
+        assert!(indexer.priority_of(&middle).is_none());
+    }
 }
