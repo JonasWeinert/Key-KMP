@@ -140,6 +140,14 @@ const assert = require("node:assert/strict");
     assert.match(await page.locator(".kx-results-head").innerText(), /in titles and details/);
     await search.fill("");
     await search.press("Escape");
+    // Inside a collection the filter adds bound values next to the query vector.
+    await page.locator(".kx-tree-label", { hasText: "Thesis" }).click();
+    await search.fill("Select this sentence");
+    await page.locator(".kx-passage").first().waitFor();
+    assert.equal(await page.locator(".kx-results [role=alert]").count(), 0);
+    await search.fill("");
+    await search.press("Escape");
+    await page.locator(".kx-tree-label", { hasText: "All sources" }).click();
     report.search = true;
 
     // Trash with undo. The reader stays split beside the list, so the inspector overlays

@@ -119,11 +119,14 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
                     "SELECT knn.rowid, c.source_id
                      FROM (SELECT rowid, distance FROM chunk_vectors WHERE embedding MATCH ?1 AND k = {CANDIDATES}) knn
                      JOIN chunks c ON c.id = knn.rowid
-                     WHERE c.source_id IN ({eligible}) AND (knn.distance <= {MAX_SEMANTIC_DISTANCE} OR knn.rowid IN (SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?2))
+                     WHERE (knn.distance <= {MAX_SEMANTIC_DISTANCE} OR knn.rowid IN (SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?2))
+                       AND c.source_id IN ({eligible})
                      ORDER BY knn.distance"
                 ))
                 .map_err(e)?;
             // Keyword passages keep their semantic credit at any distance; the rest must be close.
+            // ?2 must appear before the filter's unnumbered placeholders, which SQLite numbers
+            // after the highest index seen so far.
             let keyword = fts_any(&query.text).unwrap_or_else(|| "\"\"".into());
             let mut args: Vec<Value> = vec![Value::Blob(vector_blob(vector)?), Value::Text(keyword)];
             args.extend(values.iter().cloned());

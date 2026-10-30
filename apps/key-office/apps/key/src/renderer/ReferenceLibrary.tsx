@@ -292,9 +292,9 @@ export default function ReferenceLibrary({
         );
         if (id === searchRequest.current) setSearch({ query: value, result, busy: false, limit });
       } catch (e) {
-        if (id !== searchRequest.current) return;
-        setSearch((previous) => previous && { ...previous, busy: false });
-        setError(String(e));
+        // Shown in place of the results, so a failed search never looks like it is still loading.
+        if (id === searchRequest.current)
+          setSearch({ query: value, busy: false, limit, error: String(e).replace(/^Error: (Error invoking remote method '[^']+': )?(Error: )?/, "") });
       }
     },
     [invoke, workspaceId, collectionId, scope, kind, tag],
@@ -1053,7 +1053,7 @@ function TableRow({
 
 const waitingToIndex = (s: Source) => s.indexStatus === "pending" || s.indexStatus === "indexing";
 
-type SearchState = { query: string; result?: SearchResult; busy: boolean; limit: number };
+type SearchState = { query: string; result?: SearchResult; busy: boolean; limit: number; error?: string };
 
 const FIELD_LABEL: Record<FieldMatch["field"], string> = {
   creators: "Authors",
@@ -1104,7 +1104,11 @@ const SearchResults = memo(function SearchResults({
   const inText = hits.filter((h) => h.passages.length).length;
   return (
     <div className="kx-results" role="listbox" aria-label="Search results" aria-multiselectable tabIndex={0} data-busy={search.busy}>
-      {result ? (
+      {search.error ? (
+        <p className="kx-results-empty" role="alert">
+          Search failed: {search.error}
+        </p>
+      ) : result ? (
         <div className="kx-results-head">
           <strong>{hits.length ? `${hits.length === search.limit ? `Top ${hits.length}` : hits.length} ${hits.length === 1 ? "source" : "sources"}` : "No matches"}</strong>
           {!!hits.length && (

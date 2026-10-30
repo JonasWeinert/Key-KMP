@@ -146,3 +146,24 @@ fn search_reports_matching_fields_and_follows_typing() {
     assert!(result.hits[0].fields.iter().any(|f| f.field == "abstract" && f.snippet.contains("[[battle]]")));
     assert!(result.hits[0].passages.is_empty());
 }
+
+#[test]
+fn hybrid_search_works_with_filters() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let thesis = store.create_collection("Thesis", None, None).unwrap();
+    let a = store.insert_source(input(json!({"kind": "pdf", "title": "Nets", "tags": ["malaria"], "collections": [thesis.id]}))).unwrap();
+    store
+        .replace_chunks(&a.id, &[ChunkInput { page: Some(0), text: "Bed nets reduce malaria.".into(), embedding: Some(unit(1)), ..Default::default() }])
+        .unwrap();
+    // Each filter adds a bound value next to the query vector and keyword parameters.
+    for filter in [
+        json!({"text": "malaria", "collectionId": thesis.id}),
+        json!({"text": "malaria", "kind": "pdf", "tag": "malaria"}),
+        json!({"text": "mosquito", "collectionId": thesis.id, "scope": "starred"}),
+    ] {
+        let query: SearchQuery = serde_json::from_value(filter.clone()).unwrap();
+        let result = store.search(&query, Some(&unit(1))).unwrap_or_else(|e| panic!("{filter}: {e}"));
+        assert_eq!(result.hits.len(), usize::from(filter["scope"].is_null()), "{filter}");
+    }
+}
