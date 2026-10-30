@@ -798,6 +798,13 @@ impl Store {
             .map_err(e)
     }
 
+    /// Queues every failed source for another attempt. Returns how many.
+    pub fn retry_failed(&self) -> Result<usize> {
+        self.db()?
+            .execute("UPDATE sources SET index_status = 'pending', index_error = NULL WHERE index_status = 'failed' AND trashed_at IS NULL", [])
+            .map_err(e)
+    }
+
     /// How many sources wait for (or are in) indexing.
     pub fn index_queue_len(&self) -> Result<i64> {
         self.read()?

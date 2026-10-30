@@ -159,6 +159,11 @@ impl Library {
                 match action.as_str() {
                     "pause" => self.indexer.set_paused(true),
                     "resume" => self.indexer.set_paused(false),
+                    "retry_failed" => {
+                        let count = self.store.retry_failed()?;
+                        self.indexer.wake();
+                        return json_output(count);
+                    }
                     "retry" | "reindex" => {
                         for id in ids.unwrap_or_default() {
                             self.store.set_index_status(&id, "pending", None, 0, 0)?;

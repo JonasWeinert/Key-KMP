@@ -7,7 +7,7 @@ const path = require('node:path');
   const executablePath = process.env.KEY_ELECTRON_EXECUTABLE;
   if (!executablePath) throw Error('Set KEY_ELECTRON_EXECUTABLE to the packaged Key executable');
   const temp = await mkdtemp(path.join(tmpdir(), 'key-single-instance-'));
-  const env = { ...process.env, KEY_USER_DATA: path.join(temp, 'profile'), KEY_WORKSPACE_PARENT: path.join(temp, 'workspaces') };
+  const env = { ...process.env, KEY_SKIP_ONBOARDING: '1', KEY_USER_DATA: path.join(temp, 'profile'), KEY_WORKSPACE_PARENT: path.join(temp, 'workspaces') };
   const app = await electron.launch({ executablePath, args: [], env });
   try {
     const page = await app.firstWindow();

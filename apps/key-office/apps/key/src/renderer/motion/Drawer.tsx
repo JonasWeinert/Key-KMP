@@ -20,7 +20,7 @@ function Panel({
   label,
 }: {
   children: ReactNode;
-  presentation: "drawer" | "dialog" | "sheet";
+  presentation: "drawer" | "dialog" | "sheet" | "window";
   label: string;
 }) {
   const present = useIsPresent(),
@@ -37,13 +37,13 @@ function Panel({
   return (
     <motion.aside
       ref={ref}
-      className={`key-global-drawer key-ui-root ${presentation === "dialog" ? "key-global-dialog" : presentation === "sheet" ? "key-global-sheet" : ""}`}
+      className={`key-global-drawer key-ui-root ${presentation === "dialog" ? "key-global-dialog" : presentation === "sheet" ? "key-global-sheet" : presentation === "window" ? "key-global-sheet key-global-window" : ""}`}
       role="dialog"
       aria-modal="true"
       aria-label={label}
       inert={!present}
       initial={
-        presentation === "sheet"
+        presentation === "sheet" || presentation === "window"
           ? { opacity: 0, y: reduce ? 0 : -14, scale: reduce ? 1 : 0.985 }
           : presentation === "dialog"
           ? { opacity: 0, y: reduce ? 0 : 12 }
@@ -52,7 +52,7 @@ function Panel({
             : { x: "-100%" }
       }
       animate={
-        presentation === "sheet"
+        presentation === "sheet" || presentation === "window"
           ? { opacity: 1, y: 0, scale: 1 }
           : presentation === "dialog"
           ? { opacity: 1, y: 0 }
@@ -61,7 +61,7 @@ function Panel({
             : { x: 0 }
       }
       exit={
-        presentation === "sheet"
+        presentation === "sheet" || presentation === "window"
           ? { opacity: 0, y: reduce ? 0 : -10, scale: reduce ? 1 : 0.985 }
           : presentation === "dialog"
           ? { opacity: 0, y: reduce ? 0 : 8 }
@@ -100,7 +100,7 @@ export function Drawer({
   presentation = "drawer",
   label = "Property details",
 }: {
-  presentation?: "drawer" | "dialog" | "sheet";
+  presentation?: "drawer" | "dialog" | "sheet" | "window";
   label?: string;
   open: boolean;
   onClose: () => void;

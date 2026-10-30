@@ -1,6 +1,9 @@
 import { Button, Input } from "@key/design-system";
 import { Icon, type IconName } from "./icons";
 import { ModelProgressPill, useModelProgress } from "./model-progress";
+import Onboarding from "./Onboarding";
+import Settings, { type SettingsSection } from "./Settings";
+import { bridge, type AppInfo, type AppSettings } from "./library-api";
 import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
 import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
@@ -204,6 +207,26 @@ export default function App() {
   };
   const action = (name: string, payload?: Record<string, unknown>) =>
     void task(() => api().tabAction(name, payload));
+  // App preferences, Settings and the first-run welcome.
+  const [prefs, setPrefs] = useState<{ settings: AppSettings; info: AppInfo }>();
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>();
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    void bridge()
+      .appSettings()
+      .then((loaded) => {
+        setPrefs(loaded);
+        if (!loaded.settings.onboarded) setWelcome(true);
+      })
+      .catch((e) => setError(String(e)));
+    return api().on("open-settings", () => setSettingsSection("general"));
+  }, []);
+  const updatePrefs = (patch: Partial<AppSettings>) =>
+    void bridge()
+      .setAppSettings(patch)
+      .then((settings) => setPrefs((p) => p && { ...p, settings }))
+      .catch((e) => setError(String(e)));
+  const refreshWorkspaces = () => void api().workspaces().then(setWorkspaces).catch(() => {});
   useEffect(() => {
     void task(async () => {
       setWorkspaces(await api().workspaces());
@@ -364,6 +387,41 @@ export default function App() {
       data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
     >
       <GlobalDrawerHost />
+      {prefs && settingsSection && !welcome && (
+        <Settings
+          section={settingsSection}
+          invoke={invoke}
+          workspaces={workspaces}
+          settings={prefs.settings}
+          info={prefs.info}
+          onSettings={updatePrefs}
+          onClose={() => setSettingsSection(undefined)}
+          onShowWelcome={() => {
+            setSettingsSection(undefined);
+            setWelcome(true);
+          }}
+          onOpenLibrary={(id) => {
+            setSettingsSection(undefined);
+            action("open-content", { section: "sources", workspaceId: id });
+          }}
+          onWorkspacesChanged={refreshWorkspaces}
+        />
+      )}
+      {prefs && welcome && (
+        <Onboarding
+          invoke={invoke}
+          workspaces={workspaces}
+          info={prefs.info}
+          theme={prefs.settings.theme}
+          onTheme={(theme) => updatePrefs({ theme })}
+          onFinish={(id) => {
+            setWelcome(false);
+            updatePrefs({ onboarded: true });
+            refreshWorkspaces();
+            if (id) action("open-content", { section: "sources", workspaceId: id });
+          }}
+        />
+      )}
       <div
         ref={sidebarSlot}
         className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
@@ -515,6 +573,10 @@ export default function App() {
                 <span>Link folder…</span>
               </button>
             )}
+            <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
+              <Icon name="gear" />
+              <span>Settings</span>
+            </button>
             <small>
               <Icon name="disk" size={13} />
               {selectedWorkspace

@@ -138,7 +138,35 @@ export interface LibraryStatus {
   activity?: IndexActivity;
 }
 
+export type Theme = "system" | "light" | "dark";
+export interface AppSettings {
+  theme: Theme;
+  onboarded: boolean;
+}
+export interface AppInfo {
+  version: string;
+  electron: string;
+  platform: string;
+  userData: string;
+  workspaceParent: string;
+  modelDir: string;
+  zoteroDir: string;
+  zoteroFound: boolean;
+}
+export interface WorkspaceSummary {
+  id: string;
+  name: string;
+  root: string;
+  icon?: string | null;
+  color?: string | null;
+}
+
 export interface Bridge {
+  appSettings(): Promise<{ settings: AppSettings; info: AppInfo }>;
+  setAppSettings(patch: Partial<AppSettings>): Promise<AppSettings>;
+  workspaces(): Promise<WorkspaceSummary[]>;
+  addWorkspace(): Promise<WorkspaceSummary | null>;
+  tabAction(action: string, payload?: unknown): Promise<unknown>;
   addFiles(workspaceId: string, collectionId?: string): Promise<unknown[]>;
   importPaths(workspaceId: string, paths: string[], collectionId?: string): Promise<unknown[]>;
   importZotero(options?: unknown): Promise<{ workspace: { id: string; name: string }; report: Record<string, number> }>;

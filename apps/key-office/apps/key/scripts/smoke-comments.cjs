@@ -11,6 +11,7 @@ const { tmpdir } = require("node:os");
       : [path.resolve(__dirname, "..")],
     env: {
       ...process.env,
+      KEY_SKIP_ONBOARDING: "1",
       KEY_USER_DATA: path.join(temp, "profile"),
       KEY_WORKSPACE_PARENT: path.join(temp, "workspaces"),
     },

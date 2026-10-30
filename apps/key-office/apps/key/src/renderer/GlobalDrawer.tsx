@@ -15,7 +15,7 @@ type Entry = {
   children: ReactNode;
   onClose: () => void;
   busy?: boolean;
-  presentation?: "drawer" | "dialog" | "sheet";
+  presentation?: "drawer" | "dialog" | "sheet" | "window";
   label?: string;
 };
 let current: Entry | null = null;
@@ -40,7 +40,7 @@ export function GlobalDrawer({
   children: ReactNode;
   onClose: () => void;
   busy?: boolean;
-  presentation?: "drawer" | "dialog" | "sheet";
+  presentation?: "drawer" | "dialog" | "sheet" | "window";
   label?: string;
 }) {
   const id = useId();

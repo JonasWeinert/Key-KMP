@@ -5,7 +5,7 @@ const path=require('node:path');
 const assert=require('node:assert/strict');
 (async()=>{
  const temp=await mkdtemp(path.join(tmpdir(),'key-tab-drops-'));
- const app=await electron.launch({executablePath:process.env.KEY_ELECTRON_EXECUTABLE,args:process.env.KEY_ELECTRON_EXECUTABLE?[]:[path.resolve(__dirname,'..')],env:{...process.env,KEY_USER_DATA:path.join(temp,'profile'),KEY_WORKSPACE_PARENT:path.join(temp,'workspaces')}});
+ const app=await electron.launch({executablePath:process.env.KEY_ELECTRON_EXECUTABLE,args:process.env.KEY_ELECTRON_EXECUTABLE?[]:[path.resolve(__dirname,'..')],env:{...process.env,KEY_SKIP_ONBOARDING:'1',KEY_USER_DATA:path.join(temp,'profile'),KEY_WORKSPACE_PARENT:path.join(temp,'workspaces')}});
  try {
   const page=await app.firstWindow();await page.waitForFunction(()=>window.key);
   await page.evaluate(async file=>{

@@ -12,6 +12,7 @@ import { join, resolve, basename, extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { setUiLang, normalizeLang } from "@key/i18n";
 import { AgentFill } from "./agent-fill";
+import { AppSettingsStore, appInfo } from "./app-settings";
 import { downloadPdf } from "./download-pdf";
 import { Registry } from "./workspaces";
 import {
@@ -71,6 +72,7 @@ type OwnedView = {
 let window: BrowserWindow;
 let registry: Registry;
 let agentFill: AgentFill;
+let appSettings: AppSettingsStore;
 let sidebarWidth = 240;
 const views = new Map<string, OwnedView>();
 const readerCalls = new Map<number, Set<Promise<unknown>>>();
@@ -673,7 +675,16 @@ async function importZotero(options?: Record<string, unknown>) {
 function baseMenu() {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      { label: "Key", submenu: [{ role: "about" }, { role: "quit" }] },
+      {
+        label: "Key",
+        submenu: [
+          { role: "about" },
+          { type: "separator" },
+          { label: "Settings…", accelerator: "CmdOrCtrl+,", click: () => emit("open-settings") },
+          { type: "separator" },
+          { role: "quit" },
+        ],
+      },
       {
         label: "File",
         submenu: [
@@ -742,6 +753,8 @@ else
         registry,
         join(app.getPath("userData"), "ai-settings.json"),
       );
+      appSettings = new AppSettingsStore(join(app.getPath("userData"), "app-settings.json"));
+      await appSettings.load();
       await registry.list();
       window = new BrowserWindow({
         width: 1440,
@@ -924,6 +937,17 @@ else
           return result;
         },
       );
+      ipcMain.handle("key:app-settings", async (event) => {
+        shell(event.sender.id);
+        const settings = appSettings.get();
+        // Automated checks run on fresh profiles; onboarding would cover what they test.
+        if (process.env.KEY_SKIP_ONBOARDING) settings.onboarded = true;
+        return { settings, info: await appInfo(workspaceParent) };
+      });
+      ipcMain.handle("key:set-app-settings", (event, patch) => {
+        shell(event.sender.id);
+        return appSettings.update(patch ?? {});
+      });
       ipcMain.handle("key:workspaces", (event) => {
         shell(event.sender.id);
         return registry.list();
