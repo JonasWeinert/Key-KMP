@@ -327,12 +327,15 @@ impl Embedder {
         }
         // One host starts the server; others wait for it instead of starting their own.
         let lock = self.dir.path().join(".server.lock");
+        // A lock counts only while it is recent and the process that took it is still running,
+        // so a host that quit mid-start never leaves the others waiting.
         let fresh = |path: &Path| {
-            fs::metadata(path)
+            let recent = fs::metadata(path)
                 .and_then(|m| m.modified())
                 .ok()
                 .and_then(|t| SystemTime::now().duration_since(t).ok())
-                .is_some_and(|age| age < Duration::from_secs(90))
+                .is_some_and(|age| age < Duration::from_secs(90));
+            recent && fs::read_to_string(path).ok().and_then(|pid| pid.trim().parse::<u32>().ok()).is_none_or(process_alive)
         };
         if fresh(&lock) || fs::OpenOptions::new().write(true).create_new(true).open(&lock).is_err() && fresh(&lock) {
             let started = Instant::now();
@@ -344,12 +347,12 @@ impl Embedder {
                         return Ok(info.port);
                     }
                 }
-                if !lock.exists() {
+                if !fresh(&lock) {
                     break;
                 }
             }
         }
-        let _ = fs::write(&lock, b"");
+        let _ = fs::write(&lock, std::process::id().to_string());
         let result = self.spawn();
         let _ = fs::remove_file(&lock);
         let port = result?;
@@ -464,6 +467,18 @@ fn normalize(vector: &[f32]) -> Vec<f32> {
     vector.iter().map(|v| v / norm).collect()
 }
 
+/// Whether a process is still running (Unix); elsewhere assume it is.
+fn process_alive(pid: u32) -> bool {
+    if pid == std::process::id() {
+        return true;
+    }
+    if cfg!(unix) {
+        Command::new("kill").args(["-0", &pid.to_string()]).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success())
+    } else {
+        true
+    }
+}
+
 #[cfg(test)]
 mod clip_tests {
     #[test]
@@ -471,5 +486,14 @@ mod clip_tests {
         let long = "ä".repeat(super::MAX_INPUT_CHARS + 10);
         assert_eq!(super::clip(&long).chars().count(), super::MAX_INPUT_CHARS);
         assert_eq!(super::clip("short"), "short");
+    }
+
+    #[test]
+    fn a_lock_from_a_finished_process_is_not_alive() {
+        assert!(super::process_alive(std::process::id()));
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let pid = child.id();
+        child.wait().unwrap();
+        assert!(!super::process_alive(pid));
     }
 }
