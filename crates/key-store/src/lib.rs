@@ -16,7 +16,11 @@ use std::{
 
 pub type Result<T> = std::result::Result<T, String>;
 pub const EMBEDDING_DIMENSIONS: usize = 768;
-const MIGRATIONS: &[&str] = &[include_str!("migrations/001_initial.sql"), include_str!("migrations/002_properties.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("migrations/001_initial.sql"),
+    include_str!("migrations/002_properties.sql"),
+    include_str!("migrations/003_embedded.sql"),
+];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
 /// order of the table. Kept in one list so inserts, patches and reads cannot drift.
@@ -274,6 +278,9 @@ pub struct Passage {
 pub struct Store {
     root: PathBuf,
     conn: Arc<Mutex<Connection>>,
+    /// A second, read-only connection for lists and search, so they never wait behind
+    /// the indexer's writes on `conn` (WAL lets readers run alongside a writer).
+    reader: Arc<Mutex<Connection>>,
 }
 
 pub fn now_ms() -> i64 {
@@ -329,7 +336,9 @@ impl Store {
             tx.execute_batch(&format!("PRAGMA user_version = {}", index + 1)).map_err(e)?;
             tx.commit().map_err(e)?;
         }
-        Ok(Self { root, conn: Arc::new(Mutex::new(conn)) })
+        let reader = Connection::open(root.join("key.db")).map_err(e)?;
+        reader.execute_batch("PRAGMA query_only=1; PRAGMA busy_timeout=5000;").map_err(e)?;
+        Ok(Self { root, conn: Arc::new(Mutex::new(conn)), reader: Arc::new(Mutex::new(reader)) })
     }
 
     pub fn root(&self) -> &Path {
@@ -338,6 +347,10 @@ impl Store {
 
     fn db(&self) -> Result<MutexGuard<'_, Connection>> {
         self.conn.lock().map_err(|_| "Library database lock poisoned".to_string())
+    }
+
+    fn read(&self) -> Result<MutexGuard<'_, Connection>> {
+        self.reader.lock().map_err(|_| "Library database lock poisoned".to_string())
     }
 
     pub fn meta(&self, key: &str) -> Result<Option<String>> {
@@ -435,7 +448,7 @@ impl Store {
     }
 
     pub fn source(&self, id: &str) -> Result<Option<Source>> {
-        let db = self.db()?;
+        let db = self.read()?;
         db.query_row(&format!("{} WHERE s.id = ?", select_sources()), [id], read_source)
             .optional()
             .map_err(e)
@@ -453,7 +466,7 @@ impl Store {
     }
 
     pub fn list_sources(&self, query: &ListQuery) -> Result<SourcePage> {
-        let db = self.db()?;
+        let db = self.read()?;
         let (clause, values) = where_clause(query);
         let order = match query.sort.as_deref().unwrap_or("added") {
             "title" => "s.title COLLATE NOCASE",
@@ -566,7 +579,7 @@ impl Store {
     }
 
     pub fn facets(&self, query: &ListQuery) -> Result<Facets> {
-        let db = self.db()?;
+        let db = self.read()?;
         let (clause, values) = where_clause(query);
         let facet = |sql: String| -> Result<Vec<Facet>> {
             let mut statement = db.prepare(&sql).map_err(e)?;
@@ -599,7 +612,7 @@ impl Store {
     // ── Collections ─────────────────────────────────────────
 
     pub fn collections(&self) -> Result<Vec<Collection>> {
-        let db = self.db()?;
+        let db = self.read()?;
         let mut statement = db
             .prepare(
                 "SELECT c.id, c.parent_id, c.name, c.position, c.origin_key,
@@ -809,7 +822,7 @@ impl Store {
         tx.execute("DELETE FROM chunks WHERE source_id = ?", [source_id]).map_err(e)?;
         {
             let mut insert = tx
-                .prepare("INSERT INTO chunks(source_id, seq, page, start_seconds, text, rects) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+                .prepare("INSERT INTO chunks(source_id, seq, page, start_seconds, text, rects, embedded) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
                 .map_err(e)?;
             let mut vector = tx
                 .prepare("INSERT INTO chunk_vectors(rowid, embedding) VALUES (?1, ?2)")
@@ -817,7 +830,7 @@ impl Store {
             for (seq, chunk) in chunks.iter().enumerate() {
                 let rects = (!chunk.rects.is_empty()).then(|| serde_json::to_string(&chunk.rects).unwrap_or_default());
                 insert
-                    .execute(params![source_id, seq as i64, chunk.page, chunk.start_seconds, chunk.text, rects])
+                    .execute(params![source_id, seq as i64, chunk.page, chunk.start_seconds, chunk.text, rects, chunk.embedding.is_some()])
                     .map_err(e)?;
                 if let Some(embedding) = &chunk.embedding {
                     vector
@@ -836,8 +849,7 @@ impl Store {
         let mut statement = db
             .prepare(
                 "SELECT c.id, s.title, c.text FROM chunks c JOIN sources s ON s.id = c.source_id
-                 WHERE s.index_status IN ('ready', 'no_text', 'missing')
-                   AND NOT EXISTS (SELECT 1 FROM chunk_vectors v WHERE v.rowid = c.id) ORDER BY c.id LIMIT ?",
+                 WHERE c.embedded = 0 AND s.index_status IN ('ready', 'no_text', 'missing') ORDER BY c.id LIMIT ?",
             )
             .map_err(e)?;
         statement
@@ -854,19 +866,21 @@ impl Store {
             let mut statement = tx
                 .prepare("INSERT OR REPLACE INTO chunk_vectors(rowid, embedding) VALUES (?1, ?2)")
                 .map_err(e)?;
+            let mut mark = tx.prepare("UPDATE chunks SET embedded = 1 WHERE id = ?").map_err(e)?;
             for (id, vector) in vectors {
                 statement.execute(params![id, vector_blob(vector)?]).map_err(e)?;
+                mark.execute([id]).map_err(e)?;
             }
         }
         tx.commit().map_err(e)
     }
 
     pub fn vector_count(&self) -> Result<i64> {
-        self.db()?.query_row("SELECT count(*) FROM chunk_vectors", [], |r| r.get(0)).map_err(e)
+        self.read()?.query_row("SELECT count(*) FROM chunks WHERE embedded = 1", [], |r| r.get(0)).map_err(e)
     }
 
     pub fn passage(&self, chunk_id: i64) -> Result<Option<Passage>> {
-        let db = self.db()?;
+        let db = self.read()?;
         db.query_row(
             "SELECT c.id, c.source_id, coalesce(s.file_hash, s.id), coalesce(c.page, 0), c.text, c.rects
              FROM chunks c JOIN sources s ON s.id = c.source_id WHERE c.id = ?",
@@ -890,7 +904,7 @@ impl Store {
     }
 
     pub fn search(&self, query: &SearchQuery, query_vector: Option<&[f32]>) -> Result<SearchResult> {
-        let db = self.db()?;
+        let db = self.read()?;
         search::run(&db, query, query_vector)
     }
 }

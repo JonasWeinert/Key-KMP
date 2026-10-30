@@ -21,6 +21,13 @@ pub const DIMENSIONS: usize = 768;
 const MODEL_FILE: &str = "model.gguf";
 const REMOTE_FILE: &str = "embeddinggemma-2-Q8_0.gguf";
 const BATCH: usize = 32;
+/// Each of the server's 8 slots holds 4,096 tokens; longer inputs are rejected. Text past
+/// this many characters (roughly 2,000–2,700 tokens) adds little to one passage's meaning.
+const MAX_INPUT_CHARS: usize = 8000;
+
+fn clip(text: &str) -> &str {
+    text.char_indices().nth(MAX_INPUT_CHARS).map_or(text, |(at, _)| &text[..at])
+}
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -242,7 +249,7 @@ impl Embedder {
             .iter()
             .map(|(title, text)| {
                 let title = title.trim();
-                format!("title: {} | text: {}", if title.is_empty() { "none" } else { title }, text.trim())
+                format!("title: {} | text: {}", if title.is_empty() { "none" } else { clip(title) }, clip(text.trim()))
             })
             .collect();
         let mut out = Vec::with_capacity(inputs.len());
@@ -254,7 +261,7 @@ impl Embedder {
 
     /// A search query embedding with the retrieval task prefix.
     pub fn embed_query(&self, query: &str) -> Result<Vec<f32>> {
-        let input = format!("task: search result | query: {}", query.trim());
+        let input = format!("task: search result | query: {}", clip(query.trim()));
         self.run(std::slice::from_ref(&input))?.pop().ok_or_else(|| "No embedding returned".into())
     }
 
@@ -455,4 +462,14 @@ fn accelerator(binary: &Path) -> String {
 fn normalize(vector: &[f32]) -> Vec<f32> {
     let norm = vector.iter().map(|v| v * v).sum::<f32>().sqrt().max(1e-12);
     vector.iter().map(|v| v / norm).collect()
+}
+
+#[cfg(test)]
+mod clip_tests {
+    #[test]
+    fn clips_long_inputs_on_character_boundaries() {
+        let long = "ä".repeat(super::MAX_INPUT_CHARS + 10);
+        assert_eq!(super::clip(&long).chars().count(), super::MAX_INPUT_CHARS);
+        assert_eq!(super::clip("short"), "short");
+    }
 }
