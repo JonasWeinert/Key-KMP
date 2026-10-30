@@ -46,6 +46,7 @@ type OwnedView = {
     workspaceId?: string;
     projectId?: string;
     record?: any;
+    noteId?: string;
   };
   contentKey?: string;
   returnViewId?: string;
@@ -284,7 +285,9 @@ function snapshot() {
             : views.get(id)?.contentKey
               ? views.get(id)?.content?.section === "sources"
                 ? "library"
-                : "records"
+                : views.get(id)?.content?.section === "note"
+                  ? "note"
+                  : "records"
               : views.get(id)?.kind,
         content: views.get(id)?.content,
       })),
@@ -1144,15 +1147,17 @@ else
             break;
           }
           case "open-content": {
-            if (!["sources", "records", "record"].includes(p.section))
+            if (!["sources", "records", "record", "note"].includes(p.section))
               throw Error("Invalid content view");
+            if (p.section === "note" && (typeof p.noteId !== "string" || !p.noteId))
+              throw Error("Choose a note");
             if (p.section !== "sources" && !p.workspaceId)
               throw Error("Choose a workspace");
             const key = JSON.stringify([
               p.section,
               p.workspaceId || null,
               p.projectId || null,
-              p.section === "record" ? p.record?.id || randomUUID() : null,
+              p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : null,
             ]);
             // Records have one global owner even when opened through another project.
             const recordKey =
@@ -1199,7 +1204,9 @@ else
               title:
                 p.section === "record"
                   ? p.record?.title || `Untitled ${p.record?.kind || "page"}`
-                  : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
+                  : p.section === "note"
+                    ? String(p.title || "Untitled note").slice(0, 200)
+                    : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
               workspaceId: p.workspaceId,
               lastUsed: Date.now(),
               contentKey: recordKey,
@@ -1208,9 +1215,18 @@ else
                 workspaceId: p.workspaceId,
                 projectId: p.projectId,
                 record: p.record,
+                noteId: p.section === "note" ? p.noteId : undefined,
               },
             });
             break;
+          }
+          // A note's tab follows its title as it is edited.
+          case "content-title": {
+            const view = views.get(p.viewId);
+            if (view?.content?.section !== "note") throw Error("Not a note view");
+            view.title = String(p.title || "Untitled note").slice(0, 200);
+            emit("tabs-changed", snapshot());
+            return snapshot();
           }
           case "content-saved": {
             const view = views.get(p.viewId);

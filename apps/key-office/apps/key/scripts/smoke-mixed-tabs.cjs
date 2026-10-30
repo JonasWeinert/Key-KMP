@@ -41,7 +41,8 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("button", { name: "Create item", exact: true })
       .click();
-    await page.getByRole("button", { name: "New note", exact: true }).click();
+    // Pages still use the record editor; notes now open in the block editor.
+    await page.locator(".key-create-menu").getByRole("button", { name: "New page", exact: true }).click();
     await page
       .getByRole("textbox", { name: "Page title", exact: true })
       .fill("Retained draft");

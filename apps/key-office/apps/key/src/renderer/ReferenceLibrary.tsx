@@ -128,6 +128,64 @@ export default function ReferenceLibrary({
   }, [view, visibleProperties, workspaceId]);
   const tableColumns = definitions.filter((d) => visibleProperties.includes(d.name));
   const listRef = useRef<HTMLDivElement>(null);
+  // Details panel width: dragged live through a CSS variable, saved when released.
+  const libraryRef = useRef<HTMLElement>(null);
+  const [inspectorWidth, setInspectorWidth] = useState(() => {
+    try {
+      return Number(localStorage.getItem("key.library.inspectorWidth")) || DEFAULT_INSPECTOR;
+    } catch {
+      return DEFAULT_INSPECTOR;
+    }
+  });
+  const [libraryWidth, setLibraryWidth] = useState(0);
+  useEffect(() => {
+    const el = libraryRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setLibraryWidth(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  // Too narrow for list and details side by side: details float over the list.
+  const overlay = libraryWidth > 0 && libraryWidth - inspectorWidth < MIN_LIST;
+  const clampWidth = (width: number) => {
+    const room = (libraryRef.current?.clientWidth ?? 1200) - (overlay ? 48 : MIN_LIST);
+    return Math.round(Math.max(MIN_INSPECTOR, Math.min(MAX_INSPECTOR, room, width)));
+  };
+  const commitWidth = (width: number) => {
+    const next = clampWidth(width);
+    setInspectorWidth(next);
+    try {
+      localStorage.setItem("key.library.inspectorWidth", String(next));
+    } catch {}
+  };
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    const root = libraryRef.current;
+    if (!root || e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startWidth = root.querySelector<HTMLElement>(".kx-inspector")?.offsetWidth ?? inspectorWidth;
+    let width = startWidth;
+    let frame = 0;
+    root.dataset.resizing = "true";
+    const move = (ev: PointerEvent) => {
+      width = clampWidth(startWidth + (startX - ev.clientX));
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => root.style.setProperty("--kx-inspector-width", `${width}px`));
+    };
+    const end = () => {
+      cancelAnimationFrame(frame);
+      delete root.dataset.resizing;
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      commitWidth(width);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  };
   const searchInput = useRef<HTMLInputElement>(null);
   const request = useRef(0);
   const loadingMore = useRef(false);
@@ -383,7 +441,8 @@ export default function ReferenceLibrary({
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest("input, textarea, select")) return;
+    // Typing anywhere (fields, the note editor) never triggers list shortcuts.
+    if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable='true']")) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       move(e.key === "ArrowDown" ? 1 : -1, e.shiftKey);
@@ -460,7 +519,10 @@ export default function ReferenceLibrary({
 
   return (
     <section
+      ref={libraryRef}
       className={`kx-library ${dropping ? "dropping" : ""}`}
+      data-overlay={overlay}
+      style={{ "--kx-inspector-width": `${inspectorWidth}px` } as React.CSSProperties}
       aria-label="Library"
       onKeyDown={onKeyDown}
       onDragOver={(e) => {
@@ -781,6 +843,25 @@ export default function ReferenceLibrary({
         )}
       </div>
       {inspector && (
+        <div
+          className="kx-splitter"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize details"
+          aria-valuenow={inspectorWidth}
+          tabIndex={0}
+          title="Drag to resize · double-click to reset"
+          onPointerDown={startResize}
+          onDoubleClick={() => commitWidth(DEFAULT_INSPECTOR)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+              e.preventDefault();
+              commitWidth(inspectorWidth + (e.key === "ArrowLeft" ? 24 : -24));
+            }
+          }}
+        />
+      )}
+      {inspector && (
         <SourceInspector
           key={inspector.id}
           source={inspector}
@@ -1050,6 +1131,11 @@ function TableRow({
     </div>
   );
 }
+
+const DEFAULT_INSPECTOR = 440;
+const MIN_INSPECTOR = 320;
+const MAX_INSPECTOR = 900;
+const MIN_LIST = 380;
 
 const waitingToIndex = (s: Source) => s.indexStatus === "pending" || s.indexStatus === "indexing";
 

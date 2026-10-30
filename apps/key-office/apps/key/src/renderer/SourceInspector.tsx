@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apa, apaInText, bibtex } from "./citation";
+import NoteEditor from "./note-editor";
+import { noteSources } from "./note-sources";
 import type { Creator } from "./citation";
 import { Icon } from "./icons";
 import { ProgressRing } from "./index-activity";
@@ -172,16 +174,32 @@ export default function SourceInspector({
         </div>
         {error && <p className="kx-inline-error">{error}</p>}
 
-        <section className="kx-inspector-group">
-          {fields.map(([key, label, kind]) => (
-            <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
-          ))}
-          {moreOpen && MORE_FIELDS.map(([key, label, kind]) => (
-            <FieldRow key={key} label={label} kind={kind} value={source[key] as string | undefined} onCommit={(value) => void save({ [key]: value })} />
-          ))}
-          <button className="kx-row-toggle" onClick={() => setMoreOpen(!moreOpen)}>
-            {moreOpen ? "Fewer fields" : "More fields"}
-          </button>
+        {/* Bibliographic fields (fixed columns) and your own properties (attributes) are one list. */}
+        <section className="kx-inspector-section">
+          <h3>Details</h3>
+          <div className="kx-inspector-group kx-details">
+            {fields.map(([key, label, kind]) => (
+              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
+            ))}
+            {MORE_FIELDS.filter(([key]) => moreOpen || !!source[key]).map(([key, label, kind]) => (
+              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | undefined} onCommit={(value) => void save({ [key]: value })} />
+            ))}
+            <TypedProperties
+              source={source}
+              definitions={definitions}
+              onCommit={(properties) => void save({ properties })}
+              onEdit={(definition) => onPropertySheet({ mode: "edit", definition, targets: [source] })}
+              onFill={onAgentFill}
+            />
+            <div className="kx-details-foot">
+              <button className="kx-row-toggle" onClick={() => setMoreOpen(!moreOpen)}>
+                {moreOpen ? "Fewer fields" : "More fields"}
+              </button>
+              <button className="kx-row-toggle" onClick={() => onPropertySheet({ mode: "new", targets: [source] })}>
+                <Icon name="plus" size={11} /> New property…
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="kx-inspector-section">
@@ -238,26 +256,20 @@ export default function SourceInspector({
         </section>
 
         <section className="kx-inspector-section">
-          <h3>Properties</h3>
-          <TypedProperties
-            source={source}
-            definitions={definitions}
-            onCommit={(properties) => void save({ properties })}
-            onEdit={(definition) => onPropertySheet({ mode: "edit", definition, targets: [source] })}
-            onAdd={() => onPropertySheet({ mode: "new", targets: [source] })}
-            onFill={onAgentFill}
-          />
-        </section>
-
-        <section className="kx-inspector-section">
           <h3>
             Notes <span className="kx-count">{notes.length}</span>
           </h3>
           <Notes
             notes={notes}
+            invoke={invoke}
+            workspaceId={workspaceId}
+            onCreate={async () => {
+              const saved = await invoke<Note>("store_note_save", { id: null, sourceId: source.id, title: "", body: "" }, workspaceId);
+              setNotes((list) => [...list, saved]);
+              return saved.id;
+            }}
             onSave={async (note) => {
-              const saved = await invoke<Note>("store_note_save", { id: note.id || null, sourceId: source.id, title: note.title, body: note.body }, workspaceId);
-              setNotes((list) => (list.some((n) => n.id === saved.id) ? list.map((n) => (n.id === saved.id ? saved : n)) : [...list, saved]));
+              await invoke<Note>("store_note_save", { id: note.id, sourceId: source.id, title: note.title, body: note.body }, workspaceId);
             }}
             onDelete={async (id) => {
               await invoke("store_note_delete", { id }, workspaceId);
@@ -514,21 +526,20 @@ function TypedProperties({
   definitions,
   onCommit,
   onEdit,
-  onAdd,
   onFill,
 }: {
   source: Source;
   definitions: PropertyDefinition[];
   onCommit: (p: Record<string, unknown>) => void;
   onEdit: (d: PropertyDefinition) => void;
-  onAdd: () => void;
   onFill: (name?: string) => void;
 }) {
   const defined = new Set(definitions.map((d) => d.name));
   const extra = Object.fromEntries(Object.entries(source.properties).filter(([key]) => !defined.has(key)));
   const glyph = (type: string) => (type === "number" ? "#" : type === "boolean" ? "✓" : type === "select" ? "◦" : type === "formula" ? "ƒ" : "Aa");
+  // Rows only: they sit in the Details list under the bibliographic fields.
   return (
-    <div className="kx-inspector-group">
+    <>
       {definitions.map((definition) => {
         const value = source.properties[definition.name];
         const text = value === undefined || value === null ? "" : String(value);
@@ -576,11 +587,7 @@ function TypedProperties({
         );
       })}
       {Object.keys(extra).length > 0 && <PropertyRows properties={extra} onCommit={onCommit} embedded />}
-      <button className="kx-row-toggle" onClick={onAdd}>
-        <Icon name="plus" size={11} /> New property…
-      </button>
-      {!definitions.length && !Object.keys(extra).length && <small className="kx-muted">Typed fields for every source: status, rating, method, research question…</small>}
-    </div>
+    </>
   );
 }
 
@@ -657,49 +664,66 @@ function coerce(value: string): unknown {
   return value;
 }
 
-function Notes({ notes, onSave, onDelete }: { notes: Note[]; onSave: (n: Partial<Note>) => Promise<void>; onDelete: (id: string) => Promise<void> }) {
-  const [open, setOpen] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+/** Source notes, each an always-editable block editor; a note can also open in its own tab. */
+function Notes({
+  notes,
+  invoke,
+  workspaceId,
+  onCreate,
+  onSave,
+  onDelete,
+}: {
+  notes: Note[];
+  invoke: Invoke;
+  workspaceId: string;
+  onCreate: () => Promise<string>;
+  onSave: (n: Pick<Note, "id" | "title" | "body">) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const sources = useMemo(() => noteSources(invoke, workspaceId), [invoke, workspaceId]);
+  const [fresh, setFresh] = useState<string>();
+  const openInTab = (note: Note) =>
+    void (window as unknown as { key: { tabAction: (a: string, p: unknown) => Promise<unknown> } }).key.tabAction("open-content", {
+      section: "note",
+      workspaceId,
+      noteId: note.id,
+      title: note.title,
+    });
   return (
     <div className="kx-notes">
-      {notes.map((note) =>
-        open === note.id ? (
-          <div className="kx-note editing" key={note.id}>
-            <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} rows={6} />
-            <div className="kx-creator-actions">
-              <button onClick={() => void onDelete(note.id).then(() => setOpen(null))}>
-                <Icon name="trash" size={11} />
-                Delete
-              </button>
-              <span className="kx-spacer" />
-              <button className="kx-button-primary" onClick={() => void onSave({ ...note, body: draft }).then(() => setOpen(null))}>
-                Save
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button className="kx-note" key={note.id} onClick={() => { setOpen(note.id); setDraft(note.body); }}>
-            {note.title && <strong>{note.title}</strong>}
-            <span>{note.body}</span>
-          </button>
-        ),
-      )}
-      {open === "new" ? (
-        <div className="kx-note editing">
-          <textarea autoFocus placeholder="Write a note…" value={draft} onChange={(e) => setDraft(e.target.value)} rows={5} />
-          <div className="kx-creator-actions">
-            <button onClick={() => setOpen(null)}>Cancel</button>
+      {notes.map((note) => (
+        <div className="kx-note-card" key={note.id}>
+          <div className="kx-note-card-bar">
+            <span>{new Date(note.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>
             <span className="kx-spacer" />
-            <button className="kx-button-primary" disabled={!draft.trim()} onClick={() => void onSave({ title: "", body: draft }).then(() => setOpen(null))}>
-              Save
+            <button title="Open in a tab" aria-label="Open note in a tab" onClick={() => openInTab(note)}>
+              <Icon name="external" size={11} />
+            </button>
+            <button
+              title="Delete note"
+              aria-label="Delete note"
+              onClick={() => {
+                if (note.body.trim() && !window.confirm("Delete this note?")) return;
+                void onDelete(note.id);
+              }}
+            >
+              <Icon name="trash" size={11} />
             </button>
           </div>
+          <NoteEditor
+            compact
+            autoFocus={fresh === note.id}
+            value={note.body}
+            onChange={(body) => void onSave({ id: note.id, title: note.title, body })}
+            searchSources={sources.searchSources}
+            resolveSource={sources.resolveSource}
+            onOpenSource={sources.onOpenSource}
+          />
         </div>
-      ) : (
-        <button className="kx-row-toggle" onClick={() => { setOpen("new"); setDraft(""); }}>
-          <Icon name="plus" size={11} /> New note
-        </button>
-      )}
+      ))}
+      <button className="kx-row-toggle" onClick={() => void onCreate().then(setFresh)}>
+        <Icon name="plus" size={11} /> New note
+      </button>
     </div>
   );
 }

@@ -167,3 +167,22 @@ fn hybrid_search_works_with_filters() {
         assert_eq!(result.hits.len(), usize::from(filter["scope"].is_null()), "{filter}");
     }
 }
+
+#[test]
+fn standalone_and_source_notes_stay_searchable() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let source = store.insert_source(input(json!({"kind": "reference", "title": "Nets"}))).unwrap();
+    let attached = store.save_note(None, Some(&source.id), "", "Mosquito density fell", None).unwrap();
+    let standalone = store.save_note(None, None, "Ideas", "# Chapter plan", None).unwrap();
+    assert_eq!(store.standalone_notes().unwrap().iter().map(|n| n.id.clone()).collect::<Vec<_>>(), vec![standalone.id.clone()]);
+    assert_eq!(store.note(&standalone.id).unwrap().unwrap().title, "Ideas");
+
+    // Editing from a note tab passes no source; the note keeps it and stays searchable.
+    let edited = store.save_note(Some(&attached.id), None, "", "Larval habitats shrank", None).unwrap();
+    assert_eq!(edited.source_id.as_deref(), Some(source.id.as_str()));
+    let find = |text: &str| store.list_sources(&ListQuery { text: Some(text.into()), ..Default::default() }).unwrap().total;
+    assert_eq!((find("larval"), find("mosquito")), (1, 0));
+    store.delete_note(&attached.id).unwrap();
+    assert_eq!(find("larval"), 0);
+}

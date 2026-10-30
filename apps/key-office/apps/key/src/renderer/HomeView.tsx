@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { LibrarySource } from "./LibraryHome";
+import { notesChanged } from "./NotePage";
 import { ActivityBanner, useLibraryStatus } from "./index-activity";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
 import { Icon, type IconName } from "./icons";
@@ -134,12 +135,12 @@ export default function HomeView({
       icon: "note",
       tone: "amber",
       disabled: !workspace,
-      run: () =>
-        action("open-content", {
-          section: "record",
-          workspaceId: workspace?.id,
-          record: { id: "", kind: "note", title: "", body: "", properties: {}, revision: 0 },
-        }),
+      run: async () => {
+        if (!workspace) return;
+        const note = await invoke<{ id: string }>("store_note_save", { id: null, sourceId: null, title: "", body: "" }, workspace.id);
+        notesChanged();
+        action("open-content", { section: "note", workspaceId: workspace.id, noteId: note.id, title: "" });
+      },
     },
     {
       label: "Sources",

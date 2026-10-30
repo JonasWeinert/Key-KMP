@@ -1,5 +1,6 @@
 import HomeView from "./HomeView";
 import { Button, Input, Textarea, Select } from "@key/design-system";
+import NotePage from "./NotePage";
 import type { SearchPreviewState } from "./SearchPreviewBar";
 import { EntryDetails } from "./EntryTools";
 import { RecordProperties } from "./RecordProperties";
@@ -206,10 +207,11 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "home" | "sources" | "records" | "record";
+  section: "home" | "sources" | "records" | "record" | "note";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
+  noteId?: string;
 }
 export default function WorkspaceContent({
   viewId,
@@ -688,6 +690,9 @@ export default function WorkspaceContent({
             revision={refreshKey}
           />
         </section>
+      )}
+      {section === "note" && workspaceId && spec.noteId && (
+        <NotePage invoke={invoke} workspaceId={workspaceId} noteId={spec.noteId} viewId={viewId} />
       )}
       {section === "home" && <HomeView workspaces={workspaces} active={visible} invoke={invoke}
         action={action} openSource={source => void task(() => api().openSource(source))}

@@ -119,7 +119,16 @@ impl Library {
                     arg::<Option<bool>>(args, "present")?.unwrap_or(true),
                 )?)
             })(),
-            "store_notes" => arg::<String>(args, "sourceId").and_then(|id| json_output(self.store.notes(&id)?)),
+            // Without a source: the workspace's standalone notes.
+            "store_notes" => arg::<Option<String>>(args, "sourceId").and_then(|id| match id {
+                Some(id) => json_output(self.store.notes(&id)?),
+                None => json_output(self.store.standalone_notes()?),
+            }),
+            "store_note" => arg::<String>(args, "id").and_then(|id| json_output(self.store.note(&id)?)),
+            "store_page_chunk" => (|| {
+                let chunk = self.store.page_chunk(&arg::<String>(args, "sourceId")?, arg::<i64>(args, "page")?)?;
+                json_output(chunk.map(|id| id.to_string()))
+            })(),
             "store_note_save" => (|| {
                 let id: Option<String> = arg(args, "id")?;
                 let source: Option<String> = arg(args, "sourceId")?;

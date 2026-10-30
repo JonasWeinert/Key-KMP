@@ -2,8 +2,10 @@ import { Button, Input } from "@key/design-system";
 import { Icon, type IconName } from "./icons";
 import { ModelProgressPill, useModelProgress } from "./model-progress";
 import Onboarding from "./Onboarding";
+import { notesChanged } from "./NotePage";
+import { markdownToPlainText } from "./note-editor";
 import Settings, { type SettingsSection } from "./Settings";
-import { bridge, type AppInfo, type AppSettings } from "./library-api";
+import { bridge, type AppInfo, type AppSettings, type Note } from "./library-api";
 import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
 import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
@@ -312,7 +314,27 @@ export default function App() {
       record: r,
     });
   };
+  // Standalone notes (key-store), listed in the sidebar and opened as tabs.
+  const [notes, setNotes] = useState<Note[]>([]);
+  useEffect(() => {
+    if (!workspaceId) return setNotes([]);
+    const load = () => void invoke<Note[]>("store_notes", {}, workspaceId).then(setNotes).catch(() => setNotes([]));
+    load();
+    window.addEventListener("key:notes-changed", load);
+    return () => window.removeEventListener("key:notes-changed", load);
+  }, [invoke, workspaceId, refreshKey]);
+  const openNote = (note: Pick<Note, "id" | "title">) =>
+    action("open-content", { section: "note", workspaceId, noteId: note.id, title: note.title });
+  const createNote = () =>
+    void task(async () => {
+      setCreateMenu(false);
+      if (!workspaceId) throw Error("Choose a workspace to create a note.");
+      const note = await invoke<Note>("store_note_save", { id: null, sourceId: null, title: "", body: "" }, workspaceId);
+      notesChanged();
+      openNote(note);
+    });
   const createRecord = (kind: string) => {
+    if (kind === "note") return createNote();
     setCreateMenu(false);
     if (!workspaceId) {
       setError("Choose a workspace to create an item.");
@@ -493,6 +515,27 @@ export default function App() {
                 Choose a workspace to see its collections and pages.
               </p>
             )}
+            <div className="key-sidebar-section">
+              <span>Notes</span>
+              <button disabled={!workspaceId} aria-label="New note" title="New note" onClick={createNote}>
+                <Icon name="plus" size={14} />
+              </button>
+            </div>
+            <nav className="kx-nav" aria-label="Notes">
+              {notes.map((n) => (
+                <button
+                  key={n.id}
+                  className="kx-nav-item"
+                  aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
+                  onClick={() => openNote(n)}
+                  title={n.title || markdownToPlainText(n.body).slice(0, 120) || "Untitled note"}
+                >
+                  <Icon name="note" />
+                  <span>{n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note"}</span>
+                </button>
+              ))}
+              {workspaceId && !notes.length && <p className="key-sidebar-hint">No notes yet.</p>}
+            </nav>
             <div className="key-sidebar-section">
               <span>Pages</span>
               <button

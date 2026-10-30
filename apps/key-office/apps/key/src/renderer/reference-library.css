@@ -653,9 +653,9 @@
 /* Inspector */
 .kx-inspector {
   display: flex;
-  flex: 0 0 360px;
+  flex: 0 0 var(--kx-inspector-width, 440px);
   flex-direction: column;
-  width: 360px;
+  width: var(--kx-inspector-width, 440px);
   min-height: 0;
   border-left: 1px solid var(--kx-line);
   background: var(--kx-bg-sunken);
@@ -871,7 +871,7 @@
 }
 .kx-field-row {
   display: grid;
-  grid-template-columns: 96px 1fr auto;
+  grid-template-columns: minmax(96px, 30%) 1fr auto;
   align-items: center;
   gap: 8px;
   min-height: 32px;
@@ -929,6 +929,16 @@
 }
 .kx-row-toggle:hover {
   background: var(--kx-fill);
+}
+.kx-details-foot {
+  display: flex;
+  box-shadow: inset 0 1px 0 var(--kx-line);
+}
+.kx-details-foot > .kx-row-toggle {
+  width: auto;
+}
+.kx-details-foot > .kx-row-toggle + .kx-row-toggle {
+  margin-left: auto;
 }
 .kx-inspector-section {
   margin-top: 18px;
@@ -1206,14 +1216,51 @@
   max-width: 460px;
 }
 
-@container (max-width: 980px) {
-  .kx-inspector {
-    position: absolute;
-    inset: 0 0 0 auto;
-    z-index: 35;
-    width: min(360px, 70%);
-    box-shadow: var(--kx-shadow-pop);
-  }
+/* Too narrow for both: details float over the list (set from the measured width). */
+.kx-library[data-overlay="true"] .kx-inspector {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 35;
+  width: min(var(--kx-inspector-width, 440px), 85%);
+  box-shadow: var(--kx-shadow-pop);
+}
+/* The handle straddles the details panel's left edge. */
+.kx-splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--kx-inspector-width, 440px) - 4px);
+  z-index: 36;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.kx-library[data-overlay="true"] .kx-splitter {
+  right: calc(min(var(--kx-inspector-width, 440px), 85%) - 4px);
+}
+.kx-splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 120ms var(--kx-ease);
+}
+.kx-splitter:hover::after,
+.kx-splitter:focus-visible::after,
+.kx-library[data-resizing="true"] .kx-splitter::after {
+  background: var(--kx-accent);
+}
+.kx-library[data-resizing="true"] {
+  cursor: col-resize;
+  user-select: none;
+}
+.kx-library[data-resizing="true"] .kx-inspector {
+  animation: none;
 }
 @container (max-width: 640px) {
   .kx-row-date {
@@ -1486,4 +1533,59 @@
 }
 .kx-check > input {
   accent-color: var(--kx-accent);
+}
+
+/* Source notes in the details panel: each one an editable block editor card. */
+.kx-note-card {
+  position: relative;
+  padding: 4px 12px 8px;
+  border-radius: 10px;
+  background: var(--kx-bg);
+  box-shadow: var(--kx-shadow-card);
+}
+.kx-note-card:focus-within {
+  box-shadow: var(--kx-shadow-card), 0 0 0 2px var(--kx-accent-soft);
+}
+.kx-note-card-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  color: var(--kx-text-3);
+  font-size: 11px;
+}
+.kx-note-card-bar > button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-3);
+  opacity: 0;
+  transition: opacity 120ms var(--kx-ease);
+}
+.kx-note-card:hover .kx-note-card-bar > button,
+.kx-note-card:focus-within .kx-note-card-bar > button {
+  opacity: 1;
+}
+.kx-note-card-bar > button:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-note-card .ProseMirror:focus,
+.kx-note-page .ProseMirror:focus {
+  outline: none;
+}
+/* In the narrow panel the gutter only holds the drag handle. */
+.kx-note-card .ne-root--compact {
+  --ne-gutter: 22px;
+}
+.kx-note-card {
+  padding-left: 4px;
+}
+.kx-note-card-bar {
+  padding-left: 22px;
 }

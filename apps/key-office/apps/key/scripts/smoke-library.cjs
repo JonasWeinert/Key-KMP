@@ -26,6 +26,8 @@ const assert = require("node:assert/strict");
     page.setDefaultTimeout(20000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
+    // Let start-up open its Home tab first, so it doesn't take focus from Sources later.
+    await page.getByRole("region", { name: "Home", exact: true }).waitFor();
     const [ws] = await page.evaluate(() => window.key.workspaces());
     const call = (command, args = {}) => page.evaluate(({ command, args, id }) => window.key.invoke(command, args, id), { command, args, id: ws.id });
 
@@ -109,7 +111,7 @@ const assert = require("node:assert/strict");
     for (let i = 0; i < 120; i++) {
       const status = await call("store_status");
       if (status.counts.ready === 2) break;
-      if (i === 119) throw Error(`Indexing did not finish: ${JSON.stringify(status.counts)}`);
+      if (i === 119) throw Error(`Indexing did not finish: ${JSON.stringify({ counts: status.counts, busy: status.busy, activity: status.activity })}`);
       await page.waitForTimeout(500);
     }
     const search = page.getByRole("textbox", { name: "Search the library", exact: true });

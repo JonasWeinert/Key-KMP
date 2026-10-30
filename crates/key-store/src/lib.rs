@@ -714,6 +714,34 @@ impl Store {
             .map_err(e)
     }
 
+    /// Notes that belong to no source, most recently edited first.
+    pub fn standalone_notes(&self) -> Result<Vec<Note>> {
+        let db = self.read()?;
+        let mut statement = db
+            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE source_id IS NULL ORDER BY updated_at DESC")
+            .map_err(e)?;
+        statement
+            .query_map([], read_note)
+            .map_err(e)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(e)
+    }
+
+    /// The first passage on a page, so a quote or link can open the reader there.
+    pub fn page_chunk(&self, source_id: &str, page: i64) -> Result<Option<i64>> {
+        self.read()?
+            .query_row("SELECT id FROM chunks WHERE source_id = ? AND page = ? ORDER BY seq LIMIT 1", params![source_id, page], |r| r.get(0))
+            .optional()
+            .map_err(e)
+    }
+
+    pub fn note(&self, id: &str) -> Result<Option<Note>> {
+        self.read()?
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE id = ?", [id], read_note)
+            .optional()
+            .map_err(e)
+    }
+
     pub fn save_note(&self, id: Option<&str>, source_id: Option<&str>, title: &str, body: &str, origin_key: Option<&str>) -> Result<Note> {
         let now = now_ms();
         let db = self.db()?;
@@ -732,19 +760,32 @@ impl Store {
             params![id, source_id, title, body, origin_key, now],
         )
         .map_err(e)?;
-        if let Some(source) = source_id {
+        let note = db
+            .query_row(
+                "SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE id = ?",
+                [&id],
+                read_note,
+            )
+            .map_err(e)?;
+        // An edit from anywhere (a note tab passes no source) keeps the source's note text searchable.
+        if let Some(source) = &note.source_id {
             refresh_fts(&db, source)?;
         }
-        db.query_row(
-            "SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE id = ?",
-            [&id],
-            read_note,
-        )
-        .map_err(e)
+        Ok(note)
     }
 
     pub fn delete_note(&self, id: &str) -> Result<()> {
-        self.db()?.execute("DELETE FROM notes WHERE id = ?", [id]).map(|_| ()).map_err(e)
+        let db = self.db()?;
+        let source: Option<String> = db
+            .query_row("SELECT source_id FROM notes WHERE id = ?", [id], |r| r.get(0))
+            .optional()
+            .map_err(e)?
+            .flatten();
+        db.execute("DELETE FROM notes WHERE id = ?", [id]).map_err(e)?;
+        if let Some(source) = source {
+            refresh_fts(&db, &source)?;
+        }
+        Ok(())
     }
 
     pub fn annotations(&self, source_id: &str) -> Result<Vec<Json>> {

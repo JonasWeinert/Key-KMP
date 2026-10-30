@@ -4163,3 +4163,89 @@ html.kx-modal-open :is(.tab-bar, .tab-strip, .kx-sidebar-titlebar) {
     animation: none;
   }
 }
+
+/* A note in its own tab */
+.kx-note-page {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--kx-bg);
+  color: var(--kx-text);
+}
+.kx-note-page-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 72px 160px;
+}
+.kx-note-page-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 28px;
+  color: var(--kx-text-3);
+  font-size: 12px;
+}
+.kx-note-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 70%;
+  overflow: hidden;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 12px var(--kx-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+button.kx-note-source:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-note-source strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.kx-note-saved {
+  font-variant-numeric: tabular-nums;
+}
+.kx-note-title {
+  display: block;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--kx-text);
+  font: 700 34px/1.2 var(--kx-font-display);
+  letter-spacing: -0.02em;
+}
+.kx-note-page .kx-note-page-inner .kx-note-title:focus,
+.kx-note-page .kx-note-page-inner .kx-note-title:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+/* The title lines up with the note's text, which leaves room on the left for the block gutter. */
+.kx-note-page .kx-note-title {
+  padding-left: var(--ne-gutter, 52px);
+}
+.kx-note-page-inner {
+  padding-left: 20px;
+}
+.kx-note-title::placeholder {
+  color: var(--kx-text-3);
+}
+.kx-note-page-error {
+  margin: 80px auto;
+  color: var(--kx-text-2);
+  text-align: center;
+}
+@media (max-width: 760px) {
+  .kx-note-page-inner {
+    padding: 20px 28px 120px;
+  }
+}
