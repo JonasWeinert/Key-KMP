@@ -25,13 +25,15 @@ interface Ready {
   source: ManagedSource;
   viewState?: PdfJsViewState;
   searchTarget?: Target;
-  searchNavigation?: { index: number; total: number; shared?: boolean };
+  searchNavigation?: Navigation;
 }
+type Navigation = { index: number; total: number; shared?: boolean; query?: string };
 interface ReaderBridge {
   readerReady(): Promise<Ready>;
   readerState(state: PdfJsViewState): void;
   on(event: string, listener: (payload: unknown) => void): () => void;
   readerBack?(): void;
+  readerDismiss?(): Promise<void>;
   readerResult?(direction: number): Promise<void>;
 }
 const bridge = () => (window as unknown as { key: ReaderBridge }).key;
@@ -42,11 +44,7 @@ export default function PdfReader() {
   const [error, setError] = useState("");
   const [chrome, setChrome] = useState<PdfReaderChromeState>();
   const [target, setTarget] = useState<Target>();
-  const [navigation, setNavigation] = useState<{
-    index: number;
-    total: number;
-    shared?: boolean;
-  }>({ index: -1, total: 0 });
+  const [navigation, setNavigation] = useState<Navigation>({ index: -1, total: 0 });
   const [navigating, setNavigating] = useState(false);
   const [navigationError, setNavigationError] = useState("");
   const [page, setPage] = useState(1);
@@ -65,10 +63,7 @@ export default function PdfReader() {
       }
     });
     const stopNavigation = bridge().on("search-navigation", (payload) => {
-      if (alive)
-        setNavigation(
-          payload as { index: number; total: number; shared?: boolean },
-        );
+      if (alive) setNavigation(payload as Navigation);
     });
     void bridge()
       .readerReady()
@@ -274,57 +269,53 @@ export default function PdfReader() {
           </Button>
         </form>
       )}
-      {target && !navigation.shared && (
-        <div className="key-pdf-target" role="status">
-          {bridge().readerBack && (
-            <Button
-              size="compact"
-              variant="ghost"
-              onClick={() => bridge().readerBack?.()}
-            >
-              Back to results
-            </Button>
-          )}
-          <span>Search passage · page {target.page + 1}</span>
-          {navigation.total > 0 && (
-            <>
-              <Button
-                size="compact"
-                variant="ghost"
-                disabled={navigating || navigation.index <= 0}
-                onClick={() => void navigate(-1)}
-              >
-                Previous result
-              </Button>
-              <span>
-                {navigation.index + 1} / {navigation.total} loaded results
-              </span>
-              <Button
-                size="compact"
-                variant="ghost"
-                disabled={
-                  navigating || navigation.index >= navigation.total - 1
-                }
-                onClick={() => void navigate(1)}
-              >
-                Next result
-              </Button>
-            </>
-          )}
-          {navigationError && <span role="alert">{navigationError}</span>}
-          <Button
-            size="compact"
-            variant="ghost"
-            onClick={() => {
-              setTarget(undefined);
-              reader.current?.closeSearch();
-            }}
-          >
-            Dismiss highlight
-          </Button>
-        </div>
-      )}
       <section className="key-pdf-surface">
+        {/* The search result bar floats under the toolbar, over the page. */}
+        {target && (
+          <div className="key-pdf-result" role="toolbar" aria-label="Search result">
+            {bridge().readerBack && (
+              <button className="key-pdf-result-back" onClick={() => bridge().readerBack?.()} title="Back to the search results">
+                <span aria-hidden="true">←</span>
+                <span>Back to search</span>
+              </button>
+            )}
+            <span className="key-pdf-result-label" title={navigation.query}>
+              {navigation.query ? <strong>“{navigation.query}”</strong> : <strong>Search passage</strong>}
+              <span>p. {target.page + 1}</span>
+            </span>
+            {navigation.total > 0 && (
+              <span className="key-pdf-result-steps">
+                <button aria-label="Previous result" title="Previous result" disabled={navigating || navigation.index <= 0} onClick={() => void navigate(-1)}>
+                  ↑
+                </button>
+                <span className="key-pdf-result-count">
+                  {navigation.index + 1} / {navigation.total}
+                </span>
+                <button
+                  aria-label="Next result"
+                  title="Next result"
+                  disabled={navigating || navigation.index >= navigation.total - 1}
+                  onClick={() => void navigate(1)}
+                >
+                  ↓
+                </button>
+              </span>
+            )}
+            {navigationError && <span role="alert" className="key-pdf-result-error">{navigationError}</span>}
+            <button
+              className="key-pdf-result-close"
+              aria-label="Close search result"
+              title="Close: keep the document, drop the highlight"
+              onClick={() => {
+                setTarget(undefined);
+                reader.current?.closeSearch();
+                void bridge().readerDismiss?.();
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <PdfJsBenchmarkApp
           ref={reader}
           embedded

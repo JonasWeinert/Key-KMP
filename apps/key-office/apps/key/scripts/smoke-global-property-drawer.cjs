@@ -29,9 +29,16 @@ const assert = require("node:assert/strict");
     const [ws] = await page.evaluate(() => window.key.workspaces());
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${ws.id}"]`).click();
-    await page.evaluate((id) => window.key.tabAction("open-content", { section: "sources", workspaceId: id }), ws.id);
+    // Switching workspace navigates asynchronously; settle on this workspace's Sources tab.
+    let owner;
+    for (let i = 0; i < 30 && !owner; i++) {
+      await page.evaluate((id) => window.key.tabAction("open-content", { section: "sources", workspaceId: id }), ws.id);
+      await page.waitForTimeout(200);
+      const t = await page.evaluate(() => window.key.tabs());
+      const view = t.tabs.find((x) => x.id === t.activeTabId)?.views.find((v) => v.id === t.activeViewId);
+      if (view?.content?.section === "sources" && view.content.workspaceId === ws.id) owner = t.activeTabId;
+    }
     await page.getByRole("heading", { name: /^(All sources|Sources)$/ }).waitFor();
-    const owner = (await page.evaluate(() => window.key.tabs())).activeTabId;
     await page.evaluate(
       async ({ workspaceId, file, owner }) => {
         await window.key.invoke(

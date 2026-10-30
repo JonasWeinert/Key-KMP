@@ -7,7 +7,7 @@ import { markdownToPlainText } from "./note-editor";
 import Settings, { type SettingsSection } from "./Settings";
 import { bridge, type AppInfo, type AppSettings, type Note } from "./library-api";
 import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
-import SearchPreviewBar, {type SearchPreviewState} from "./SearchPreviewBar";
+import type { SearchPreviewState } from "./search-preview";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type LibrarySource, type LibraryHit } from "./LibraryHome";
@@ -661,7 +661,7 @@ export default function App() {
                 aria-label="Move tab to new window"
                 onClick={() => action("pop-out", { tabId: tabs.activeTabId })}
               >
-                <Icon name="external" />
+                <Icon name="windows" />
               </button>
             )}
             <button
@@ -683,7 +683,6 @@ export default function App() {
       />
       <div className="key-shell-body key-ui-root">
         <div className="key-content-panes">
-          {tabs.searchPreview && <SearchPreviewBar preview={tabs.searchPreview} action={action}/>}
           {tabs.tabs
             .flatMap((t) => t.views)
             .filter((v) => v.content)

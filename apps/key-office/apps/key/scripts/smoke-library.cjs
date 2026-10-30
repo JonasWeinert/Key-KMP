@@ -121,7 +121,6 @@ const assert = require("node:assert/strict");
     assert((await page.locator(".kx-passage mark").count()) > 0, "Matches are highlighted");
     const libraryTab = (await page.evaluate(() => window.key.tabs())).activeTabId;
     await page.locator(".kx-passage").first().click();
-    await page.locator(".key-search-session").waitFor();
     // The result opens in its own tab right after the results, not as a split.
     const opened = await page.evaluate(() => window.key.tabs());
     const resultTab = opened.tabs.find((t) => t.id === opened.activeTabId);
@@ -142,13 +141,41 @@ const assert = require("node:assert/strict");
     }
     assert(pdf, "The reader opened");
     await pdf.waitForFunction(() => window.__PDFJS_FEATURES_READY__);
+    // The result bar floats inside the reader, with the query and the result count.
+    let bar = pdf.getByRole("toolbar", { name: "Search result" });
+    await bar.getByText("“Select this sentence”").waitFor();
+    const count = await bar.locator(".key-pdf-result-count").innerText();
+    if (/\/ [2-9]/.test(count)) {
+      await bar.getByRole("button", { name: "Next result" }).click();
+      await page.waitForFunction(async () => (await window.key.tabs()).searchPreview?.index === 1);
+      // The next result may be in the other PDF: the tab is reused with a new reader.
+      for (let i = 0; i < 50; i++) {
+        const live = app.windows().filter((w) => w.url().endsWith("/pdf.html") && !w.isClosed());
+        if (live.length && !live.includes(pdf)) pdf = live.at(-1);
+        if (!pdf.isClosed()) break;
+        await page.waitForTimeout(100);
+      }
+      bar = pdf.getByRole("toolbar", { name: "Search result" });
+      await bar.getByRole("button", { name: "Previous result" }).waitFor({ state: "visible" });
+      assert(await bar.getByRole("button", { name: "Previous result" }).isEnabled());
+    }
+    await pdf.waitForFunction(() => window.__PDFJS_FEATURES_READY__);
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((theme) => window.key.setAppSettings({ theme }), theme);
+      await pdf.waitForTimeout(600);
+      const image = await app.evaluate(async ({ webContents }, url) => {
+        const reader = webContents.getAllWebContents().find((w) => w.getURL() === url && !w.isDestroyed());
+        return (await reader.capturePage()).toPNG().toString("base64");
+      }, pdf.url());
+      await writeFile(path.join(temp, `result-bar-${theme}.png`), Buffer.from(image, "base64"));
+    }
+    await page.evaluate(() => window.key.setAppSettings({ theme: "system" }));
     // Back to search returns to the results as they were; the result tab keeps its bar.
-    await page.getByRole("button", { name: "Back to search" }).click();
+    await bar.getByRole("button", { name: "Back to search" }).click();
     await page.waitForFunction((id) => window.key.tabs().then((t) => t.activeTabId === id), libraryTab);
     await page.locator(".kx-passage").first().waitFor();
-    assert.equal(await page.locator(".key-search-session").count(), 0);
     await page.evaluate((id) => window.key.tabAction("activate", { tabId: id }), resultTab.id);
-    await page.locator(".key-search-session").waitFor();
+    await bar.waitFor();
     await page.evaluate((id) => window.key.tabAction("close", { tabId: id }), resultTab.id);
     await page.waitForFunction((id) => window.key.tabs().then((t) => t.activeTabId === id), libraryTab);
     // Results follow typing: a partial word finds the title, highlighted, without Enter.

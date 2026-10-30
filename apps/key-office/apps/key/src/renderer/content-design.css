@@ -306,18 +306,6 @@
   color: var(--key-ui-muted);
   padding: 12px;
 }
-.key-ui-root .key-search-session {
-  gap: 8px;
-  padding: 4px 12px;
-  min-height: 40px;
-}
-.key-ui-root .key-search-session button {
-  height: 28px;
-  min-height: 28px;
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-}
 @media (max-width: 760px) {
 
   .key-ui-root .key-record-editor {
@@ -372,12 +360,4 @@
 .key-ui-root .key-property-body :is(small, .key-property-hint) {
   font-size: var(--key-ui-text-xs);
   line-height: var(--key-ui-line);
-}
-/* Search navigation shares a fixed 40px native-view inset. */
-.key-ui-root .key-search-session .kui-button {
-  min-height: 28px;
-  height: 28px;
-  padding: 3px var(--key-ui-space-2);
-  font-size: var(--key-ui-text-sm);
-  line-height: 20px;
 }

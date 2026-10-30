@@ -66,8 +66,7 @@ body,
   height: 100%;
   width: 100%;
 }
-.key-pdf-find,
-.key-pdf-target {
+.key-pdf-find {
   display: flex;
   align-items: center;
   gap: var(--key-ui-space-2);
@@ -86,17 +85,6 @@ body,
   color: var(--key-ui-muted, #737373);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-.key-pdf-target {
-  flex-wrap: wrap;
-  background: color-mix(
-    in srgb,
-    var(--key-ui-warning, #97600d) 12%,
-    var(--key-ui-bg, #fafafa)
-  );
-}
-.key-pdf-target span {
-  flex: 1;
 }
 .key-pdf-error,
 .key-pdf-loading {
@@ -139,5 +127,119 @@ body,
     gap: var(--key-ui-space-1);
     padding: 8px;
     flex-wrap: wrap;
+  }
+}
+
+/* Search result bar: a translucent pill floating just under the toolbar (or the Find
+   bar), above the page, so the document keeps its full height. */
+.key-pdf-result {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 32px);
+  height: 36px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--key-ui-surface) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.8);
+  -webkit-backdrop-filter: blur(18px) saturate(1.8);
+  box-shadow:
+    0 0 0 0.5px var(--key-ui-border),
+    0 8px 24px -8px color-mix(in srgb, var(--key-ui-text) 28%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--key-ui-text) 14%, transparent);
+  color: var(--key-ui-text);
+  font: 12.5px/1 var(--key-ui-font, sans-serif);
+  white-space: nowrap;
+  translate: -50% 0;
+  animation: key-pdf-result-in 220ms var(--key-ui-ease, ease-out);
+}
+@keyframes key-pdf-result-in {
+  from {
+    opacity: 0;
+    translate: -50% -6px;
+  }
+}
+.key-pdf-result button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+.key-pdf-result button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--key-ui-text) 8%, transparent);
+}
+.key-pdf-result button:disabled {
+  opacity: 0.3;
+}
+.key-pdf-result .key-pdf-result-back {
+  display: inline-flex;
+  gap: 6px;
+  padding: 0 12px 0 10px;
+  background: color-mix(in srgb, var(--key-ui-primary) 14%, transparent);
+  color: var(--key-ui-primary);
+  font-weight: 600;
+}
+.key-pdf-result .key-pdf-result-back:hover {
+  background: color-mix(in srgb, var(--key-ui-primary) 22%, transparent);
+}
+.key-pdf-result-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 10px;
+  text-overflow: ellipsis;
+}
+.key-pdf-result-label strong {
+  overflow: hidden;
+  max-width: 260px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+.key-pdf-result-label span {
+  color: var(--key-ui-muted);
+  font-variant-numeric: tabular-nums;
+}
+.key-pdf-result-steps {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 6px;
+  border-left: 1px solid color-mix(in srgb, var(--key-ui-text) 12%, transparent);
+}
+.key-pdf-result-count {
+  min-width: 52px;
+  color: var(--key-ui-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.key-pdf-result-error {
+  color: var(--key-ui-danger);
+}
+.key-pdf-result .key-pdf-result-close {
+  margin-left: 2px;
+  color: var(--key-ui-muted);
+  font-size: 15px;
+}
+@media (max-width: 520px) {
+  .key-pdf-result-back span:last-child,
+  .key-pdf-result-label span {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-pdf-result {
+    animation: none;
   }
 }

@@ -269,6 +269,7 @@ async function showSearchPreview(session: SearchPreviewSession, index: number) {
       index,
       total: session.hits.length,
       shared: true,
+      query: session.query,
     });
     layout(w);
   } catch (e) {
@@ -416,7 +417,7 @@ function placeViews(w: ShellWindow) {
   const [width, height] = w.window.getContentSize();
   const ids = tab?.viewIds ?? [];
   const left = w.sidebarWidth,
-    top = 40 + (activeSearchPreview(w) ? 40 : 0),
+    top = 40,
     available = Math.max(0, width - left);
   const first = Math.round(available * (tab?.splitRatio ?? 0.5));
   ids.forEach((id, index) =>
@@ -820,14 +821,15 @@ function createShell(options: { tabs?: WorkspaceTabsState["tabs"]; load?: boolea
       if (quitRequested) app.quit();
     })();
   });
-  if (options.load !== false)
+  if (options.load !== false) {
+    if (!w.state.tabs.length) home(w);
     void loadShell(w)
       .then(() => {
-        if (!w.state.tabs.length) home(w);
-        else layout(w);
+        layout(w);
         for (const other of liveShells()) if (other !== w) tabsChanged(other);
       })
       .catch((error) => emit("operation-error", String(error)));
+  }
   return w;
 }
 async function loadShell(w: ShellWindow) {
@@ -1215,8 +1217,16 @@ else
       ipcMain.handle("key:open-source", (event, source, hit, results) => {
         return sourceOpen(source, hit, results, shell(event.sender.id));
       });
-      ipcMain.handle("key:reader-result", (event, direction) => {
+      // The search session a reader is showing a result of, if any.
+      const sessionOf = (viewId: string) =>
+        [...searchPreviews.values()].find((s) => s.previewViewId === viewId && !s.dismissed);
+      ipcMain.handle("key:reader-result", async (event, direction) => {
         const v = bound(event.sender.id);
+        const session = v && v.sharedSearchNavigation ? sessionOf(v.id) : undefined;
+        if (session && [-1, 1].includes(direction)) {
+          if (!session.busy) await showSearchPreview(session, session.index + direction);
+          return;
+        }
         if (
           v?.kind !== "pdf" ||
           !v.searchResults ||
@@ -1228,6 +1238,14 @@ else
         if (!hit) return;
         return sourceOpen(hit, hit, v.searchResults, shellOfView(v.id));
       });
+      // × in the reader's result bar: end the search session but keep the document.
+      ipcMain.handle("key:reader-dismiss", (event) => {
+        const v = bound(event.sender.id);
+        if (v?.kind !== "pdf") throw Error("Not a PDF reader");
+        const session = sessionOf(v.id);
+        if (session) dismissSearchPreview(session.sourceViewId);
+        v.searchTarget = undefined;
+      });
       ipcMain.handle("key:reader-ready", (event) => {
         const v = bound(event.sender.id);
         if (v?.kind !== "pdf") throw Error("Not a PDF reader");
@@ -1236,6 +1254,7 @@ else
           viewState: v.viewState,
           searchTarget: v.searchTarget,
           searchNavigation: {
+            query: sessionOf(v.id)?.query,
             shared: v.sharedSearchNavigation,
             index: v.searchIndex ?? -1,
             total: v.searchResults?.length ?? 0,
@@ -1630,8 +1649,10 @@ else
         layout(w);
         return snapshot(w);
       });
-      await loadShell(first);
+      // Home exists before the page loads, so nothing opened early lands in front of it.
       home(first);
+      await loadShell(first);
+      layout(first);
     })
     .catch((error) => {
       console.error(error);

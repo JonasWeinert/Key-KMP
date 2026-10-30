@@ -1,7 +1,7 @@
 import HomeView from "./HomeView";
 import { Button, Input, Textarea, Select } from "@key/design-system";
 import NotePage from "./NotePage";
-import type { SearchPreviewState } from "./SearchPreviewBar";
+import type { SearchPreviewState } from "./search-preview";
 import { EntryDetails } from "./EntryTools";
 import { RecordProperties } from "./RecordProperties";
 import { useCallback, useEffect, useRef, useState } from "react";

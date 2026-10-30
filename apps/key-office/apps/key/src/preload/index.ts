@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("key", {
   tabAction: (action: string, payload?: unknown) =>
     ipcRenderer.invoke("key:tab-action", action, payload),
   readerBack: () => ipcRenderer.invoke("key:reader-back"),
+  readerDismiss: () => ipcRenderer.invoke("key:reader-dismiss"),
   readerResult: (direction: number) =>
     ipcRenderer.invoke("key:reader-result", direction),
   readerReady: () => ipcRenderer.invoke("key:reader-ready"),
