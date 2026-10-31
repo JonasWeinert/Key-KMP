@@ -1917,11 +1917,23 @@
   padding: 0;
   list-style: none;
 }
+/* A highlight reads like the passage in the PDF: the words marked in its colour. */
 .kx-page-highlights li {
-  padding: 6px 10px 5px 12px;
+  margin: 0 -8px;
+  padding: 5px 8px 3px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--kx-hl) 10%, var(--kx-bg));
-  box-shadow: inset 3px 0 0 var(--kx-hl);
+}
+.kx-page-highlights li:hover,
+.kx-page-highlights li:focus-within {
+  background: var(--kx-fill);
+}
+.kx-page-highlights mark {
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--kx-hl) 38%, transparent);
+  color: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 .kx-page-highlights blockquote {
   margin: 0;
@@ -1965,7 +1977,7 @@
   opacity: 1;
 }
 .kx-page-highlights footer button:hover {
-  background: var(--kx-fill);
+  background: var(--kx-fill-2);
   color: var(--kx-text);
 }
 /* Values wrap inside the page column instead of running off its edge. */
@@ -1992,22 +2004,6 @@
   height: auto !important;
   min-height: 0;
 }
-.kx-page-properties-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 12px 0 0 -6px;
-  padding: 4px 6px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--kx-text-2);
-  font: 13px var(--kx-font);
-}
-.kx-page-properties-summary:hover {
-  background: var(--kx-fill);
-  color: var(--kx-text);
-}
 /* On a source page the note is followed by highlights, so it needs no long tail of space. */
 .kx-page-note .ne-prose {
   min-height: 5em;
@@ -2025,22 +2021,6 @@
   justify-content: center;
   border-radius: 0 7px 7px 0;
   box-shadow: inset 1px 0 0 color-mix(in srgb, var(--kx-accent-ink) 30%, transparent);
-}
-.kx-page-details-hide {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 10px 0 0 -2px;
-  padding: 2px 4px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--kx-text-3);
-  font: 12px var(--kx-font);
-}
-.kx-page-details-hide:hover {
-  background: var(--kx-fill);
-  color: var(--kx-text);
 }
 /* Highlights sit above the note, two lines each; the full text is in the tooltip. */
 .kx-page-highlights blockquote {
@@ -2164,4 +2144,46 @@
 }
 .kx-page-highlights footer button {
   height: 18px;
+}
+.kx-page-details-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% + 12px);
+  min-width: 0;
+  margin: 8px 0 0 -6px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 600 12px var(--kx-font);
+  letter-spacing: 0.02em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.kx-page-details-toggle:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-page-details-toggle > svg {
+  flex: none;
+  transition: transform 160ms var(--kx-ease);
+}
+.kx-page-details-toggle[aria-expanded="true"] > svg {
+  transform: rotate(90deg);
+}
+.kx-page-details-summary {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--kx-text-3);
+  font: 400 12.5px var(--kx-font);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-page-details {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--kx-line);
 }

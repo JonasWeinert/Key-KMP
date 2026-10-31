@@ -315,20 +315,24 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
         </header>
 
         <AutoText className="kx-inspector-title kx-source-page-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />
-        {!detailsOpen && (
-          <button className="kx-page-properties-summary" onClick={() => toggleDetails(true)} aria-expanded={false}>
-            <Icon name="chevronRight" size={11} />
-            {[
-              shortCreators(source.creators),
-              source.containerShort || source.containerTitle,
-              source.year,
-              source.tags.length && `${source.tags.length} ${source.tags.length === 1 ? "tag" : "tags"}`,
-              source.collections.length && `${source.collections.length} ${source.collections.length === 1 ? "collection" : "collections"}`,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "Show details"}
-          </button>
-        )}
+        {/* Accordion: the details fold under the title, with a one-line summary when closed. */}
+        <button className="kx-page-details-toggle" onClick={() => toggleDetails(!detailsOpen)} aria-expanded={detailsOpen}>
+          <Icon name="chevronRight" size={11} />
+          <span>Details</span>
+          {!detailsOpen && (
+            <span className="kx-page-details-summary">
+              {[
+                shortCreators(source.creators),
+                source.containerShort || source.containerTitle,
+                source.year,
+                source.tags.length && `${source.tags.length} ${source.tags.length === 1 ? "tag" : "tags"}`,
+                source.collections.length && `${source.collections.length} ${source.collections.length === 1 ? "collection" : "collections"}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          )}
+        </button>
         {detailsOpen && (
           <div className="kx-page-details">
         <Creators creators={source.creators} onCommit={(creators) => void save({ creators })} />
@@ -416,9 +420,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             )
           )}
         </section>
-          <button className="kx-page-details-hide" onClick={() => toggleDetails(false)} aria-expanded>
-            <Icon name="chevronDown" size={11} /> Hide details
-          </button>
           </div>
         )}
 
@@ -434,7 +435,11 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
                 const pageIndex = highlightPage(h);
                 return (
                   <li key={h.id} data-color={h.color || "orange"}>
-                    {h.text && <blockquote title={h.text}>{h.text.replace(/\s*\r?\n\s*/g, " ")}</blockquote>}
+                    {h.text && (
+                      <blockquote title={h.text}>
+                        <mark>{h.text.replace(/\s*\r?\n\s*/g, " ")}</mark>
+                      </blockquote>
+                    )}
                     {h.comment && <p className="kx-page-highlight-comment">{h.comment}</p>}
                     <footer>
                       {pageIndex !== undefined && <span>p. {pageIndex + 1}</span>}

@@ -1635,7 +1635,7 @@ else
           }
           case "sidebar-width":
             w.sidebarWidth = Number.isFinite(Number(p.width))
-              ? Math.max(0, Math.min(320, Number(p.width)))
+              ? Math.max(0, Math.min(360, Number(p.width)))
               : 240;
             placeViews(w);
             return snapshot(w);

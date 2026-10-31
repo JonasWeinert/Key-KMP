@@ -91,6 +91,7 @@ const assert = require("node:assert/strict");
       annotations: [highlight("h1", "Select this sentence, copy it, and compare exactly.", 0), highlight("h2", "Horizontal scrolling appears after zooming in.", 0)],
     });
     await page.waitForFunction(() => document.querySelectorAll(".kx-page-highlights li").length === 2);
+    assert.equal(await page.locator(".kx-page-highlights li mark").count(), 2, "highlight text is marked in its colour");
     await page.locator(".kx-source-page").evaluate((el) => el.scrollTo(0, el.scrollHeight));
     await page.waitForTimeout(300);
     await shot(page, "page-light");
@@ -132,11 +133,13 @@ const assert = require("node:assert/strict");
       return t.tabs.find((x) => x.id === t.activeTabId).views.map((v) => v.kind).join() === "pdf,page";
     });
 
-    // Folding the details leaves a one-line summary.
-    await page.getByRole("button", { name: "Hide details" }).click();
-    await page.locator(".kx-page-properties-summary", { hasText: "PLoS ONE · 2022" }).waitFor();
+    // The details fold under the title like an accordion, leaving a one-line summary.
+    const toggle = page.locator(".kx-page-details-toggle");
+    assert.ok(await page.evaluate(() => document.querySelector(".kx-source-page-title").nextElementSibling?.classList.contains("kx-page-details-toggle")), "toggle sits under the title");
+    await toggle.click();
+    await page.locator(".kx-page-details-summary", { hasText: "PLoS ONE · 2022" }).waitFor();
     assert.equal(await page.locator(".kx-page-details").count(), 0);
-    await page.locator(".kx-page-properties-summary").click();
+    await toggle.click();
     await page.locator(".kx-page-details").waitFor();
 
     // The Read menu opens the PDF in its own tab: here it is already open, so it jumps there.
