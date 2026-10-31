@@ -70,11 +70,14 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   // Narrow layout beside a PDF, from the measured width (see reference-library.css).
   const pageRef = useRef<HTMLElement>(null);
-  const [narrow, setNarrow] = useState(false);
+  const [width, setWidth] = useState<"wide" | "narrow" | "tight">("wide");
   useEffect(() => {
     const el = pageRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < 640));
+    const observer = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      setWidth(w < 420 ? "tight" : w < 640 ? "narrow" : "wide");
+    });
     observer.observe(el);
     return () => observer.disconnect();
   });
@@ -247,7 +250,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
     });
 
   return (
-    <article className="kx-source-page" ref={pageRef} data-narrow={narrow}>
+    <article className="kx-source-page" ref={pageRef} data-narrow={width !== "wide"} data-tight={width === "tight"}>
       <div className="kx-source-page-inner">
         <header className="kx-source-page-bar">
           <span className="kx-kind-badge" data-kind={source.kind}>
@@ -430,7 +433,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
               {highlights.map((h) => {
                 const pageIndex = highlightPage(h);
                 return (
-                  <li key={h.id} data-color={h.color || "yellow"}>
+                  <li key={h.id} data-color={h.color || "orange"}>
                     {h.text && <blockquote title={h.text}>{h.text.replace(/\s*\r?\n\s*/g, " ")}</blockquote>}
                     {h.comment && <p className="kx-page-highlight-comment">{h.comment}</p>}
                     <footer>

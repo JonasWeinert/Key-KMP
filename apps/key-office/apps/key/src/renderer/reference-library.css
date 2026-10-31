@@ -1898,7 +1898,7 @@
   outline: none;
 }
 .kx-page-section {
-  margin-top: 36px;
+  margin-top: 28px;
 }
 .kx-page-section > h3 {
   display: flex;
@@ -1912,47 +1912,35 @@
 }
 .kx-page-highlights {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .kx-page-highlights li {
-  --mark: var(--kx-amber);
-  padding: 10px 14px 8px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--mark) 8%, var(--kx-bg));
-  box-shadow: inset 3px 0 0 var(--mark);
-}
-.kx-page-highlights li[data-color="blue"] {
-  --mark: var(--kx-accent);
-}
-.kx-page-highlights li[data-color="green"] {
-  --mark: var(--kx-green);
-}
-.kx-page-highlights li[data-color="red"],
-.kx-page-highlights li[data-color="pink"] {
-  --mark: var(--kx-red);
-}
-.kx-page-highlights li[data-color="purple"] {
-  --mark: var(--kx-indigo);
+  padding: 6px 10px 5px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--kx-hl) 10%, var(--kx-bg));
+  box-shadow: inset 3px 0 0 var(--kx-hl);
 }
 .kx-page-highlights blockquote {
   margin: 0;
   color: var(--kx-text);
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 .kx-page-highlight-comment {
-  margin: 6px 0 0;
+  margin: 3px 0 0;
   color: var(--kx-text-2);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .kx-page-highlights footer {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 6px;
+  gap: 2px;
+  min-width: 0;
+  margin-top: 2px;
+  white-space: nowrap;
   color: var(--kx-text-3);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
@@ -1961,13 +1949,14 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
-  padding: 0 8px;
+  flex: none;
+  height: 20px;
+  padding: 0 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: var(--kx-text-2);
-  font: 11.5px var(--kx-font);
+  font: 11px var(--kx-font);
   opacity: 0;
   transition: opacity 120ms var(--kx-ease);
 }
@@ -2080,4 +2069,99 @@
     background: transparent;
     box-shadow: 0 0 0 6px transparent;
   }
+}
+
+/* Beside a PDF the page gets smaller type, a tighter grid and a header that wraps. */
+.kx-source-page-bar {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.kx-source-page[data-narrow="true"] .kx-source-page-bar {
+  margin-bottom: 12px;
+}
+.kx-source-page[data-narrow="true"] .kx-source-page-title {
+  font-size: 23px;
+}
+.kx-source-page[data-narrow="true"] .kx-page-properties {
+  margin-top: 12px;
+}
+.kx-source-page[data-narrow="true"] .kx-page-properties .kx-field-row {
+  grid-template-columns: minmax(84px, 32%) minmax(0, 1fr) auto;
+  min-height: 28px;
+  gap: 6px;
+}
+.kx-source-page[data-narrow="true"] :is(.kx-page-properties .kx-field-row > span, .kx-page-properties .kx-typed-row > .kx-property-name, .kx-page-properties .kx-field-row > input) {
+  font-size: 12.5px;
+}
+.kx-source-page[data-narrow="true"] .kx-page-properties .kx-field-row > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-source-page[data-narrow="true"] :is(.kx-page-abstract-preview, .kx-page-abstract-text) {
+  font-size: 12.5px;
+}
+.kx-source-page[data-narrow="true"] .kx-page-note .ne-root {
+  --ne-size: 13.5px;
+  --ne-line: 1.55;
+}
+.kx-source-page[data-narrow="true"] .kx-page-note {
+  margin-top: 18px;
+  padding-top: 14px;
+}
+.kx-source-page[data-narrow="true"] .ne-squote {
+  padding-left: 11px;
+}
+/* Very narrow: the page loses its side padding and the labels sit above their values. */
+.kx-source-page[data-tight="true"] .kx-source-page-inner {
+  padding: 10px 14px 100px;
+}
+.kx-source-page[data-tight="true"] .kx-page-note .ne-root {
+  --ne-gutter: 14px;
+  --ne-size: 13px;
+}
+.kx-source-page[data-tight="true"] .kx-source-page-title {
+  font-size: 19px;
+}
+.kx-source-page[data-tight="true"] .kx-page-properties .kx-field-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 0;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.kx-source-page[data-tight="true"] .kx-page-properties .kx-field-row > :first-child {
+  grid-column: 1 / -1;
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  line-height: 16px;
+}
+.kx-source-page[data-tight="true"] .kx-page-action {
+  padding: 0 8px;
+}
+.kx-source-page[data-tight="true"] .kx-kind-badge {
+  min-width: 0;
+  max-width: 100%;
+}
+.kx-source-page[data-tight="true"] .kx-page-highlights footer button {
+  padding: 0 4px;
+}
+/* The item type takes only the width of the chosen type, so the actions stay on one line. */
+.kx-source-page-bar .kx-kind-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.kx-source-page-bar .kx-kind-badge select {
+  field-sizing: content;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.kx-page-properties-foot {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.kx-page-properties-foot button {
+  white-space: nowrap;
+}
+.kx-page-highlights footer button {
+  height: 18px;
 }

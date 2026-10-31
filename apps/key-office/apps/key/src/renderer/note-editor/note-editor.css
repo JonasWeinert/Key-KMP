@@ -459,33 +459,47 @@
 
 /* ── source quote ────────────────────────────────────────────────────────── */
 
+/* The reader's highlight colours (apps/key/src/styles.css, --annotation-color), exactly:
+   document data, so the same in light and dark. "yellow" and "red" are older names. */
+:root {
+  --kx-hl-orange: rgb(255 185 60);
+  --kx-hl-green: rgb(94 210 129);
+  --kx-hl-blue: rgb(80 158 255);
+  --kx-hl-pink: rgb(244 104 172);
+  --kx-hl-purple: rgb(164 110 244);
+}
+:is(.ne-squote, .kx-page-highlights li)[data-color] {
+  --kx-hl: var(--kx-hl-orange);
+}
+:is(.ne-squote, .kx-page-highlights li)[data-color="green"] {
+  --kx-hl: var(--kx-hl-green);
+}
+:is(.ne-squote, .kx-page-highlights li)[data-color="blue"] {
+  --kx-hl: var(--kx-hl-blue);
+}
+:is(.ne-squote, .kx-page-highlights li)[data-color="pink"],
+:is(.ne-squote, .kx-page-highlights li)[data-color="red"] {
+  --kx-hl: var(--kx-hl-pink);
+}
+:is(.ne-squote, .kx-page-highlights li)[data-color="purple"] {
+  --kx-hl: var(--kx-hl-purple);
+}
+
 .ne-squote {
-  margin: 0.8em 0;
-  padding: 2px 0 2px 16px;
+  margin: 0.7em 0;
+  padding: 1px 0 1px 14px;
   border-left: 3px solid var(--kx-accent);
 }
 /* A quote taken from a PDF highlight keeps that highlight's colour. */
-.ne-squote[data-color="yellow"] {
-  border-left-color: var(--kx-amber);
-}
-.ne-squote[data-color="blue"] {
-  border-left-color: var(--kx-accent);
-}
-.ne-squote[data-color="green"] {
-  border-left-color: var(--kx-green);
-}
-.ne-squote:is([data-color="red"], [data-color="pink"]) {
-  border-left-color: var(--kx-red);
-}
-.ne-squote[data-color="purple"] {
-  border-left-color: var(--kx-indigo);
+.ne-squote[data-color] {
+  border-left-color: var(--kx-hl);
 }
 .ne-squote-text {
   margin: 0;
   padding: 0;
   border: 0;
   font-family: var(--kx-font-serif);
-  font-size: 1.06em;
+  font-size: 1em;
   line-height: 1.55;
   color: var(--kx-text);
 }
