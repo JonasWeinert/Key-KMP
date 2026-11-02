@@ -35,13 +35,20 @@ const colors = [
 export default function WorkspaceSwitcher({
   workspaces,
   selectedId,
+  openElsewhere = [],
+  openRequest = 0,
   onSelect,
   onAdd,
   onSave,
 }: {
   workspaces: WorkspaceAppearance[];
   selectedId?: string;
-  onSelect: (id?: string) => void;
+  /** Workspaces another window shows; choosing one brings that window forward. */
+  openElsewhere?: string[];
+  /** Opens the menu when it changes (File › Switch Workspace…). */
+  openRequest?: number;
+  /** `newWindow`: Cmd- or Option-click, or the row's new-window button. */
+  onSelect: (id: string, newWindow: boolean) => void;
   onAdd: () => Promise<void>;
   onSave: (id: string, icon: string, color: string) => Promise<void>;
 }) {
@@ -60,6 +67,12 @@ export default function WorkspaceSwitcher({
     setIcon(selected?.icon || "📚");
     setColor(selected?.color || colors[0]);
   }, [selectedId, selected?.icon, selected?.color]);
+  useEffect(() => {
+    if (!openRequest) return;
+    setQuery("");
+    setEditing(false);
+    setOpen(true);
+  }, [openRequest]);
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => {
@@ -169,30 +182,23 @@ export default function WorkspaceSwitcher({
                 onChange={(e) => setQuery(e.target.value)}
               />
               <div role="menu" aria-label="Workspaces">
-                <Button
-                  role="menuitemradio"
-                  aria-checked={!selectedId}
-                  onClick={() => {
-                    onSelect();
-                    setOpen(false);
-                  }}
-                >
-                  <span className="key-workspace-icon"><Icon name="layers" size={13} /></span>
-                  <span>All workspaces</span>
-                  {!selectedId && <Icon name="check" size={14} />}
-                </Button>
                 {workspaces
                   .filter((w) =>
                     w.name.toLowerCase().includes(query.toLowerCase()),
                   )
                   .map((w) => (
+                    <div className="key-workspace-row" key={w.id}>
                     <Button
-                      key={w.id}
                       data-workspace-id={w.id}
                       role="menuitemradio"
                       aria-checked={w.id === selectedId}
-                      onClick={() => {
-                        onSelect(w.id);
+                      title={
+                        openElsewhere.includes(w.id)
+                          ? `${w.name} is open in another window`
+                          : `Switch this window to ${w.name} · ⌘-click to open in a new window`
+                      }
+                      onClick={(e) => {
+                        onSelect(w.id, e.metaKey || e.altKey);
                         setOpen(false);
                       }}
                     >
@@ -206,8 +212,24 @@ export default function WorkspaceSwitcher({
                         {w.icon || "📚"}
                       </span>
                       <span>{w.name}</span>
+                      {openElsewhere.includes(w.id) && w.id !== selectedId && (
+                        <span className="key-workspace-open-dot" aria-label="Open in another window" />
+                      )}
                       {w.id === selectedId && <Icon name="check" size={14} />}
                     </Button>
+                    <button
+                      type="button"
+                      className="key-workspace-new-window"
+                      aria-label={`Open ${w.name} in a new window`}
+                      title="Open in new window"
+                      onClick={() => {
+                        onSelect(w.id, true);
+                        setOpen(false);
+                      }}
+                    >
+                      <Icon name="windows" size={13} />
+                    </button>
+                    </div>
                   ))}
                 {query &&
                   !workspaces.some((w) =>

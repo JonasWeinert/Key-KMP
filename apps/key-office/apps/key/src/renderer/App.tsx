@@ -15,6 +15,16 @@ import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import CollectionTree from "./CollectionTree";
 import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
+import {
+  MAX_PANES,
+  layoutPanes,
+  setWorkspaceSplitRatio,
+  tabWithLayout,
+  type PaneLayout,
+  type SplitEdge,
+  type WorkspaceViewDrop,
+} from "../shared/tab-model";
+import type { ContentDropTarget } from "./TabBar";
 interface Workspace {
   id: string;
   name: string;
@@ -39,8 +49,13 @@ interface RecordItem {
 }
 interface TabState {
   searchPreview?: SearchPreviewState;
+  /** The workspace this window shows; other windows' workspaces for the switcher. */
+  workspaceId?: string;
+  windowId?: string;
+  windows?: { windowId: string; workspaceId: string }[];
   tabs: {
     id: string;
+    layout?: PaneLayout;
     title: string;
     views: {
       id: string;
@@ -90,6 +105,11 @@ const SIDEBAR_MIN = 180,
 const clampSidebar = (width: number) => Math.round(Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, width)));
 
 const emptyTabs: TabState = { tabs: [], activeTabId: "", activeViewId: "" };
+// Native views start below the 40px tab bar; DOM panes use the same geometry.
+const CHROME_TOP = 40;
+/** A quarter of the pane, at most this many pixels, from an edge splits there. */
+const EDGE_BAND = 80;
+const DIVIDER_STEP = 0.025;
 
 const tabSummary = (state: TabState): TabSummary[] =>
   state.tabs.map((tab) => ({
@@ -119,6 +139,7 @@ const officeTabs: TabsApi = {
   showMenu: (x, y) => api().tabAction("tab-menu", { x, y }),
   showTabMenu: (tabId, x, y) => api().tabAction("tab-context-menu", { tabId, x, y }),
   dropView: (drop) => api().tabAction("drop-view", drop),
+  tearOff: (target) => api().tabAction("tear-off", target),
   notifyChromePressed: () => {
     void api().tabAction("chrome-pressed");
   },
@@ -135,7 +156,7 @@ export default function App() {
   const [error, setError] = useState(""),
     [refreshKey, setRefreshKey] = useState(0);
   const splitFrame = useRef<number | null>(null);
-  const splitPending = useRef(0.5);
+  const splitPending = useRef<{ path: string; ratio: number }>({ path: "", ratio: 0.5 });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("key.sidebar.collapsed") === "true",
   );
@@ -170,21 +191,23 @@ export default function App() {
       cancelAnimationFrame(frame);
     };
   }, []);
-  const [dragRatio, setDragRatio] = useState<number>();
-  const resizeSplit = (x: number) => {
-    const ratio = Math.max(
-      0.2,
-      Math.min(
-        0.8,
-        (x - sidebarWidth) / Math.max(1, window.innerWidth - sidebarWidth),
-      ),
-    );
-    setDragRatio(ratio);
-    splitPending.current = ratio;
+  // The content area's size, which native views and DOM panes share.
+  const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
+  useEffect(() => {
+    const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  // A divider being dragged: its split and the ratio shown until main confirms it.
+  const [dragSplit, setDragSplit] = useState<{ path: string; ratio: number }>();
+  const resizeSplit = (path: string, ratio: number) => {
+    const next = { path, ratio: Math.max(0.1, Math.min(0.9, ratio)) };
+    setDragSplit(next);
+    splitPending.current = next;
     if (splitFrame.current === null)
       splitFrame.current = requestAnimationFrame(() => {
         splitFrame.current = null;
-        action("resize-split", { ratio: splitPending.current });
+        action("resize-split", splitPending.current);
       });
   };
   const [createMenu, setCreateMenu] = useState(false),
@@ -375,19 +398,116 @@ export default function App() {
     selectedProject = projects.find((p) => p.id === projectId);
   const activeTab = tabs.tabs.find((t) => t.id === tabs.activeTabId),
     activeView = activeTab?.views.find((v) => v.id === tabs.activeViewId);
+  // The sidebar shows the window's workspace; the focused view only picks the project
+  // and highlights its row (a view from another workspace changes neither).
   useEffect(() => {
+    if (tabs.workspaceId) setWorkspaceId(tabs.workspaceId);
+  }, [tabs.workspaceId]);
+  useEffect(() => {
+    const own = (activeView?.content?.workspaceId ?? activeView?.workspaceId) === tabs.workspaceId;
     if (activeView?.content) {
-      setWorkspaceId(activeView.content.workspaceId);
-      setProjectId(activeView.content.projectId);
+      setProjectId(own ? activeView.content.projectId : undefined);
       setSection(activeView.content.section);
       setRecord(activeView.content.record);
     } else if (activeView) {
-      setWorkspaceId(activeView.workspaceId);
       setProjectId(undefined);
       setRecord(undefined);
       setSection("");
     }
-  }, [activeView?.id, activeView?.content?.record?.id]);
+  }, [activeView?.id, activeView?.content?.record?.id, tabs.workspaceId]);
+  const switchWorkspace = (id: string, newWindow = false) =>
+    task(() => api().tabAction("switch-workspace", { workspaceId: id, newWindow }));
+  const [switcherRequest, setSwitcherRequest] = useState(0);
+  useEffect(() => api().on("open-workspace-switcher", () => setSwitcherRequest((n) => n + 1)), []);
+  // Cmd-Option-arrows into a DOM pane: focus lands inside it.
+  useEffect(
+    () =>
+      api().on("focus-pane", (id) => {
+        const pane = document.querySelector<HTMLElement>(`[data-content-view="${id}"]`);
+        const target =
+          pane?.querySelector<HTMLElement>("input, textarea, [contenteditable='true'], button, [tabindex]:not([tabindex='-1'])") ?? pane;
+        target?.focus({ preventScroll: true });
+      }),
+    [],
+  );
+  // The active tab's panes and dividers, in content-area pixels (right of the sidebar, below the tab bar).
+  const shownLayout = (() => {
+    const layout = activeTab?.layout;
+    if (!layout || !dragSplit) return layout;
+    const tab = tabWithLayout({ id: "drag" }, layout);
+    return setWorkspaceSplitRatio({ tabs: [tab], activeTabId: tab.id }, tab.id, dragSplit.ratio, dragSplit.path).tabs[0].layout;
+  })();
+  const laidOut = shownLayout
+    ? layoutPanes(shownLayout, {
+        x: 0,
+        y: 0,
+        width: Math.max(0, viewport.width - sidebarWidth),
+        height: Math.max(0, viewport.height - CHROME_TOP),
+      })
+    : { panes: [], dividers: [] };
+  /** What releasing a dragged tab or pane at (x, y) over the content would do. */
+  const contentDrop = (x: number, y: number, drag: { viewId: string; pane: boolean }): ContentDropTarget | undefined => {
+    const cx = x - sidebarWidth,
+      cy = y - CHROME_TOP;
+    const target = laidOut.panes.find((p) => cx >= p.x && cx < p.x + p.width && cy >= p.y && cy < p.y + p.height);
+    if (!activeTab || !target || target.viewId === drag.viewId) return undefined;
+    const distances: [SplitEdge, number, number][] = [
+      ["left", cx - target.x, target.width],
+      ["right", target.x + target.width - cx, target.width],
+      ["top", cy - target.y, target.height],
+      ["bottom", target.y + target.height - cy, target.height],
+    ];
+    const near = distances
+      .map(([edge, distance, size]) => [edge, distance / Math.min(EDGE_BAND, size / 4)] as const)
+      .filter(([, scaled]) => scaled <= 1)
+      .sort((a, b) => a[1] - b[1])[0];
+    const title = activeTab.views.find((v) => v.id === target.viewId)?.title ?? "this pane";
+    const onScreen = { x: target.x + sidebarWidth, y: target.y + CHROME_TOP, width: target.width, height: target.height };
+    if (near) {
+      const edge = near[0];
+      const half =
+        edge === "left" ? { ...onScreen, width: onScreen.width / 2 }
+        : edge === "right" ? { ...onScreen, x: onScreen.x + onScreen.width / 2, width: onScreen.width / 2 }
+        : edge === "top" ? { ...onScreen, height: onScreen.height / 2 }
+        : { ...onScreen, y: onScreen.y + onScreen.height / 2, height: onScreen.height / 2 };
+      const drop: WorkspaceViewDrop = { kind: "split", viewId: drag.viewId, targetTabId: activeTab.id, targetViewId: target.viewId, edge };
+      const where = { left: "left of", right: "right of", top: "above", bottom: "below" }[edge];
+      return { drop, preview: half, label: `◫ Release to split ${where} ${title}` };
+    }
+    // The centre of a pane in a split swaps with it; a pane's own group falls back to separating.
+    if (drag.pane || activeTab.views.length < 2) return undefined;
+    return { drop: { kind: "swap", viewId: drag.viewId, targetViewId: target.viewId }, preview: onScreen, label: `⇄ Release to swap with ${title}` };
+  };
+  // While a drag is over the content, native views are swapped for still frames so the
+  // drop preview can be drawn over them.
+  type Frame = { id: string; x: number; y: number; width: number; height: number; image: string };
+  const [dragFrames, setDragFrames] = useState<Frame[]>([]);
+  const dragOverlay = useRef<string | undefined>(undefined);
+  // Main recaptures when what is shown changes mid-drag (the dragged-from tab comes back).
+  useEffect(
+    () =>
+      api().on("global-overlay-frames", (result) => {
+        const { id, frames } = result as { id: string; frames: Frame[] };
+        if (id === dragOverlay.current) setDragFrames(frames);
+      }),
+    [],
+  );
+  const contentDragging = (dragging: boolean) => {
+    if (dragging && !dragOverlay.current) {
+      const id = `tab-drag-${crypto.randomUUID()}`;
+      dragOverlay.current = id;
+      void (api().tabAction("global-overlay-open", { id }) as unknown as Promise<{ frames?: Frame[] }>)
+        .then((result) => {
+          if (dragOverlay.current === id) setDragFrames(result?.frames ?? []);
+        })
+        .catch(() => {});
+    } else if (!dragging && dragOverlay.current) {
+      const id = dragOverlay.current;
+      dragOverlay.current = undefined;
+      setDragFrames([]);
+      void api().tabAction("global-overlay-close", { id });
+    }
+  };
   const recordIcon = (r: RecordItem): IconName =>
     r.kind === "note" ? "note" : r.kind === "database" ? "database" : "doc";
   const sidebarToggle = (
@@ -439,7 +559,8 @@ export default function App() {
           }}
           onOpenLibrary={(id) => {
             setSettingsSection(undefined);
-            action("open-content", { section: "sources", workspaceId: id });
+            if (id === tabs.workspaceId) action("open-content", { section: "sources", workspaceId: id });
+            else void switchWorkspace(id);
           }}
           onWorkspacesChanged={refreshWorkspaces}
         />
@@ -455,7 +576,8 @@ export default function App() {
             setWelcome(false);
             updatePrefs({ onboarded: true });
             refreshWorkspaces();
-            if (id) action("open-content", { section: "sources", workspaceId: id });
+            if (id && id !== tabs.workspaceId) void switchWorkspace(id);
+            else if (id) action("open-content", { section: "sources", workspaceId: id });
           }}
         />
       )}
@@ -479,11 +601,18 @@ export default function App() {
           <WorkspaceSwitcher
             workspaces={workspaces}
             selectedId={workspaceId}
-            onSelect={chooseScope}
+            openElsewhere={(tabs.windows ?? []).filter((w) => w.windowId !== tabs.windowId).map((w) => w.workspaceId)}
+            openRequest={switcherRequest}
+            onSelect={(id, newWindow) =>
+              // Choosing the workspace this window already shows opens its library.
+              id === tabs.workspaceId && !newWindow
+                ? action("open-content", { section: "sources", workspaceId: id })
+                : void switchWorkspace(id, newWindow)
+            }
             onAdd={async () => {
               const added = await api().addWorkspace();
               setWorkspaces(await api().workspaces());
-              if (added) chooseScope(added.id);
+              if (added) await switchWorkspace(added.id);
             }}
             onSave={async (id, icon, color) => {
               await api().invoke(
@@ -670,6 +799,8 @@ export default function App() {
       <div className="kx-main">
       <TabBar
         api={officeTabs}
+        contentDrop={contentDrop}
+        onContentDrag={contentDragging}
         trailingControls={
           <div className="key-chrome-layout-controls">
             {activeTab && activeTab.views.length > 1 && (
@@ -705,7 +836,7 @@ export default function App() {
               title="Split with another tab"
               aria-label="Split with another tab"
               disabled={
-                activeTab?.views.length === 2 ||
+                (activeTab?.views.length ?? 0) >= MAX_PANES ||
                 !tabs.tabs.some(
                   (t) => t.id !== tabs.activeTabId && t.views.length === 1,
                 )
@@ -724,16 +855,15 @@ export default function App() {
             .flatMap((t) => t.views)
             .filter((v) => v.content)
             .map((v) => {
-              const index =
-                activeTab?.views.findIndex((p) => p.id === v.id) ?? -1;
-              const split = activeTab?.views.length === 2;
-              const ratio = dragRatio ?? tabs.splitRatio ?? 0.5;
+              const placed = laidOut.panes.find((p) => p.viewId === v.id);
               return (
                 <div
                   key={v.id}
                   data-content-view={v.id}
                   className="key-content-pane"
-                  hidden={index < 0}
+                  data-pane-focused={laidOut.panes.length > 1 && v.id === tabs.activeViewId ? "" : undefined}
+                  tabIndex={-1}
+                  hidden={!placed}
                   onPointerDownCapture={() => {
                     if (tabs.activeViewId !== v.id)
                       action("focus", { viewId: v.id });
@@ -742,21 +872,19 @@ export default function App() {
                     if (tabs.activeViewId !== v.id)
                       action("focus", { viewId: v.id });
                   }}
-                  style={{
-                    top: tabs.searchPreview ? 40 : 0,
-                    left:
-                      split && index === 1 ? `calc(${ratio * 100}% + 3px)` : 0,
-                    width: split
-                      ? index === 0
-                        ? `calc(${ratio * 100}% - 3px)`
-                        : `calc(${(1 - ratio) * 100}% - 3px)`
-                      : "100%",
-                  }}
+                  style={
+                    placed && {
+                      left: placed.x,
+                      top: placed.y,
+                      width: placed.width,
+                      height: placed.height,
+                    }
+                  }
                 >
                   <WorkspaceContent
                     viewId={v.id}
                     spec={v.content || { section: "sources" }}
-                    visible={index >= 0}
+                    visible={!!placed}
                     tabs={tabs}
                   />
                 </div>
@@ -771,51 +899,71 @@ export default function App() {
         </div>
       </div>
       </div>
-      {activeTab?.views.length === 2 && (
-        <div
-          className="key-split-divider"
-          role="separator"
-          aria-label="Resize split panes"
-          aria-orientation="vertical"
-          aria-valuemin={20}
-          aria-valuemax={80}
-          aria-valuenow={Math.round(
-            (dragRatio ?? tabs.splitRatio ?? 0.5) * 100,
-          )}
-          tabIndex={0}
-          style={{
-            top: tabs.searchPreview ? 80 : 40,
-            left: `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) * ${dragRatio ?? tabs.splitRatio ?? 0.5} - 3px)`,
-          }}
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            resizeSplit(e.clientX);
-          }}
-          onPointerMove={(e) => {
-            if (e.currentTarget.hasPointerCapture(e.pointerId))
-              resizeSplit(e.clientX);
-          }}
-          onPointerUp={(e) => {
-            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-              e.currentTarget.releasePointerCapture(e.pointerId);
-              action("resize-split", { ratio: splitPending.current });
-              setDragRatio(undefined);
-            }
-          }}
-          onPointerCancel={() => setDragRatio(undefined)}
-          onDoubleClick={() => action("resize-split", { ratio: 0.5 })}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-              e.preventDefault();
-              action("resize-split", {
-                ratio:
-                  (tabs.splitRatio ?? 0.5) +
-                  (e.key === "ArrowLeft" ? -0.025 : 0.025),
-              });
-            }
-          }}
+      {laidOut.dividers.map((d) => {
+        const row = d.split === "row";
+        const fromPointer = (e: React.PointerEvent) =>
+          row
+            ? (e.clientX - sidebarWidth - d.parent.x) / Math.max(1, d.parent.width)
+            : (e.clientY - CHROME_TOP - d.parent.y) / Math.max(1, d.parent.height);
+        return (
+          <div
+            key={d.path || "root"}
+            className={`key-split-divider ${row ? "" : "key-split-divider-column"}`}
+            role="separator"
+            aria-label="Resize split panes"
+            aria-orientation={row ? "vertical" : "horizontal"}
+            aria-valuemin={10}
+            aria-valuemax={90}
+            aria-valuenow={Math.round(d.ratio * 100)}
+            data-split-path={d.path}
+            tabIndex={0}
+            style={{
+              left: sidebarWidth + d.x,
+              top: CHROME_TOP + d.y,
+              width: d.width,
+              height: d.height,
+            }}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              resizeSplit(d.path, fromPointer(e));
+            }}
+            onPointerMove={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId))
+                resizeSplit(d.path, fromPointer(e));
+            }}
+            onPointerUp={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+                action("resize-split", splitPending.current);
+                setDragSplit(undefined);
+              }
+            }}
+            onPointerCancel={() => setDragSplit(undefined)}
+            onDoubleClick={() => action("resize-split", { path: d.path, ratio: 0.5 })}
+            onKeyDown={(e) => {
+              const back = row ? "ArrowLeft" : "ArrowUp",
+                forward = row ? "ArrowRight" : "ArrowDown";
+              if (e.key === back || e.key === forward) {
+                e.preventDefault();
+                action("resize-split", {
+                  path: d.path,
+                  ratio: d.ratio + (e.key === back ? -DIVIDER_STEP : DIVIDER_STEP),
+                });
+              }
+            }}
+          />
+        );
+      })}
+      {dragFrames.map((frame) => (
+        <img
+          key={frame.id}
+          className="key-native-overlay-frame"
+          alt=""
+          draggable={false}
+          src={frame.image}
+          style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
         />
-      )}{" "}
+      ))}{" "}
       {dialog && (
         <GlobalDialog label={dialog === "project" ? "New project" : "Link a folder"} onClose={()=>setDialog(null)}>
           <form

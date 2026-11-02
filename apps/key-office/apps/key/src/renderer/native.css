@@ -596,6 +596,54 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   border-radius: 5px;
   font-size: 12px;
 }
+/* A workspace row: switch this window in place, or the trailing button opens a new window. */
+.key-workspace-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.key-shell .key-workspace-row > .kui-button {
+  padding-right: 32px;
+}
+.key-workspace-new-window {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  cursor: default;
+}
+.key-workspace-row:hover .key-workspace-new-window,
+.key-workspace-new-window:focus-visible {
+  opacity: 0.85;
+}
+/* Over the highlighted row the button takes the row's ink. */
+.key-shell .key-workspace-row:hover > .kui-button {
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+}
+.key-workspace-row:hover .key-workspace-new-window {
+  color: var(--kx-accent-ink);
+}
+.key-workspace-new-window:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--kx-accent-ink) 22%, transparent);
+}
+.key-workspace-open-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+}
 .key-workspace-dropdown hr {
   width: 100%;
   margin: 4px 0;
@@ -837,6 +885,38 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 .key-split-divider:focus-visible {
   background: linear-gradient(to right, transparent 1.5px, var(--kx-accent) 1.5px, var(--kx-accent) 4.5px, transparent 4.5px);
   outline: none;
+}
+.key-split-divider-column {
+  cursor: row-resize;
+  background: linear-gradient(
+    to bottom,
+    transparent 2.5px,
+    var(--kx-line-strong) 2.5px,
+    var(--kx-line-strong) 3.5px,
+    transparent 3.5px
+  );
+}
+.key-split-divider-column:hover,
+.key-split-divider-column:focus-visible {
+  background: linear-gradient(to bottom, transparent 1.5px, var(--kx-accent) 1.5px, var(--kx-accent) 4.5px, transparent 4.5px);
+}
+/* Where a dragged tab or pane will land: drawn over still frames of native views. */
+.key-pane-drop-preview {
+  position: fixed;
+  z-index: 1500;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid var(--kx-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--kx-accent) 14%, transparent);
+  transition:
+    left 120ms ease-out,
+    top 120ms ease-out,
+    width 120ms ease-out,
+    height 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-pane-drop-preview { transition: none; }
 }
 
 .key-shell-error {

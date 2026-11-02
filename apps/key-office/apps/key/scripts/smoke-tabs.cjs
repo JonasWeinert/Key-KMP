@@ -275,6 +275,139 @@ const assert = require("node:assert/strict");
           ?.getAttribute("data-tab-id") === id,
       group.id,
     );
+    // Nested panes. View › Split Down puts a Home pane below the focused (right) reader:
+    // reader | (reader over Home). Native views, DOM panes and both dividers stay flush.
+    const menuItem = (...labels) =>
+      app.evaluate(({ Menu }, labels) => {
+        let items = Menu.getApplicationMenu().items;
+        let item;
+        for (const label of labels) {
+          item = items.find((i) => i.label === label);
+          items = item?.submenu?.items ?? [];
+        }
+        return item ? { accelerator: item.accelerator ?? null } : null;
+      }, labels);
+    const clickMenu = (...labels) =>
+      app.evaluate(({ Menu }, labels) => {
+        let items = Menu.getApplicationMenu().items;
+        let item;
+        for (const label of labels) {
+          item = items.find((i) => i.label === label);
+          items = item?.submenu?.items ?? [];
+        }
+        item.click();
+      }, labels);
+    const tabsNow = () => page.evaluate(() => window.key.tabs());
+    const settle = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const shortcuts = {
+      splitRight: await menuItem("View", "Split Right"),
+      splitDown: await menuItem("View", "Split Down"),
+      focusAbove: await menuItem("View", "Focus Pane", "Above"),
+      close: await menuItem("File", "Close"),
+      tab1: await menuItem("View", "Go to Tab", "Tab 1"),
+      nextTab: await menuItem("View", "Show Next Tab"),
+      switchWorkspace: await menuItem("File", "Switch Workspace…"),
+    };
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(shortcuts).map(([k, v]) => [k, v?.accelerator])),
+      {
+        splitRight: "CmdOrCtrl+\\",
+        splitDown: "CmdOrCtrl+Shift+\\",
+        focusAbove: "CmdOrCtrl+Alt+Up",
+        close: "CmdOrCtrl+W",
+        tab1: "CmdOrCtrl+1",
+        nextTab: "CmdOrCtrl+Shift+]",
+        switchWorkspace: "CmdOrCtrl+Shift+O",
+      },
+    );
+    let state = await tabsNow();
+    const [leftPdf, rightPdf] = state.tabs.find((t) => t.id === group.id).views.map((v) => v.id);
+    await page.evaluate((viewId) => window.key.tabAction("focus", { viewId }), rightPdf);
+    await clickMenu("View", "Split Down");
+    await page.waitForFunction(() => document.querySelectorAll(".key-split-divider").length === 2);
+    state = await tabsNow();
+    const nestedTab = state.tabs.find((t) => t.id === group.id);
+    assert.deepEqual(nestedTab.views.map((v) => v.kind), ["pdf", "pdf", "home"]);
+    const homePane = nestedTab.views[2].id;
+    assert.equal(state.activeViewId, homePane, "the new pane takes focus");
+    async function verifyNested(label) {
+      await settle();
+      const dom = await page.evaluate((homeId) => ({
+        row: document.querySelector('.key-split-divider[data-split-path=""]').getBoundingClientRect().toJSON(),
+        column: document.querySelector('.key-split-divider[data-split-path="b"]').getBoundingClientRect().toJSON(),
+        home: document.querySelector(`[data-content-view="${homeId}"]`).getBoundingClientRect().toJSON(),
+        width: innerWidth,
+        height: innerHeight,
+      }), homePane);
+      const [left, top] = await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]
+          .contentView.children.filter((v) => v.webContents?.getURL().endsWith("/pdf.html"))
+          .map((v) => v.getBounds())
+          .sort((a, b) => a.x - b.x),
+      );
+      const near = (a, b, what) => assert(Math.abs(a - b) <= 1, `${label}: ${what} (${a} vs ${b}) ${JSON.stringify({ dom, left, top })}`);
+      near(left.x + left.width, dom.row.x, "left reader meets the row divider");
+      near(left.y + left.height, dom.height, "left reader reaches the bottom");
+      near(top.x, dom.row.right, "right reader starts after the row divider");
+      near(top.x + top.width, dom.width, "right reader reaches the window edge");
+      near(top.y, 40, "right reader starts below the tab bar");
+      near(top.y + top.height, dom.column.y, "right reader meets the column divider");
+      near(dom.column.x, top.x, "column divider spans the right half");
+      near(dom.home.top, dom.column.bottom, "Home pane starts after the column divider");
+      near(dom.home.left, top.x, "Home pane aligns with the reader above");
+      near(dom.home.bottom, dom.height, "Home pane reaches the bottom");
+      near(dom.home.right, dom.width, "Home pane reaches the window edge");
+      return { label, dom, left, top };
+    }
+    const nested = [await verifyNested("split down")];
+    await page.screenshot({ path: path.join(temp, "nested.png") });
+    // Drag the nested (horizontal) divider down; only the right column changes.
+    const column = page.locator('.key-split-divider[data-split-path="b"]');
+    const columnBox = await column.boundingBox();
+    await page.mouse.move(columnBox.x + 200, columnBox.y + 3);
+    await page.mouse.down();
+    await page.mouse.move(columnBox.x + 200, columnBox.y + 123, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForFunction(() => {
+      const d = document.querySelector('.key-split-divider[data-split-path="b"]');
+      return Number(d.getAttribute("aria-valuenow")) > 55;
+    });
+    nested.push(await verifyNested("resized nested divider"));
+    assert(nested[1].top.height - nested[0].top.height >= 100, "the upper right reader grew");
+    assert.equal(nested[1].left.height, nested[0].left.height, "the left reader is untouched");
+    // Keyboard divider: arrows move a focused horizontal divider up and down.
+    const ratioBefore = Number(await column.getAttribute("aria-valuenow"));
+    await column.focus();
+    await page.keyboard.press("ArrowUp");
+    await page.waitForFunction((b) => Number(document.querySelector('.key-split-divider[data-split-path="b"]').getAttribute("aria-valuenow")) < b, ratioBefore);
+    // Focus moves between panes by position (Cmd-Option-arrows).
+    await clickMenu("View", "Focus Pane", "Above");
+    for (let i = 0; i < 50 && (await tabsNow()).activeViewId !== rightPdf; i++) await settle();
+    assert.equal((await tabsNow()).activeViewId, rightPdf, "Above from Home is the right reader");
+    await clickMenu("View", "Focus Pane", "Left");
+    for (let i = 0; i < 50 && (await tabsNow()).activeViewId !== leftPdf; i++) await settle();
+    assert.equal((await tabsNow()).activeViewId, leftPdf, "Left from the right reader is the left reader");
+    await clickMenu("View", "Focus Pane", "Left");
+    await settle();
+    assert.equal((await tabsNow()).activeViewId, leftPdf, "nothing further left");
+    // A focused Home pane is a launcher: what it opens takes its place.
+    await page.evaluate((viewId) => window.key.tabAction("focus", { viewId }), homePane);
+    const [ws] = await page.evaluate(() => window.key.workspaces());
+    await page.evaluate((id) => window.key.tabAction("open-content", { section: "sources", workspaceId: id }), ws.id);
+    state = await tabsNow();
+    const launched = state.tabs.find((t) => t.id === group.id);
+    assert.deepEqual(launched.views.map((v) => v.kind), ["pdf", "pdf", "library"]);
+    assert.equal(state.activeTabId, group.id);
+    assert(!state.tabs.flatMap((t) => t.views).some((v) => v.id === homePane), "the launcher is gone");
+    // Cmd-W closes the focused pane, not the whole tab.
+    const tabCount = state.tabs.length;
+    await clickMenu("File", "Close");
+    for (let i = 0; i < 50 && (await tabsNow()).tabs.find((t) => t.id === group.id)?.views.length !== 2; i++) await settle();
+    state = await tabsNow();
+    assert.deepEqual(state.tabs.find((t) => t.id === group.id).views.map((v) => v.id), [leftPdf, rightPdf]);
+    assert.equal(state.tabs.length, tabCount);
+    await page.waitForFunction(() => document.querySelectorAll(".key-split-divider").length === 1);
+    nativeBounds.push(await verifyNativeBounds("after closing the nested pane"));
     console.log(
       JSON.stringify({
         ok: true,
@@ -283,6 +416,8 @@ const assert = require("node:assert/strict");
         viewsPreserved: group.views.length,
         releaseFrames,
         nativeBounds,
+        nested,
+        shortcuts,
       }),
     );
   } finally {

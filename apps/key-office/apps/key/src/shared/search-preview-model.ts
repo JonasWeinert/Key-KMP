@@ -1,5 +1,6 @@
 import {
   singleWorkspaceTab,
+  tabWithLayout,
   type WorkspaceTabsState,
   type WorkspaceTab,
 } from "./tab-model";
@@ -33,7 +34,7 @@ export function placeSearchResultTab(
   if (reusable) {
     const tabs = state.tabs.map((t): WorkspaceTab =>
       t.id === reusable.id
-        ? { ...t, viewIds: [resultViewId], activeViewId: resultViewId }
+        ? tabWithLayout({ id: t.id, activeViewId: resultViewId }, { view: resultViewId })
         : t,
     );
     return { tabs, activeTabId: reusable.id };
