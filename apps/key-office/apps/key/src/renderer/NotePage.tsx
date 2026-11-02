@@ -5,6 +5,7 @@ import { Icon } from "./icons";
 import type { Invoke, Note, Source } from "./library-api";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
+import LinkedFrom from "./LinkedFrom";
 
 /** Lets the sidebar list refresh when a note is created, renamed or deleted. */
 export const notesChanged = () => window.dispatchEvent(new Event("key:notes-changed"));
@@ -116,8 +117,11 @@ export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invo
           resolveSource={sources.resolveSource}
           onOpenSource={sources.onOpenSource}
           media={sources.media}
+          searchItems={sources.searchItems}
+          onOpenItem={sources.onOpenItem}
           className="kx-note-page-editor"
         />
+        <LinkedFrom invoke={invoke} workspaceId={workspaceId} item={{ kind: "note", id: noteId }} />
       </div>
     </article>
   );

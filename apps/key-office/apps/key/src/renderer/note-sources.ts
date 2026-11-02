@@ -1,7 +1,7 @@
 // How notes reach the library: find sources for @-links and embeds, describe them for
 // cards and quotes, and open them (at a page when a quote has one).
 import { bridge, shortCreators, type Invoke, type Source, type SourcePage } from "./library-api";
-import type { NoteMediaHost, SourceRef } from "./note-editor";
+import type { ItemLink, NoteMediaHost, SourceRef } from "./note-editor";
 
 type OpenSource = (source: unknown, hit?: unknown) => Promise<unknown>;
 
@@ -31,6 +31,12 @@ export function noteSources(invoke: Invoke, workspaceId: string) {
   };
   return {
     media,
+    // The @ picker links to anything; cards and quotes stay with sources.
+    searchItems: async (query: string): Promise<SourceRef[]> => {
+      const { itemSearch } = await import("./item-links");
+      return itemSearch(invoke, workspaceId)(query);
+    },
+    onOpenItem: (item: ItemLink) => void import("./item-links").then(({ openItem }) => openItem(invoke, workspaceId, item)),
     searchSources: async (query: string): Promise<SourceRef[]> => {
       const page = await invoke<SourcePage>("store_sources", { text: query.trim() || null, limit: 8, offset: 0, sort: query.trim() ? "title" : "added", descending: !query.trim() }, workspaceId);
       return page.items.map(sourceRef);

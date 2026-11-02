@@ -9,7 +9,7 @@ import { insertVideo, pickImageFiles } from "./mediaBehaviors";
 import { getRuntime } from "./runtime";
 import type { PickMode } from "./runtime";
 import { mentionLabel, rememberSource, sourceLine } from "./sourceCache";
-import { sourceHref } from "./types";
+import { itemHref, refItem } from "./types";
 import type { SourceRef } from "./types";
 
 export type SlashGroup = "Basic blocks" | "Lists" | "Research" | "Media";
@@ -50,7 +50,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "todo", label: "To-do list", hint: "Checkboxes to tick off", group: "Lists", icon: "check", keywords: ["task", "checkbox", "[]"], run: (e, r) => clear(e, r).toggleTaskList().run() },
   { id: "callout", label: "Callout", hint: "Highlighted note box", group: "Research", icon: "info", keywords: ["note", "tip", "warning", "admonition", "box"], run: (e, r) => clear(e, r).wrapIn("callout", { tone: "info" }).run() },
   { id: "toggle", label: "Toggle", hint: "Collapsible section", group: "Research", icon: "chevronRight", keywords: ["collapse", "details", "fold"], run: (e, r) => clear(e, r).wrapIn("toggle", { title: "" }).run() },
-  { id: "link-source", label: "Link a source", hint: "Inline mention, like @", group: "Research", icon: "link", keywords: ["mention", "cite", "reference", "@"], run: (e, r) => openPicker(e, r, "link") },
+  { id: "link-source", label: "Link to anything", hint: "Note, source, highlight or canvas, like @", group: "Research", icon: "link", keywords: ["mention", "cite", "reference", "@", "note", "canvas", "highlight", "backlink"], run: (e, r) => openPicker(e, r, "link") },
   { id: "embed-source", label: "Embed a source", hint: "Card for a library item", group: "Research", icon: "books", keywords: ["card", "reference", "paper"], run: (e, r) => openPicker(e, r, "embed") },
   { id: "quote-source", label: "Quote from a source", hint: "Quotation with attribution", group: "Research", icon: "quote", keywords: ["citation", "excerpt", "cite"], run: (e, r) => openPicker(e, r, "quote") },
   {
@@ -226,7 +226,7 @@ export const NoteMenus = Extension.create<{ controller: MenuController | null }>
           const runtime = getRuntime(editor);
           if (!runtime) return [];
           try {
-            const found = await runtime.search(query.trim());
+            const found = await runtime.search(query.trim(), runtime.pickMode);
             return found.slice(0, 12);
           } catch {
             return [];
@@ -267,7 +267,9 @@ function promptImageUrl(editor: Editor) {
 }
 
 export function insertSource(editor: Editor, range: Range, ref: SourceRef, mode: PickMode) {
-  rememberSource(ref);
+  const item = refItem(ref);
+  // The cache holds whole sources; a highlight shares its source's id.
+  if (item.kind === "source" && !item.anchor) rememberSource(ref);
   if (mode === "embed") {
     editor.chain().focus().deleteRange(range).insertContent({ type: "sourceEmbed", attrs: { id: ref.id, label: sourceLine(ref) } }).run();
     return;
@@ -285,7 +287,7 @@ export function insertSource(editor: Editor, range: Range, ref: SourceRef, mode:
     .chain()
     .focus()
     .insertContentAt(range, [
-      { type: "text", text: mentionLabel(ref), marks: [{ type: "link", attrs: { href: sourceHref(ref.id) } }] },
+      { type: "text", text: mentionLabel(ref), marks: [{ type: "link", attrs: { href: itemHref(item) } }] },
       { type: "text", text: " " },
     ])
     .run();

@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld("key", {
         "library-changed",
         "open-settings",
         "note-changed",
+        "links-changed",
         "note-append",
         "annotations-changed",
         "search-target",

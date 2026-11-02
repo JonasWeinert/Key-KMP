@@ -5,7 +5,8 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { getRuntime } from "./runtime";
 import { peekSource, sourceLine, subscribeSources } from "./sourceCache";
-import { sourceIdFromHref } from "./types";
+import { itemFromHref } from "./types";
+import type { ItemLink } from "./types";
 
 const CONTAINERS = new Set(["callout", "toggle"]);
 
@@ -42,22 +43,32 @@ export const NoteKeymap = Extension.create({
 
 const sourceLinkKey = new PluginKey<DecorationSet>("noteSourceLinks");
 
-function sourceLinkRanges(doc: PMNode): Array<{ from: number; to: number; id: string }> {
-  const ranges: Array<{ from: number; to: number; id: string }> = [];
+const OPEN_TITLE: Record<ItemLink["kind"], string> = { source: "Open source", note: "Open note", canvas: "Open canvas", record: "Open page" };
+
+function linkRanges(doc: PMNode): Array<{ from: number; to: number; item: ItemLink }> {
+  const ranges: Array<{ from: number; to: number; item: ItemLink }> = [];
   doc.descendants((node, pos) => {
     if (!node.isText) return;
     for (const mark of node.marks) {
       if (mark.type.name !== "link") continue;
-      const id = sourceIdFromHref(mark.attrs.href);
-      if (id) ranges.push({ from: pos, to: pos + node.nodeSize, id });
+      const item = itemFromHref(mark.attrs.href);
+      if (item) ranges.push({ from: pos, to: pos + node.nodeSize, item });
     }
   });
   return ranges;
 }
 
+/** Whole-source mentions, whose sources are looked up for their tooltips. */
+function sourceLinkRanges(doc: PMNode) {
+  return linkRanges(doc).flatMap(({ item }) => (item.kind === "source" && !item.anchor ? [{ id: item.id }] : []));
+}
+
 function buildDecorations(doc: PMNode): DecorationSet {
-  const decorations = sourceLinkRanges(doc).map(({ from, to, id }) => {
-    const ref = peekSource(id);
+  const decorations = linkRanges(doc).map(({ from, to, item }) => {
+    if (item.kind !== "source" || item.anchor) {
+      return Decoration.inline(from, to, { class: "ne-mention-text", "data-item": item.kind, title: item.anchor?.startsWith("highlight:") ? "Open highlight" : OPEN_TITLE[item.kind] });
+    }
+    const ref = peekSource(item.id);
     return Decoration.inline(from, to, {
       class: `ne-mention-text${ref === null ? " is-missing" : ""}`,
       title: ref ? sourceLine(ref) : ref === null ? "Source not found" : "Open source",
@@ -67,8 +78,8 @@ function buildDecorations(doc: PMNode): DecorationSet {
 }
 
 /**
- * Source mentions (`[label](key://source/<id>)`): tooltip with the resolved
- * source, and a plain click opens the source. Other links open on Cmd/Ctrl-click.
+ * Item links (`[label](key://<kind>/<id>#<anchor>)`): tooltip with the resolved
+ * source, and a plain click opens the item. Other links open on Cmd/Ctrl-click.
  */
 export const SourceLinks = Extension.create({
   name: "noteSourceLinks",
@@ -90,9 +101,9 @@ export const SourceLinks = Extension.create({
               if (!anchor) return false;
               event.preventDefault();
               const href = anchor.getAttribute("href") ?? "";
-              const id = sourceIdFromHref(href);
-              if (id) {
-                getRuntime(editor)?.open(id);
+              const item = itemFromHref(href);
+              if (item) {
+                getRuntime(editor)?.openItem(item);
                 return true;
               }
               if ((event.metaKey || event.ctrlKey) && /^(https?:|mailto:)/i.test(href)) {

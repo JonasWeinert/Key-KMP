@@ -65,6 +65,7 @@ type OwnedView = {
     record?: any;
     noteId?: string;
     sourceId?: string;
+    canvasId?: string;
   };
   contentKey?: string;
   returnViewId?: string;
@@ -348,6 +349,8 @@ function snapshot(w: ShellWindow) {
                 ? "library"
                 : views.get(id)?.content?.section === "note"
                   ? "note"
+                  : views.get(id)?.content?.section === "canvas"
+                  ? "canvas"
                   : views.get(id)?.content?.section === "source"
                     ? "page"
                     : "records"
@@ -1053,7 +1056,7 @@ function savedView(id: string): SavedView | undefined {
   if (!c || c.section === "home") return { type: "home" };
   // A record that was never saved has nothing to reopen.
   if (c.section === "record" && !c.record?.id) return undefined;
-  if (!["sources", "records", "record", "note", "source"].includes(c.section)) return undefined;
+  if (!["sources", "records", "record", "note", "source", "canvas"].includes(c.section)) return undefined;
   return {
     type: "content",
     section: c.section as "sources",
@@ -1061,6 +1064,7 @@ function savedView(id: string): SavedView | undefined {
     projectId: c.projectId,
     noteId: c.noteId,
     sourceId: c.sourceId,
+    canvasId: c.canvasId,
     recordId: c.record?.id,
     title: v.title,
   };
@@ -1116,10 +1120,12 @@ const contentKey = (section: string, workspaceId?: string, projectId?: string, i
     : JSON.stringify([section, workspaceId || null, projectId || null, id ?? null]);
 /** Opens (or focuses) a library list, record, note or source page in `w`. */
 async function openContent(w: ShellWindow, p: any) {
-  if (!["sources", "records", "record", "note"].includes(p.section))
+  if (!["sources", "records", "record", "note", "canvas"].includes(p.section))
     throw Error("Invalid content view");
   if (p.section === "note" && (typeof p.noteId !== "string" || !p.noteId))
     throw Error("Choose a note");
+  if (p.section === "canvas" && (typeof p.canvasId !== "string" || !p.canvasId))
+    throw Error("Choose a canvas");
   if (p.section !== "sources" && !p.workspaceId)
     throw Error("Choose a workspace");
   // A library without a workspace is this window's library.
@@ -1129,7 +1135,7 @@ async function openContent(w: ShellWindow, p: any) {
     p.section,
     p.workspaceId,
     p.projectId,
-    p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : null,
+    p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : p.section === "canvas" ? p.canvasId : null,
   );
   const existing = [...views.values()].find((v) => v.contentKey === recordKey);
   if (existing) {
@@ -1157,7 +1163,9 @@ async function openContent(w: ShellWindow, p: any) {
         ? p.record?.title || `Untitled ${p.record?.kind || "page"}`
         : p.section === "note"
           ? String(p.title || "Untitled note").slice(0, 200)
-          : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
+          : p.section === "canvas"
+            ? String(p.title || "Untitled canvas").slice(0, 200)
+            : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
     workspaceId: p.workspaceId,
     lastUsed: Date.now(),
     contentKey: recordKey,
@@ -1167,6 +1175,7 @@ async function openContent(w: ShellWindow, p: any) {
       projectId: p.projectId,
       record: p.record,
       noteId: p.section === "note" ? p.noteId : undefined,
+      canvasId: p.section === "canvas" ? p.canvasId : undefined,
     },
   }, w);
 }
@@ -1196,11 +1205,12 @@ async function restoredView(saved: SavedView): Promise<OwnedView | undefined> {
       if (!record) return undefined;
     }
     if (section === "note" && !(await registry.invoke("store_note", { id: saved.noteId }, workspaceId))) return undefined;
+    if (section === "canvas" && !(await registry.invoke("store_canvas", { id: saved.canvasId }, workspaceId))) return undefined;
     if (section === "source" && !(await registry.invoke("store_source", { id: saved.sourceId }, workspaceId))) return undefined;
     const key =
       section === "source"
         ? JSON.stringify(["source", workspaceId, null, saved.sourceId])
-        : contentKey(section, workspaceId, projectId, section === "record" ? saved.recordId : section === "note" ? saved.noteId : null);
+        : contentKey(section, workspaceId, projectId, section === "record" ? saved.recordId : section === "note" ? saved.noteId : section === "canvas" ? saved.canvasId : null);
     if ([...views.values()].some((v) => v.contentKey === key)) return undefined;
     const view: OwnedView = {
       id: randomUUID(),
@@ -1209,7 +1219,7 @@ async function restoredView(saved: SavedView): Promise<OwnedView | undefined> {
       workspaceId,
       lastUsed: Date.now(),
       contentKey: key,
-      content: { section, workspaceId, projectId, record, noteId: saved.noteId, sourceId: saved.sourceId },
+      content: { section, workspaceId, projectId, record, noteId: saved.noteId, sourceId: saved.sourceId, canvasId: saved.canvasId },
     };
     views.set(view.id, view);
     return view;
@@ -1708,6 +1718,9 @@ else
           // Every view showing a note or a PDF's highlights stays in step with edits made elsewhere.
           if (command === "store_note_save" || command === "store_note_delete")
             emit("note-changed", { workspaceId: targetWorkspace, noteId: (result as any)?.id ?? args?.id, sourceId: (result as any)?.sourceId ?? args?.sourceId });
+          // Backlinks are rewritten by these saves, and titles they show change with renames.
+          if (["store_note_save", "store_note_delete", "store_canvas_save", "store_canvas_delete", "store_update", "store_delete", "library_apply_annotations", "library_save_annotations"].includes(command))
+            emit("links-changed", { workspaceId: targetWorkspace, command });
           if (["library_apply_annotations", "library_save_annotations", "library_import_annotations"].includes(command))
             emit("annotations-changed", { workspaceId: targetWorkspace });
           return result;
@@ -2058,8 +2071,8 @@ else
           // A note's tab follows its title as it is edited.
           case "content-title": {
             const view = views.get(p.viewId);
-            if (view?.content?.section !== "note" && view?.content?.section !== "source") throw Error("Not a note or source page");
-            view.title = String(p.title || (view.content.section === "note" ? "Untitled note" : "Untitled")).slice(0, 200);
+            if (!["note", "source", "canvas"].includes(view?.content?.section ?? "")) throw Error("Not a note, source or canvas page");
+            view!.title = String(p.title || (view!.content!.section === "note" ? "Untitled note" : view!.content!.section === "canvas" ? "Untitled canvas" : "Untitled")).slice(0, 200);
             tabsChanged(w);
             return snapshot(w);
           }

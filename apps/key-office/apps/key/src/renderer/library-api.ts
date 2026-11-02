@@ -193,6 +193,7 @@ export interface Bridge {
   /** A Quick Look thumbnail as a data URL, or null when the file has none. */
   thumbnail(path: string, size?: number): Promise<string | null>;
   pathForFile(file: File): string;
+  on(event: string, callback: (value: unknown) => void): () => void;
 }
 /** What a Zotero import brings across (key-zotero's ImportOptions). */
 export interface ZoteroOptions {

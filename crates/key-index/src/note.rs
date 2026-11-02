@@ -8,7 +8,7 @@ use key_store::ChunkInput;
 
 /// The note editor's own fenced blocks; their bodies are Markdown (a video's title or link,
 /// an image's caption), other fences are code.
-const NOTE_FENCES: [&str; 6] = ["callout", "toggle", "source", "quote", "video", "image"];
+pub(crate) const NOTE_FENCES: [&str; 6] = ["callout", "toggle", "source", "quote", "video", "image"];
 
 pub fn chunk_note(markdown: &str) -> Vec<ChunkInput> {
     let mut chunks = chunk_blocks(&note_blocks(markdown), false);
@@ -90,7 +90,7 @@ fn block(kind: &str, text: String) -> LayoutBlock {
 }
 
 /// A fence line: its marker (``` or ~~~, three or more) and the info after it.
-fn fence(line: &str) -> Option<(&str, &str)> {
+pub(crate) fn fence(line: &str) -> Option<(&str, &str)> {
     let trimmed = line.trim_start();
     if line.len() - trimmed.len() > 3 {
         return None;
@@ -100,7 +100,7 @@ fn fence(line: &str) -> Option<(&str, &str)> {
     (length >= 3).then(|| (&trimmed[..length], trimmed[length..].trim()))
 }
 
-fn attribute(info: &str, name: &str) -> Option<String> {
+pub(crate) fn attribute(info: &str, name: &str) -> Option<String> {
     let rest = &info[info.find(&format!("{name}=\""))? + name.len() + 2..];
     let mut value = String::new();
     let mut chars = rest.chars();
@@ -148,7 +148,7 @@ fn block_line(line: &str) -> (&'static str, String) {
 }
 
 /// Inline Markdown to plain text: links keep their label, emphasis and code marks go.
-fn inline(text: &str) -> String {
+pub(crate) fn inline(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find('[') {

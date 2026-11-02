@@ -21,7 +21,7 @@ import type { NoteEditorProps } from "./types";
 import "./note-editor.css";
 
 const SAVE_DELAY_MS = 400;
-const DEFAULT_PLACEHOLDER = "Type / for blocks, @ to link a source";
+const DEFAULT_PLACEHOLDER = "Type / for blocks, @ to link anything";
 
 function buildEditorExtensions(runtime: NoteRuntime, controller: MenuController): AnyExtension[] {
   return [
@@ -119,9 +119,15 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
   const runtime = useMemo<NoteRuntime>(
     () => ({
       placeholder: () => propsRef.current.placeholder ?? DEFAULT_PLACEHOLDER,
-      search: (query) => propsRef.current.searchSources(query),
+      // Links can point at anything; cards and quotes need a source.
+      search: (query, mode) => (mode === "link" && propsRef.current.searchItems ? propsRef.current.searchItems(query) : propsRef.current.searchSources(query)),
       resolve: (id) => resolveSourceCached(id, (x) => propsRef.current.resolveSource(x)),
       open: (id, page) => propsRef.current.onOpenSource(id, page),
+      openItem: (item) => {
+        const page = item.anchor?.startsWith("page:") ? Number(item.anchor.slice(5)) : undefined;
+        if (item.kind === "source" && (!item.anchor || page !== undefined)) propsRef.current.onOpenSource(item.id, page);
+        else propsRef.current.onOpenItem?.(item);
+      },
       promptUrl: (request) => {
         const editor = editorRef.current;
         let rect: DOMRect | null = null;

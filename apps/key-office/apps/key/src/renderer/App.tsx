@@ -371,8 +371,28 @@ export default function App() {
       notesChanged();
       openNote(note);
     });
+  // Canvases (key-store), listed under the notes and opened as tabs.
+  const [canvases, setCanvases] = useState<{ id: string; title: string }[]>([]);
+  useEffect(() => {
+    if (!workspaceId) return setCanvases([]);
+    const load = () => void invoke<{ id: string; title: string }[]>("store_canvases", {}, workspaceId).then(setCanvases).catch(() => setCanvases([]));
+    load();
+    window.addEventListener("key:canvases-changed", load);
+    return () => window.removeEventListener("key:canvases-changed", load);
+  }, [invoke, workspaceId, refreshKey]);
+  const openCanvas = (canvas: { id: string; title: string }) =>
+    action("open-content", { section: "canvas", workspaceId, canvasId: canvas.id, title: canvas.title });
+  const createCanvas = () =>
+    void task(async () => {
+      setCreateMenu(false);
+      if (!workspaceId) throw Error("Choose a workspace to create a canvas.");
+      const canvas = await invoke<{ id: string; title: string }>("store_canvas_save", { id: null, title: "", doc: { version: 1, nodes: [], edges: [] } }, workspaceId);
+      window.dispatchEvent(new Event("key:canvases-changed"));
+      openCanvas(canvas);
+    });
   const createRecord = (kind: string) => {
     if (kind === "note") return createNote();
+    if (kind === "canvas") return createCanvas();
     setCreateMenu(false);
     if (!workspaceId) {
       setError("Choose a workspace to create an item.");
@@ -677,6 +697,18 @@ export default function App() {
                 </button>
               ))}
               {workspaceId && !notes.length && <p className="key-sidebar-hint">No notes yet.</p>}
+              {canvases.map((c) => (
+                <button
+                  key={c.id}
+                  className="kx-nav-item"
+                  aria-current={activeView?.content?.canvasId === c.id ? "page" : undefined}
+                  onClick={() => openCanvas(c)}
+                  title={c.title || "Untitled canvas"}
+                >
+                  <Icon name="canvas" />
+                  <span>{c.title || "Untitled canvas"}</span>
+                </button>
+              ))}
             </nav>
             <div className="key-sidebar-section">
               <span>Pages</span>
@@ -695,6 +727,7 @@ export default function App() {
                 {(
                   [
                     ["note", "Note", "note"],
+                    ["canvas", "Canvas", "canvas"],
                     ["page", "Page", "doc"],
                     ["database", "Database", "database"],
                   ] as const

@@ -1,6 +1,7 @@
 import HomeView from "./HomeView";
 import { Button, Input, Textarea, Select } from "@key/design-system";
 import NotePage from "./NotePage";
+import CanvasPage from "./canvas/CanvasPage";
 import SourcePage from "./SourcePage";
 import type { SearchPreviewState } from "./search-preview";
 import { EntryDetails } from "./EntryTools";
@@ -208,12 +209,13 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "home" | "sources" | "records" | "record" | "note" | "source";
+  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
   noteId?: string;
   sourceId?: string;
+  canvasId?: string;
 }
 export default function WorkspaceContent({
   viewId,
@@ -695,6 +697,9 @@ export default function WorkspaceContent({
       )}
       {section === "source" && workspaceId && spec.sourceId && (
         <SourcePage invoke={invoke} workspaceId={workspaceId} sourceId={spec.sourceId} viewId={viewId} />
+      )}
+      {section === "canvas" && workspaceId && spec.canvasId && (
+        <CanvasPage invoke={invoke} workspaceId={workspaceId} canvasId={spec.canvasId} viewId={viewId} />
       )}
       {section === "note" && workspaceId && spec.noteId && (
         <NotePage invoke={invoke} workspaceId={workspaceId} noteId={spec.noteId} viewId={viewId} />

@@ -11,6 +11,7 @@ export interface TabSummary {
     | "library"
     | "records"
     | "note"
+    | "canvas"
     | "page"
     | "database"
     | "source"
@@ -201,6 +202,7 @@ const KIND_ICON: Record<TabSummary["kind"], ReactElement> = {
   library: <Icon name="books" size={15} />,
   records: <Icon name="layers" size={15} />,
   note: <Icon name="note" size={15} />,
+  canvas: <Icon name="canvas" size={15} />,
   page: <Icon name="doc" size={15} />,
   database: <Icon name="database" size={15} />,
   source: <Icon name="link" size={15} />,

@@ -12,9 +12,11 @@
 // their vectors follow through the same back-fill once a note has been left alone.
 mod chunk;
 mod layout;
+mod links;
 mod note;
 pub use chunk::{PageText, TextChar, chunk_pages};
 pub use layout::{Layout, LayoutBlock, LayoutSentence, chunk_layout};
+pub use links::{note_links, parse_href};
 pub use note::chunk_note;
 
 use key_embed::{Embedder, ModelDir};
@@ -285,11 +287,12 @@ impl Indexer {
         slot.clone()
     }
 
-    /// Cuts a note into passages. Unchanged passages keep their vectors; the rest are
-    /// embedded by the back-fill once the note settles.
+    /// Cuts a note into passages and records its links. Unchanged passages keep their
+    /// vectors; the rest are embedded by the back-fill once the note settles.
     pub fn index_note(&self, note: &Note) -> Result<()> {
         let title = note.title.trim();
         let markdown = if title.is_empty() { note.body.clone() } else { format!("{title}\n\n{}", note.body) };
+        self.store.replace_note_links(&note.id, note.updated_at, &note_links(&note.id, &note.body))?;
         self.store.replace_note_chunks(&note.id, note.updated_at, &chunk_note(&markdown))
     }
 
@@ -665,5 +668,25 @@ mod tests {
         store.set_index_status(&middle, "ready", None, 1, 1).unwrap();
         assert_eq!(order(&indexer)[0].0, old);
         assert!(indexer.priority_of(&middle).is_none());
+    }
+
+    #[test]
+    fn saving_a_note_records_its_links_and_edits_replace_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let indexer = idle(&store, dir.path());
+        let input = serde_json::from_value(serde_json::json!({"kind": "pdf", "title": "Palma 2022"})).unwrap();
+        let paper = store.insert_source(input).unwrap();
+        let note = store.save_note(None, None, "Reading", &format!("See [Palma](key://source/{}) on income.", paper.id), None).unwrap();
+        indexer.index_note(&note).unwrap();
+        let back = store.item_links("source", &paper.id).unwrap().backlinks;
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].from.title, "Reading");
+        assert_eq!(back[0].context.as_deref(), Some("See Palma on income."));
+
+        thread::sleep(Duration::from_millis(2));
+        let note = store.save_note(Some(&note.id), None, "Reading", "No more links.", None).unwrap();
+        indexer.index_note(&note).unwrap();
+        assert!(store.item_links("source", &paper.id).unwrap().backlinks.is_empty());
     }
 }
