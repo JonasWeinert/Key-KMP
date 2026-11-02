@@ -2,11 +2,43 @@
 // Details panel: one Details list, drag-resizable and remembered. Notes: a source note
 // written with the block editor (slash menu, @-link) saves as Markdown with custom fences,
 // opens in its own tab, and standalone notes come from the sidebar. Both are found by search.
+// Media: a typed YouTube link becomes a playable preview, a pasted image is stored in the
+// workspace's media folder, and both render again after the window reloads.
 const { _electron: electron } = require("playwright-core");
-const { mkdtemp, readFile, writeFile } = require("node:fs/promises");
+const { mkdtemp, readFile, readdir, writeFile } = require("node:fs/promises");
+const zlib = require("node:zlib");
 const { tmpdir } = require("node:os");
 const path = require("node:path");
 const assert = require("node:assert/strict");
+
+/** A small solid-colour PNG (RGB, no filtering). */
+function png(width, height, [r, g, b]) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf) => {
+    let c = 0xffffffff;
+    for (const byte of buf) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: width }, () => [r, g, b]).flat())]);
+  const pixels = zlib.deflateSync(Buffer.concat(Array.from({ length: height }, () => row)));
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", pixels), chunk("IEND", Buffer.alloc(0))]);
+}
 
 (async () => {
   const temp = await mkdtemp(path.join(tmpdir(), "key-notes-"));
@@ -109,6 +141,44 @@ const assert = require("node:assert/strict");
     const standalone = await call("store_notes", {});
     assert.equal(standalone.length, 1);
     assert.match(standalone[0].body, /^## Outline$/m);
+
+    // Media: a YouTube link typed on its own line becomes an embed; a pasted image is
+    // stored in the workspace, never inlined.
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("https://www.youtube.com/watch?v=6GR75W2dRmU");
+    await page.keyboard.press("Enter");
+    await page.locator(".kx-note-page .ne-video .ne-video-poster").waitFor();
+    const image = png(320, 180, [70, 120, 200]);
+    await page.evaluate((bytes) => {
+      const data = new DataTransfer();
+      data.items.add(new File([new Uint8Array(bytes)], "chart.png", { type: "image/png" }));
+      document.activeElement.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    }, [...image]);
+    await page.locator(".kx-note-page .ne-image img").waitFor();
+    const caption = page.locator(".kx-note-page .ne-image-caption input");
+    await caption.fill("Response rates by region");
+    await caption.press("Enter");
+    let media = "";
+    for (let i = 0; i < 40 && !/```image src="media\/[0-9a-f]{64}\.png"\nResponse rates/.test(media); i++) {
+      await page.waitForTimeout(150);
+      media = (await call("store_notes", {}))[0]?.body ?? "";
+    }
+    assert.match(media, /^```video url="https:\/\/www\.youtube\.com\/watch\?v=6GR75W2dRmU"$/m);
+    const stored = /```image src="media\/([0-9a-f]{64}\.png)"\nResponse rates by region\n```/.exec(media);
+    assert(stored, `image fence in ${media}`);
+    assert(!media.includes("base64"), "images are never inlined");
+    assert((await readdir(path.join(ws.root, ".key", "media"))).includes(stored[1]), "image stored in the workspace media folder");
+    const captionHits = await call("store_search", { text: "response rates", mode: "keyword", limit: 5 });
+    assert.equal(captionHits.notes[0]?.noteId, standalone[0].id, "an image caption is searchable");
+    // An image source in the library is served the same way, for its page's preview.
+    const pictureFile = path.join(temp, "Survey map.png");
+    await writeFile(pictureFile, image);
+    const [picture] = await page.evaluate(({ id, files }) => window.key.importPaths(id, files), { id: ws.id, files: [pictureFile] });
+    const loads = (url) =>
+      page.evaluate((src) => new Promise((done) => Object.assign(new Image(), { onload: (e) => done(e.target.naturalWidth), onerror: () => done(0), src })), url);
+    assert.equal(await loads(`key-media://${ws.id.toLowerCase()}/source/${picture.id}`), 320, "an image source is served for its page");
+    assert.equal(await loads(`key-media://${ws.id.toLowerCase()}/source/${created.id}`), 0, "only image sources are served");
     await page.evaluate(() => window.key.setAppSettings({ theme: "dark" }));
     await page.waitForTimeout(400);
     await shot(page, "3-standalone-dark");
@@ -134,8 +204,33 @@ const assert = require("node:assert/strict");
       return tabs.find((t) => t.id === activeTabId)?.title.includes("Chapter plan");
     });
 
+
+    // After a reload the note comes back from disk with its media rendered.
+    await page.reload();
+    await page.locator(".kx-note-page .ne-video .ne-video-poster").waitFor();
+    const shownImage = page.locator(".kx-note-page .ne-image img");
+    await shownImage.waitFor();
+    await page.waitForFunction(() => document.querySelector(".kx-note-page .ne-image img")?.naturalWidth === 320);
+    assert.equal(await page.locator(".kx-note-page .ne-image-caption input").inputValue(), "Response rates by region");
+    await page.locator(".kx-note-page .ne-video").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(600);
+    await shot(page, "5-note-media");
+    // The image opens in a lightbox; the video plays in place from youtube-nocookie.
+    await shownImage.click();
+    await page.locator(".ne-lightbox img").waitFor();
+    await page.waitForTimeout(300);
+    await shot(page, "6-image-lightbox");
+    await page.keyboard.press("Escape");
+    await page.locator(".ne-lightbox").waitFor({ state: "detached" });
+    await page.locator(".kx-note-page .ne-video-poster").click();
+    const player = page.locator(".kx-note-page .ne-video iframe");
+    await player.waitFor();
+    assert.match(await player.getAttribute("src"), /^https:\/\/www\.youtube-nocookie\.com\/embed\/6GR75W2dRmU\?/);
+    await page.waitForTimeout(2500);
+    await shot(page, "7-video-playing");
+
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ ok: true, temp, details: true, resized: after, sourceNote: true, noteTab: true, standalone: true, searchable: true }));
+    console.log(JSON.stringify({ ok: true, temp, details: true, resized: after, sourceNote: true, noteTab: true, standalone: true, searchable: true, media: true }));
   } catch (e) {
     await app.windows()[0]?.screenshot({ path: path.join(temp, "failure.png") }).catch(() => {});
     console.error("Artifacts", temp);
