@@ -1,4 +1,3 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBanner, ActivityPill, ProgressRing, jobProgress, useLibraryStatus } from "./index-activity";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
@@ -36,6 +35,8 @@ import {
   type PropertyDefinition,
   type PropertySheetState,
 } from "./PropertySheets";
+import { DatabaseToolbar, DatabaseView, useDatabaseViewState, type DatabaseViewHandle } from "./DatabaseView";
+import { DEFAULT_SORTS, SOURCE_SORTS, SourceCard, legacyColumnSettings, useSourceColumns } from "./library-columns";
 import "./reference-library.css";
 import { ZoteroImportSheet } from "./ZoteroImport";
 
@@ -47,14 +48,6 @@ const SCOPES: [string, string][] = [
   ["unfiled", "Unfiled"],
   ["attention", "Needs attention"],
   ["trashed", "Trash"],
-];
-const SORTS: [string, string][] = [
-  ["added", "Date added"],
-  ["title", "Title"],
-  ["creator", "First author"],
-  ["year", "Year"],
-  ["container", "Journal / container"],
-  ["updated", "Last modified"],
 ];
 
 export interface OpenHit {
@@ -88,8 +81,6 @@ export default function ReferenceLibrary({
   const [scope, setScope] = useState(initial?.scope ?? "all");
   const [kind, setKind] = useState<string>();
   const [tag, setTag] = useState<string>();
-  const [sort, setSort] = useState("added");
-  const [descending, setDescending] = useState(true);
   const [text, setText] = useState("");
   // Filter tokens picked from search suggestions; they narrow the list and any search.
   const [filters, setFilters] = useState<SearchFilter[]>([]);
@@ -114,28 +105,20 @@ export default function ReferenceLibrary({
   const [tagManager, setTagManager] = useState(false);
   const [identifier, setIdentifier] = useState(false);
   const [zotero, setZotero] = useState(false);
-  const [view, setView] = useState<"list" | "table">(() => {
-    try {
-      return localStorage.getItem("key.library.view") === "table" ? "table" : "list";
-    } catch {
-      return "list";
-    }
+  // Layout, columns and sorting are remembered per workspace library.
+  const [viewState, setViewState] = useDatabaseViewState(`library:${workspaceId}`, {
+    layout: (() => {
+      try {
+        return localStorage.getItem("key.library.view") === "table" ? "table" : "list";
+      } catch {
+        return "list";
+      }
+    })(),
+    columns: legacyColumnSettings(workspaceId),
+    sorts: DEFAULT_SORTS,
   });
-  const [visibleProperties, setVisibleProperties] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(`key.library.columns:${workspaceId}`) || "[]");
-    } catch {
-      return [];
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("key.library.view", view);
-      localStorage.setItem(`key.library.columns:${workspaceId}`, JSON.stringify(visibleProperties));
-    } catch {}
-  }, [view, visibleProperties, workspaceId]);
-  const tableColumns = definitions.filter((d) => visibleProperties.includes(d.name));
-  const listRef = useRef<HTMLDivElement>(null);
+  const sorts = viewState.sorts.length ? viewState.sorts : DEFAULT_SORTS;
+  const listRef = useRef<DatabaseViewHandle>(null);
   // Details panel width: dragged live through a CSS variable, saved when released.
   const libraryRef = useRef<HTMLElement>(null);
   const [inspectorWidth, setInspectorWidth] = useState(() => {
@@ -197,7 +180,6 @@ export default function ReferenceLibrary({
   const searchInput = useRef<HTMLInputElement>(null);
   const request = useRef(0);
   const loadingMore = useRef(false);
-  const virtualizerRef = useRef<{ measure: () => void } | null>(null);
 
   // Sidebar selection drives the collection and scope.
   useEffect(
@@ -218,8 +200,8 @@ export default function ReferenceLibrary({
   }, [active, workspaceId]);
 
   const query = useMemo(
-    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, filters: storeFilters(filters), text: null, sort, descending }),
-    [collectionId, scope, kind, tag, filters, sort, descending],
+    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, filters: storeFilters(filters), text: null, sort: sorts[0].field, descending: sorts[0].descending, sorts }),
+    [collectionId, scope, kind, tag, filters, sorts],
   );
 
   const load = useCallback(
@@ -316,18 +298,9 @@ export default function ReferenceLibrary({
     if (row) setInspector(row);
   }, [focusId, rows]);
 
-  useEffect(() => {
-    virtualizerRef.current?.measure();
-  }, [view]);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => listRef.current,
-    estimateSize: () => (view === "table" ? 36 : ROW),
-    overscan: 12,
-  });
-  virtualizerRef.current = virtualizer;
-  const virtualItems = virtualizer.getVirtualItems();
-  const onScreen = (search ? rows.slice(0, 20) : virtualItems.map((v) => items[v.index]))
+  // Rows on screen are indexed first; nearing the end loads the next page.
+  const [range, setRange] = useState<[number, number]>([0, -1]);
+  const onScreen = (search ? rows.slice(0, 20) : items.slice(range[0], range[1] + 1))
     .filter((s): s is Source => !!s && waitingToIndex(s))
     .map((s) => s.id)
     .join(",");
@@ -337,12 +310,18 @@ export default function ReferenceLibrary({
     return () => clearTimeout(t);
   }, [onScreen, prioritize]);
   useEffect(() => {
-    const last = virtualItems.at(-1);
-    if (last && last.index > items.length - 40 && items.length < total && !loadingMore.current) {
+    if (range[1] > items.length - 40 && items.length < total && !loadingMore.current) {
       loadingMore.current = true;
       void load(items.length);
     }
-  }, [virtualItems, items.length, total, load]);
+  }, [range, items.length, total, load]);
+  const columns = useSourceColumns({
+    definitions,
+    collections,
+    onCommit: (source, name, value) =>
+      void invoke<Source>("store_update", { id: source.id, patch: { properties: { [name]: value } } }, workspaceId).then(updateSource),
+    onEditProperty: (definition) => setSheet({ mode: "edit", definition, targets: [] }),
+  });
 
   // Search follows typing: metadata and full text together, newest request wins.
   const searchRequest = useRef(0);
@@ -418,7 +397,7 @@ export default function ReferenceLibrary({
     }
     setFocusId(next.id);
     if (search) document.querySelector(`[data-hit="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: "nearest" });
-    else virtualizer.scrollToIndex(index, { align: "auto" });
+    else listRef.current?.scrollToIndex(index);
   };
 
   const trash = async (ids: string[], trashed = true) => {
@@ -625,63 +604,21 @@ export default function ReferenceLibrary({
               );
             })}
           </div>
-          {!search && <div className="kx-controls-end">
-            <label className="kx-control kx-control-select" title="Sort">
-              <Icon name="sort" size={14} />
-              <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)}>
-                {SORTS.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button className="kx-control" title={descending ? "Descending" : "Ascending"} aria-label="Toggle sort direction" onClick={() => setDescending(!descending)}>
-              <Icon name="chevronDown" size={13} style={{ transform: descending ? undefined : "rotate(180deg)" }} />
-            </button>
-            {view === "table" && (
-              <details className="kx-menu">
-                <summary className="kx-control" title="Columns">
-                  <Icon name="columns" size={14} />
-                  Columns
-                </summary>
-                <div className="kx-menu-popover kx-columns-popover">
-                  {definitions.map((d) => (
-                    <label key={d.name}>
-                      <input
-                        type="checkbox"
-                        checked={visibleProperties.includes(d.name)}
-                        onChange={(e) =>
-                          setVisibleProperties((list) => (e.target.checked ? [...list, d.name] : list.filter((n) => n !== d.name)))
-                        }
-                      />
-                      <span>{d.name}</span>
-                      <button
-                        title="Edit property"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSheet({ mode: "edit", definition: d, targets: [] });
-                        }}
-                      >
-                        <Icon name="chevronRight" size={11} />
-                      </button>
-                    </label>
-                  ))}
-                  {!!definitions.length && <hr />}
+          {!search && (
+            <div className="kx-controls-end">
+              <DatabaseToolbar
+                state={{ ...viewState, sorts }}
+                onChange={setViewState}
+                columns={columns}
+                sortFields={[...SOURCE_SORTS, ...definitions.filter((d) => d.type !== "formula").map<[string, string]>((d) => [`property:${d.name}`, d.name])]}
+                columnFooter={
                   <button onClick={() => setSheet({ mode: "new", targets: [] })}>
                     <Icon name="plus" size={13} /> New property…
                   </button>
-                </div>
-              </details>
-            )}
-            <div className="kx-segmented" role="group" aria-label="Layout">
-              {(["list", "table"] as const).map((v) => (
-                <button key={v} aria-pressed={view === v} aria-label={v === "table" ? "Table" : "List"} title={v === "table" ? "Table" : "List"} onClick={() => setView(v)}>
-                  <Icon name={v === "table" ? "table" : "list"} size={15} />
-                </button>
-              ))}
+                }
+              />
             </div>
-          </div>}
+          )}
         </div>
         )}
         {(facets.kinds.length > 1 || facets.tags.length > 0) && (
@@ -710,69 +647,42 @@ export default function ReferenceLibrary({
           <SearchResults search={search} focusId={focusId} selected={selected} handlers={resultHandlers}
           />
         ) : (
-          <div className="kx-list" ref={listRef} tabIndex={0} role="listbox" aria-label={`${title}, ${total} items`} aria-multiselectable>
-            {!loading && !items.length ? (
-              <EmptyState scope={scope} filtered={!!(kind || tag || filters.length)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />
-            ) : (
-              <>
-              {view === "table" && (
-                <div className="kx-table-head" style={{ gridTemplateColumns: tableGrid(tableColumns.length) }}>
-                  {[["title", "Title"], ["creator", "Authors"], ["year", "Year"], ["container", "Journal / container"], ["added", "Added"]].map(([key, label]) => (
-                    <button key={key} data-sorted={sort === key} onClick={() => (sort === key ? setDescending(!descending) : setSort(key))}>
-                      {label}
-                      {sort === key && <Icon name="chevronDown" size={10} style={{ transform: descending ? undefined : "rotate(180deg)" }} />}
-                    </button>
-                  ))}
-                  {tableColumns.map((d) => (
-                    <button key={d.name} onClick={() => setSheet({ mode: "edit", definition: d, targets: [] })} title="Edit property">
-                      {d.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-                {virtualItems.map((row) => {
-                  const source = items[row.index];
-                  if (!source) return null;
-                  const isSelected = selected.has(source.id) || (!selected.size && focusId === source.id);
-                  if (view === "table")
-                    return (
-                      <TableRow
-                        key={source.id}
-                        source={source}
-                        top={row.start}
-                        selected={isSelected}
-                        columns={tableColumns}
-                        grid={tableGrid(tableColumns.length)}
-                        onPointer={(e) => select(source.id, e)}
-                        onOpen={() => open(source)}
-                        onCommit={(name, value) =>
-                          void invoke<Source>("store_update", { id: source.id, patch: { properties: { [name]: value } } }, workspaceId).then(updateSource)
-                        }
-                        dragIds={() => (selected.has(source.id) ? [...selected] : [source.id])}
-                      />
-                    );
-                  return (
-                    <SourceRow
-                      key={source.id}
-                      source={source}
-                      progress={jobProgress(activity, source.id)}
-                      top={row.start}
-                      selected={isSelected}
-                      focused={focusId === source.id}
-                      onPointer={(e) => select(source.id, e)}
-                      onOpen={() => open(source)}
-                      onStar={() =>
-                        void invoke<Source>("store_update", { id: source.id, patch: { starred: !source.starred } }, workspaceId).then(updateSource)
-                      }
-                      dragIds={() => (selected.has(source.id) ? [...selected] : [source.id])}
-                    />
-                  );
-                })}
-              </div>
-              </>
+          <DatabaseView
+            ref={listRef}
+            rows={items}
+            rowId={(source) => source.id}
+            state={{ ...viewState, sorts }}
+            onChange={setViewState}
+            columns={columns}
+            label={`${title}, ${total} items`}
+            empty={!loading && <EmptyState scope={scope} filtered={!!(kind || tag || filters.length)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />}
+            isSelected={(source) => selected.has(source.id) || (!selected.size && focusId === source.id)}
+            isFocused={(source) => focusId === source.id}
+            onPointer={(source, e) => select(source.id, e)}
+            onOpen={open}
+            onDragStart={(source, e) => {
+              e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(selected.has(source.id) ? [...selected] : [source.id]));
+              e.dataTransfer.effectAllowed = "copyMove";
+            }}
+            onRange={(first, last) => setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]))}
+            renderCard={(source) => <SourceCard source={source} />}
+            renderListRow={(source, top, row) => (
+              <SourceRow
+                key={source.id}
+                source={source}
+                progress={jobProgress(activity, source.id)}
+                top={top}
+                selected={row.selected}
+                focused={row.focused}
+                onPointer={(e) => select(source.id, e)}
+                onOpen={() => open(source)}
+                onStar={() =>
+                  void invoke<Source>("store_update", { id: source.id, patch: { starred: !source.starred } }, workspaceId).then(updateSource)
+                }
+                dragIds={() => (selected.has(source.id) ? [...selected] : [source.id])}
+              />
             )}
-          </div>
+          />
         )}
         <footer className="kx-status-bar">
           <span>
@@ -1021,117 +931,6 @@ function SourceRow({
           <Icon name="star" size={13} fill={source.starred ? "currentColor" : "none"} />
         </button>
       </span>
-    </div>
-  );
-}
-
-const tableGrid = (properties: number) =>
-  `minmax(220px, 3fr) minmax(120px, 1.3fr) 56px minmax(120px, 1.2fr) 92px${" minmax(110px, 1fr)".repeat(properties)}`;
-
-function TableRow({
-  source,
-  top,
-  selected,
-  columns,
-  grid,
-  onPointer,
-  onOpen,
-  onCommit,
-  dragIds,
-}: {
-  source: Source;
-  top: number;
-  selected: boolean;
-  columns: PropertyDefinition[];
-  grid: string;
-  onPointer: (e: React.MouseEvent) => void;
-  onOpen: () => void;
-  onCommit: (name: string, value: unknown) => void;
-  dragIds: () => string[];
-}) {
-  const [editing, setEditing] = useState<string>();
-  return (
-    <div
-      className="kx-table-row"
-      role="option"
-      aria-selected={selected}
-      style={{ transform: `translateY(${top}px)`, gridTemplateColumns: grid }}
-      onMouseDown={onPointer}
-      onDoubleClick={onOpen}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(dragIds()));
-        e.dataTransfer.effectAllowed = "copy";
-      }}
-    >
-      <span className="kx-cell-title">
-        <span className="kx-row-kind kx-row-kind-small" data-kind={source.kind}>
-          <Icon name={KIND_ICON[source.kind] ?? "doc"} size={12} />
-        </span>
-        <span>{source.title || "Untitled"}</span>
-      </span>
-      <span>{shortCreators(source.creators)}</span>
-      <span className="kx-cell-number">{source.year ?? ""}</span>
-      <span>{source.containerShort || source.containerTitle || ""}</span>
-      <span className="kx-cell-muted">{relativeDate(source.addedAt)}</span>
-      {columns.map((d) => {
-        const raw = source.properties[d.name];
-        const text = d.type === "formula" ? formulaValue(d, source) : raw === undefined || raw === null ? "" : d.type === "boolean" ? (raw ? "✓" : "") : String(raw);
-        if (editing === d.name && d.type !== "formula") {
-          const done = (value: unknown) => {
-            setEditing(undefined);
-            if (value !== raw) onCommit(d.name, value);
-          };
-          return d.type === "select" || d.type === "boolean" ? (
-            <select
-              key={d.name}
-              autoFocus
-              className="kx-cell-editor"
-              defaultValue={String(raw ?? "")}
-              onMouseDown={(e) => e.stopPropagation()}
-              onChange={(e) => done(d.type === "boolean" ? e.target.value === "true" : e.target.value || null)}
-              onBlur={() => setEditing(undefined)}
-            >
-              <option value="">—</option>
-              {(d.type === "boolean" ? ["true", "false"] : d.options ?? []).map((o) => (
-                <option key={o} value={o}>
-                  {d.type === "boolean" ? (o === "true" ? "Yes" : "No") : o}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              key={d.name}
-              autoFocus
-              className="kx-cell-editor"
-              defaultValue={String(raw ?? "")}
-              inputMode={d.type === "number" ? "decimal" : undefined}
-              onMouseDown={(e) => e.stopPropagation()}
-              onBlur={(e) => {
-                const next = e.target.value.trim();
-                done(next === "" ? null : d.type === "number" && Number.isFinite(Number(next)) ? Number(next) : next);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-                if (e.key === "Escape") setEditing(undefined);
-              }}
-            />
-          );
-        }
-        return (
-          <span
-            key={d.name}
-            className={`kx-cell-property ${d.type === "formula" ? "computed" : ""}`}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              if (d.type !== "formula") setEditing(d.name);
-            }}
-            title={d.type === "formula" ? "Calculated" : "Double-click to edit"}
-          >
-            {text}
-          </span>
-        );
-      })}
     </div>
   );
 }

@@ -134,6 +134,11 @@ impl Library {
                 self.store.update_collection(&id, name.as_deref(), parent.as_ref().map(|p| p.as_deref()))?;
                 json_output(true)
             })(),
+            "store_collection_reorder" => (|| {
+                let parent: Option<String> = arg(args, "parentId")?;
+                self.store.reorder_collections(parent.as_deref(), &arg::<Vec<String>>(args, "ids")?)?;
+                json_output(true)
+            })(),
             "store_collection_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_collection(&id)?)),
             "store_membership" => (|| {
                 json_output(self.store.set_membership(

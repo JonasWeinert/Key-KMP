@@ -7,6 +7,7 @@ import {
   dialog,
   Menu,
   shell as systemShell,
+  nativeImage,
 } from "electron";
 import { join, resolve, basename, extname } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -1295,6 +1296,13 @@ else
         shell(event.sender.id);
         const error = await systemShell.openPath(String(path));
         if (error) throw Error(error);
+      });
+      // Quick Look thumbnails for the library's grid; small, so they come back as data URLs.
+      ipcMain.handle("key:thumbnail", async (event, path, size) => {
+        shell(event.sender.id);
+        const edge = Math.max(32, Math.min(800, Number(size) || 320));
+        const image = await nativeImage.createThumbnailFromPath(String(path), { width: edge, height: edge });
+        return image.isEmpty() ? null : image.toDataURL();
       });
       ipcMain.handle("key:reveal-path", (event, path) => {
         shell(event.sender.id);

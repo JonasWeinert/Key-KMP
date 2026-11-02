@@ -206,10 +206,41 @@ pub struct ListQuery {
     pub sort: Option<String>,
     #[serde(default)]
     pub descending: bool,
+    /// Sort levels, first one wins; replaces `sort`/`descending` when given.
+    #[serde(default)]
+    pub sorts: Vec<SortKey>,
     #[serde(default)]
     pub offset: usize,
     #[serde(default)]
     pub limit: Option<usize>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SortKey {
+    pub field: String,
+    #[serde(default)]
+    pub descending: bool,
+}
+
+fn sort_expression(field: &str) -> String {
+    // `property:<name>` sorts by a typed property; the name is quoted into a JSON path.
+    if let Some(name) = field.strip_prefix("property:") {
+        let name: String = name.chars().filter(|c| !matches!(c, '"' | '\\' | '\0')).collect::<String>().replace('\'', "''");
+        return format!("json_extract(s.properties, '$.\"{name}\"')");
+    }
+    match field {
+        "title" => "s.title COLLATE NOCASE",
+        "year" => "s.year",
+        "updated" => "s.updated_at",
+        "creator" => "json_extract(s.creators, '$[0].family') COLLATE NOCASE",
+        "container" => "s.container_title COLLATE NOCASE",
+        "type" => "s.item_type",
+        "kind" => "s.kind",
+        "pages" => "s.page_count",
+        _ => "s.added_at",
+    }
+    .into()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -492,15 +523,17 @@ impl Store {
     pub fn list_sources(&self, query: &ListQuery) -> Result<SourcePage> {
         let db = self.read()?;
         let (clause, values) = where_clause(query);
-        let order = match query.sort.as_deref().unwrap_or("added") {
-            "title" => "s.title COLLATE NOCASE",
-            "year" => "s.year",
-            "updated" => "s.updated_at",
-            "creator" => "json_extract(s.creators, '$[0].family') COLLATE NOCASE",
-            "container" => "s.container_title COLLATE NOCASE",
-            _ => "s.added_at",
+        let levels = if query.sorts.is_empty() {
+            vec![SortKey { field: query.sort.clone().unwrap_or_else(|| "added".into()), descending: query.descending }]
+        } else {
+            query.sorts.clone()
         };
-        let direction = if query.descending { "DESC" } else { "ASC" };
+        let order = levels
+            .iter()
+            .map(|k| format!("{} {} NULLS LAST", sort_expression(&k.field), if k.descending { "DESC" } else { "ASC" }))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let direction = if levels[0].descending { "DESC" } else { "ASC" };
         let limit = query.limit.unwrap_or(200).min(2000);
         let total = db
             .query_row(
@@ -510,7 +543,7 @@ impl Store {
             )
             .map_err(e)? as usize;
         let sql = format!(
-            "{} {clause} ORDER BY {order} {direction} NULLS LAST, s.rowid {direction} LIMIT {limit} OFFSET {}",
+            "{} {clause} ORDER BY {order}, s.rowid {direction} LIMIT {limit} OFFSET {}",
             select_sources(),
             query.offset
         );
@@ -698,12 +731,43 @@ impl Store {
             db.execute("UPDATE collections SET name = ?2 WHERE id = ?1", params![id, name.trim()]).map_err(e)?;
         }
         if let Some(parent) = parent_id {
-            if parent == Some(id) {
-                return Err("A collection cannot contain itself".into());
+            if let Some(parent) = parent {
+                let inside: bool = db
+                    .query_row(
+                        "WITH RECURSIVE up(id) AS (SELECT ?1 UNION SELECT c.parent_id FROM collections c JOIN up ON c.id = up.id WHERE c.parent_id IS NOT NULL)
+                         SELECT EXISTS(SELECT 1 FROM up WHERE id = ?2)",
+                        params![parent, id],
+                        |r| r.get(0),
+                    )
+                    .map_err(e)?;
+                if inside {
+                    return Err("A collection cannot contain itself".into());
+                }
             }
             db.execute("UPDATE collections SET parent_id = ?2 WHERE id = ?1", params![id, parent]).map_err(e)?;
         }
         Ok(())
+    }
+
+    /// Puts `ids` under `parent_id` in this order; other siblings keep their relative order after them.
+    pub fn reorder_collections(&self, parent_id: Option<&str>, ids: &[String]) -> Result<()> {
+        for id in ids {
+            self.update_collection(id, None, Some(parent_id))?;
+        }
+        let mut db = self.db()?;
+        let tx = db.transaction().map_err(e)?;
+        let siblings: Vec<String> = {
+            let mut statement = tx
+                .prepare("SELECT id FROM collections WHERE parent_id IS ?1 ORDER BY position, name COLLATE NOCASE")
+                .map_err(e)?;
+            let rows = statement.query_map([parent_id], |r| r.get::<_, String>(0)).map_err(e)?;
+            rows.collect::<std::result::Result<_, _>>().map_err(e)?
+        };
+        let order = ids.iter().cloned().chain(siblings.into_iter().filter(|s| !ids.contains(s)));
+        for (position, id) in order.enumerate() {
+            tx.execute("UPDATE collections SET position = ?2 WHERE id = ?1", params![id, position as i64]).map_err(e)?;
+        }
+        tx.commit().map_err(e)
     }
 
     pub fn delete_collection(&self, id: &str) -> Result<()> {
