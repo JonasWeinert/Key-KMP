@@ -6,8 +6,9 @@ use crate::chunk::sentences;
 use crate::layout::{LayoutBlock, LayoutSentence, chunk_blocks};
 use key_store::ChunkInput;
 
-/// The note editor's own fenced blocks; their bodies are Markdown, other fences are code.
-const NOTE_FENCES: [&str; 4] = ["callout", "toggle", "source", "quote"];
+/// The note editor's own fenced blocks; their bodies are Markdown (a video's title or link,
+/// an image's caption), other fences are code.
+const NOTE_FENCES: [&str; 6] = ["callout", "toggle", "source", "quote", "video", "image"];
 
 pub fn chunk_note(markdown: &str) -> Vec<ChunkInput> {
     let mut chunks = chunk_blocks(&note_blocks(markdown), false);
@@ -206,6 +207,13 @@ mod tests {
         let old: Vec<&str> = before.iter().map(|c| c.text.as_str()).collect();
         let changed: Vec<&str> = after.iter().map(|c| c.text.as_str()).filter(|t| !old.contains(t)).collect();
         assert_eq!(changed, vec!["A new opening line.", "Second one is edited, now longer."]);
+    }
+
+    #[test]
+    fn media_titles_and_captions_are_passages() {
+        let md = "```video url=\"https://www.youtube.com/watch?v=6GR75W2dRmU\"\nA lecture on health economics\n```\n\n```image src=\"media/ab12.png\" width=\"480\"\nSurvey response rates by region\n```";
+        let texts: Vec<String> = chunk_note(md).into_iter().map(|c| c.text).collect();
+        assert_eq!(texts, vec!["A lecture on health economics", "Survey response rates by region"]);
     }
 
     #[test]

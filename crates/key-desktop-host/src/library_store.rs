@@ -449,6 +449,34 @@ impl Library {
     }
 
     /// Files from the system temp folder (downloads) are copied into the workspace.
+    /// Keeps an image a note shows in the workspace's `media` folder, named by its content,
+    /// and answers the path notes reference it by (relative, so the workspace can move).
+    pub fn save_media(&self, args: &Json, bytes: &[u8], root: &Path) -> Result<Output, String> {
+        let name: Option<String> = arg(args, "name")?;
+        let mime: Option<String> = arg(args, "mime")?;
+        let path: Option<PathBuf> = arg(args, "path")?;
+        let data = match (&path, bytes.is_empty()) {
+            (_, false) => bytes.to_vec(),
+            (Some(path), true) => std::fs::read(path).map_err(|e| format!("Couldn't read {}: {e}", path.display()))?,
+            (None, true) => return Err("No image to save".into()),
+        };
+        let from_name = name.as_deref().map(Path::new).or(path.as_deref()).and_then(|p| p.extension()).and_then(|e| e.to_str());
+        let extension = media_extension(from_name, mime.as_deref(), &data).ok_or("Not an image Key can show")?;
+        use sha2::Digest;
+        let hash: String = sha2::Sha256::digest(&data).iter().map(|b| format!("{b:02x}")).collect();
+        let file = format!("{hash}.{extension}");
+        let directory = root.join("media");
+        std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+        let target = directory.join(&file);
+        if !target.is_file() {
+            // Written aside first, so a half-written file is never shown.
+            let partial = directory.join(format!(".{file}.partial"));
+            std::fs::write(&partial, &data).map_err(|e| e.to_string())?;
+            std::fs::rename(&partial, &target).map_err(|e| e.to_string())?;
+        }
+        json_output(json!({"src": format!("media/{file}"), "size": data.len()}))
+    }
+
     fn stored_path(&self, path: &Path, hash: &str, root: &Path) -> Result<PathBuf, String> {
         let temporary = path.starts_with(std::env::temp_dir()) || path.to_string_lossy().contains("/T/");
         if !temporary {
@@ -577,5 +605,40 @@ fn classify(path: &Path) -> (&'static str, &'static str, String) {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "tif" | "tiff" => ("image", "image", format!("image/{extension}")),
         "txt" | "md" => ("file", "document", "text/plain".into()),
         _ => ("file", "document", "application/octet-stream".into()),
+    }
+}
+
+/// The extension a note image is stored under: from its name or type, else its first bytes.
+fn media_extension(name: Option<&str>, mime: Option<&str>, data: &[u8]) -> Option<&'static str> {
+    const KNOWN: [&str; 8] = ["png", "jpg", "gif", "webp", "svg", "avif", "bmp", "heic"];
+    let normal = |e: &str| match e.to_ascii_lowercase().as_str() {
+        "jpeg" | "jpg" => Some("jpg"),
+        other => KNOWN.iter().copied().find(|k| *k == other),
+    };
+    if let Some(found) = name.and_then(normal) {
+        return Some(found);
+    }
+    if let Some(found) = mime.and_then(|m| m.strip_prefix("image/")).map(|m| m.trim_end_matches("+xml")).and_then(normal) {
+        return Some(found);
+    }
+    match data {
+        [0x89, b'P', b'N', b'G', ..] => Some("png"),
+        [0xFF, 0xD8, 0xFF, ..] => Some("jpg"),
+        [b'G', b'I', b'F', b'8', ..] => Some("gif"),
+        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => Some("webp"),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod media_tests {
+    use super::media_extension;
+
+    #[test]
+    fn picks_the_extension_from_name_type_or_bytes() {
+        assert_eq!(media_extension(Some("JPEG"), None, b""), Some("jpg"));
+        assert_eq!(media_extension(None, Some("image/svg+xml"), b""), Some("svg"));
+        assert_eq!(media_extension(Some("exe"), Some("text/plain"), b"\x89PNG\r\n"), Some("png"));
+        assert_eq!(media_extension(None, None, b"hello"), None);
     }
 }

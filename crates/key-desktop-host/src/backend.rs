@@ -3021,6 +3021,10 @@ impl Host {
             headers,
             body: &body,
         };
+        // A note's image arrives as bytes (pasted or dropped) rather than JSON.
+        if command == "store_media_save" {
+            return self.library.save_media(args, binary, &self.root);
+        }
         if let Some(result) = self.library_dispatch(command, args).await {
             return result;
         }
