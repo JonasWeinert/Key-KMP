@@ -1,0 +1,429 @@
+/* Infinite canvas. Chrome uses the app's tokens (through the --cv-* variables that
+   canvas-colors.ts sets); content colours come from that file's theme-keyed table. */
+.kx-canvas {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  outline: none;
+  background-color: var(--kx-bg);
+  background-image: radial-gradient(circle, var(--cv-grid) 1px, transparent 1.2px);
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+.kx-canvas[data-tool="hand"] {
+  cursor: grab;
+}
+.kx-canvas[data-tool="hand"][data-panning] {
+  cursor: grabbing;
+}
+.kx-canvas[data-tool="text"] {
+  cursor: text;
+}
+.kx-canvas[data-tool="rect"],
+.kx-canvas[data-tool="ellipse"],
+.kx-canvas[data-tool="pen"],
+.kx-canvas[data-tool="connector"] {
+  cursor: crosshair;
+}
+.kx-canvas-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+}
+.kx-canvas-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  z-index: 0;
+}
+.kx-canvas-edge {
+  cursor: pointer;
+}
+.kx-canvas-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  pointer-events: stroke;
+}
+.kx-canvas-edge[aria-selected="true"] .kx-canvas-edge-hit {
+  stroke: var(--cv-selection-fill);
+}
+.kx-canvas-preview {
+  fill: none;
+  stroke: var(--cv-preview);
+  stroke-width: 2px;
+  stroke-dasharray: 6 5;
+}
+.kx-canvas-guide {
+  stroke: var(--cv-guide);
+  stroke-width: calc(1px / var(--cv-zoom));
+}
+
+.kx-canvas-node {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  border-radius: 10px;
+}
+.kx-canvas[data-tool="select"] .kx-canvas-node {
+  cursor: move;
+}
+.kx-canvas-node[aria-selected="true"]::after,
+.kx-canvas-node[data-target]::after {
+  position: absolute;
+  inset: -3px;
+  border: calc(1.5px / var(--cv-zoom)) solid var(--cv-selection);
+  border-radius: 12px;
+  content: "";
+  pointer-events: none;
+}
+.kx-canvas-node[data-target]::after {
+  background: var(--cv-selection-fill);
+}
+.kx-canvas-handle {
+  position: absolute;
+  right: calc(-6px / var(--cv-zoom));
+  bottom: calc(-6px / var(--cv-zoom));
+  z-index: 2;
+  width: calc(10px / var(--cv-zoom));
+  height: calc(10px / var(--cv-zoom));
+  border: calc(1.5px / var(--cv-zoom)) solid var(--cv-selection);
+  border-radius: 3px;
+  background: var(--cv-handle);
+  cursor: nwse-resize;
+}
+
+/* Cards for library items. */
+.kx-canvas-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 10px 12px;
+  border: 1px solid var(--kx-line);
+  border-radius: 10px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-card);
+  color: var(--kx-text);
+}
+.kx-canvas-card[data-kind="highlight"] {
+  padding-left: 16px;
+}
+.kx-canvas-card[data-missing] {
+  border-style: dashed;
+  opacity: 0.65;
+}
+.kx-canvas-card-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+}
+.kx-canvas-card-kind {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  color: var(--kx-text-3);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-canvas-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.kx-canvas-card[data-kind="highlight"] .kx-canvas-card-title {
+  font-family: var(--kx-font-serif);
+  font-weight: 400;
+  -webkit-line-clamp: 5;
+}
+.kx-canvas-card-meta {
+  overflow: hidden;
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-canvas-card-excerpt {
+  overflow: hidden;
+  color: var(--kx-text-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Free text and shapes. */
+.kx-canvas-text {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  font: 500 16px/1.35 var(--kx-font);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  resize: none;
+  outline: none;
+}
+textarea.kx-canvas-text {
+  user-select: text;
+  cursor: text;
+}
+.kx-canvas-text[data-centered] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  text-align: center;
+}
+textarea.kx-canvas-text[data-centered] {
+  padding-top: calc(50% - 1em);
+}
+.kx-canvas-shape,
+.kx-canvas-ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.kx-canvas-draft,
+.kx-canvas-marquee {
+  position: absolute;
+  z-index: 3;
+  border: calc(1px / var(--cv-zoom)) solid var(--cv-selection);
+  background: var(--cv-selection-fill);
+  pointer-events: none;
+}
+.kx-canvas-draft[data-shape="ellipse"] {
+  border-radius: 50%;
+}
+.kx-canvas-draft[data-shape="rect"] {
+  border-radius: 10px;
+}
+.kx-canvas-edge-label,
+.kx-canvas-edge-input {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  padding: 2px 7px;
+  border: 1px solid var(--kx-line);
+  border-radius: 6px;
+  background: var(--kx-bg-raised);
+  color: var(--kx-text-2);
+  font: 12px var(--kx-font);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.kx-canvas-edge-input {
+  width: 140px;
+  border-color: var(--cv-selection);
+  color: var(--kx-text);
+  outline: none;
+  pointer-events: auto;
+}
+
+/* Chrome over the canvas. */
+.kx-canvas-chrome {
+  z-index: 10;
+}
+.kx-canvas-head {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--kx-line);
+  border-radius: 10px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-sm);
+  color: var(--kx-text-3);
+}
+.kx-canvas-title {
+  width: 260px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text);
+  font: 600 14px var(--kx-font);
+  outline: none;
+}
+.kx-canvas-toolbar,
+.kx-canvas-zoom {
+  position: absolute;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--kx-line);
+  border-radius: 12px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+}
+.kx-canvas-toolbar {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.kx-canvas-zoom {
+  right: 16px;
+}
+.kx-canvas-toolbar button,
+.kx-canvas-zoom button {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 12px var(--kx-font);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.kx-canvas-toolbar button:hover:not(:disabled),
+.kx-canvas-zoom button:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-canvas-toolbar button[aria-pressed="true"] {
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent);
+}
+.kx-canvas-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.kx-canvas-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--kx-line);
+}
+.kx-canvas-colors {
+  display: flex;
+}
+.kx-canvas-colors button {
+  min-width: 22px;
+  padding: 0;
+}
+.kx-canvas-colors span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.kx-canvas-colors button[aria-pressed="true"] span {
+  box-shadow: 0 0 0 2px var(--kx-bg-raised), 0 0 0 3.5px var(--kx-accent);
+}
+.kx-canvas-zoom-value {
+  min-width: 48px;
+}
+.kx-canvas-add {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  width: min(420px, calc(100% - 32px));
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid var(--kx-line);
+  border-radius: 12px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+}
+.kx-canvas-add input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--kx-line);
+  background: transparent;
+  color: var(--kx-text);
+  font: 14px var(--kx-font);
+  outline: none;
+}
+.kx-canvas-add ul {
+  max-height: 300px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+}
+.kx-canvas-add li button {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--kx-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kx-canvas-add li button > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--kx-text-3);
+}
+.kx-canvas-add li button[aria-selected="true"] {
+  background: var(--kx-fill);
+}
+.kx-canvas-add li button > span {
+  display: grid;
+  min-width: 0;
+}
+.kx-canvas-add-title {
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-canvas-add-hint,
+.kx-canvas-add-empty {
+  overflow: hidden;
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-canvas-add-empty {
+  padding: 10px;
+}
+.kx-canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  color: var(--kx-text-3);
+  font-size: 13px;
+  pointer-events: none;
+}

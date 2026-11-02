@@ -49,6 +49,7 @@ type OwnedView = {
     record?: any;
     noteId?: string;
     sourceId?: string;
+    canvasId?: string;
   };
   contentKey?: string;
   returnViewId?: string;
@@ -326,6 +327,8 @@ function snapshot(w: ShellWindow) {
                 ? "library"
                 : views.get(id)?.content?.section === "note"
                   ? "note"
+                  : views.get(id)?.content?.section === "canvas"
+                  ? "canvas"
                   : views.get(id)?.content?.section === "source"
                     ? "page"
                     : "records"
@@ -1181,6 +1184,9 @@ else
           // Every view showing a note or a PDF's highlights stays in step with edits made elsewhere.
           if (command === "store_note_save" || command === "store_note_delete")
             emit("note-changed", { workspaceId: targetWorkspace, noteId: (result as any)?.id ?? args?.id, sourceId: (result as any)?.sourceId ?? args?.sourceId });
+          // Backlinks are rewritten by these saves, and titles they show change with renames.
+          if (["store_note_save", "store_note_delete", "store_canvas_save", "store_canvas_delete", "store_update", "store_delete", "library_apply_annotations", "library_save_annotations"].includes(command))
+            emit("links-changed", { workspaceId: targetWorkspace, command });
           if (["library_apply_annotations", "library_save_annotations", "library_import_annotations"].includes(command))
             emit("annotations-changed", { workspaceId: targetWorkspace });
           return result;
@@ -1503,17 +1509,19 @@ else
             break;
           }
           case "open-content": {
-            if (!["sources", "records", "record", "note"].includes(p.section))
+            if (!["sources", "records", "record", "note", "canvas"].includes(p.section))
               throw Error("Invalid content view");
             if (p.section === "note" && (typeof p.noteId !== "string" || !p.noteId))
               throw Error("Choose a note");
+            if (p.section === "canvas" && (typeof p.canvasId !== "string" || !p.canvasId))
+              throw Error("Choose a canvas");
             if (p.section !== "sources" && !p.workspaceId)
               throw Error("Choose a workspace");
             const key = JSON.stringify([
               p.section,
               p.workspaceId || null,
               p.projectId || null,
-              p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : null,
+              p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : p.section === "canvas" ? p.canvasId : null,
             ]);
             // Records have one global owner even when opened through another project.
             const recordKey =
@@ -1562,6 +1570,8 @@ else
                   ? p.record?.title || `Untitled ${p.record?.kind || "page"}`
                   : p.section === "note"
                     ? String(p.title || "Untitled note").slice(0, 200)
+                    : p.section === "canvas"
+                    ? String(p.title || "Untitled canvas").slice(0, 200)
                     : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
               workspaceId: p.workspaceId,
               lastUsed: Date.now(),
@@ -1572,6 +1582,7 @@ else
                 projectId: p.projectId,
                 record: p.record,
                 noteId: p.section === "note" ? p.noteId : undefined,
+                canvasId: p.section === "canvas" ? p.canvasId : undefined,
               },
             }, w);
             break;
@@ -1579,8 +1590,8 @@ else
           // A note's tab follows its title as it is edited.
           case "content-title": {
             const view = views.get(p.viewId);
-            if (view?.content?.section !== "note" && view?.content?.section !== "source") throw Error("Not a note or source page");
-            view.title = String(p.title || (view.content.section === "note" ? "Untitled note" : "Untitled")).slice(0, 200);
+            if (!["note", "source", "canvas"].includes(view?.content?.section ?? "")) throw Error("Not a note, source or canvas page");
+            view!.title = String(p.title || (view!.content!.section === "note" ? "Untitled note" : view!.content!.section === "canvas" ? "Untitled canvas" : "Untitled")).slice(0, 200);
             tabsChanged(w);
             return snapshot(w);
           }
