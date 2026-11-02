@@ -357,3 +357,39 @@ fn analysis_keeps_references_with_their_place_and_links_cited_works() {
     assert_eq!(store.source(&citing.id).unwrap().unwrap().index_status, "pending");
     assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 1);
 }
+
+#[test]
+fn sorts_by_several_levels_and_reorders_nested_collections() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    for (title, year) in [("Beta", 2020), ("Alpha", 2020), ("Gamma", 2019)] {
+        store.insert_source(input(json!({"kind": "reference", "title": title, "year": year}))).unwrap();
+    }
+    let page = store
+        .list_sources(&ListQuery {
+            sorts: vec![SortKey { field: "year".into(), descending: true }, SortKey { field: "title".into(), descending: false }],
+            ..Default::default()
+        })
+        .unwrap();
+    let titles: Vec<_> = page.items.iter().map(|s| s.title().to_string()).collect();
+    assert_eq!(titles, ["Alpha", "Beta", "Gamma"]);
+    for (title, rank) in [("Alpha", 2), ("Gamma", 1)] {
+        let id = page.items.iter().find(|s| s.title() == title).unwrap().id.clone();
+        store.update_source(&id, json!({"properties": {"Rank": rank}}).as_object().unwrap()).unwrap();
+    }
+    let page = store
+        .list_sources(&ListQuery { sorts: vec![SortKey { field: "property:Rank".into(), descending: false }], ..Default::default() })
+        .unwrap();
+    let titles: Vec<_> = page.items.iter().map(|s| s.title().to_string()).collect();
+    assert_eq!(titles, ["Gamma", "Alpha", "Beta"]);
+
+    let a = store.create_collection("A", None, None).unwrap();
+    let b = store.create_collection("B", None, None).unwrap();
+    let c = store.create_collection("C", Some(&a.id), None).unwrap();
+    // A collection cannot move into its own descendant.
+    assert!(store.update_collection(&a.id, None, Some(Some(&c.id))).is_err());
+    store.reorder_collections(None, &[b.id.clone(), c.id.clone()]).unwrap();
+    let all = store.collections().unwrap();
+    let top: Vec<_> = all.iter().filter(|x| x.parent_id.is_none()).map(|x| x.name.as_str()).collect();
+    assert_eq!(top, ["B", "C", "A"]);
+}
