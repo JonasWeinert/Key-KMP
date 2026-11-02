@@ -3,10 +3,12 @@
 // chunked text of documents and notes that full-text and vector search run over.
 mod analysis;
 mod filters;
+mod links;
 mod properties;
 mod search;
 pub use analysis::{CitationInput, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
 pub use filters::{Filter, Suggestion};
+pub use links::{Canvas, CanvasSummary, ItemLinks, ItemRef, Link, LinkEnd, LinkInput, LinkTarget, canvas_links, note_title};
 pub use search::{NoteHit, SearchHit, SearchPassage, SearchQuery, SearchResult};
 
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter, types::Value};
@@ -38,6 +40,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/004_analysis.sql"),
     include_str!("migrations/005_citations.sql"),
     include_str!("migrations/006_note_passages.sql"),
+    include_str!("migrations/007_links_canvases.sql"),
 ];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
@@ -556,6 +559,16 @@ impl Store {
                 [id],
             )
             .map_err(e)?;
+            // Its notes go with it (cascade); so do the links they wrote.
+            let notes: Vec<String> = {
+                let mut statement = tx.prepare("SELECT id FROM notes WHERE source_id = ?").map_err(e)?;
+                let rows = statement.query_map([id], |r| r.get(0)).map_err(e)?;
+                rows.collect::<std::result::Result<_, _>>().map_err(e)?
+            };
+            for note in notes {
+                links::forget_item(&tx, links::NOTE, &note)?;
+            }
+            links::forget_item(&tx, links::SOURCE, id)?;
             removed += tx.execute("DELETE FROM sources WHERE id = ?", [id]).map_err(e)?;
         }
         tx.commit().map_err(e)?;
@@ -867,6 +880,7 @@ impl Store {
             .map_err(e)?
             .flatten();
         db.execute("DELETE FROM notes WHERE id = ?", [id]).map_err(e)?;
+        links::forget_item(&db, links::NOTE, id)?;
         if let Some(source) = source {
             refresh_fts(&db, &source)?;
         }
@@ -902,6 +916,7 @@ impl Store {
             tx.execute("DELETE FROM annotations WHERE id = ?1 AND source_id = ?2", params![id, source_id])
                 .map_err(e)?;
         }
+        links::sync_highlight_links(&tx, source_id)?;
         tx.commit().map_err(e)
     }
 

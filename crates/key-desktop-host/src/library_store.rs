@@ -149,6 +149,24 @@ impl Library {
                 json_output(note)
             })(),
             "store_note_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_note(&id)?)),
+            // Cross-references: what an item links to and what links to it, and the items a
+            // link can point at (notes, sources, highlights, canvases).
+            "store_links" => (|| json_output(self.store.item_links(&arg::<String>(args, "kind")?, &arg::<String>(args, "id")?)?))(),
+            "store_link_targets" => (|| {
+                let text: Option<String> = arg(args, "text")?;
+                let kinds: Option<Vec<String>> = arg(args, "kinds")?;
+                let limit: Option<usize> = arg(args, "limit")?;
+                json_output(self.store.link_targets(&text.unwrap_or_default(), &kinds.unwrap_or_default(), limit.unwrap_or(8))?)
+            })(),
+            "store_canvases" => json_output(self.store.canvases()?),
+            "store_canvas" => arg::<String>(args, "id").and_then(|id| json_output(self.store.canvas(&id)?)),
+            "store_canvas_save" => (|| {
+                let id: Option<String> = arg(args, "id")?;
+                let title: Option<String> = arg(args, "title")?;
+                let doc: Option<Json> = arg(args, "doc")?;
+                json_output(self.store.save_canvas(id.as_deref(), title.as_deref(), doc.as_ref())?)
+            })(),
+            "store_canvas_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_canvas(&id)?)),
             // Filters to offer while the user types, counted within the current view.
             "store_suggest" => (|| {
                 let text: String = arg(args, "text")?;

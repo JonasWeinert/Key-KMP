@@ -357,3 +357,150 @@ fn analysis_keeps_references_with_their_place_and_links_cited_works() {
     assert_eq!(store.source(&citing.id).unwrap().unwrap().index_status, "pending");
     assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 1);
 }
+
+fn link(from: ItemRef, to: ItemRef, label: &str) -> LinkInput {
+    LinkInput { from, to, label: Some(label.into()), context: Some(format!("about {label}")) }
+}
+
+#[test]
+fn backlinks_follow_renames_and_survive_deletes_as_broken() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Health versus income"}))).unwrap();
+    let plan = store.save_note(None, None, "Plan", "", None).unwrap();
+    let draft = store.save_note(None, None, "", "Draft first line\n\nmore", None).unwrap();
+    store.apply_annotations(&paper.id, &[json!({"id": "h1", "text": "Income  and health", "color": "green", "anchor": {"pages": [{"page": 3}]}})], &[]).unwrap();
+    let from = ItemRef::new("note", &draft.id, None);
+    store
+        .replace_note_links(
+            &draft.id,
+            draft.updated_at,
+            &[
+                link(from.clone(), ItemRef::new("source", &paper.id, None), "Palma"),
+                link(from.clone(), ItemRef::new("source", &paper.id, Some("highlight:h1")), "quote"),
+                link(from.clone(), ItemRef::new("note", &plan.id, None), "the plan"),
+            ],
+        )
+        .unwrap();
+
+    let links = store.item_links("note", &plan.id).unwrap();
+    assert_eq!(links.backlinks.len(), 1);
+    assert_eq!(links.backlinks[0].from.title, "Draft first line");
+    assert_eq!(links.backlinks[0].context.as_deref(), Some("about the plan"));
+    let out = store.item_links("note", &draft.id).unwrap().outgoing;
+    assert_eq!(out.iter().map(|l| l.to.title.as_str()).collect::<Vec<_>>(), vec!["Health versus income", "Health versus income", "Plan"]);
+    assert_eq!(out[1].to.anchor_label.as_deref(), Some("Income and health"));
+    assert!(out.iter().all(|l| !l.broken));
+
+    // Renames show at once: titles are read by id.
+    store.save_note(Some(&plan.id), None, "Research plan", "", None).unwrap();
+    let mut patch = Map::new();
+    patch.insert("title".into(), json!("Health vs income"));
+    store.update_source(&paper.id, &patch).unwrap();
+    let out = store.item_links("note", &draft.id).unwrap().outgoing;
+    assert_eq!(out[0].to.title, "Health vs income");
+    assert_eq!(out[2].to.title, "Research plan");
+
+    // A deleted highlight breaks the link to it; bringing it back mends it.
+    store.apply_annotations(&paper.id, &[], &["h1".into()]).unwrap();
+    assert!(store.item_links("note", &draft.id).unwrap().outgoing[1].broken);
+    store.apply_annotations(&paper.id, &[json!({"id": "h1", "text": "Income and health"})], &[]).unwrap();
+    assert!(!store.item_links("note", &draft.id).unwrap().outgoing[1].broken);
+
+    // Deleting the target keeps the link, broken, under the label it was written with.
+    store.delete_note(&plan.id).unwrap();
+    let out = store.item_links("note", &draft.id).unwrap().outgoing;
+    assert!(out[2].broken && !out[2].to.exists);
+    assert_eq!(out[2].to.title, "the plan");
+
+    // Deleting the linking note removes what it wrote.
+    assert_eq!(store.item_links("source", &paper.id).unwrap().backlinks.len(), 2);
+    store.delete_note(&draft.id).unwrap();
+    assert!(store.item_links("source", &paper.id).unwrap().backlinks.is_empty());
+}
+
+#[test]
+fn a_newer_save_wins_and_a_sources_own_notes_are_not_backlinks() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Paper"}))).unwrap();
+    let own = store.save_note(None, Some(&paper.id), "", "quote", None).unwrap();
+    let to_paper = |note: &str| vec![link(ItemRef::new("note", note, None), ItemRef::new("source", &paper.id, Some("page:2")), "p")];
+    store.replace_note_links(&own.id, own.updated_at, &to_paper(&own.id)).unwrap();
+    assert!(store.item_links("source", &paper.id).unwrap().backlinks.is_empty());
+    assert_eq!(store.item_links("note", &own.id).unwrap().outgoing[0].to.anchor_label.as_deref(), Some("p. 3"));
+    // A stale version (saved before the current one) writes nothing.
+    store.replace_note_links(&own.id, own.updated_at - 1, &[]).unwrap();
+    assert_eq!(store.item_links("note", &own.id).unwrap().outgoing.len(), 1);
+
+    // Deleting the source takes its notes and their links with it; links to it break.
+    let other = store.save_note(None, None, "Other", "", None).unwrap();
+    store.replace_note_links(&other.id, other.updated_at, &to_paper(&other.id)).unwrap();
+    store.delete(&[paper.id.clone()]).unwrap();
+    let out = store.item_links("note", &other.id).unwrap().outgoing;
+    assert!(out[0].broken);
+    assert!(store.item_links("note", &own.id).unwrap().outgoing.is_empty());
+}
+
+#[test]
+fn canvases_link_their_cards_and_connectors() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Paper"}))).unwrap();
+    let note = store.save_note(None, None, "Idea", "", None).unwrap();
+    let doc = json!({
+        "nodes": [
+            {"id": "a", "type": "item", "ref": {"kind": "source", "id": paper.id}, "title": "Paper"},
+            {"id": "b", "type": "item", "ref": {"kind": "note", "id": note.id}},
+            {"id": "t", "type": "text", "text": "free text"}
+        ],
+        "edges": [
+            {"id": "e1", "from": {"node": "a"}, "to": {"node": "b"}, "label": "supports"},
+            {"id": "e2", "from": {"node": "t"}, "to": {"node": "b"}}
+        ]
+    });
+    let canvas = store.save_canvas(None, Some("Board"), Some(&doc)).unwrap();
+    assert_eq!(store.canvases().unwrap()[0].title, "Board");
+    assert_eq!(store.canvas(&canvas.id).unwrap().unwrap().doc["nodes"][2]["text"], json!("free text"));
+
+    let back = store.item_links("note", &note.id).unwrap().backlinks;
+    let mut seen: Vec<(String, Option<String>)> = back.iter().map(|l| (l.from.title.clone(), l.via.as_ref().map(|v| v.title.clone()))).collect();
+    seen.sort();
+    assert_eq!(seen, vec![("Board".into(), None), ("Paper".into(), Some("Board".into()))]);
+    assert_eq!(back.iter().find(|l| l.via.is_some()).unwrap().context.as_deref(), Some("supports"));
+    assert_eq!(back.iter().find(|l| l.via.is_none()).unwrap().from.anchor.as_deref(), Some("node:b"));
+
+    // Renaming keeps the doc; removing the connector removes its link.
+    store.save_canvas(Some(&canvas.id), Some("Board 2"), None).unwrap();
+    assert_eq!(store.item_links("note", &note.id).unwrap().backlinks.len(), 2);
+    let mut doc = doc;
+    doc["edges"] = json!([]);
+    store.save_canvas(Some(&canvas.id), None, Some(&doc)).unwrap();
+    let back = store.item_links("note", &note.id).unwrap().backlinks;
+    assert_eq!(back.len(), 1);
+    assert_eq!(back[0].from.title, "Board 2");
+
+    // A note linking to the canvas sees it broken once the canvas is deleted, mended if it returns.
+    store.replace_note_links(&note.id, note.updated_at, &[link(ItemRef::new("note", &note.id, None), ItemRef::new("canvas", &canvas.id, None), "board")]).unwrap();
+    store.delete_canvas(&canvas.id).unwrap();
+    assert!(store.item_links("note", &note.id).unwrap().backlinks.is_empty());
+    assert!(store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+    store.save_canvas(Some(&canvas.id), Some("Board 2"), Some(&doc)).unwrap();
+    assert!(!store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+}
+
+#[test]
+fn the_link_picker_finds_every_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Growth paper"}))).unwrap();
+    store.save_note(None, None, "Growth ideas", "", None).unwrap();
+    store.save_canvas(None, Some("Growth board"), None).unwrap();
+    store.apply_annotations(&paper.id, &[json!({"id": "h9", "text": "growth slows", "color": "blue", "anchor": {"pages": [{"page": 1}]}})], &[]).unwrap();
+    let found = store.link_targets("growth", &[], 10).unwrap();
+    let kinds: Vec<(&str, Option<&str>)> = found.iter().map(|t| (t.item.kind.as_str(), t.item.anchor.as_deref())).collect();
+    assert_eq!(kinds, vec![("note", None), ("source", None), ("canvas", None), ("source", Some("highlight:h9"))]);
+    assert_eq!(found[3].context.as_deref(), Some("Growth paper"));
+    assert_eq!(found[3].page, Some(1));
+    assert_eq!(store.link_targets("growth", &["canvas".into()], 10).unwrap().len(), 1);
+}
