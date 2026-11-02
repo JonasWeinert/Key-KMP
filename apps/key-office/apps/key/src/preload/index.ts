@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("key", {
     ipcRenderer.invoke("key:import-paths", workspaceId, paths, collectionId),
   openPath: (path: string) => ipcRenderer.invoke("key:open-path", path),
   revealPath: (path: string) => ipcRenderer.invoke("key:reveal-path", path),
+  thumbnail: (path: string, size?: number) => ipcRenderer.invoke("key:thumbnail", path, size),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   openSource: (source: unknown, hit?: unknown, results?: unknown[]) =>
     ipcRenderer.invoke("key:open-source", source, hit, results),

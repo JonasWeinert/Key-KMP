@@ -185,6 +185,8 @@ export interface Bridge {
   importZotero(options?: unknown): Promise<{ workspace: { id: string; name: string }; report: Record<string, number> }>;
   openPath(path: string): Promise<void>;
   revealPath(path: string): Promise<void>;
+  /** A Quick Look thumbnail as a data URL, or null when the file has none. */
+  thumbnail(path: string, size?: number): Promise<string | null>;
   pathForFile(file: File): string;
 }
 export const bridge = () => (window as unknown as { key: Bridge }).key;

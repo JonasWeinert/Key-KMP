@@ -1,0 +1,372 @@
+/* Shared database view: grid, list and table layouts over any rows. */
+.kx-db-body {
+  position: relative;
+  min-width: 100%;
+}
+
+/* ── Table ─────────────────────────────────────────────── */
+.kx-table-head,
+.kx-table-row {
+  display: grid;
+  align-items: center;
+  min-width: 100%;
+}
+.kx-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 30px;
+  background: var(--kx-bg);
+  box-shadow: inset 0 -1px 0 var(--kx-line);
+}
+.kx-db-head-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  background: var(--kx-bg);
+  color: var(--kx-text-2);
+  font: 500 11.5px var(--kx-font);
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  touch-action: none;
+}
+.kx-db-head-cell:first-child,
+.kx-db-cell:first-child {
+  padding-left: 20px;
+}
+.kx-db-head-cell:hover {
+  background: color-mix(in srgb, var(--kx-fill) 100%, var(--kx-bg));
+  color: var(--kx-text);
+}
+.kx-db-head-cell[data-sorted] {
+  color: var(--kx-text);
+}
+.kx-db-head-cell[data-pinned] {
+  position: sticky;
+  z-index: 2;
+}
+.kx-db-head-cell[data-dragging] {
+  z-index: 5;
+  border-radius: 6px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+  color: var(--kx-text);
+  opacity: 0.92;
+  transition: none;
+}
+.kx-table-head[data-dragging] .kx-db-head-cell:not([data-dragging]) {
+  pointer-events: none;
+}
+.kx-db-head-cell[data-drop-before]::before,
+.kx-db-drop-end {
+  content: "";
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: -1px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--kx-accent);
+}
+.kx-db-drop-end {
+  position: relative;
+  left: 0;
+  height: 20px;
+  align-self: center;
+}
+.kx-db-head-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kx-db-pin-mark {
+  flex: none;
+  color: var(--kx-accent);
+}
+.kx-db-sort-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  color: var(--kx-accent);
+}
+.kx-db-sort-mark small {
+  font: 600 9px var(--kx-font);
+  font-variant-numeric: tabular-nums;
+}
+/* Floats over the label's end so narrow columns keep their whole name. */
+.kx-db-head-menu {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--kx-bg-raised);
+  box-shadow: 0 0 0 1px var(--kx-line);
+  color: var(--kx-text-2);
+  opacity: 0;
+}
+.kx-db-head-cell:hover .kx-db-head-menu,
+.kx-db-head-menu:focus-visible,
+.kx-db-head-menu[aria-expanded="true"] {
+  opacity: 1;
+}
+.kx-db-head-menu:hover {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+/* Column divider; it also resizes, and lights up while hovered. */
+.kx-db-resize {
+  position: absolute;
+  top: 6px;
+  right: -4px;
+  bottom: 6px;
+  z-index: 1;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.kx-db-resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: var(--kx-line);
+}
+.kx-db-resize:hover::after,
+.kx-db-resize:focus-visible::after {
+  left: 3px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--kx-accent);
+}
+.kx-db-resize:focus-visible {
+  outline: none;
+}
+
+.kx-table-row {
+  --kx-row-bg: transparent;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 34px;
+  background: var(--kx-row-bg);
+  box-shadow: inset 0 -1px 0 var(--kx-line);
+  font-size: 12.5px;
+  cursor: default;
+  user-select: none;
+}
+.kx-db-cell {
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--kx-text-2);
+  line-height: 34px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-db-cell > * {
+  vertical-align: middle;
+}
+/* Pinned cells stay put while the rest scrolls under them, carrying the row's tint. */
+.kx-db-cell[data-pinned] {
+  position: sticky;
+  z-index: 1;
+  background: linear-gradient(var(--kx-row-bg), var(--kx-row-bg)), var(--kx-bg);
+}
+.kx-db-cell[data-pinned]:not(:has(+ [data-pinned])) {
+  box-shadow: inset -1px 0 0 var(--kx-line);
+}
+.kx-table-row:hover {
+  --kx-row-bg: var(--kx-bg-sunken);
+}
+.kx-table-row[aria-selected="true"] {
+  --kx-row-bg: var(--kx-accent-soft);
+}
+.kx-list:focus-within .kx-table-row[aria-selected="true"] {
+  --kx-row-bg: var(--kx-accent);
+}
+.kx-list:focus-within .kx-table-row[aria-selected="true"] .kx-db-cell,
+.kx-list:focus-within .kx-table-row[aria-selected="true"] .kx-cell-title > span:last-child {
+  color: var(--kx-accent-ink);
+}
+.kx-list:focus-within .kx-table-row[aria-selected="true"] .kx-db-cell[data-pinned] {
+  background: var(--kx-accent);
+}
+
+/* ── Grid ──────────────────────────────────────────────── */
+.kx-db-grid-row {
+  position: absolute;
+  inset: 0 0 auto;
+  display: grid;
+  gap: 20px;
+  padding: 0 20px;
+}
+.kx-db-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 6px;
+  border-radius: 10px;
+  cursor: default;
+  user-select: none;
+}
+.kx-db-card .kx-cover {
+  margin-bottom: 8px;
+}
+.kx-db-card:hover .kx-cover {
+  transform: translateY(-2px);
+  box-shadow: var(--kx-shadow-lift);
+}
+.kx-db-card[aria-selected="true"] {
+  background: var(--kx-accent-soft);
+}
+.kx-list:focus-within .kx-db-card[aria-selected="true"] .kx-cover {
+  outline: 3px solid var(--kx-accent);
+  outline-offset: 2px;
+}
+.kx-db-card > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--kx-text);
+  font: 500 12.5px/1.3 var(--kx-font);
+}
+.kx-db-card > span {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-cover-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  background: var(--kx-bg-raised);
+}
+
+/* ── Menus ─────────────────────────────────────────────── */
+.kx-context-menu {
+  position: fixed;
+  right: auto;
+  z-index: 60;
+  min-width: 190px;
+}
+.kx-menu-popover > button:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.kx-menu-popover > button:focus-visible {
+  outline: none;
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+}
+.kx-menu-hint {
+  margin: 2px 9px 4px;
+  color: var(--kx-text-3);
+  font-size: 11px;
+}
+.kx-sort-popover {
+  min-width: 330px;
+}
+.kx-sort-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+}
+.kx-sort-level {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+}
+.kx-sort-ordinal {
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  text-align: right;
+}
+.kx-sort-level select {
+  height: 26px;
+  min-width: 0;
+  padding: 0 6px;
+  border: 1px solid var(--kx-line);
+  border-radius: 6px;
+  background: var(--kx-bg);
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+}
+.kx-sort-direction,
+.kx-sort-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+  font: 500 11.5px var(--kx-font);
+}
+.kx-sort-remove {
+  width: 26px;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+}
+.kx-sort-direction:hover,
+.kx-sort-remove:hover:not(:disabled) {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-sort-remove:disabled {
+  opacity: 0.3;
+}
+.kx-columns-popover > label[draggable] {
+  cursor: default;
+}
+.kx-columns-popover > label[data-dragging] {
+  opacity: 0.45;
+}
+.kx-columns-popover > label[data-drop] {
+  box-shadow: inset 0 2px 0 var(--kx-accent);
+}
+.kx-column-grip {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 12px;
+  margin-left: -4px;
+  color: var(--kx-text-3);
+  cursor: grab;
+}
+.kx-columns-popover > label > .kx-column-pin[aria-pressed="false"] {
+  opacity: 0;
+}
+.kx-columns-popover > label:hover > .kx-column-pin,
+.kx-columns-popover > label > .kx-column-pin:focus-visible {
+  opacity: 1;
+}
+.kx-columns-popover > label > .kx-column-pin[aria-pressed="true"] {
+  color: var(--kx-accent);
+}
