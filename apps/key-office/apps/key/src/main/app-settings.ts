@@ -12,8 +12,10 @@ export interface AppSettings {
   onboarded: boolean
   /** Run the layout model when analysing PDFs (better reading order, tables, headings). */
   layoutModel: boolean
+  /** Keep the imported Zotero library in step with Zotero (off: import once). */
+  zoteroSync: boolean
 }
-const DEFAULTS: AppSettings = { theme: 'system', onboarded: false, layoutModel: true }
+const DEFAULTS: AppSettings = { theme: 'system', onboarded: false, layoutModel: true, zoteroSync: false }
 
 export class AppSettingsStore {
   private value: AppSettings = { ...DEFAULTS }
@@ -48,6 +50,7 @@ function sanitize(input: AppSettings): AppSettings {
     theme: (['system', 'light', 'dark'] as const).includes(input.theme) ? input.theme : 'system',
     onboarded: input.onboarded === true,
     layoutModel: input.layoutModel !== false,
+    zoteroSync: input.zoteroSync === true,
   }
 }
 

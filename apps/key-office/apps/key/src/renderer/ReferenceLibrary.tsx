@@ -37,6 +37,7 @@ import {
   type PropertySheetState,
 } from "./PropertySheets";
 import "./reference-library.css";
+import { ZoteroImportSheet } from "./ZoteroImport";
 
 const PAGE = 300;
 const ROW = 58;
@@ -112,6 +113,7 @@ export default function ReferenceLibrary({
   const [agent, setAgent] = useState<{ targets: Source[]; name?: string }>();
   const [tagManager, setTagManager] = useState(false);
   const [identifier, setIdentifier] = useState(false);
+  const [zotero, setZotero] = useState(false);
   const [view, setView] = useState<"list" | "table">(() => {
     try {
       return localStorage.getItem("key.library.view") === "table" ? "table" : "list";
@@ -604,17 +606,7 @@ export default function ReferenceLibrary({
                 setInspector(source);
               }}
               onIdentifier={() => setIdentifier(true)}
-              onZotero={async () => {
-                setToast({ text: "Importing your Zotero library…" });
-                try {
-                  const { workspace, report } = await bridge().importZotero();
-                  setToast({ text: `Imported ${report.items.toLocaleString()} items from Zotero into “${workspace.name}”` });
-                  selectLibrary({ workspaceId: workspace.id });
-                  libraryChanged();
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
+              onZotero={() => setZotero(true)}
             />
           </div>
         </header>
@@ -918,6 +910,18 @@ export default function ReferenceLibrary({
           workspaceId={workspaceId}
           onClose={() => setTagManager(false)}
           onSaved={() => void load(0)}
+        />
+      )}
+      {zotero && (
+        <ZoteroImportSheet
+          invoke={invoke}
+          workspaceId={workspaceId}
+          onClose={() => setZotero(false)}
+          onDone={(workspace, report) => {
+            setToast({ text: `Imported ${report.items.toLocaleString()} items from Zotero into “${workspace.name}”` });
+            selectLibrary({ workspaceId: workspace.id });
+            libraryChanged();
+          }}
         />
       )}
       {identifier && (
@@ -1406,7 +1410,7 @@ function AddMenu({ onFiles, onBlank, onIdentifier, onZotero }: { onFiles: () => 
           </button>
           <hr />
           <button onClick={onZotero}>
-            <Icon name="books" size={13} /> Import Zotero library
+            <Icon name="books" size={13} /> Import from Zotero…
           </button>
         </div>
       </details>

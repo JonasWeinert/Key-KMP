@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("key", {
   tabs: () => ipcRenderer.invoke("key:tabs"),
   openSources: (id?: string) => ipcRenderer.invoke("key:open-sources", id),
   importZotero: (options?: unknown) => ipcRenderer.invoke("key:import-zotero", options),
+  zoteroWorkspace: () => ipcRenderer.invoke("key:zotero-workspace"),
+  syncZotero: () => ipcRenderer.invoke("key:sync-zotero"),
   addFiles: (workspaceId: string, collectionId?: string) =>
     ipcRenderer.invoke("key:add-files", workspaceId, collectionId),
   importPaths: (workspaceId: string, paths: string[], collectionId?: string) =>

@@ -873,6 +873,42 @@ impl Store {
         Ok(())
     }
 
+    /// The note an importer created under `origin_key`.
+    pub fn note_by_origin(&self, origin_key: &str) -> Result<Option<Note>> {
+        self.read()?
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE origin_key = ?", [origin_key], read_note)
+            .optional()
+            .map_err(e)
+    }
+
+    /// Moves a note to another source (or makes it standalone), keeping its id and text.
+    pub fn set_note_source(&self, id: &str, source_id: Option<&str>) -> Result<()> {
+        let db = self.db()?;
+        let before: Option<String> = db
+            .query_row("SELECT source_id FROM notes WHERE id = ?", [id], |r| r.get(0))
+            .optional()
+            .map_err(e)?
+            .ok_or("Note not found")?;
+        db.execute("UPDATE notes SET source_id = ?2 WHERE id = ?1", params![id, source_id]).map_err(e)?;
+        for source in before.iter().map(String::as_str).chain(source_id) {
+            refresh_fts(&db, source)?;
+        }
+        Ok(())
+    }
+
+    /// Every source an importer brought in from `origin`: its origin key, id and last change.
+    pub fn origin_index(&self, origin: &str) -> Result<HashMap<String, (String, i64)>> {
+        let db = self.read()?;
+        let mut statement = db
+            .prepare("SELECT origin_key, id, updated_at FROM sources WHERE origin = ? AND origin_key IS NOT NULL")
+            .map_err(e)?;
+        statement
+            .query_map([origin], |r| Ok((r.get::<_, String>(0)?, (r.get::<_, String>(1)?, r.get::<_, i64>(2)?))))
+            .map_err(e)?
+            .collect::<std::result::Result<HashMap<_, _>, _>>()
+            .map_err(e)
+    }
+
     pub fn annotations(&self, source_id: &str) -> Result<Vec<Json>> {
         let db = self.db()?;
         let mut statement = db
