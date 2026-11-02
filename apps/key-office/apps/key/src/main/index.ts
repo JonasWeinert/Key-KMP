@@ -10,6 +10,7 @@ import {
 } from "electron";
 import { join, resolve, basename, extname } from "node:path";
 import { randomUUID } from "node:crypto";
+import { realpath } from "node:fs/promises";
 import { setUiLang, normalizeLang } from "@key/i18n";
 import { AgentFill } from "./agent-fill";
 import { AppSettingsStore, appInfo } from "./app-settings";
@@ -736,12 +737,32 @@ async function importSources(workspaceId?: string, w: ShellWindow = focusedShell
   emit("library-changed");
 }
 let workspaceParent = "";
+/** The "Zotero" workspace beside the default one, created on first use. */
+const zoteroWorkspace = () => registry.add(join(workspaceParent, "Zotero"), "Zotero");
 /** Imports the Zotero library into its own "Zotero" workspace beside the default one. */
 async function importZotero(options?: Record<string, unknown>) {
-  const workspace = await registry.add(join(workspaceParent, "Zotero"), "Zotero");
+  const workspace = await zoteroWorkspace();
   const report = await registry.invoke("store_import_zotero", options ?? {}, workspace.id);
   emit("library-changed");
   return { workspace, report };
+}
+/** While Zotero sync is on, asks the Zotero workspace to sync; its host only reads
+ *  zotero.sqlite again when the file changed. Nothing runs before a first import. */
+let zoteroSyncing = false;
+async function syncZotero(force = false) {
+  if (zoteroSyncing || !appSettings?.get().zoteroSync) return;
+  zoteroSyncing = true;
+  try {
+    const root = await realpath(join(workspaceParent, "Zotero")).catch(() => "");
+    const workspace = root && (await registry.list()).find((w) => w.root === root);
+    if (!workspace) return;
+    const result: any = await registry.invoke("store_zotero_sync", { force }, workspace.id);
+    if (result?.ran) emit("library-changed");
+  } catch (e) {
+    console.warn("Zotero sync:", e);
+  } finally {
+    zoteroSyncing = false;
+  }
 }
 const WINDOW_OPTIONS = {
   width: 1440,
@@ -1197,6 +1218,7 @@ else
         shell(event.sender.id);
         const before = appSettings.get();
         const next = await appSettings.update(patch ?? {});
+        if (!before.zoteroSync && next.zoteroSync) void syncZotero(true);
         // Running library hosts pick up the layout setting at once.
         if (before.layoutModel !== next.layoutModel)
           for (const workspace of await registry.list())
@@ -1278,6 +1300,15 @@ else
         shell(event.sender.id);
         return importZotero(options);
       });
+      ipcMain.handle("key:zotero-workspace", (event) => {
+        shell(event.sender.id);
+        return zoteroWorkspace();
+      });
+      ipcMain.handle("key:sync-zotero", async (event) => {
+        shell(event.sender.id);
+        await syncZotero(true);
+      });
+      setInterval(() => void syncZotero(), 30_000);
       ipcMain.handle("key:open-sources", (event, id) => {
         return importSources(id, shell(event.sender.id));
       });

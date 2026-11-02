@@ -155,6 +155,7 @@ export interface AppSettings {
   theme: Theme;
   onboarded: boolean;
   layoutModel: boolean;
+  zoteroSync: boolean;
 }
 export interface AppInfo {
   version: string;
@@ -182,11 +183,74 @@ export interface Bridge {
   tabAction(action: string, payload?: unknown): Promise<unknown>;
   addFiles(workspaceId: string, collectionId?: string): Promise<unknown[]>;
   importPaths(workspaceId: string, paths: string[], collectionId?: string): Promise<unknown[]>;
-  importZotero(options?: unknown): Promise<{ workspace: { id: string; name: string }; report: Record<string, number> }>;
+  importZotero(options?: ZoteroOptions): Promise<{ workspace: WorkspaceSummary; report: ZoteroReport }>;
+  /** The workspace Zotero imports into, created on first use. */
+  zoteroWorkspace(): Promise<WorkspaceSummary>;
+  /** Syncs the Zotero workspace now, when sync is on. */
+  syncZotero(): Promise<void>;
   openPath(path: string): Promise<void>;
   revealPath(path: string): Promise<void>;
   pathForFile(file: File): string;
 }
+/** What a Zotero import brings across (key-zotero's ImportOptions). */
+export interface ZoteroOptions {
+  dataDir?: string;
+  /** Zotero collection keys; absent for the whole library. */
+  collectionKeys?: string[];
+  attachments: boolean;
+  notes: boolean;
+  annotations: boolean;
+  mirrorCollections: boolean;
+}
+export interface ZoteroCounts {
+  items: number;
+  files: number;
+  notes: number;
+  annotations: number;
+}
+export interface ZoteroPreview {
+  dataDir: string;
+  collections: { key: string; name: string; parentKey?: string | null; items: number; total: number }[];
+  library: ZoteroCounts;
+  selected: ZoteroCounts;
+  unfiled: number;
+}
+export interface ZoteroConflict {
+  title: string;
+  what: string;
+  detail: string;
+}
+export interface ZoteroReport {
+  items: number;
+  added: number;
+  updated: number;
+  unchanged: number;
+  trashed: number;
+  restored: number;
+  keptDeleted: number;
+  collections: number;
+  collectionsDeleted: number;
+  notes: number;
+  notesUpdated: number;
+  notesDeleted: number;
+  annotations: number;
+  linkedFiles: number;
+  missingFiles: number;
+  skipped: number;
+  conflictCount: number;
+  conflicts: ZoteroConflict[];
+}
+export interface ZoteroProgress {
+  stage: "reading" | "items" | "notes" | "saving" | string;
+  done: number;
+  total: number;
+}
+export interface ZoteroStatus {
+  options?: ZoteroOptions | null;
+  at?: number | null;
+  report?: ZoteroReport | null;
+}
+
 export const bridge = () => (window as unknown as { key: Bridge }).key;
 
 export const KIND_ICON: Record<string, IconName> = {
