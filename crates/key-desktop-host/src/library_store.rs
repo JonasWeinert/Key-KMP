@@ -158,7 +158,7 @@ impl Library {
                 let limit: Option<usize> = arg(args, "limit")?;
                 json_output(self.store.link_targets(&text.unwrap_or_default(), &kinds.unwrap_or_default(), limit.unwrap_or(8))?)
             })(),
-            "store_canvases" => json_output(self.store.canvases()?),
+            "store_canvases" => self.store.canvases().and_then(json_output),
             "store_canvas" => arg::<String>(args, "id").and_then(|id| json_output(self.store.canvas(&id)?)),
             "store_canvas_save" => (|| {
                 let id: Option<String> = arg(args, "id")?;
