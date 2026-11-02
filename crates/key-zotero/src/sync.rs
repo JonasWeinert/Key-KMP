@@ -5,7 +5,7 @@
 // only when they were not edited in Key; nothing deleted in Key is brought back.
 use crate::{
     Conflict, ImportOptions, ImportReport, ORIGIN, Progress, Result, html,
-    snapshot::{Snapshot, Stamp, ZItem},
+    snapshot::{Snapshot, ZItem},
     state::{State, Tracked},
 };
 use key_store::{Source, SourceInput, Store};
@@ -73,6 +73,7 @@ pub fn run(store: &Store, options: &ImportOptions, mode: Mode, progress: &dyn Fn
     state.set_meta("lastRun", &key_store::now_ms().to_string())?;
     run.report.conflict_count = run.report.conflict_count.max(run.report.conflicts.len());
     let report = run.report;
+    state.set_meta("report", &serde_json::to_string(&report).map_err(|e| e.to_string())?)?;
     drop(snapshot);
     // The copy is only needed while the import dialog or a run is open.
     Snapshot::forget();
@@ -80,13 +81,14 @@ pub fn run(store: &Store, options: &ImportOptions, mode: Mode, progress: &dyn Fn
 }
 
 /// The options of the last import or sync, and the file stamp it read.
-pub fn last_run(store: &Store) -> Result<(Option<ImportOptions>, Option<Stamp>, Option<i64>)> {
+pub fn last_run(store: &Store) -> Result<crate::LastRun> {
     let state = State::open(store.root())?;
-    Ok((
-        state.meta("options").and_then(|o| serde_json::from_str(&o).ok()),
-        state.meta("stamp").and_then(|s| serde_json::from_str(&s).ok()),
-        state.meta("lastRun").and_then(|t| t.parse().ok()),
-    ))
+    Ok(crate::LastRun {
+        options: state.meta("options").and_then(|o| serde_json::from_str(&o).ok()),
+        stamp: state.meta("stamp").and_then(|s| serde_json::from_str(&s).ok()),
+        at: state.meta("lastRun").and_then(|t| t.parse().ok()),
+        report: state.meta("report").and_then(|r| serde_json::from_str(&r).ok()),
+    })
 }
 
 /// Which Zotero items and collections an import covers.

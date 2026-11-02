@@ -18,6 +18,9 @@ pub struct Library {
     pub store: Store,
     pub indexer: Indexer,
     pub references: super::reference_worker::ReferenceWorker,
+    /// One Zotero import or sync at a time; its progress while it runs.
+    zotero: std::sync::Mutex<()>,
+    zotero_progress: std::sync::Arc<std::sync::Mutex<Option<key_zotero::Progress>>>,
 }
 
 struct HostPdfText(NativePdfService);
@@ -69,7 +72,20 @@ impl Library {
         // The app turns the layout model off through the environment (Settings).
         indexer.set_layout_model(std::env::var("KEY_LAYOUT_MODEL_ENABLED").map_or(true, |v| v != "0"));
         let references = super::reference_worker::ReferenceWorker::start(store.clone(), native, cache);
-        Ok(Self { store, indexer, references })
+        Ok(Self { store, indexer, references, zotero: Default::default(), zotero_progress: Default::default() })
+    }
+
+    fn zotero_run(&self, options: &key_zotero::ImportOptions, mode: key_zotero::Mode) -> Result<key_zotero::ImportReport, String> {
+        let _running = self.zotero.lock().map_err(|e| e.to_string())?;
+        let progress = self.zotero_progress.clone();
+        let report = key_zotero::run(&self.store, options, mode, &|p| {
+            if let Ok(mut current) = progress.lock() {
+                *current = Some(p);
+            }
+        });
+        *self.zotero_progress.lock().map_err(|e| e.to_string())? = None;
+        self.indexer.wake();
+        report
     }
 
     /// A key-store source the reader knows by content hash (or id, before hashing).
@@ -215,11 +231,33 @@ impl Library {
             })(),
             "store_import_zotero" => (|| {
                 let options: key_zotero::ImportOptions = serde_json::from_value(args.clone()).map_err(|e| e.to_string())?;
-                let report = key_zotero::import(&self.store, &options)?;
-                self.indexer.wake();
-                json_output(report)
+                json_output(self.zotero_run(&options, key_zotero::Mode::Import)?)
             })(),
             "store_zotero_location" => json_output(key_zotero::default_data_dir()),
+            // The import dialogue: collections with counts, and what the chosen options cover.
+            "store_zotero_preview" => (|| {
+                let options: key_zotero::ImportOptions = serde_json::from_value(args.clone()).map_err(|e| e.to_string())?;
+                json_output(key_zotero::preview(&options)?)
+            })(),
+            "store_zotero_progress" => self.zotero_progress.lock().map_err(|e| e.to_string()).and_then(|p| json_output(p.clone())),
+            "store_zotero_status" => key_zotero::last_run(&self.store).and_then(json_output),
+            // Called on a timer while sync is on: cheap unless zotero.sqlite changed.
+            "store_zotero_sync" => (|| {
+                let force = arg::<Option<bool>>(args, "force")?.unwrap_or(false);
+                let Some(options) = key_zotero::last_run(&self.store)?.options else {
+                    return json_output(json!({ "ran": false, "reason": "never-imported" }));
+                };
+                let data_dir = options.data_dir.clone().or_else(key_zotero::default_data_dir).ok_or("No Zotero library found.")?;
+                if !force && !key_zotero::changed_since_last_run(&self.store, &data_dir, 4000)? {
+                    return json_output(json!({ "ran": false }));
+                }
+                let Ok(_running) = self.zotero.try_lock() else {
+                    return json_output(json!({ "ran": false, "reason": "busy" }));
+                };
+                drop(_running);
+                let report = self.zotero_run(&options, key_zotero::Mode::Sync)?;
+                json_output(json!({ "ran": true, "report": report }))
+            })(),
             "store_attach_file" => (|| {
                 let id: String = arg(args, "id")?;
                 let path: PathBuf = arg(args, "path")?;

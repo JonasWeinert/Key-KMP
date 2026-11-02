@@ -154,18 +154,18 @@ pub struct LastRun {
     pub options: Option<ImportOptions>,
     pub stamp: Option<Stamp>,
     pub at: Option<i64>,
+    pub report: Option<ImportReport>,
 }
 
 pub fn last_run(store: &Store) -> Result<LastRun> {
-    let (options, stamp, at) = sync::last_run(store)?;
-    Ok(LastRun { options, stamp, at })
+    sync::last_run(store)
 }
 
 /// Whether zotero.sqlite changed since the last run and has been still for `settle_ms`,
 /// so a sync is worth running (Zotero writes in bursts).
 pub fn changed_since_last_run(store: &Store, data_dir: &Path, settle_ms: i64) -> Result<bool> {
     let now = Stamp::of(data_dir)?;
-    let last = sync::last_run(store)?.1;
+    let last = sync::last_run(store)?.stamp;
     Ok(last != Some(now) && now.age_ms() >= settle_ms)
 }
 
