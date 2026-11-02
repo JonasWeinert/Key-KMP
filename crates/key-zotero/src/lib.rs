@@ -1,5 +1,6 @@
 // Zotero import. Reads a private copy of zotero.sqlite (Zotero may hold a lock on the
 // original), maps items onto key-store sources and links attachments in place.
+pub mod html;
 use key_store::{Creator, SourceInput, Store};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
