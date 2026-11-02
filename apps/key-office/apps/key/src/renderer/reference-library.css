@@ -1785,6 +1785,18 @@
 .kx-page-action-primary:hover {
   background: color-mix(in srgb, var(--kx-accent) 88%, var(--kx-text));
 }
+/* An image source shows its picture under the title. */
+.kx-source-page .kx-source-image {
+  margin: 4px 0 14px;
+}
+.kx-source-page .kx-source-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 8px;
+  box-shadow: var(--kx-shadow-card);
+}
+
 .kx-source-page .kx-source-page-title {
   margin: 0 0 4px -6px;
   padding: 2px 6px;

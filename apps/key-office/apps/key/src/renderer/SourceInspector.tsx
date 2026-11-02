@@ -724,6 +724,7 @@ function Notes({
             searchSources={sources.searchSources}
             resolveSource={sources.resolveSource}
             onOpenSource={sources.onOpenSource}
+            media={sources.media}
           />
         </div>
       ))}

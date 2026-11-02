@@ -315,6 +315,12 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
         </header>
 
         <AutoText className="kx-inspector-title kx-source-page-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />
+        {source.kind === "image" && source.filePath && (
+          // served by the shell from the linked file, so the page shows what the source is
+          <figure className="kx-source-image">
+            <img src={`key-media://${workspaceId.toLowerCase()}/source/${encodeURIComponent(source.id)}`} alt={source.title || ""} onDoubleClick={() => void libraryBridge().openPath(source.filePath!)} />
+          </figure>
+        )}
         {/* Accordion: the details fold under the title, with a one-line summary when closed. */}
         <button className="kx-page-details-toggle" onClick={() => toggleDetails(!detailsOpen)} aria-expanded={detailsOpen}>
           <Icon name="chevronRight" size={11} />
@@ -468,6 +474,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             searchSources={sources.searchSources}
             resolveSource={sources.resolveSource}
             onOpenSource={sources.onOpenSource}
+            media={sources.media}
             placeholder="Write about this source. Type / for blocks, @ to link another source"
           />
         </div>
@@ -486,6 +493,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
                   searchSources={sources.searchSources}
                   resolveSource={sources.resolveSource}
                   onOpenSource={sources.onOpenSource}
+                  media={sources.media}
                 />
               </div>
             ))}

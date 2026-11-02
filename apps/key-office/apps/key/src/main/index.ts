@@ -15,6 +15,7 @@ import { AgentFill } from "./agent-fill";
 import { AppSettingsStore, appInfo } from "./app-settings";
 import { downloadPdf } from "./download-pdf";
 import { Registry } from "./workspaces";
+import { registerMediaScheme, routeEmbeddedMedia, serveNoteMedia } from "./note-media";
 import {
   setOfficeShellWindow,
   configureOfficeEditors,
@@ -971,6 +972,7 @@ function baseMenu() {
   );
 }
 app.setName("Key");
+registerMediaScheme();
 if (process.env.KEY_USER_DATA)
   app.setPath("userData", process.env.KEY_USER_DATA);
 app.on("second-instance", () => {
@@ -1007,6 +1009,8 @@ else
             ? join(process.resourcesPath, "backend/libpdfium.dylib")
             : join(root, "vendor/pdfium/lib/libpdfium.dylib")),
       });
+      serveNoteMedia(registry);
+      routeEmbeddedMedia();
       agentFill = new AgentFill(
         registry,
         join(app.getPath("userData"), "ai-settings.json"),

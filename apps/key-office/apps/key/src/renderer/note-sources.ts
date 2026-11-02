@@ -1,7 +1,7 @@
 // How notes reach the library: find sources for @-links and embeds, describe them for
 // cards and quotes, and open them (at a page when a quote has one).
 import { bridge, shortCreators, type Invoke, type Source, type SourcePage } from "./library-api";
-import type { SourceRef } from "./note-editor";
+import type { NoteMediaHost, SourceRef } from "./note-editor";
 
 type OpenSource = (source: unknown, hit?: unknown) => Promise<unknown>;
 
@@ -20,7 +20,17 @@ export function noteSources(invoke: Invoke, workspaceId: string) {
     if (!cache.has(id)) cache.set(id, invoke<Source | null>("store_source", { id }, workspaceId).then((s) => s ?? undefined).catch(() => undefined));
     return cache.get(id)!;
   };
+  // Notes keep images as `media/<sha256>.<ext>` in the workspace; the shell serves them.
+  const media: NoteMediaHost = {
+    save: async (file) => {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const saved = await invoke<{ src: string }>("store_media_save", { name: file.name || null, mime: file.type || null, __binary: bytes }, workspaceId);
+      return saved.src;
+    },
+    url: (src) => (/^media\/[0-9a-f]+\.[a-z0-9]+$/.test(src) ? `key-media://${workspaceId.toLowerCase()}/${src.slice("media/".length)}` : src),
+  };
   return {
+    media,
     searchSources: async (query: string): Promise<SourceRef[]> => {
       const page = await invoke<SourcePage>("store_sources", { text: query.trim() || null, limit: 8, offset: 0, sort: query.trim() ? "title" : "added", descending: !query.trim() }, workspaceId);
       return page.items.map(sourceRef);
