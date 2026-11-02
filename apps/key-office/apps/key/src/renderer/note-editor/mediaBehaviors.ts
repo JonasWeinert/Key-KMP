@@ -1,11 +1,30 @@
 // Getting media into a note: pasted or dropped image files are stored in the workspace,
-// and a video link pasted or typed on a line of its own becomes an embed.
+// a video link pasted or typed on a line of its own becomes an embed, and items dragged
+// in from elsewhere in the app become links where they land.
 import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorState } from "@tiptap/pm/state";
 import { getRuntime } from "./runtime";
 import { imageFiles, parseVideoUrl } from "./media";
+import { itemHref, readItemDrag, type DraggedItem } from "./types";
+
+/** Links to dragged items, comma-separated, at `pos` (moved to the end of a word it would split). */
+function insertItemLinks(editor: Editor, items: DraggedItem[], pos: number): boolean {
+  const { doc } = editor.state;
+  const word = /[\p{L}\p{N}]/u;
+  const charAt = (at: number) => (at > 0 && at < doc.content.size ? doc.textBetween(at, at + 1, "\n", "\n") : "");
+  while (word.test(charAt(pos - 1)) && word.test(charAt(pos))) pos++;
+  const before = charAt(pos - 1);
+  const label = (title: string) => (title.length > 60 ? `${title.slice(0, 57).trimEnd()}…` : title || "Untitled");
+  const content = items.flatMap((item, i) => [
+    ...(i ? [{ type: "text", text: ", " }] : []),
+    { type: "text", text: label(item.title), marks: [{ type: "link", attrs: { href: itemHref(item) } }] },
+  ]);
+  const lead = before && !/\s/.test(before) ? [{ type: "text", text: " " }] : [];
+  const trail = /\s/.test(charAt(pos)) ? [] : [{ type: "text", text: " " }];
+  return editor.chain().focus().insertContentAt(pos, [...lead, ...content, ...trail]).run();
+}
 
 /** The selection sits in an empty top-level-ish paragraph a block can replace. */
 function inEmptyParagraph(state: EditorState): boolean {
@@ -99,6 +118,12 @@ export const NoteMedia = Extension.create({
           },
           handleDrop: (view, event, _slice, moved) => {
             if (moved) return false;
+            const items = readItemDrag(event.dataTransfer);
+            if (items.length) {
+              event.preventDefault();
+              const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
+              return insertItemLinks(editor, items, at?.pos ?? view.state.selection.from);
+            }
             const files = imageFiles(event.dataTransfer?.files);
             if (!files.length || !getRuntime(editor)?.saveImage) return false;
             event.preventDefault();

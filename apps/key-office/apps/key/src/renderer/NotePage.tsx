@@ -9,6 +9,8 @@ import LinkedFrom from "./LinkedFrom";
 
 /** Lets the sidebar list refresh when a note is created, renamed or deleted. */
 export const notesChanged = () => window.dispatchEvent(new Event("key:notes-changed"));
+/** A note's text was saved; canvases showing it re-read it. */
+export const noteSaved = (id: string) => window.dispatchEvent(new CustomEvent("key:note-saved", { detail: id }));
 
 export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invoke: Invoke; workspaceId: string; noteId: string; viewId: string }) {
   const [note, setNote] = useState<Note>();
@@ -48,6 +50,7 @@ export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invo
       queue.current = run.catch(() => {});
       await run;
       setSaved("saved");
+      noteSaved(noteId);
       if (patch.title !== undefined) {
         void (window as unknown as { key: { tabAction: (a: string, p: unknown) => Promise<unknown> } }).key.tabAction("content-title", { viewId, title: patch.title });
         notesChanged();

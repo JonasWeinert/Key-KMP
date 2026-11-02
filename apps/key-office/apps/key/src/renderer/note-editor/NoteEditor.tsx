@@ -183,10 +183,11 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
       content: props.value,
       contentType: "markdown",
       autofocus: props.autoFocus ? "end" : false,
+      editable: !props.readOnly,
       immediatelyRender: true,
       shouldRerenderOnTransaction: false,
       editorProps: {
-        attributes: { class: "ne-prose", spellcheck: "true", "aria-label": "Note" },
+        attributes: { class: "ne-prose", spellcheck: props.readOnly ? "false" : "true", "aria-label": "Note" },
       },
       onUpdate: () => {
         dirty.current = true;
@@ -219,12 +220,16 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
   // unmount: save what is left
   useEffect(() => () => flush(), [flush]);
 
-  const rootClass = ["ne-root", props.compact ? "ne-root--compact" : "", props.className ?? ""].filter(Boolean).join(" ");
+  useEffect(() => {
+    if (editor && !editor.isDestroyed && editor.isEditable === !!props.readOnly) editor.setEditable(!props.readOnly, false);
+  }, [editor, props.readOnly]);
+
+  const rootClass = ["ne-root", props.compact ? "ne-root--compact" : "", props.readOnly ? "ne-root--readonly" : "", props.className ?? ""].filter(Boolean).join(" ");
 
   return (
     <div className={rootClass}>
       <EditorContent editor={editor} className="ne-content" />
-      {editor && <BubbleToolbar editor={editor} />}
+      {editor && !props.readOnly && <BubbleToolbar editor={editor} />}
       {/* Floating menus live at the document root: the shell's panes use CSS containment, which
           would otherwise make them the frame for these fixed-position menus. */}
       {createPortal(<SuggestionMenu ref={menuRef} state={menu} />, document.body)}

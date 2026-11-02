@@ -14,6 +14,7 @@ import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import CollectionTree from "./CollectionTree";
+import { setItemDrag } from "./item-links";
 import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
 import {
   MAX_PANES,
@@ -690,6 +691,8 @@ export default function App() {
                   className="kx-nav-item"
                   aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
                   onClick={() => openNote(n)}
+                  draggable
+                  onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" }])}
                   title={n.title || markdownToPlainText(n.body).slice(0, 120) || "Untitled note"}
                 >
                   <Icon name="note" />
@@ -703,6 +706,8 @@ export default function App() {
                   className="kx-nav-item"
                   aria-current={activeView?.content?.canvasId === c.id ? "page" : undefined}
                   onClick={() => openCanvas(c)}
+                  draggable
+                  onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" }])}
                   title={c.title || "Untitled canvas"}
                 >
                   <Icon name="canvas" />
@@ -766,6 +771,8 @@ export default function App() {
                     className="kx-nav-item"
                     aria-current={record?.id === r.id ? "page" : undefined}
                     onClick={() => selectRecord(r)}
+                    draggable
+                    onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "record", id: r.id, title: r.title || "Untitled" }])}
                   >
                     <Icon name={recordIcon(r)} />
                     <span>{r.title || "Untitled"}</span>

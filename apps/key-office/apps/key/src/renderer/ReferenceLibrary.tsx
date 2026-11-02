@@ -20,6 +20,7 @@ import {
   type Source,
   type SourcePage,
 } from "./library-api";
+import { hasExternalDrop, importDrop, setItemDrag, sourceItem } from "./item-links";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 import type { Creator } from "./citation";
 import { Highlight, Snippet, hasMatch, queryPattern } from "./search-highlight";
@@ -465,17 +466,24 @@ export default function ReferenceLibrary({
     return () => document.removeEventListener("keydown", focusSearch);
   }, [active]);
 
-  const importDropped = async (files: FileList) => {
-    const paths = [...files].map((f) => bridge().pathForFile(f)).filter(Boolean);
-    if (!paths.length) return;
+  const importDropped = async (data: DataTransfer) => {
     try {
-      await bridge().importPaths(workspaceId, paths, collectionId);
+      const added = await importDrop(invoke, workspaceId, data, collectionId);
+      if (!added.length) return;
       await load(0);
       libraryChanged();
-      setToast({ text: `Added ${paths.length} ${paths.length === 1 ? "source" : "sources"}` });
+      setToast({ text: `Added ${added.length} ${added.length === 1 ? "source" : "sources"}` });
     } catch (e) {
       setError(String(e));
     }
+  };
+  // Dragged sources go to collections (by id) and anywhere items go: canvases, notes.
+  const dragSources = (source: Source, e: React.DragEvent) => {
+    const ids = selected.has(source.id) ? [...selected] : [source.id];
+    const byId = new Map(items.map((s) => [s.id, s]));
+    e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(ids));
+    setItemDrag(e.dataTransfer, ids.map((id) => sourceItem(byId.get(id) ?? { id, title: "", kind: "" })));
+    e.dataTransfer.effectAllowed = "copyMove";
   };
 
   // Results only re-render when they change, not on every keystroke; handlers stay stable.
@@ -518,7 +526,7 @@ export default function ReferenceLibrary({
       aria-label="Library"
       onKeyDown={onKeyDown}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (hasExternalDrop(e.dataTransfer)) {
           e.preventDefault();
           setDropping(true);
         }
@@ -528,9 +536,9 @@ export default function ReferenceLibrary({
       }}
       onDrop={(e) => {
         setDropping(false);
-        if (e.dataTransfer.files.length) {
+        if (hasExternalDrop(e.dataTransfer)) {
           e.preventDefault();
-          void importDropped(e.dataTransfer.files);
+          void importDropped(e.dataTransfer);
         }
       }}
     >
@@ -660,10 +668,7 @@ export default function ReferenceLibrary({
             isFocused={(source) => focusId === source.id}
             onPointer={(source, e) => select(source.id, e)}
             onOpen={open}
-            onDragStart={(source, e) => {
-              e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(selected.has(source.id) ? [...selected] : [source.id]));
-              e.dataTransfer.effectAllowed = "copyMove";
-            }}
+            onDragStart={dragSources}
             onRange={(first, last) => setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]))}
             renderCard={(source) => <SourceCard source={source} />}
             renderListRow={(source, top, row) => (
@@ -679,7 +684,7 @@ export default function ReferenceLibrary({
                 onStar={() =>
                   void invoke<Source>("store_update", { id: source.id, patch: { starred: !source.starred } }, workspaceId).then(updateSource)
                 }
-                dragIds={() => (selected.has(source.id) ? [...selected] : [source.id])}
+                onDragStart={(e) => dragSources(source, e)}
               />
             )}
           />
@@ -861,7 +866,7 @@ function SourceRow({
   onPointer,
   onOpen,
   onStar,
-  dragIds,
+  onDragStart,
 }: {
   source: Source;
   progress?: { fraction: number; label: string };
@@ -871,7 +876,7 @@ function SourceRow({
   onPointer: (e: React.MouseEvent) => void;
   onOpen: () => void;
   onStar: () => void;
-  dragIds: () => string[];
+  onDragStart: (e: React.DragEvent) => void;
 }) {
   const status = indexLabel(source);
   const meta = [shortCreators(source.creators), source.year, source.containerShort || source.containerTitle].filter(Boolean).join(" · ");
@@ -886,10 +891,7 @@ function SourceRow({
       onMouseDown={onPointer}
       onDoubleClick={onOpen}
       draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(dragIds()));
-        e.dataTransfer.effectAllowed = "copy";
-      }}
+      onDragStart={onDragStart}
     >
       <span className="kx-row-kind" data-kind={source.kind}>
         <Icon name={KIND_ICON[source.kind] ?? "doc"} size={15} />

@@ -15,6 +15,18 @@
 .kx-canvas[data-tool="hand"] {
   cursor: grab;
 }
+/* Something droppable is over the canvas. */
+.kx-canvas[data-dropping]::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  z-index: 5;
+  border: 2px dashed var(--kx-accent);
+  border-radius: 12px;
+  background: var(--kx-accent-soft);
+  opacity: 0.5;
+  pointer-events: none;
+}
 .kx-canvas[data-tool="hand"][data-panning] {
   cursor: grabbing;
 }
@@ -161,10 +173,41 @@
   text-overflow: ellipsis;
 }
 .kx-canvas-card-excerpt {
-  overflow: hidden;
+  margin: 0;
   color: var(--kx-text-2);
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A file's Quick Look preview (first page, the image, a video frame). */
+.kx-canvas-card-preview {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 60%;
+  width: 100%;
+  object-fit: contain;
+  object-position: center top;
+  border-radius: 6px;
+  background: var(--kx-bg);
+}
+/* The rendered note, page or abstract: fades out at the bottom; a selected card scrolls. */
+.kx-canvas-card-body {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 2px -12px -10px;
+  padding: 0 12px 10px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+}
+.kx-canvas-node[aria-selected="true"] .kx-canvas-card-body {
+  overflow-y: auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.kx-canvas-card-note .ne-prose {
+  padding-top: 0;
 }
 
 /* Free text and shapes. */

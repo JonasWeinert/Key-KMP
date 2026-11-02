@@ -1,10 +1,12 @@
 // Cross-references between items (the `store_links` / `store_link_targets` host commands):
 // what the link picker offers, and how a link opens what it points at.
-import { bridge, type Invoke } from "./library-api";
-import type { ItemKind, ItemLink, SourceRef } from "./note-editor";
+import { bridge, type Invoke, type Source } from "./library-api";
+import { hasItemDrag, itemFromHref, type DraggedItem, type ItemKind, type ItemLink, type SourceRef } from "./note-editor";
+import { libraryChanged } from "./library-nav";
 import { noteSources } from "./note-sources";
 
-export type { ItemKind, ItemLink };
+export type { DraggedItem, ItemKind, ItemLink };
+export { hasItemDrag, readItemDrag, setItemDrag } from "./note-editor";
 
 export interface LinkEnd extends ItemLink {
   title: string;
@@ -82,4 +84,44 @@ export function openItem(invoke: Invoke, workspaceId: string, item: ItemLink, ti
 /** Notes, sources, highlights and canvases for the @ picker; an empty query lists recent ones. */
 export function itemSearch(invoke: Invoke, workspaceId: string) {
   return async (query: string): Promise<SourceRef[]> => (await linkTargets(invoke, workspaceId, query.trim(), undefined, 6)).map(targetRef);
+}
+
+// ── Dropping things in from outside the app ──────────────────────────────────
+
+export const sourceItem = (source: Pick<Source, "id" | "title" | "kind">): DraggedItem => ({ kind: "source", id: source.id, title: source.title || "Untitled", detail: source.kind });
+
+/** Web links in a drop (a browser's address bar or a link), not the app's own key:// ones. */
+function droppedUrls(data: DataTransfer): string[] {
+  const list = data.getData("text/uri-list") || data.getData("text/plain");
+  return list
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^https?:\/\/\S+$/i.test(line));
+}
+
+/** Files, or web links, from outside the app: things a drop can add to the library. Drags
+ * inside the app (items, sources, collections) carry an `application/x-key-…` type. */
+export const hasExternalDrop = (data: DataTransfer | null) =>
+  !!data && !hasItemDrag(data) && !data.types.some((t) => t.startsWith("application/x-key")) && (data.types.includes("Files") || data.types.includes("text/uri-list"));
+
+/**
+ * Adds dropped files (imported and indexed) or web links (as web sources) to the library,
+ * in `collectionId` when given, and answers them as items to place or link.
+ */
+export async function importDrop(invoke: Invoke, workspaceId: string, data: DataTransfer, collectionId?: string): Promise<DraggedItem[]> {
+  // Read everything now: the drop's data is gone once the event returns.
+  const paths = [...data.files].map((file) => bridge().pathForFile(file)).filter(Boolean);
+  const sources = paths.length ? ((await bridge().importPaths(workspaceId, paths, collectionId)) as Source[]) : await createWebSources(invoke, workspaceId, droppedUrls(data), collectionId);
+  if (sources.length) libraryChanged();
+  return sources.map(sourceItem);
+}
+
+function createWebSources(invoke: Invoke, workspaceId: string, urls: string[], collectionId?: string) {
+  return Promise.all(
+    urls
+      .filter((url) => !itemFromHref(url))
+      .map((url) =>
+        invoke<Source>("store_create", { source: { kind: "web", itemType: "webpage", title: url, url, collections: collectionId ? [collectionId] : [] } }, workspaceId),
+      ),
+  );
 }

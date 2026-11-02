@@ -48,6 +48,8 @@ export interface NoteEditorProps {
   onOpenItem?: (item: ItemLink) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Shows the note without editing it (a canvas card); links and media still work. */
+  readOnly?: boolean;
   /** Narrow inspector panel: smaller type, gutter tucked closer. */
   compact?: boolean;
   className?: string;
@@ -81,6 +83,35 @@ export function itemFromHref(href: string | null | undefined): ItemLink | null {
   if (!match || !(ITEM_KINDS as readonly string[]).includes(match[1])) return null;
   const anchor = match[4] ? decodeURIComponent(match[4]) : match[3] ? `page:${match[3]}` : undefined;
   return { kind: match[1] as ItemKind, id: decodeURIComponent(match[2]), ...(anchor ? { anchor } : {}) };
+}
+
+// Items dragged anywhere in the app (library rows, the sidebar, canvas cards) carry this
+// type; a canvas places them as cards and a note links them where they land.
+export const ITEM_DRAG_TYPE = "application/x-key-items";
+
+export interface DraggedItem extends ItemLink {
+  title: string;
+  /** A source's kind, or a highlight's text. */
+  detail?: string;
+  color?: string;
+}
+
+export function setItemDrag(data: DataTransfer, items: DraggedItem[]) {
+  if (!items.length) return;
+  data.setData(ITEM_DRAG_TYPE, JSON.stringify(items));
+  data.setData("text/uri-list", items.map(itemHref).join("\r\n"));
+  data.setData("text/plain", items.map((item) => item.title || "Untitled").join("\n"));
+}
+
+export const hasItemDrag = (data: DataTransfer | null | undefined) => !!data?.types.includes(ITEM_DRAG_TYPE);
+
+export function readItemDrag(data: DataTransfer | null | undefined): DraggedItem[] {
+  try {
+    const items = JSON.parse(data?.getData(ITEM_DRAG_TYPE) || "[]") as DraggedItem[];
+    return Array.isArray(items) ? items.filter((i) => i && (ITEM_KINDS as readonly string[]).includes(i.kind) && typeof i.id === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 /** The link a picked entry makes. */

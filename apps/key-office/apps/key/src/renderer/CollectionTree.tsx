@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ContextMenu } from "./DatabaseView";
 import { Icon } from "./icons";
 import type { Collection, Invoke } from "./library-api";
+import { hasExternalDrop, importDrop } from "./item-links";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 
 /** Nesting indent, capped so deep levels still leave room for the name in a narrow sidebar. */
@@ -142,7 +143,8 @@ export default function CollectionTree({
     onDragOver: (e: React.DragEvent<HTMLElement>) => {
       const types = e.dataTransfer.types;
       const id = target?.id ?? "@sources";
-      if (types.includes(SOURCE_DRAG_TYPE) && target) {
+      if ((types.includes(SOURCE_DRAG_TYPE) || hasExternalDrop(e.dataTransfer)) && workspaceId) {
+        if (!target && types.includes(SOURCE_DRAG_TYPE)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
         setDrop({ id, place: "inside" });
@@ -173,6 +175,11 @@ export default function CollectionTree({
       if (e.dataTransfer.types.includes(COLLECTION_DRAG_TYPE)) {
         const id = e.dataTransfer.getData(COLLECTION_DRAG_TYPE);
         if (id && id !== target?.id) place(id, target, where);
+        return;
+      }
+      // Files or web links from outside: added to the library, in this collection.
+      if (hasExternalDrop(e.dataTransfer) && workspaceId) {
+        void importDrop(invoke, workspaceId, e.dataTransfer, target?.id);
         return;
       }
       const ids = JSON.parse(e.dataTransfer.getData(SOURCE_DRAG_TYPE) || "[]");

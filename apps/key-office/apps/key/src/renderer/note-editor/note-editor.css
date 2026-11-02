@@ -34,6 +34,18 @@
 .ne-root--compact .ne-prose {
   padding-bottom: 4em;
 }
+/* Read-only (a canvas card): no gutter, no room below for typing. */
+.ne-root--readonly {
+  --ne-gutter: 0px;
+}
+.ne-root--readonly .ne-prose {
+  min-height: 0;
+  padding-bottom: 0;
+  caret-color: transparent;
+}
+.ne-root--readonly .ne-gutter {
+  display: none !important;
+}
 .ne-prose ::selection {
   background: var(--kx-accent-soft);
 }

@@ -3,12 +3,15 @@
 // wheel, space-drag or the hand tool; zoom with ⌘/pinch. Moves snap to other cards with
 // alignment guides. The scene saves to key-store as you work, and every card and every
 // connector between two cards is a link, so the items show it under "Linked from".
+// Anything dragged in (library rows, sidebar items, files, web links) lands as cards where
+// it is dropped, and notes and pages show their whole text, rendered.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { Icon, type IconName } from "../icons";
-import { itemLinks, linkTargets, openItem, type LinkEnd, type LinkTarget } from "../item-links";
-import type { Invoke, Note, Source } from "../library-api";
-import { markdownToPlainText } from "../note-editor";
+import { hasExternalDrop, hasItemDrag, importDrop, itemLinks, linkTargets, openItem, readItemDrag, type DraggedItem, type LinkEnd, type LinkTarget } from "../item-links";
+import { bridge as libraryBridge, shortCreators, type Invoke, type Note, type Source } from "../library-api";
+import NoteEditor from "../note-editor";
+import { noteSources } from "../note-sources";
 import { CHROME, CONTENT_COLORS, contentColor, currentTheme, highlightColor, type Theme } from "./canvas-colors";
 import {
   EMPTY_DOC,
@@ -58,7 +61,16 @@ const TOOLS: { tool: Tool; icon: IconName; label: string; key: string }[] = [
 ];
 const ITEM_ICON: Record<string, IconName> = { note: "note", canvas: "canvas", record: "doc", source: "doc" };
 const SOURCE_ICON: Record<string, IconName> = { book: "book", web: "globe", image: "image", video: "video", audio: "audio" };
-const CARD = { w: 240, h: 120 };
+const CARD_GAP = 24;
+/** A new card's size: notes and pages are big enough to read, sources leave room for a preview. */
+function cardSize(item: DraggedItem): { w: number; h: number } {
+  if (item.anchor?.startsWith("highlight:")) return { w: 260, h: 160 };
+  if (item.kind === "note" || item.kind === "record") return { w: 320, h: 300 };
+  if (item.kind === "source") return PREVIEW_KINDS.has(item.detail ?? "") ? { w: 280, h: 320 } : { w: 280, h: 180 };
+  return { w: 240, h: 120 };
+}
+/** Sources whose file has a Quick Look preview worth showing on the card. */
+const PREVIEW_KINDS = new Set(["pdf", "image", "video", "book", "document"]);
 
 type Gesture =
   | { kind: "pan"; start: Point; view: Viewport }
@@ -111,6 +123,21 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
   const [saved, setSaved] = useState<"saved" | "saving">("saved");
   const [color, setColor] = useState<string>("ink");
   const [space, setSpace] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const sources = useMemo(() => noteSources(invoke, workspaceId), [invoke, workspaceId]);
+  /** Cards just placed, which take their content's height once it has loaded. */
+  const fitting = useRef(new Set<string>());
+  const fitCard = (id: string, height: number) => {
+    if (!fitting.current.delete(id)) return;
+    const h = Math.round(Math.min(480, Math.max(90, height)));
+    const node = docRef.current.nodes.find((n) => n.id === id);
+    if (!node || node.h === h) return;
+    // A gesture that started before the content loaded must not put the old size back.
+    const g = gesture.current;
+    if (g && "before" in g) g.before = updateNode(g.before, id, { h });
+    preview(updateNode(docRef.current, id, { h }));
+    scheduleSave();
+  };
 
   const root = useRef<HTMLDivElement>(null);
   const docRef = useRef(doc);
@@ -234,26 +261,68 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
   };
 
   // ── adding things ────────────────────────────────────────────────────────
-  const addItem = (target: LinkTarget) => {
-    const [cx, cy] = viewportCentre();
-    const offset = (docRef.current.nodes.length % 6) * 24;
-    const highlight = target.anchor?.startsWith("highlight:");
-    const node: ItemNode = {
-      id: newId(),
-      type: "item",
-      ref: { kind: target.kind, id: target.id, ...(target.anchor ? { anchor: target.anchor } : {}) },
-      title: target.title,
-      detail: highlight ? target.context : target.detail,
-      color: target.color,
-      x: Math.round(cx - CARD.w / 2 + offset),
-      y: Math.round(cy - CARD.h / 2 + offset),
-      w: CARD.w,
-      h: highlight ? 140 : CARD.h,
-    };
-    commit({ ...docRef.current, nodes: [...docRef.current.nodes, node] });
-    setSelected(new Set([node.id]));
+  /** Places items as cards in rows of four, the first centred on `at` (or the middle of the view). */
+  const addItems = (items: DraggedItem[], at?: Point) => {
+    const placing = items.filter((item) => !(item.kind === "canvas" && item.id === canvasId));
+    if (!placing.length) return;
+    const offset = at ? 0 : (docRef.current.nodes.length % 6) * 24;
+    const [cx, cy] = at ?? viewportCentre();
+    let x = 0;
+    let y = 0;
+    let rowHeight = 0;
+    const nodes = placing.map((item, i): ItemNode => {
+      const size = cardSize(item);
+      if (i && i % 4 === 0) {
+        x = 0;
+        y += rowHeight + CARD_GAP;
+        rowHeight = 0;
+      }
+      const first = i === 0 ? size : cardSize(placing[0]);
+      const node: ItemNode = {
+        id: newId(),
+        type: "item",
+        ref: { kind: item.kind, id: item.id, ...(item.anchor ? { anchor: item.anchor } : {}) },
+        title: item.title,
+        detail: item.detail,
+        color: item.color,
+        x: Math.round(cx - first.w / 2 + offset + x),
+        y: Math.round(cy - first.h / 2 + offset + y),
+        ...size,
+      };
+      x += size.w + CARD_GAP;
+      rowHeight = Math.max(rowHeight, size.h);
+      return node;
+    });
+    for (const node of nodes) fitting.current.add(node.id);
+    commit({ ...docRef.current, nodes: [...docRef.current.nodes, ...nodes] });
+    setSelected(new Set(nodes.map((n) => n.id)));
     setAdding(false);
     setTool("select");
+    root.current?.focus({ preventScroll: true });
+  };
+  const addItem = (target: LinkTarget) => {
+    const highlight = target.anchor?.startsWith("highlight:");
+    addItems([{ kind: target.kind, id: target.id, anchor: target.anchor, title: target.title, detail: highlight ? target.context : target.detail, color: target.color }]);
+  };
+  // Dragged in from the library, the sidebar or a note; files and web links join the library first.
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!hasItemDrag(e.dataTransfer) && !hasExternalDrop(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDropping(true);
+  };
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    setDropping(false);
+    const at = worldPoint(e);
+    if (hasItemDrag(e.dataTransfer)) {
+      e.preventDefault();
+      addItems(readItemDrag(e.dataTransfer), at);
+    } else if (hasExternalDrop(e.dataTransfer)) {
+      e.preventDefault();
+      void importDrop(invoke, workspaceId, e.dataTransfer)
+        .then((items) => addItems(items, at))
+        .catch((error) => setError(String(error)));
+    }
   };
   const addText = (at: Point) => {
     const node: CanvasNode = { id: newId(), type: "text", x: Math.round(at[0]), y: Math.round(at[1] - 14), w: 200, h: 40, text: "", color };
@@ -432,6 +501,12 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if ((e.target as HTMLElement).closest(".kx-canvas-chrome, textarea")) return;
+      // A selected card whose text runs on scrolls itself until it reaches an end.
+      const body = (e.target as HTMLElement).closest<HTMLElement>("[aria-selected='true'] .kx-canvas-card-body");
+      if (body && !e.ctrlKey && !e.metaKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        const room = e.deltaY > 0 ? body.scrollHeight - body.clientHeight - body.scrollTop : body.scrollTop;
+        if (room > 1) return;
+      }
       e.preventDefault();
       const box = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) setView((v) => zoomAt(v, Math.exp(-e.deltaY * 0.01), e.clientX - box.left, e.clientY - box.top));
@@ -542,6 +617,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
       className="kx-canvas"
       data-tool={space ? "hand" : tool}
       data-panning={gesture.current?.kind === "pan" || undefined}
+      data-dropping={dropping || undefined}
       tabIndex={0}
       aria-label="Canvas"
       style={chrome}
@@ -551,6 +627,9 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
       onPointerCancel={onPointerUp}
       onKeyDown={onKeyDown}
       onKeyUp={(e) => e.key === " " && setSpace(false)}
+      onDragOver={onDragOver}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropping(false)}
+      onDrop={onDrop}
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement).closest(".kx-canvas-chrome, textarea, input")) return;
         // Pointer capture sends the click to the canvas itself; find the card under it.
@@ -604,7 +683,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
             data-target={draft.connect?.target === node.id || undefined}
             style={{ left: node.x, top: node.y, width: node.w, height: node.h }}
           >
-            {node.type === "item" && <ItemCard node={node} live={live.get(node.id)} invoke={invoke} workspaceId={workspaceId} theme={theme} />}
+            {node.type === "item" && <ItemCard node={node} live={live.get(node.id)} invoke={invoke} workspaceId={workspaceId} theme={theme} sources={sources} onContent={fitting.current.has(node.id) ? (h) => fitCard(node.id, h) : undefined} />}
             {node.type === "text" && (
               <TextBody
                 value={node.text}
@@ -742,7 +821,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
 
       {adding && <AddItem invoke={invoke} workspaceId={workspaceId} exclude={canvasId} onPick={addItem} onClose={() => setAdding(false)} />}
       {loaded && !doc.nodes.length && (
-        <p className="kx-canvas-empty">Add notes, sources and highlights with +, draw with P, or double-click to write.</p>
+        <p className="kx-canvas-empty">Drag in notes, sources, pages or files, add them with +, draw with P, or double-click to write.</p>
       )}
     </div>
   );
@@ -841,42 +920,125 @@ function EdgeLabel({ edge, nodes, onCommit }: { edge: CanvasEdge; nodes: Map<str
   );
 }
 
-/** A note, source, highlight or canvas as a card. The title follows the item by id. */
-function ItemCard({ node, live, invoke, workspaceId, theme }: { node: ItemNode; live?: LinkEnd; invoke: Invoke; workspaceId: string; theme: Theme }) {
-  const [excerpt, setExcerpt] = useState<string>();
+/**
+ * A note, page, source, highlight or canvas as a card. The title follows the item by id;
+ * notes and pages show their whole text rendered (scroll a selected card to read on),
+ * sources their details, abstract and a preview of the file.
+ */
+function ItemCard({
+  node,
+  live,
+  invoke,
+  workspaceId,
+  theme,
+  sources,
+  onContent,
+}: {
+  node: ItemNode;
+  live?: LinkEnd;
+  invoke: Invoke;
+  workspaceId: string;
+  theme: Theme;
+  sources: ReturnType<typeof noteSources>;
+  /** Called once the content has loaded, with the height the card needs to show all of it. */
+  onContent?: (height: number) => void;
+}) {
+  const card = useRef<HTMLDivElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [markdown, setMarkdown] = useState<string>();
+  const [abstract, setAbstract] = useState<string>();
   const [meta, setMeta] = useState<string>();
+  const [preview, setPreview] = useState<string | null>(null);
   const highlight = node.ref.anchor?.startsWith("highlight:");
+  const { kind, id } = node.ref;
   useEffect(() => {
     let current = true;
-    if (node.ref.kind === "note")
-      void invoke<Note | null>("store_note", { id: node.ref.id }, workspaceId).then((note) => current && setExcerpt(note ? markdownToPlainText(note.body).slice(0, 400) : undefined)).catch(() => {});
-    if (node.ref.kind === "source" && !highlight)
-      void invoke<Source | null>("store_source", { id: node.ref.id }, workspaceId)
+    const loadNote = () =>
+      void invoke<Note | null>("store_note", { id }, workspaceId)
+        .then((note) => current && (setMarkdown(note?.body ?? ""), setLoaded(true)))
+        .catch(() => {});
+    if (kind === "note") loadNote();
+    if (kind === "record")
+      void invoke<{ kind: string; body: string } | null>("workspace_record", { id }, workspaceId)
+        .then((record) => current && (setMarkdown(record && record.kind !== "database" ? record.body : ""), setLoaded(true)))
+        .catch(() => {});
+    if (kind === "source" && !highlight)
+      void invoke<Source | null>("store_source", { id }, workspaceId)
         .then((source) => {
           if (!current || !source) return;
-          const who = source.creators?.[0];
-          setMeta([who?.family || who?.literal, source.year, source.containerTitle].filter(Boolean).join(" · "));
-          setExcerpt(source.abstract?.slice(0, 300));
+          setMeta([shortCreators(source.creators), source.year, source.containerShort || source.containerTitle].filter(Boolean).join(" · "));
+          setAbstract(source.abstract || (source.kind === "web" && source.url !== source.title ? source.url : undefined));
+          if (source.filePath && PREVIEW_KINDS.has(source.kind))
+            void libraryBridge()
+              .thumbnail(source.filePath, 560)
+              .then((url) => current && setPreview(url))
+              .catch(() => {})
+              .finally(() => current && setLoaded(true));
+          else setLoaded(true);
         })
         .catch(() => {});
+    const onSaved = (e: Event) => kind === "note" && (e as CustomEvent<string>).detail === id && loadNote();
+    window.addEventListener("key:note-saved", onSaved);
     return () => {
       current = false;
+      window.removeEventListener("key:note-saved", onSaved);
     };
-  }, [invoke, workspaceId, node.ref.kind, node.ref.id, highlight, live?.title]);
+  }, [invoke, workspaceId, kind, id, highlight, live?.title]);
+  // Highlights and canvases have nothing to load.
+  useEffect(() => {
+    if (highlight || kind === "canvas") setLoaded(true);
+  }, [highlight, kind]);
+  useEffect(() => {
+    const el = card.current;
+    if (!loaded || !onContent || !el) return;
+    // After the editor and any preview image have laid out.
+    const measure = () => {
+      // Where the content ends, in the card's own (unscaled) units, plus its padding and border.
+      const body = el.querySelector<HTMLElement>(".kx-canvas-card-body");
+      const inner = body?.firstElementChild as HTMLElement | null | undefined;
+      const last = [...el.children].filter((c) => !c.classList.contains("kx-canvas-card-bar")).at(-1) as HTMLElement | undefined;
+      const bottom = body && inner ? body.offsetTop + inner.offsetHeight : last ? last.offsetTop + last.offsetHeight : 0;
+      onContent(bottom + 12);
+    };
+    const image = el.querySelector("img");
+    if (image && !image.complete) image.addEventListener("load", measure, { once: true });
+    else requestAnimationFrame(measure);
+  }, [loaded, onContent, preview]);
   const missing = live ? !live.exists : false;
   const title = highlight ? (live?.anchorLabel ?? node.title) : (live?.title ?? node.title);
-  const icon: IconName = highlight ? "quote" : node.ref.kind === "source" ? (SOURCE_ICON[live?.detail ?? node.detail ?? ""] ?? "doc") : ITEM_ICON[node.ref.kind];
-  const kindLabel = highlight ? `Highlight · ${live?.title ?? node.detail ?? ""}` : node.ref.kind === "source" ? "Source" : node.ref.kind === "note" ? "Note" : node.ref.kind === "canvas" ? "Canvas" : "Page";
+  const icon: IconName = highlight ? "quote" : kind === "source" ? (SOURCE_ICON[live?.detail ?? node.detail ?? ""] ?? "doc") : ITEM_ICON[kind];
+  const kindLabel = highlight ? `Highlight · ${live?.title ?? node.detail ?? ""}` : kind === "source" ? "Source" : kind === "note" ? "Note" : kind === "canvas" ? "Canvas" : "Page";
   return (
-    <div className="kx-canvas-card" data-kind={highlight ? "highlight" : node.ref.kind} data-missing={missing || undefined}>
+    <div ref={card} className="kx-canvas-card" data-kind={highlight ? "highlight" : kind} data-missing={missing || undefined}>
       {highlight && <span className="kx-canvas-card-bar" style={{ background: highlightColor(node.color, theme) }} />}
       <div className="kx-canvas-card-kind">
         <Icon name={icon} size={12} />
         <span>{missing ? "Missing — deleted" : kindLabel}</span>
       </div>
-      <div className="kx-canvas-card-title">{title}</div>
+      {title && <div className="kx-canvas-card-title">{title}</div>}
       {meta && <div className="kx-canvas-card-meta">{meta}</div>}
-      {excerpt && <div className="kx-canvas-card-excerpt">{excerpt}</div>}
+      {preview && <img className="kx-canvas-card-preview" src={preview} alt="" draggable={false} />}
+      {(markdown || abstract) && (
+        <div className="kx-canvas-card-body">
+          {markdown !== undefined ? (
+            <NoteEditor
+              readOnly
+              compact
+              value={markdown}
+              onChange={() => {}}
+              searchSources={sources.searchSources}
+              resolveSource={sources.resolveSource}
+              onOpenSource={sources.onOpenSource}
+              media={sources.media}
+              searchItems={sources.searchItems}
+              onOpenItem={sources.onOpenItem}
+              className="kx-canvas-card-note"
+            />
+          ) : (
+            <p className="kx-canvas-card-excerpt">{abstract}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
