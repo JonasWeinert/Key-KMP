@@ -494,40 +494,36 @@ export default function App() {
               setWorkspaces(await api().workspaces());
             }}
           />
-          <nav className="kx-nav" aria-label="Library">
+          <nav className="kx-nav" aria-label="Main">
             {navItem("Home", "home", section === "home", () =>
               action("open-home"),
             )}
-            {navItem("Sources", "books", section === "sources", () =>
-              action("open-content", {
-                section: "sources",
-                workspaceId,
-                projectId,
-              }),
-            )}
-            {navItem(
-              "All items",
-              "layers",
-              section === "records",
-              () =>
-                action("open-content", {
-                  section: "records",
-                  workspaceId,
-                  projectId,
-                }),
-              !workspaceId,
-            )}
           </nav>
           <div className="kx-sidebar-scroll">
-            {workspaceId ? (
-              <CollectionTree
-                invoke={invoke}
-                workspaceId={workspaceId}
-                onShowSources={() =>
-                  action("open-content", { section: "sources", workspaceId })
-                }
-              />
-            ) : (
+            <CollectionTree
+              invoke={invoke}
+              workspaceId={workspaceId}
+              sourcesCurrent={section === "sources"}
+              onShowSources={() =>
+                action("open-content", { section: "sources", workspaceId, projectId })
+              }
+            >
+              <div role="treeitem" aria-level={1} aria-selected={section === "records"}>
+                {navItem(
+                  "All items",
+                  "layers",
+                  section === "records",
+                  () =>
+                    action("open-content", {
+                      section: "records",
+                      workspaceId,
+                      projectId,
+                    }),
+                  !workspaceId,
+                )}
+              </div>
+            </CollectionTree>
+            {!workspaceId && (
               <p className="key-sidebar-hint">
                 Choose a workspace to see its collections and pages.
               </p>
