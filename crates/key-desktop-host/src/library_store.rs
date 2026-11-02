@@ -227,6 +227,7 @@ impl Library {
                 json_output(json!({
                     "analysis": self.store.analysis(&id)?,
                     "references": self.store.references(&id)?,
+                    "citations": self.store.citations(&id)?,
                     "layoutModel": self.indexer.layout_model(),
                     "indexStatus": self.store.source(&id)?.map(|s| s.index_status),
                 }))
@@ -507,13 +508,17 @@ impl Library {
                 document.title = Some(source.title().to_string());
             }
             let pages = document.pages.len();
+            let stored = super::reference_worker::stored_analysis(&self.store, &source.id, &document);
             let generation = companions.storage.begin(hash.to_string(), document);
             companions.storage.set_document_hash(hash, generation, hash.to_string());
+            companions.storage.keep_in_memory(hash, generation);
             let chunks = source.indexed_chunks.max(0) as usize;
             companions.storage.set_semantic_progress(hash, generation, "indexed", chunks, chunks.max(pages));
             // References and citations for the reader; very long documents skip it so the
             // shared PDF engine stays responsive.
-            if pages <= 150 {
+            if let Some((analysis, lookups_pending)) = stored {
+                super::install_stored_companion_analysis(companions.clone(), legacy, hash.to_string(), generation, analysis, lookups_pending);
+            } else if pages <= 150 {
                 super::begin_store_companion_analysis(companions.clone(), native.clone(), legacy, hash.to_string(), path, generation);
             } else {
                 companions.storage.finish(hash, generation);

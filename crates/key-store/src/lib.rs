@@ -5,7 +5,7 @@ mod analysis;
 mod filters;
 mod properties;
 mod search;
-pub use analysis::{ReferenceInput, SourceAnalysis, SourceReference};
+pub use analysis::{CitationInput, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
 pub use filters::{Filter, Suggestion};
 pub use search::{SearchHit, SearchPassage, SearchQuery, SearchResult};
 
@@ -25,6 +25,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/002_properties.sql"),
     include_str!("migrations/003_embedded.sql"),
     include_str!("migrations/004_analysis.sql"),
+    include_str!("migrations/005_citations.sql"),
 ];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the

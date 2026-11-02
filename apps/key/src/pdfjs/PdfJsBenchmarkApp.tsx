@@ -67,6 +67,7 @@ import {
   citationSummary,
   citationTabLabel,
   isScholarlyResourceUrl,
+  isNumberedCitation,
 } from './citation-details';
 import {
   HoverCardBridge,
@@ -2938,7 +2939,9 @@ function PdfJsBenchmarkApp({
               <strong>
                 {citationFocus.citation.numbers.length > 1
                   ? `${citationFocus.citation.numbers.length} cited works`
-                  : `Reference [${citationFocus.citation.numbers[0]}]`}
+                  : isNumberedCitation(citationFocus.citation.source)
+                    ? `Reference [${citationFocus.citation.numbers[0]}]`
+                    : 'Reference'}
               </strong>
               <small>{citationFocus.citation.source}</small>
             </div>
@@ -3445,7 +3448,9 @@ function PdfJsBenchmarkApp({
               <header>
                 <div>
                   <span>
-                    Reference [{selectedActiveCitationNumber}]
+                    {citationFocus && !isNumberedCitation(citationFocus.citation.source)
+                      ? 'Reference'
+                      : `Reference [${selectedActiveCitationNumber}]`}
                     {selectedActiveMetadata
                       ? ` · ${(selectedActiveMetadata.sources?.length
                           ? selectedActiveMetadata.sources

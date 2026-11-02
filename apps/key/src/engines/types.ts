@@ -99,6 +99,8 @@ export interface PaperPreprocessingResult {
     doiEntries: number;
     bracketCitations: number;
     superscriptCitations: number;
+    /** "(Smith et al., 2020)"-style citations matched to an unnumbered reference list. */
+    authorYearCitations?: number;
     concentratedInternalLinks: number;
   };
   processingMs: number;

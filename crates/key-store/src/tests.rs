@@ -258,7 +258,7 @@ fn analysis_keeps_references_with_their_place_and_links_cited_works() {
         .replace_chunks(&citing.id, &[ChunkInput { page: Some(2), text: "Health and income".into(), kind: Some("paragraph".into()), section: Some("1 Introduction".into()), ..Default::default() }])
         .unwrap();
     store.set_analysis(&citing.id, "layout-onnx", Some("# Health versus income\n\nHealth and income"), true).unwrap();
-    assert_eq!(store.next_reference_job(&[]).unwrap(), Some(citing.id.clone()));
+    assert_eq!(store.next_reference_job(&[], 0).unwrap(), Some(citing.id.clone()));
     store
         .replace_references(
             &citing.id,
@@ -279,13 +279,32 @@ fn analysis_keeps_references_with_their_place_and_links_cited_works() {
     let references = store.references(&citing.id).unwrap();
     assert_eq!(references[0].rects, vec![[1, 2, 3, 4]]);
     assert_eq!(references[1].error.as_deref(), Some("Not found"));
-    assert_eq!(store.next_reference_job(&[]).unwrap(), None);
+    assert_eq!(store.next_reference_job(&[], 0).unwrap(), None);
     assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 0, "a PDF without a file is not counted");
+
+    // In-text citations are found with the references; a newer analyser finds them again.
+    assert_eq!(store.next_reference_job(&[], 1).unwrap(), Some(citing.id.clone()), "no citations stored yet");
+    store
+        .replace_citations(
+            &citing.id,
+            1,
+            true,
+            Some(&json!({"bracketCitations": 1})),
+            &[CitationInput { page: 2, start: 10, end: 14, rect: [5, 6, 7, 8], text: "[1, 2]".into(), numbers: vec![1, 2] }],
+        )
+        .unwrap();
+    assert_eq!(store.next_reference_job(&[], 1).unwrap(), None);
+    assert_eq!(store.next_reference_job(&[], 2).unwrap(), Some(citing.id.clone()));
+    let citations = store.citations(&citing.id).unwrap();
+    assert_eq!((citations[0].text.as_str(), citations[0].numbers.clone(), citations[0].rect), ("[1, 2]", vec![1, 2], [5, 6, 7, 8]));
+    let analysis = store.analysis(&citing.id).unwrap().unwrap();
+    assert_eq!((analysis.citations_version, analysis.scientific), (Some(1), Some(true)));
 
     // Running it again starts from scratch.
     store.reanalyze(&citing.id).unwrap();
     assert!(store.analysis(&citing.id).unwrap().is_none());
     assert!(store.references(&citing.id).unwrap().is_empty());
+    assert!(store.citations(&citing.id).unwrap().is_empty());
     assert_eq!(store.source(&citing.id).unwrap().unwrap().index_status, "pending");
     assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 1);
 }

@@ -137,13 +137,15 @@ struct SearchMatchDto {
     bounds: Vec<BoundsDto>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ScientificSignalsDto {
     reference_entries: usize,
     doi_entries: usize,
     bracket_citations: usize,
     superscript_citations: usize,
+    #[serde(default)]
+    author_year_citations: usize,
     concentrated_internal_links: usize,
 }
 
@@ -235,6 +237,8 @@ struct CompanionRecord {
     semantic_error: Option<String>,
     text_pages: Vec<TextPageDto>,
     native_text_ready: bool,
+    /// Not in the legacy library (a key-store PDF): its analysis lives only in memory.
+    in_memory: bool,
     completed_references: usize,
     total_references: usize,
     error: Option<String>,
@@ -282,6 +286,9 @@ trait CompanionStorage: Send + Sync {
     ) -> Result<CompanionSnapshotDto, String>;
     fn list(&self) -> Vec<CompanionSnapshotDto>;
     fn set_document_hash(&self, id: &str, generation: u64, document_hash: String);
+    /// Keeps this companion's analysis in memory instead of the legacy library, which
+    /// doesn't know the document and would refuse to store it.
+    fn keep_in_memory(&self, id: &str, generation: u64);
     fn set_semantic_progress(
         &self,
         id: &str,
@@ -317,6 +324,12 @@ struct MemoryCompanionStorage {
     library: Option<key_library::Library>,
 }
 
+impl MemoryCompanionStorage {
+    fn in_memory(&self, id: &str) -> bool {
+        self.records.lock().is_ok_and(|records| records.get(id).is_some_and(|r| r.in_memory))
+    }
+}
+
 impl CompanionStorage for MemoryCompanionStorage {
     fn begin(&self, id: String, document: DocumentDto) -> u64 {
         let generation = self.next_generation.fetch_add(1, Ordering::Relaxed) + 1;
@@ -340,6 +353,7 @@ impl CompanionStorage for MemoryCompanionStorage {
                     semantic_error: None,
                     text_pages: Vec::new(),
                     native_text_ready: false,
+                    in_memory: false,
                     completed_references: 0,
                     total_references: 0,
                     error: None,
@@ -384,6 +398,16 @@ impl CompanionStorage for MemoryCompanionStorage {
         }
     }
 
+    fn keep_in_memory(&self, id: &str, generation: u64) {
+        if let Ok(mut records) = self.records.lock()
+            && let Some(record) = records
+                .get_mut(id)
+                .filter(|record| record.generation == generation)
+        {
+            record.in_memory = true;
+        }
+    }
+
     fn set_semantic_progress(
         &self,
         id: &str,
@@ -416,7 +440,8 @@ impl CompanionStorage for MemoryCompanionStorage {
             _ => return false,
         };
         let hash = snapshot.document_hash;
-        if let Some(library) = &self.library {
+        let in_memory = self.in_memory(id);
+        if let Some(library) = self.library.as_ref().filter(|_| !in_memory) {
             let persisted = (|| -> Result<(), String> {
                 for page in &text_pages {
                     library.put(
@@ -451,10 +476,10 @@ impl CompanionStorage for MemoryCompanionStorage {
             .filter(|reference| reference.metadata.is_some() || reference.metadata_error.is_some())
             .count();
         record.native_text_ready = !text_pages.is_empty()
-            || (self.library.is_some() && !analysis.document.pages.is_empty());
+            || (self.library.is_some() && !in_memory && !analysis.document.pages.is_empty());
         record.analysis = Some(analysis);
         record.analysis_revision += 1;
-        if self.library.is_none() {
+        if self.library.is_none() || in_memory {
             record.text_pages = text_pages;
         }
         record.stage = if record.total_references == 0 {
@@ -544,7 +569,7 @@ impl CompanionStorage for MemoryCompanionStorage {
     }
 
     fn page(&self, id: &str, page: usize) -> Result<TextPageDto, String> {
-        if let Some(library) = &self.library {
+        if let Some(library) = self.library.as_ref().filter(|_| !self.in_memory(id)) {
             let hash = self.snapshot(id)?.document_hash;
             return library
                 .get(&hash, "native-page", "pdfium-v4", &page.to_string())?
@@ -1042,6 +1067,7 @@ fn preprocessing_dto(
             doi_entries: signals.doi_entries,
             bracket_citations: signals.bracket_citations,
             superscript_citations: signals.superscript_citations,
+            author_year_citations: signals.author_year_citations,
             concentrated_internal_links: signals.concentrated_internal_links,
         },
         processing_ms,
@@ -1533,7 +1559,7 @@ fn begin_background_companion_analysis(
             return;
         }
         enrichment_scheduler().submit(id.clone(), "references", 0, move || {
-            enrich_reference_metadata_streaming(&store, &native_library, &id, generation, &mut references);
+            enrich_reference_metadata_streaming(&store, &native_library, &id, generation, &mut references, true);
             let Ok(snapshot) = store.storage.snapshot(&id) else {
                 return;
             };
@@ -1584,9 +1610,33 @@ fn begin_store_companion_analysis(
             return store.storage.finish(&hash, generation);
         }
         enrichment_scheduler().submit(hash.clone(), "references", 0, move || {
-            enrich_reference_metadata_streaming(&store, &library, &hash, generation, &mut references);
+            // The legacy library only lends its lookup cache: this document isn't in it.
+            enrich_reference_metadata_streaming(&store, &library, &hash, generation, &mut references, false);
             store.storage.finish(&hash, generation);
         });
+    });
+}
+
+/// Reader analysis for a library PDF from what the reference worker stored: nothing is
+/// analysed again, and only references still waiting for their lookup are looked up.
+fn install_stored_companion_analysis(
+    store: CompanionStore,
+    library: key_library::Library,
+    hash: String,
+    generation: u64,
+    analysis: PaperPreprocessingDto,
+    lookups_pending: bool,
+) {
+    let mut references = analysis.references.clone();
+    if !store.storage.install_local_analysis(&hash, generation, analysis, Vec::new()) {
+        return;
+    }
+    if !lookups_pending || references.is_empty() {
+        return store.storage.finish(&hash, generation);
+    }
+    enrichment_scheduler().submit(hash.clone(), "references", 0, move || {
+        enrich_reference_metadata_streaming(&store, &library, &hash, generation, &mut references, false);
+        store.storage.finish(&hash, generation);
     });
 }
 
@@ -2263,6 +2313,7 @@ fn enrich_reference_metadata_streaming(
     id: &str,
     generation: u64,
     references: &mut [ScientificReferenceDto],
+    persist: bool,
 ) {
     // A fixed number of coordinators; queued documents never retain a thread per citation.
     let jobs = references.to_vec();
@@ -2287,7 +2338,7 @@ fn enrich_reference_metadata_streaming(
                 }
                 if !matches!(store.storage.snapshot(id), Ok(s) if s.generation == generation) { break; }
                 // Commit each citation before publishing progress; restart can reuse its cache entry.
-                if let Err(error) = library.store_reference(id, ordinal, &reference) {
+                if persist && let Err(error) = library.store_reference(id, ordinal, &reference) {
                     store.storage.fail(id, generation, error); break;
                 }
                 store.storage.update_reference(id, generation, reference);
@@ -2777,6 +2828,7 @@ mod tests {
                 doi_entries: 0,
                 bracket_citations: 0,
                 superscript_citations: 0,
+                author_year_citations: 0,
                 concentrated_internal_links: 0,
             },
             processing_ms: 1.0,

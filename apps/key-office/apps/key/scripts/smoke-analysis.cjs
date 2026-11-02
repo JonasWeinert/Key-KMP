@@ -2,7 +2,8 @@
 // Importing a paper analyses it in the background: layout analysis (with the layout model)
 // becomes its searchable text and Markdown, then its references are found and looked up.
 // The reader's References panel shows how far that got and can run it again; Settings
-// turns the layout model off; "Show in PDF" on a highlight goes there without a search bar.
+// turns the layout model off; in-text citations are stored and the reader shows them
+// without analysing the PDF again; "Show in PDF" on a highlight goes there without a search bar.
 const { _electron: electron } = require("playwright-core");
 const { mkdtemp, readFile, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
@@ -55,6 +56,11 @@ const assert = require("node:assert/strict");
     }, 300);
     console.log("references", done.analysis.referencesStatus, done.analysis.referencesTotal, done.analysis.referencesMatched);
     if (done.analysis.referencesStatus === "done") assert.equal(done.references.length, done.analysis.referencesTotal);
+    // The in-text citations are stored with the references, each naming entries in the list.
+    assert.equal(done.analysis.citationsVersion, 1);
+    assert.ok(done.citations.length > 0, "in-text citations are stored");
+    const numbers = new Set(done.references.map((r) => r.number));
+    assert.ok(done.citations.every((c) => c.numbers.length && c.numbers.every((n) => numbers.has(n))), "every citation names a stored reference");
 
     // The reader's References panel says what happened and can run it again.
     await call("library_save_annotations", {
@@ -66,6 +72,15 @@ const assert = require("node:assert/strict");
     let reader;
     await until("reader", async () => (reader = app.windows().find((w) => w.url().endsWith("/pdf.html"))));
     await reader.waitForFunction(() => window.__PDFJS_READY__ === true);
+    // Opening it shows the stored citations; it isn't analysed again.
+    const companion = await until("reader analysis", async () => {
+      const [c] = await page.evaluate((id) => window.key.invoke("pdfjs_companion_list", {}, id), ws.id);
+      const s = c && (await page.evaluate(({ hash, id }) => window.key.invoke("pdfjs_companion_snapshot", { id: hash }, id), { hash: c.documentHash, id: ws.id }));
+      return s?.analysis && s;
+    });
+    assert.equal(companion.analysis.processingMs, 0, "built from the store");
+    assert.equal(companion.analysis.citations.length, done.citations.length);
+    await reader.locator(".pdfjs-link-overlay.citation").first().waitFor();
     await reader.getByRole("button", { name: "References" }).click();
     const status = reader.locator(".key-pdf-analysis");
     await status.waitFor();

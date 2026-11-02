@@ -1,3 +1,4 @@
+use crate::author_year::{AuthorYear, author_year_citations, entry_key, unnumbered_reference_entries, UnnumberedEntry};
 use crate::model::{PdfLink, PdfLinkTarget, TextBounds, TextLayer};
 use crate::search::text_runs_for_range;
 use crate::search::{SearchPageOutcome, SearchQuery, search_page};
@@ -15,6 +16,7 @@ pub struct ScientificSignals {
     pub doi_entries: usize,
     pub bracket_citations: usize,
     pub superscript_citations: usize,
+    pub author_year_citations: usize,
     pub concentrated_internal_links: usize,
 }
 
@@ -125,6 +127,7 @@ type ReferenceEntry = ScientificReference;
 enum CitationKind {
     Bracket,
     Superscript,
+    AuthorYear,
 }
 
 #[derive(Clone, Debug)]
@@ -136,6 +139,8 @@ struct CitationCandidate {
     source: String,
     numbers: Vec<u32>,
     kind: CitationKind,
+    /// Author–year citations name their references; `finish` turns these into numbers.
+    keys: Vec<AuthorYear>,
 }
 
 pub struct ScientificAnalyzer {
@@ -145,6 +150,8 @@ pub struct ScientificAnalyzer {
     reference_heading: Option<(usize, usize)>,
     references: BTreeMap<u32, ReferenceEntry>,
     provisional_references: BTreeMap<u32, ReferenceEntry>,
+    /// Entries without numbers, used when the list isn't numbered (author–year styles).
+    unnumbered: Vec<UnnumberedEntry>,
     citations: Vec<CitationCandidate>,
     existing_links: Vec<PdfLink>,
     concentrated_internal_links: usize,
@@ -186,6 +193,7 @@ impl ScientificAnalyzer {
             reference_heading: None,
             references: BTreeMap::new(),
             provisional_references: BTreeMap::new(),
+            unnumbered: Vec::new(),
             citations: Vec::new(),
             existing_links: existing_links.to_vec(),
             concentrated_internal_links,
@@ -198,7 +206,9 @@ impl ScientificAnalyzer {
     }
 
     pub fn ingest_page(&mut self, page: usize, text: &TextLayer) {
-        let heading = find_reference_heading(page, text);
+        // One reference list per document: a later match elsewhere is ordinary text.
+        let heading = find_reference_heading(page, text)
+            .filter(|_| self.reference_heading.is_none_or(|(heading_page, _)| heading_page == page));
         if let Some(heading_start) = heading {
             if self.reference_heading.is_none() {
                 self.reference_heading = Some((page, heading_start));
@@ -206,6 +216,7 @@ impl ScientificAnalyzer {
             }
             self.collect_citations(page, text, 0, heading_start);
             self.collect_references(page, text, heading_start, false);
+            self.unnumbered.extend(unnumbered_reference_entries(page, text, heading_start));
             return;
         }
 
@@ -214,6 +225,7 @@ impl ScientificAnalyzer {
             .is_some_and(|(heading_page, _)| page > heading_page)
         {
             self.collect_references(page, text, 0, false);
+            self.unnumbered.extend(unnumbered_reference_entries(page, text, 0));
         } else {
             self.collect_citations(page, text, 0, text.len());
             if page >= self.tail_start {
@@ -227,6 +239,40 @@ impl ScientificAnalyzer {
             && sequential_reference_count(&self.provisional_references) >= 5
         {
             self.references = std::mem::take(&mut self.provisional_references);
+        }
+        self.drop_running_headers();
+        // An author–year list read as numbered gives a few stray "numbers" (volumes, pages,
+        // line-leading years) that don't run in sequence; its entries read without numbers
+        // are then many more.
+        let numbered = self.references.len();
+        let unnumbered = self.unnumbered.len() >= 3
+            && (numbered < 3
+                || sequential_reference_count(&self.references) * 2 < numbered
+                || self.unnumbered.len() > numbered * 2);
+        if unnumbered {
+            // Numbers in the text (footnote marks, superscripts) don't point into this list.
+            self.citations.retain(|citation| citation.kind == CitationKind::AuthorYear);
+            let mut entries = std::mem::take(&mut self.unnumbered);
+            entries.sort_by_key(|entry| entry.page);
+            self.references = entries
+                .into_iter()
+                .take(MAX_REFERENCE_ENTRIES)
+                .zip(1u32..)
+                .map(|(entry, number)| {
+                    (number, ReferenceEntry {
+                        number,
+                        page: entry.page,
+                        x_fraction: entry.x_fraction,
+                        y_fraction: entry.y_fraction,
+                        text: entry.text,
+                        text_runs: entry.text_runs,
+                    })
+                })
+                .collect();
+            self.resolve_author_year();
+        } else {
+            // A numbered list is cited by number; names and years in the text are prose.
+            self.citations.retain(|citation| citation.kind != CitationKind::AuthorYear);
         }
         let doi_entries = self
             .references
@@ -244,16 +290,23 @@ impl ScientificAnalyzer {
             .iter()
             .filter(|citation| citation.kind == CitationKind::Superscript)
             .count();
+        let author_year_citations = self
+            .citations
+            .iter()
+            .filter(|citation| citation.kind == CitationKind::AuthorYear)
+            .count();
         let signals = ScientificSignals {
             reference_entries: self.references.len(),
             doi_entries,
             bracket_citations,
             superscript_citations,
+            author_year_citations,
             concentrated_internal_links: self.concentrated_internal_links,
         };
         let reference_evidence = self.reference_heading.is_some() || signals.reference_entries >= 5;
         let citation_evidence = signals.bracket_citations >= 4
             || signals.superscript_citations >= 4
+            || signals.author_year_citations >= 4
             || signals.concentrated_internal_links >= 6;
         let bibliographic_evidence = signals.reference_entries >= 8 || signals.doi_entries >= 2;
         let is_scientific = self.page_count >= 2
@@ -281,6 +334,66 @@ impl ScientificAnalyzer {
             references,
             signals,
         }
+    }
+
+    /// A page header such as "Pers Ubiquit Comput (2023)" reads like a citation and, on
+    /// the reference pages, like an entry. The same text at the same height near the top or
+    /// bottom of three or more pages is a running header: it is neither.
+    fn drop_running_headers(&mut self) {
+        let mut places: BTreeMap<&str, Vec<(usize, f32)>> = BTreeMap::new();
+        for citation in self.citations.iter().filter(|c| c.kind == CitationKind::AuthorYear) {
+            let top = citation.bounds.top;
+            if top < 0.12 || top > 0.88 {
+                places.entry(citation.source.as_str()).or_default().push((citation.page, top));
+            }
+        }
+        let headers = places
+            .into_iter()
+            .filter(|(_, places)| {
+                places.iter().any(|(_, top)| {
+                    let mut pages = places.iter().filter(|(_, other)| (other - top).abs() < 0.02).map(|(page, _)| *page).collect::<Vec<_>>();
+                    pages.dedup();
+                    pages.len() >= 3
+                })
+            })
+            .map(|(source, _)| source.to_owned())
+            .collect::<Vec<_>>();
+        if headers.is_empty() {
+            return;
+        }
+        self.citations
+            .retain(|c| c.kind != CitationKind::AuthorYear || !headers.contains(&c.source));
+        self.unnumbered
+            .retain(|entry| !headers.iter().any(|header| entry.text.starts_with(header.as_str())));
+    }
+
+    /// Gives author–year citations the numbers of the entries they name, by first author and
+    /// year (and the second author, when that settles a tie). Unmatched ones are dropped.
+    fn resolve_author_year(&mut self) {
+        let keys = self
+            .references
+            .values()
+            .filter_map(|entry| entry_key(&entry.text).map(|key| (entry.number, key)))
+            .collect::<Vec<_>>();
+        for citation in self.citations.iter_mut().filter(|c| c.kind == CitationKind::AuthorYear) {
+            let mut numbers = Vec::new();
+            for key in &citation.keys {
+                let matched = keys.iter().filter(|(_, entry)| key.cites(entry)).collect::<Vec<_>>();
+                let both = matched
+                    .iter()
+                    .filter(|(_, entry)| key.second.is_some() && entry.second == key.second)
+                    .copied()
+                    .collect::<Vec<_>>();
+                for (number, _) in if both.is_empty() { matched } else { both }.into_iter().take(4) {
+                    if !numbers.contains(number) {
+                        numbers.push(*number);
+                    }
+                }
+            }
+            citation.numbers = numbers;
+        }
+        self.citations
+            .retain(|citation| citation.kind != CitationKind::AuthorYear || !citation.numbers.is_empty());
     }
 
     fn collect_references(
@@ -321,6 +434,19 @@ impl ScientificAnalyzer {
                 .into_iter()
                 .take(MAX_SYNTHETIC_LINKS.saturating_sub(self.citations.len())),
         );
+        let room = MAX_SYNTHETIC_LINKS.saturating_sub(self.citations.len());
+        self.citations.extend(author_year_citations(page, text, start, end).into_iter().take(room).map(|candidate| {
+            CitationCandidate {
+                page: candidate.page,
+                start: candidate.start,
+                end: candidate.end,
+                bounds: candidate.bounds,
+                source: candidate.source,
+                numbers: Vec::new(),
+                kind: CitationKind::AuthorYear,
+                keys: candidate.keys,
+            }
+        }));
     }
 
     fn synthetic_links(&self, include_superscripts: bool) -> Vec<PdfLink> {
@@ -429,6 +555,22 @@ fn find_reference_heading(page: usize, text: &TextLayer) -> Option<usize> {
             continue;
         };
         if let Some(result) = results.matches.into_iter().find(|result| {
+            // A whole word: not the end of "preferences".
+            let alone = |index: Option<&crate::model::TextChar>| index.is_none_or(|c| !c.value.is_alphabetic());
+            if !alone(result.id.start.checked_sub(1).and_then(|i| text.get(i))) || !alone(text.get(result.id.end + 1)) {
+                return false;
+            }
+            // A heading on a line of its own ("REFERENCES", "7. References"), wherever the
+            // column is.
+            let line_before = text[..result.id.start].iter().rev().take_while(|c| !matches!(c.value, '\n' | '\r'));
+            let line_after = text[(result.id.end + 1).min(text.len())..].iter().take_while(|c| !matches!(c.value, '\n' | '\r'));
+            if line_before.clone().count() <= 6
+                && line_before.clone().all(|c| !c.value.is_alphabetic())
+                && line_after.clone().all(|c| c.value.is_whitespace())
+                && line_after.count() < 4
+            {
+                return true;
+            }
             let before = &text[..result.id.start];
             before
                 .iter()
@@ -611,6 +753,7 @@ fn bracket_citations(
                 source,
                 numbers,
                 kind: CitationKind::Bracket,
+                keys: Vec::new(),
             });
         }
     }
@@ -691,6 +834,7 @@ fn superscript_citations(
                 source,
                 numbers,
                 kind: CitationKind::Superscript,
+                keys: Vec::new(),
             });
         }
     }
@@ -947,6 +1091,43 @@ mod tests {
                 .iter()
                 .all(|link| { matches!(link.target, PdfLinkTarget::Internal { page: 2, .. }) })
         );
+    }
+
+    #[test]
+    fn author_year_papers_link_citations_to_unnumbered_entries() {
+        let references = text_layer(&[
+            ("References", 0.05, 0.05, 0.02),
+            ("Adams, R., & Brown, T. (2018). A first title. Journal, 1, 2.", 0.05, 0.10, 0.02),
+            ("Chen, L. (2020a). A second title. Press.", 0.05, 0.14, 0.02),
+            ("Chen, L. (2020b). A third title. Press.", 0.05, 0.18, 0.02),
+            ("Diaz, M., Evans, P., & Fox, S. (2019). A fourth title. Journal.", 0.05, 0.22, 0.02),
+        ]);
+        let body = text_layer(&[
+            ("Earlier work (Adams & Brown, 2018; Chen, 2020b) found this.", 0.05, 0.10, 0.02),
+            ("Diaz et al. (2019) disagree, as did Chen (2020a).", 0.05, 0.14, 0.02),
+            ("Nobody (Unknown, 2017) is cited without an entry.", 0.05, 0.18, 0.02),
+        ]);
+        let mut analyzer = ScientificAnalyzer::new(2, &[]);
+        analyzer.ingest_page(1, &references);
+        analyzer.ingest_page(0, &body);
+        let analysis = analyzer.finish();
+        assert_eq!(analysis.references.len(), 4);
+        assert!(analysis.references[1].text.starts_with("Chen, L. (2020a)"));
+        assert_eq!(analysis.signals.author_year_citations, 4);
+        assert!(analysis.is_scientific);
+        let cited = analysis.citations.iter().map(|c| (c.source.as_str(), c.numbers.clone())).collect::<Vec<_>>();
+        assert_eq!(cited, vec![("Adams & Brown, 2018", vec![1]), ("Chen, 2020b", vec![3]), ("Diaz et al. (2019)", vec![4]), ("Chen (2020a)", vec![2])]);
+    }
+
+    #[test]
+    fn the_reference_heading_is_a_whole_word() {
+        let text = text_layer(&[("preferences for masks", 0.05, 0.05, 0.02), ("8.2.6 | Face mask efficacy", 0.05, 0.1, 0.02)]);
+        assert_eq!(find_reference_heading(5, &text), None);
+        let text = text_layer(&[("REFERENCES", 0.05, 0.05, 0.02), ("Arndt, J. (2004). Title.", 0.05, 0.1, 0.02)]);
+        assert!(find_reference_heading(9, &text).is_some());
+        // In the right column, after the left column's last line.
+        let text = text_layer(&[("ceiling effects in the measure (M = 7.9).", 0.52, 0.05, 0.02), ("REFERENCES", 0.52, 0.08, 0.02), ("Arndt, J. (2007).", 0.52, 0.1, 0.02)]);
+        assert!(find_reference_heading(9, &text).is_some());
     }
 
     #[test]
