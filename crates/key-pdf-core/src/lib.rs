@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 pub mod annotations;
+mod author_year;
 pub mod document_jump;
 pub mod link_resolution;
 pub mod model;

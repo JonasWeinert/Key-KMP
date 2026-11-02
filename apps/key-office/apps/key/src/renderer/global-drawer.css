@@ -1,0 +1,75 @@
+.key-global-drawer-scrim {
+  position: fixed;
+  inset: 40px 0 0;
+  z-index: 1000;
+  border: 0;
+  background: #0003;
+  backdrop-filter: blur(3px);
+  cursor: default;
+}
+.key-global-drawer {
+  position: fixed;
+  left: 0;
+  top: 40px;
+  bottom: 0;
+  z-index: 1001;
+  width: min(480px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #fff);
+  color: var(--text-primary, #232425);
+  box-shadow: 12px 0 48px #0002;
+  border-right: 1px solid var(--border, #e3e6ea);
+  overflow: hidden;
+  font: 13px var(--gs-font-sans, Arial, sans-serif);
+}
+.key-native-overlay-frame {
+  position: fixed;
+  z-index: 900;
+  pointer-events: none;
+  object-fit: fill;
+}
+.key-drawer-slides {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.key-drawer-slide {
+  background: var(--surface, #fff);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.key-global-drawer .key-agent-fill-dialog {
+  flex: 1;
+  width: 100% !important;
+  max-height: none !important;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px 24px;
+  overflow: auto;
+}
+.key-global-drawer .key-agent-fill-dialog fieldset {
+  margin: 20px 0;
+}
+.key-property-name-link {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  max-width: calc(100% - 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.key-property-name-link:hover {
+  color: var(--text-primary, #232425);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

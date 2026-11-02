@@ -1,0 +1,171 @@
+{
+  "date": "2026-09-13",
+  "platform": "macOS arm64 Electron",
+  "unit_tests": {
+    "frontend": 46,
+    "attribute_backend": 4,
+    "passed": true
+  },
+  "checks": {
+    "search_preview_packaged": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-search-preview-BauSFE",
+      "tabCount": 2,
+      "native": [
+        {
+          "x": 843,
+          "y": 80,
+          "width": 597,
+          "height": 808
+        }
+      ],
+      "queryRetained": true,
+      "previewReplaced": true
+    },
+    "record_properties_packaged": {
+      "passed": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-piZTz2",
+      "noteId": "015de9dc034932c5e2bdb656b09ba875c3101beec2ca327ddbc7417778a066a2",
+      "typedProperties": true,
+      "canonicalReopen": true,
+      "renamePreservesUnsavedDraft": true,
+      "formulaExplicitMaterialization": true,
+      "agentRecipeRestored": true,
+      "providerRequests": 0,
+      "errors": [],
+      "screenshots": [
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-piZTz2/typed-record.png",
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-piZTz2/saved-agent-recipe.png"
+      ]
+    },
+    "tab_drops": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-tab-drops-ROEnaq",
+      "evidence": [
+        {
+          "action": "Release to split",
+          "feedback": "\u25eb Release to split side by side\nEsc to cancel",
+          "splitTargets": 1,
+          "swapTargets": 0
+        },
+        {
+          "action": "Release to swap",
+          "feedback": "\u21c4 Release to swap with this pane\nEsc to cancel",
+          "splitTargets": 0,
+          "swapTargets": 1
+        },
+        {
+          "action": "Release to swap",
+          "feedback": "\u21c4 Release to swap with this pane\nEsc to cancel",
+          "splitTargets": 0,
+          "swapTargets": 1
+        },
+        {
+          "action": "Release to split",
+          "feedback": "\u25eb Release to split side by side\nEsc to cancel",
+          "splitTargets": 1,
+          "swapTargets": 0
+        }
+      ],
+      "ownedViews": 4,
+      "verified": [
+        "split feedback before rearrangement",
+        "original far-edge reorder in both directions",
+        "singleton split",
+        "armed swap cancellation",
+        "selected-half swap",
+        "vertical pane detach",
+        "keyboard detach"
+      ]
+    },
+    "tab_release": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-tabs-dCeZ0P",
+      "frames": 30,
+      "maximumNeighbourMovementPx": 0,
+      "nativeBoundsChecks": 4
+    },
+    "global_property_drawer_packaged": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-global-property-38W0pX",
+      "globalBounds": {
+        "x": -0.9049440026283264,
+        "y": 40,
+        "width": 480.0000062584877,
+        "height": 848
+      },
+      "nativeLayering": true,
+      "tabSwitchPreservesProperty": true,
+      "agentDraftPreserved": true,
+      "nativeViewsRestored": true
+    },
+    "motion_table": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-motion-table-k8XwKk",
+      "totalRows": 80,
+      "mountedRows": 18,
+      "selectAll": true,
+      "scrollToEnd": true,
+      "columnReorder": true,
+      "resizePersisted": true
+    },
+    "record_properties_global_drawer": {
+      "passed": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-tz7YNz",
+      "noteId": "c1954ce14686dea1bfe54160388c8e96e944bb6afd802d4313089009fc01f0eb",
+      "typedProperties": true,
+      "canonicalReopen": true,
+      "renamePreservesUnsavedDraft": true,
+      "formulaExplicitMaterialization": true,
+      "agentRecipeRestored": true,
+      "providerRequests": 0,
+      "errors": [],
+      "screenshots": [
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-tz7YNz/typed-record.png",
+        "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-record-properties-tz7YNz/saved-agent-recipe.png"
+      ]
+    },
+    "search_preview_motion_table": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-search-preview-pMODau",
+      "tabCount": 2,
+      "native": [
+        {
+          "x": 843,
+          "y": 80,
+          "width": 597,
+          "height": 808
+        }
+      ],
+      "queryRetained": true,
+      "previewReplaced": true
+    },
+    "motion_components_build": {
+      "typecheck": true,
+      "frontendTestsPassed": 46,
+      "macArm64Package": true,
+      "beuiLicenseBundled": true
+    },
+    "motion_table_packaged": {
+      "ok": true,
+      "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-motion-table-DATfpR",
+      "totalRows": 80,
+      "mountedRows": 18,
+      "selectAll": true,
+      "scrollToEnd": true,
+      "columnReorder": true,
+      "successiveQuickDrags": 6,
+      "resizePersisted": true
+    }
+  },
+  "typecheck": true,
+  "build": true,
+  "packaged": true,
+  "visual_review": [
+    "Property editor and manager",
+    "Agent recipe spacing and controls",
+    "Source metadata and independently scrolling results",
+    "Shared navigation and highlighted native PDF",
+    "Drag target outline and native-safe chrome hint"
+  ]
+}

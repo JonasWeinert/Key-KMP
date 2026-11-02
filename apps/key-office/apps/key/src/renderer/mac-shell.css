@@ -1,0 +1,10 @@
+/* Keep the metadata summary usable above results in a split pane. */
+@container (max-width: 720px) {
+  .key-ui-root .key-search-metadata { padding: 10px 20px; }
+  .key-ui-root .key-search-metadata > header { min-height: 24px; margin: 0; font-size: 11px; }
+  .key-ui-root .key-search-metadata h2 { font-size: 14px; margin: 5px 0; }
+  .key-ui-root .key-search-metadata dl { margin: 6px 0; gap: 6px 16px; }
+  .key-ui-root .key-search-metadata dl > div { display: flex; gap: 5px; padding: 0; }
+  .key-ui-root .key-search-metadata :is(dt, dd) { font-size: 11px; }
+  .key-ui-root .key-search-metadata .kui-button { min-height: 24px; padding: 2px 7px; font-size: 11px; border-radius: 5px; }
+}

@@ -10,7 +10,7 @@ const resultPath = path.resolve(
 );
 const repetitions = Number(process.argv[4] ?? 3);
 const binary = path.resolve(
-  'src-tauri/target/release/bundle/macos/Key.app/Contents/MacOS/key',
+  process.env.KEY_BENCHMARK_BINARY ?? 'src-tauri/target/release/bundle/macos/Key.app/Contents/MacOS/key',
 );
 const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
@@ -91,19 +91,20 @@ for (let run = 1; run <= repetitions; run += 1) {
   const helperSeeds = new Set([child.pid]);
   let phase = 'startup';
   let benchmark;
+  let semanticIndexStats;
   let errorOutput = '';
   let sampling = true;
-  let buffer = '';
+  const buffers = { stdout: '', stderr: '' };
   let reportResolve;
   let reportReject;
   const report = new Promise((resolve, reject) => {
     reportResolve = resolve;
     reportReject = reject;
   });
-  const parse = chunk => {
-    buffer += String(chunk);
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+  const parse = (stream, chunk) => {
+    buffers[stream] += String(chunk);
+    const lines = buffers[stream].split('\n');
+    buffers[stream] = lines.pop() ?? '';
     for (const line of lines) {
       const phaseMatch = line.match(/^\[key-benchmark-phase\] (.+)$/);
       if (phaseMatch) {
@@ -119,13 +120,23 @@ for (let run = 1; run <= repetitions; run += 1) {
         } catch (error) {
           reportReject(error);
         }
-      } else if (line.trim()) {
-        errorOutput += `${line}\n`;
+      } else {
+        const semanticMatch = line.match(/^\[key-semantic-index-stats\] (.+)$/);
+        if (semanticMatch) {
+          try {
+            semanticIndexStats = JSON.parse(semanticMatch[1]);
+          } catch (error) {
+            reportReject(error);
+          }
+        } else if (line.trim()) {
+          errorOutput += `${line}\n`;
+        }
       }
     }
   };
-  child.stdout.on('data', parse);
-  child.stderr.on('data', parse);
+  child.stdout.on('data', chunk => parse('stdout', chunk));
+  child.stderr.on('data', chunk => parse('stderr', chunk));
+  child.on('error', reportReject);
   child.on('exit', code => {
     if (!benchmark) reportReject(new Error(`Tauri benchmark exited with ${code}\n${errorOutput}`));
   });
@@ -151,34 +162,58 @@ for (let run = 1; run <= repetitions; run += 1) {
         rssMiB: tree.reduce((sum, process) => sum + process.rssKiB, 0) / 1024,
         cpuPercent: tree.reduce((sum, process) => sum + process.cpuPercent, 0),
         processCount: tree.length,
-        processes: tree.map(({ pid, ppid, command }) => ({ pid, ppid, command })),
+        processes: tree.map(({ pid, ppid, command, rssKiB, cpuPercent }) => ({
+          pid,
+          ppid,
+          command,
+          rssMiB: rssKiB / 1024,
+          cpuPercent,
+        })),
       });
       await sleep(50);
     }
   })();
 
-  await sleep(200);
-  spawnSync('osascript', [
-    '-e',
-    `tell application "System Events" to set frontmost of first process whose unix id is ${child.pid} to true`,
-  ]);
-  await Promise.race([
-    report,
-    sleep(60_000).then(() => {
-      throw new Error(`Tauri benchmark timed out\n${errorOutput}`);
-    }),
-  ]);
-  await sleep(600);
-  sampling = false;
-  await sampler;
-  child.kill('SIGTERM');
-  await new Promise(resolve => child.once('exit', resolve));
-  child.stdout.destroy();
-  child.stderr.destroy();
+  try {
+    await Promise.race([
+      report,
+      sleep(60_000).then(() => {
+        throw new Error(`Tauri benchmark timed out during ${phase}\n${errorOutput}`);
+      }),
+    ]);
+    const indexDeadline = Date.now() + 60_000;
+    while (!semanticIndexStats && Date.now() < indexDeadline) await sleep(100);
+    if (!semanticIndexStats) {
+      child.kill('SIGTERM');
+      sampling = false;
+      await sampler;
+      throw new Error(`Index publication did not finish before the benchmark deadline\n${errorOutput}`);
+    }
+    await sleep(600);
+  } finally {
+    sampling = false;
+    await sampler;
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise(resolve => child.once('exit', resolve));
+      child.kill('SIGTERM');
+      let timer;
+      try {
+        await Promise.race([exited, new Promise(resolve => { timer = setTimeout(resolve, 5_000); })]);
+        if (child.exitCode === null && child.signalCode === null) { child.kill('SIGKILL'); await exited; }
+      } finally { clearTimeout(timer); }
+    }
+    child.stdout.destroy();
+    child.stderr.destroy();
+  }
 
+  const peakSample = samples.reduce(
+    (peak, sample) => (sample.rssMiB > peak.rssMiB ? sample : peak),
+    samples[0],
+  );
   runs.push({
     run,
     benchmark,
+    semanticIndexStats,
     resources: Object.fromEntries(
       [
         'baseline-ready',
@@ -191,6 +226,7 @@ for (let run = 1; run <= repetitions; run += 1) {
       ].map(name => [name, summarize(samples, name)]),
     ),
     peakProcessCount: Math.max(...samples.map(sample => sample.processCount)),
+    peakProcesses: peakSample.processes,
     processNames: [
       ...new Set(samples.flatMap(sample => sample.processes.map(process => process.command))),
     ],
@@ -202,7 +238,9 @@ const output = {
   schemaVersion: 1,
   fixture: pdfPath,
   repetitions,
-  environment: 'Tauri 2 release bundle, macOS WebKit, PDF.js frontend + disposable PDFium preprocessing sidecar',
+  powerSettings: process.platform === 'darwin' ? spawnSync('pmset', ['-g', 'custom'], { encoding: 'utf8' }).stdout : null,
+  powerSource: process.platform === 'darwin' ? spawnSync('pmset', ['-g', 'batt'], { encoding: 'utf8' }).stdout : null,
+  environment: `Tauri 2 ${binary.includes('/debug/') ? 'debug' : 'release'} bundle, macOS WebKit, canonical SQLite pipeline`,
   medians: {
     loadTotalMs: median(runs.map(run => run.benchmark.loadMs)),
     featureSetupMs: median(runs.map(run => run.benchmark.featureSetupMs)),

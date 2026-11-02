@@ -1,0 +1,143 @@
+.key-record-properties {
+  margin: 20px 0;
+  border-top: 1px solid var(--border, #e6e6e6);
+  padding-top: 16px;
+  max-width: 860px;
+}
+.key-record-properties header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.key-record-properties h3 {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+.key-record-properties header p,
+.key-record-property-empty {
+  font-size: 12px;
+  color: var(--muted-foreground, #777);
+  margin: 0;
+}
+.key-record-property-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) 28px;
+  gap: 12px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border, #ececec);
+}
+.key-record-property-row > label {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.key-record-property-row small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted-foreground, #777);
+  margin-top: 3px;
+}
+.key-record-properties .key-record-property-value input:not([type="checkbox"]),
+.key-record-properties select,
+.key-record-property-add input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: var(--background, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.key-record-properties input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary, #444);
+}
+.key-record-property-add {
+  display: grid;
+  grid-template-columns: 1fr 130px auto;
+  gap: 8px;
+  padding: 8px 0 14px;
+}
+.key-record-properties button {
+  white-space: nowrap;
+  font-size: 12px;
+}
+.key-record-property-clear {
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground, #777);
+  font-size: 18px !important;
+  padding: 3px;
+}
+.key-record-property-clear:hover {
+  background: var(--muted, #eee);
+  border-radius: 4px;
+}
+.key-record-property-value pre {
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.key-record-formula {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.key-record-formula code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.key-record-formula output {
+  font-size: 13px;
+  font-weight: 500;
+}
+.key-record-formula small {
+  flex-basis: 100%;
+}
+@media (max-width: 600px) {
+  .key-record-property-row {
+    grid-template-columns: 100px minmax(0, 1fr) 24px;
+    gap: 8px;
+  }
+  .key-record-property-add {
+    grid-template-columns: 1fr 100px auto;
+  }
+}
+.key-record-properties .key-record-property-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  white-space: normal;
+  color: inherit;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.key-record-property-name:hover {
+  text-decoration: underline;
+}
+.key-record-properties header p {
+  max-width: 460px;
+  line-height: 1.5;
+}
+.key-record-properties button {
+  font-family: inherit;
+  padding: 6px 9px;
+  border: 1px solid var(--border, #e5e5e5);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.key-record-properties button:hover { background: var(--surface-subtle, #f5f5f5); }
+.key-record-properties .key-record-property-clear { border: 0; padding: 3px; }

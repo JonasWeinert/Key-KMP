@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"],
+    "paths": {
+      "@key-reader/*": ["../../../key/src/*"]
+    }
+  },
+  "include": ["src", "electron.vite.config.ts"]
+}

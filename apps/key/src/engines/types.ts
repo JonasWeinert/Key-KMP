@@ -99,19 +99,75 @@ export interface PaperPreprocessingResult {
     doiEntries: number;
     bracketCitations: number;
     superscriptCitations: number;
+    /** "(Smith et al., 2020)"-style citations matched to an unnumbered reference list. */
+    authorYearCitations?: number;
     concentratedInternalLinks: number;
   };
   processingMs: number;
 }
 
+export interface CompactSemanticRect {
+  /** Normalized page-local values quantized to 0..65535. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SemanticSentence {
+  start: number;
+  end: number;
+  text: string;
+  rects: CompactSemanticRect[];
+}
+
+export interface SemanticBlock {
+  kind: string;
+  text: string;
+  bounds: CompactSemanticRect;
+  sentences: SemanticSentence[];
+}
+
+export interface SemanticPage {
+  page: number;
+  width: number;
+  height: number;
+  blocks: SemanticBlock[];
+}
+
+export interface SemanticDocument {
+  version: number;
+  documentHash: string;
+  pageCount: number;
+  onnxEnabled: boolean;
+  processingMs: number;
+  pages: SemanticPage[];
+}
+
 export type CompanionStage = 'analyzing' | 'enriching' | 'ready' | 'failed';
+
+export type SemanticStatus =
+  | 'no_text'
+  | 'pending'
+  | 'processing'
+  | 'indexing'
+  | 'indexed'
+  | 'ready'
+  | 'failed';
 
 export interface NativeCompanionSnapshot {
   generation: number;
   revision: number;
+  analysisRevision?: number;
   stage: CompanionStage;
   document: NativeDocumentInfo;
   analysis?: PaperPreprocessingResult;
+  semantic?: SemanticDocument;
+  documentHash: string;
+  semanticStatus: SemanticStatus;
+  semanticCompleted: number;
+  semanticTotal: number;
+  semanticError?: string;
   hasNativeText: boolean;
   completedReferences: number;
   totalReferences: number;

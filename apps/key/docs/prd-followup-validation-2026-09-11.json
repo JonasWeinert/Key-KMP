@@ -1,0 +1,6186 @@
+{
+  "date": "2026-09-11",
+  "environment": "Local macOS; browser tests use headless Chromium. Release Rust examples are separate from the debug Tauri bundle.",
+  "sqliteVersion": "3.53.2",
+  "schemaVersion": 9,
+  "indexFormat": "key-arctic-xs-q-sql-tantivy-v6",
+  "tests": {
+    "library": 19,
+    "processing": 6,
+    "semanticSearch": 14,
+    "frontend": 65,
+    "tauri": 2
+  },
+  "limitations": [
+    "Reconstructed document pages are still retained inside the extraction helper for document-wide reconciliation.",
+    "The browser process baseline is included in viewer RSS; these are not WebKit or hard whole-app memory bounds.",
+    "Mixed indexing RSS is sampled at viewer cycle boundaries, not a continuous peak measurement.",
+    "Some earlier pipeline measurements predate the rotation producer/version upgrade; each is labeled.",
+    "Provider override/authority resolution and the proposed generic user database/formula subsystem are not completed. Publication journal replay has targeted coverage; exhaustive fault injection remains open.",
+    "Final debug WebKit frame p95 was 50\u201360 ms; zero render timeouts does not establish responsiveness SLOs. DMG packaging overlapped these runs."
+  ],
+  "longViewerBefore": {
+    "indexing": null,
+    "indexingLog": "",
+    "schemaVersion": 1,
+    "fixture": "/tmp/key-qualification-2026-09-11/long-book.pdf",
+    "environment": "Playwright Chromium headless, 1440x900, DPR 2",
+    "baseline": {
+      "rssMiB": 915.328125,
+      "cpuPercent": 16.5,
+      "processCount": 7
+    },
+    "afterInitialLoad": {
+      "rssMiB": 1001.921875,
+      "cpuPercent": 52.9,
+      "processCount": 7
+    },
+    "interactionCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 2327.78125,
+          "cpuPercent": 61.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "peakResidentBytes": 101429120,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999999818,
+          "p95": 16.800000000000182,
+          "maximum": 366.6999999999998,
+          "framesOver20Ms": 6
+        },
+        "exactRenderSettleMs": {
+          "median": 149.60000002384186,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 2365.8125,
+          "cpuPercent": 35.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "peakResidentBytes": 101693312,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 1359872,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.80000000000109,
+          "maximum": 333.39999999999964,
+          "framesOver20Ms": 5
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.69999998807907,
+          "maximum": 250.69999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 2829.625,
+          "cpuPercent": 43.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 125,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.80000000000109,
+          "maximum": 366.60000000000036,
+          "framesOver20Ms": 5
+        },
+        "exactRenderSettleMs": {
+          "median": 121.40000003576279,
+          "p95": 249,
+          "maximum": 249,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 2830.125,
+          "cpuPercent": 31.700000000000003,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.80000000000291,
+          "maximum": 350.09999999999854,
+          "framesOver20Ms": 6
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 5,
+        "resources": {
+          "rssMiB": 2846.71875,
+          "cpuPercent": 36.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "maximum": 400,
+          "framesOver20Ms": 5
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249.39999997615814,
+          "maximum": 249.39999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 6,
+        "resources": {
+          "rssMiB": 3034.125,
+          "cpuPercent": 50.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.80000000000291,
+          "maximum": 416.59999999999854,
+          "framesOver20Ms": 5
+        },
+        "exactRenderSettleMs": {
+          "median": 133.5999999642372,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      }
+    ],
+    "replacementCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 3038.6875,
+          "cpuPercent": 37.2,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 3042.046875,
+          "cpuPercent": 40.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 3045.71875,
+          "cpuPercent": 35.8,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 3049.0625,
+          "cpuPercent": 41.8,
+          "processCount": 7
+        }
+      }
+    ]
+  },
+  "longViewerAfter": {
+    "indexing": null,
+    "indexingLog": "",
+    "schemaVersion": 1,
+    "fixture": "/tmp/key-qualification-2026-09-11/long-book.pdf",
+    "environment": "Playwright Chromium headless, 1440x900, DPR 2",
+    "baseline": {
+      "rssMiB": 919.59375,
+      "cpuPercent": 18.8,
+      "processCount": 7
+    },
+    "afterInitialLoad": {
+      "rssMiB": 1001.625,
+      "cpuPercent": 45.1,
+      "processCount": 7
+    },
+    "interactionCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1141.484375,
+          "cpuPercent": 31.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101429120,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999999818,
+          "p95": 16.799999999999727,
+          "maximum": 16.800000000000182,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 149.69999998807907,
+          "p95": 250.70000004768372,
+          "maximum": 250.70000004768372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1212.6875,
+          "cpuPercent": 32.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101693312,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 1359872,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000109,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 249.9000000357628,
+          "maximum": 249.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1229.265625,
+          "cpuPercent": 33,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 125,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000109,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.5,
+          "p95": 249.80000001192093,
+          "maximum": 249.80000001192093,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1233.078125,
+          "cpuPercent": 29.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 5,
+        "resources": {
+          "rssMiB": 1234.484375,
+          "cpuPercent": 24.4,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 6,
+        "resources": {
+          "rssMiB": 1257.796875,
+          "cpuPercent": 30.799999999999997,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000000728,
+          "maximum": 16.799999999999272,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.89999997615814,
+          "p95": 249.5999999642372,
+          "maximum": 249.5999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 7,
+        "resources": {
+          "rssMiB": 1259.8125,
+          "cpuPercent": 33.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000000728,
+          "maximum": 16.799999999999272,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.69999998807907,
+          "p95": 249.19999998807907,
+          "maximum": 249.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 8,
+        "resources": {
+          "rssMiB": 1255.859375,
+          "cpuPercent": 24.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.4000000357628,
+          "p95": 249.10000002384186,
+          "maximum": 249.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 9,
+        "resources": {
+          "rssMiB": 1255.890625,
+          "cpuPercent": 20.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.799999999995634,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 10,
+        "resources": {
+          "rssMiB": 1256.515625,
+          "cpuPercent": 32.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.89999997615814,
+          "maximum": 250.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      }
+    ],
+    "replacementCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1245.25,
+          "cpuPercent": 27,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1258.84375,
+          "cpuPercent": 33.2,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1261.625,
+          "cpuPercent": 32.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1269.484375,
+          "cpuPercent": 38,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 5,
+        "resources": {
+          "rssMiB": 1278.9375,
+          "cpuPercent": 28.7,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 6,
+        "resources": {
+          "rssMiB": 1290.0625,
+          "cpuPercent": 33.6,
+          "processCount": 7
+        }
+      }
+    ]
+  },
+  "longViewerWithMixedIndexing": {
+    "indexing": {
+      "exitCode": 0
+    },
+    "indexingLog": "{\"completionOrder\":[9,1,2,3,4,5,6,7,8,0],\"elapsedMs\":43288.035583000004,\"filteredVectorQueries\":10,\"jobs\":10,\"selectedCompletionMs\":4551.439958999999,\"selectedDocument\":9}\n",
+    "schemaVersion": 1,
+    "fixture": "/tmp/key-qualification-2026-09-11/long-book.pdf",
+    "environment": "Playwright Chromium headless, 1440x900, DPR 2",
+    "baseline": {
+      "rssMiB": 918.234375,
+      "cpuPercent": 16.199999999999996,
+      "processCount": 7
+    },
+    "afterInitialLoad": {
+      "rssMiB": 1000.3125,
+      "cpuPercent": 34.4,
+      "processCount": 7
+    },
+    "interactionCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1136.09375,
+          "cpuPercent": 35.400000000000006,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101429120,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "maximum": 16.800000000000182,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 150,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 276.703125,
+          "cpuPercent": 221.29999999999998,
+          "processCount": 3
+        }
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1210.875,
+          "cpuPercent": 33.699999999999996,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101693312,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 1359872,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000109,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.29999995231628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 297.921875,
+          "cpuPercent": 248.10000000000002,
+          "processCount": 3
+        }
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1219.140625,
+          "cpuPercent": 35.199999999999996,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 125,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000109,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 298.265625,
+          "cpuPercent": 203.29999999999998,
+          "processCount": 3
+        }
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1220.734375,
+          "cpuPercent": 34.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 131.80000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 300.5,
+          "cpuPercent": 203.50000000000003,
+          "processCount": 3
+        }
+      },
+      {
+        "cycle": 5,
+        "resources": {
+          "rssMiB": 1225.71875,
+          "cpuPercent": 32.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "maximum": 16.799999999999272,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.89999997615814,
+          "p95": 249.5,
+          "maximum": 249.5,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 288.546875,
+          "cpuPercent": 47.1,
+          "processCount": 2
+        }
+      },
+      {
+        "cycle": 6,
+        "resources": {
+          "rssMiB": 1251.96875,
+          "cpuPercent": 27.1,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.799999999999272,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 302.359375,
+          "cpuPercent": 138.20000000000002,
+          "processCount": 3
+        }
+      },
+      {
+        "cycle": 7,
+        "resources": {
+          "rssMiB": 1249.84375,
+          "cpuPercent": 24.1,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.29999995231628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 362.578125,
+          "cpuPercent": 82.60000000000001,
+          "processCount": 3
+        }
+      },
+      {
+        "cycle": 8,
+        "resources": {
+          "rssMiB": 1250.609375,
+          "cpuPercent": 29.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 448.53125,
+          "cpuPercent": 84,
+          "processCount": 3
+        }
+      },
+      {
+        "cycle": 9,
+        "resources": {
+          "rssMiB": 1248.734375,
+          "cpuPercent": 24.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 309.1875,
+          "cpuPercent": 13.3,
+          "processCount": 2
+        }
+      },
+      {
+        "cycle": 10,
+        "resources": {
+          "rssMiB": 1251.859375,
+          "cpuPercent": 32.199999999999996,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": true,
+        "indexingResources": {
+          "rssMiB": 323.59375,
+          "cpuPercent": 140.6,
+          "processCount": 3
+        }
+      }
+    ],
+    "replacementCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1240.546875,
+          "cpuPercent": 29,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1243.75,
+          "cpuPercent": 35.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1247.578125,
+          "cpuPercent": 32.5,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1255.328125,
+          "cpuPercent": 29.5,
+          "processCount": 7
+        }
+      }
+    ]
+  },
+  "imageViewer": {
+    "indexing": null,
+    "indexingLog": "",
+    "schemaVersion": 1,
+    "fixture": "/tmp/key-qualification-2026-09-11/image-only.pdf",
+    "environment": "Playwright Chromium headless, 1440x900, DPR 2",
+    "baseline": {
+      "rssMiB": 922.3125,
+      "cpuPercent": 23.200000000000003,
+      "processCount": 7
+    },
+    "afterInitialLoad": {
+      "rssMiB": 1122.75,
+      "cpuPercent": 73,
+      "processCount": 7
+    },
+    "interactionCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1157.390625,
+          "cpuPercent": 41,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101610752,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.799999999999272,
+          "maximum": 16.80000000000109,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 150.29999995231628,
+          "p95": 350.19999998807907,
+          "maximum": 350.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1177.484375,
+          "cpuPercent": 37.599999999999994,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101610752,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "maximum": 16.799999999999272,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.29999995231628,
+          "p95": 250.0999999642372,
+          "maximum": 250.0999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1164.171875,
+          "cpuPercent": 35.400000000000006,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101610752,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 116.39999997615814,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1206.4375,
+          "cpuPercent": 31.7,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101610752,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.799999999999272,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 99.89999997615814,
+          "p95": 249.9000000357628,
+          "maximum": 249.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 5,
+        "resources": {
+          "rssMiB": 1207.546875,
+          "cpuPercent": 34.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101702912,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 116.69999998807907,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 6,
+        "resources": {
+          "rssMiB": 1215.40625,
+          "cpuPercent": 35.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101702912,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 117.29999995231628,
+          "p95": 249.80000001192093,
+          "maximum": 249.80000001192093,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      }
+    ],
+    "replacementCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1184,
+          "cpuPercent": 37.9,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1194.9375,
+          "cpuPercent": 42.6,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1187.9375,
+          "cpuPercent": 32.3,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1191.453125,
+          "cpuPercent": 42.900000000000006,
+          "processCount": 7
+        }
+      }
+    ]
+  },
+  "distinctTenPdfs": {
+    "exitCode": 0,
+    "elapsedSeconds": 34.50043254200136,
+    "peakProcessTreeMiB": 315.828125,
+    "peakProcesses": [
+      {
+        "pid": 79544,
+        "parent": 79543,
+        "rssMiB": 31.5,
+        "command": "apps/key/src-tauri/target/release/examples/library-fairness tests/fixtures /tmp/key-distinct-ten-final"
+      },
+      {
+        "pid": 79587,
+        "parent": 79544,
+        "rssMiB": 254.875,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-fairness --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-3WcFzO"
+      },
+      {
+        "pid": 80374,
+        "parent": 79544,
+        "rssMiB": 29.453125,
+        "command": "(library-fairness)"
+      }
+    ],
+    "processPeaks": [
+      {
+        "pid": 79544,
+        "parent": 79543,
+        "rssMiB": 34.890625,
+        "command": "apps/key/src-tauri/target/release/examples/library-fairness tests/fixtures /tmp/key-distinct-ten-final"
+      },
+      {
+        "pid": 79568,
+        "parent": 79544,
+        "rssMiB": 31.875,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79587,
+        "parent": 79544,
+        "rssMiB": 255.171875,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-fairness --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-3WcFzO"
+      },
+      {
+        "pid": 79588,
+        "parent": 79544,
+        "rssMiB": 14.34375,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79629,
+        "parent": 79544,
+        "rssMiB": 0.0,
+        "command": "<defunct>"
+      },
+      {
+        "pid": 79632,
+        "parent": 79544,
+        "rssMiB": 13.90625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-fairness --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-2-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-2-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-2-index.progress.json"
+      },
+      {
+        "pid": 79752,
+        "parent": 79544,
+        "rssMiB": 14.109375,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79756,
+        "parent": 79544,
+        "rssMiB": 49.484375,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79775,
+        "parent": 79544,
+        "rssMiB": 14.390625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-fairness --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-4-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-4-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-4-index.progress.json"
+      },
+      {
+        "pid": 79843,
+        "parent": 79544,
+        "rssMiB": 29.34375,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79861,
+        "parent": 79544,
+        "rssMiB": 16.296875,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79913,
+        "parent": 79544,
+        "rssMiB": 36.453125,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79935,
+        "parent": 79544,
+        "rssMiB": 13.921875,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79958,
+        "parent": 79544,
+        "rssMiB": 44.28125,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 79995,
+        "parent": 79544,
+        "rssMiB": 14.46875,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 80137,
+        "parent": 79544,
+        "rssMiB": 36.9375,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 80141,
+        "parent": 79544,
+        "rssMiB": 14.5625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-fairness --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-8-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-8-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/79544-8-index.progress.json"
+      },
+      {
+        "pid": 80247,
+        "parent": 79544,
+        "rssMiB": 20.84375,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 80268,
+        "parent": 79544,
+        "rssMiB": 14.515625,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 80374,
+        "parent": 79544,
+        "rssMiB": 29.453125,
+        "command": "(library-fairness)"
+      },
+      {
+        "pid": 80382,
+        "parent": 79544,
+        "rssMiB": 14.109375,
+        "command": "(library-fairness)"
+      }
+    ],
+    "pipeline": {
+      "completionOrder": [
+        9,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        0
+      ],
+      "elapsedMs": 33127.137292,
+      "filteredVectorQueries": 10,
+      "jobs": 10,
+      "selectedCompletionMs": 2182.5199589999997,
+      "selectedDocument": 9
+    }
+  },
+  "imageOnlyPipeline": {
+    "exitCode": 0,
+    "elapsedSeconds": 1.2088104580179788,
+    "peakProcessTreeMiB": 179.46875,
+    "peakProcesses": [
+      {
+        "pid": 61026,
+        "parent": 61025,
+        "rssMiB": 60.15625,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 61045,
+        "parent": 61026,
+        "rssMiB": 119.3125,
+        "command": "(library-smoke)"
+      }
+    ],
+    "processPeaks": [
+      {
+        "pid": 61026,
+        "parent": 61025,
+        "rssMiB": 60.15625,
+        "command": "apps/key/src-tauri/target/release/examples/library-smoke /tmp/key-qualification-2026-09-11/image-only.pdf /tmp/key-image-only-library-final"
+      },
+      {
+        "pid": 61045,
+        "parent": 61026,
+        "rssMiB": 119.3125,
+        "command": "(library-smoke)"
+      }
+    ],
+    "pipeline": {
+      "chunks": 0,
+      "hash": "8163141bf394dff0b28b0e10c2afe853c7c0701510a0639201c07d95301e807e",
+      "pages": 8,
+      "status": "no_text"
+    }
+  },
+  "rotatedPipeline": {
+    "exitCode": 0,
+    "elapsedSeconds": 2.3422215420287102,
+    "peakProcessTreeMiB": 68.4375,
+    "peakProcesses": [
+      {
+        "pid": 75210,
+        "parent": 75209,
+        "rssMiB": 25.375,
+        "command": "apps/key/src-tauri/target/release/examples/library-smoke tests/fixtures/rotated-cropped.pdf /tmp/key-rotated-library-final"
+      },
+      {
+        "pid": 75237,
+        "parent": 75210,
+        "rssMiB": 31.40625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-WxBZWc"
+      },
+      {
+        "pid": 75238,
+        "parent": 75210,
+        "rssMiB": 11.65625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/75210-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/75210-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/75210-1-index.progress.json"
+      }
+    ],
+    "processPeaks": [
+      {
+        "pid": 75210,
+        "parent": 75209,
+        "rssMiB": 25.375,
+        "command": "apps/key/src-tauri/target/release/examples/library-smoke tests/fixtures/rotated-cropped.pdf /tmp/key-rotated-library-final"
+      },
+      {
+        "pid": 75234,
+        "parent": 75210,
+        "rssMiB": 10.390625,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 75237,
+        "parent": 75210,
+        "rssMiB": 31.40625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-WxBZWc"
+      },
+      {
+        "pid": 75238,
+        "parent": 75210,
+        "rssMiB": 11.65625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/75210-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/75210-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/75210-1-index.progress.json"
+      }
+    ],
+    "pipeline": {
+      "anchorRects": 1,
+      "coldSearchMs": 10.338042,
+      "elapsedMs": 1005.475125,
+      "embeddingRecoveryVerified": false,
+      "extractionReused": false,
+      "firstResultPage": 0,
+      "hash": "7c1c397e886d8147bb1247c8bf0e4e7648e3965606a773d883f1206d54bd7d00",
+      "index": {
+        "chunks": 128,
+        "elapsedMs": 513.902125,
+        "embeddedChunks": 0,
+        "embeddingMs": 9.323084,
+        "indexBuildMs": 68.99454200000001,
+        "modelLoadMs": 250.738291,
+        "reused": false
+      },
+      "pages": 4,
+      "semanticProbeHits": 3,
+      "warmSearchMs": 4.48375
+    }
+  },
+  "longPipelineEarlierDebug": {
+    "exitCode": 0,
+    "elapsedSeconds": 298.9814902090002,
+    "peakProcessTreeMiB": 337.453125,
+    "peakProcesses": [
+      {
+        "pid": 18439,
+        "parent": 17707,
+        "rssMiB": 189.125,
+        "command": "target/debug/examples/library-smoke /tmp/key-qualification-2026-09-11/long-book.pdf /tmp/key-long-book-library"
+      },
+      {
+        "pid": 20758,
+        "parent": 18439,
+        "rssMiB": 126.84375,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/target/debug/examples/library-smoke --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-2bmThN"
+      },
+      {
+        "pid": 20759,
+        "parent": 18439,
+        "rssMiB": 21.484375,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/target/debug/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/18439-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/18439-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/18439-1-index.progress.json"
+      }
+    ],
+    "processPeaks": [
+      {
+        "pid": 18439,
+        "parent": 17707,
+        "rssMiB": 195.765625,
+        "command": "target/debug/examples/library-smoke /tmp/key-qualification-2026-09-11/long-book.pdf /tmp/key-long-book-library"
+      },
+      {
+        "pid": 20758,
+        "parent": 18439,
+        "rssMiB": 130.296875,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/target/debug/examples/library-smoke --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-2bmThN"
+      },
+      {
+        "pid": 20759,
+        "parent": 18439,
+        "rssMiB": 35.625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/target/debug/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/18439-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/18439-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/18439-1-index.progress.json"
+      }
+    ],
+    "pipeline": {
+      "anchorRects": 1,
+      "coldSearchMs": 3522.042042,
+      "elapsedMs": 295303.404958,
+      "embeddingRecoveryVerified": false,
+      "extractionReused": false,
+      "firstResultPage": 95,
+      "hash": "51d9b5d58e120a8bd82d92d09748b62992cde364be0a514c1870adb638be0e24",
+      "index": {
+        "chunks": 33000,
+        "elapsedMs": 211639.428125,
+        "embeddedChunks": 1008,
+        "embeddingMs": 129267.997667,
+        "indexBuildMs": 69653.837042,
+        "modelLoadMs": 4103.268584,
+        "reused": false
+      },
+      "pages": 1000,
+      "semanticProbeHits": 3,
+      "warmSearchMs": 1552.09325
+    }
+  },
+  "longPipelineEarlierWarmRelease": {
+    "exitCode": 0,
+    "elapsedSeconds": 4.364831625018269,
+    "peakProcessTreeMiB": 148.4375,
+    "peakProcesses": [
+      {
+        "pid": 60277,
+        "parent": 60276,
+        "rssMiB": 28.578125,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 60342,
+        "parent": 60277,
+        "rssMiB": 119.859375,
+        "command": "(library-smoke)"
+      }
+    ],
+    "processPeaks": [
+      {
+        "pid": 60277,
+        "parent": 60276,
+        "rssMiB": 28.578125,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 60342,
+        "parent": 60277,
+        "rssMiB": 119.859375,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 60343,
+        "parent": 60277,
+        "rssMiB": 10.625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/60277-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/60277-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/60277-1-index.progress.json"
+      }
+    ],
+    "pipeline": {
+      "anchorRects": 1,
+      "coldSearchMs": 669.8417079999999,
+      "elapsedMs": 2996.709417,
+      "embeddingRecoveryVerified": false,
+      "extractionReused": true,
+      "firstResultPage": 95,
+      "hash": "51d9b5d58e120a8bd82d92d09748b62992cde364be0a514c1870adb638be0e24",
+      "index": {
+        "chunks": 33000,
+        "elapsedMs": 382.876292,
+        "embeddedChunks": 0,
+        "embeddingMs": 0.0,
+        "indexBuildMs": 0.0,
+        "modelLoadMs": 0.0,
+        "reused": true
+      },
+      "pages": 1000,
+      "semanticProbeHits": 3,
+      "warmSearchMs": 136.39279100000002
+    }
+  },
+  "rotatedTargetUx": {
+    "canonicalTargetChecks": [
+      {
+        "page": 1,
+        "overlap": 0.9725,
+        "screenshot": "/tmp/key-canonical-target-1.png"
+      },
+      {
+        "page": 2,
+        "overlap": 0.9716666666666667,
+        "screenshot": "/tmp/key-canonical-target-2.png"
+      },
+      {
+        "page": 3,
+        "overlap": 0.9716398938270925,
+        "screenshot": "/tmp/key-canonical-target-3.png"
+      },
+      {
+        "page": 4,
+        "overlap": 0.9725,
+        "screenshot": "/tmp/key-canonical-target-4.png"
+      }
+    ]
+  },
+  "fixtureManifest": [
+    {
+      "file": "image-only.pdf",
+      "sha256": "8163141bf394dff0b28b0e10c2afe853c7c0701510a0639201c07d95301e807e",
+      "pages": 8,
+      "bytes": 51023562
+    },
+    {
+      "file": "long-book.pdf",
+      "sha256": "51d9b5d58e120a8bd82d92d09748b62992cde364be0a514c1870adb638be0e24",
+      "pages": 1000,
+      "bytes": 763911
+    },
+    {
+      "file": "rotated-cropped.pdf",
+      "sha256": "7c1c397e886d8147bb1247c8bf0e4e7648e3965606a773d883f1206d54bd7d00",
+      "pages": 4,
+      "bytes": 3728
+    }
+  ],
+  "scaleSchema9": {
+    "anchorReadP50Ms": 2.875791,
+    "anchorReadP95Ms": 8.150541,
+    "documents": 100,
+    "filterMs": 1.674125,
+    "filteredDocuments": 10,
+    "migrationMs": 1793.8679579999998,
+    "passages": 100000,
+    "schemaVersion": 9,
+    "liveDatabaseBytesBefore": 60243968,
+    "liveDatabaseBytesAfter": 11149312,
+    "livePageReductionPercent": 81.4930649986402,
+    "integrity": "ok"
+  },
+  "longPipelineFinalUpgrade": {
+    "exitCode": 0,
+    "elapsedSeconds": 19.628722375025973,
+    "peakProcessTreeMiB": 188.234375,
+    "peakProcesses": [
+      {
+        "pid": 94190,
+        "parent": 94172,
+        "rssMiB": 44.140625,
+        "command": "apps/key/src-tauri/target/release/examples/library-smoke /tmp/key-qualification-2026-09-11/long-book.pdf /tmp/key-long-book-library"
+      },
+      {
+        "pid": 94542,
+        "parent": 94190,
+        "rssMiB": 116.484375,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-O7XUb7"
+      },
+      {
+        "pid": 94543,
+        "parent": 94190,
+        "rssMiB": 27.609375,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94190-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94190-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94190-1-index.progress.json"
+      }
+    ],
+    "processPeaks": [
+      {
+        "pid": 94190,
+        "parent": 94172,
+        "rssMiB": 44.140625,
+        "command": "apps/key/src-tauri/target/release/examples/library-smoke /tmp/key-qualification-2026-09-11/long-book.pdf /tmp/key-long-book-library"
+      },
+      {
+        "pid": 94213,
+        "parent": 94190,
+        "rssMiB": 158.96875,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-semantic-helper /tmp/key-qualification-2026-09-11/long-book.pdf /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/.tmpImVAmX --hash 51d9b5d58e120a8bd82d92d09748b62992cde364be0a514c1870adb638be0e24 --library /private/tmp/key-long-book-library --canonical"
+      },
+      {
+        "pid": 94542,
+        "parent": 94190,
+        "rssMiB": 116.484375,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-embedding-service /Users/jonas/Documents/GitHub/GPUIPDF/crates/key-semantic-search/resources/snowflake-arctic-embed-xs-q key-model-O7XUb7"
+      },
+      {
+        "pid": 94543,
+        "parent": 94190,
+        "rssMiB": 27.609375,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94190-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94190-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94190-1-index.progress.json"
+      }
+    ]
+  },
+  "longPipelineFinalWarm": {
+    "exitCode": 0,
+    "elapsedSeconds": 1.8286072909832,
+    "peakProcessTreeMiB": 139.65625,
+    "peakProcesses": [
+      {
+        "pid": 94688,
+        "parent": 94171,
+        "rssMiB": 22.15625,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 94712,
+        "parent": 94688,
+        "rssMiB": 117.5,
+        "command": "(library-smoke)"
+      }
+    ],
+    "processPeaks": [
+      {
+        "pid": 94688,
+        "parent": 94171,
+        "rssMiB": 22.15625,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 94712,
+        "parent": 94688,
+        "rssMiB": 117.5,
+        "command": "(library-smoke)"
+      },
+      {
+        "pid": 94713,
+        "parent": 94688,
+        "rssMiB": 10.65625,
+        "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/release/examples/library-smoke --key-semantic-index-helper /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94688-1-index.input.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94688-1-index.output.json /var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-sidecars/semantic-ipc/94688-1-index.progress.json"
+      }
+    ]
+  },
+  "embeddingRecoveryBeforeBootstrapDeadline": {
+    "anchorRects": 1,
+    "coldSearchMs": 231.867584,
+    "elapsedMs": 17496.890708,
+    "embeddingRecoveryVerified": true,
+    "extractionReused": true,
+    "firstResultPage": 0,
+    "hash": "7c1c397e886d8147bb1247c8bf0e4e7648e3965606a773d883f1206d54bd7d00",
+    "index": {
+      "chunks": 128,
+      "elapsedMs": 106.002541,
+      "embeddedChunks": 0,
+      "embeddingMs": 0.0,
+      "indexBuildMs": 0.0,
+      "modelLoadMs": 0.0,
+      "reused": true
+    },
+    "pages": 4,
+    "semanticProbeHits": 3,
+    "warmSearchMs": 5.01475
+  },
+  "databaseChecksBeforeSchema9": [
+    {
+      "root": "/tmp/key-long-book-library",
+      "schemaVersion": 8,
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "activeLeases": 0,
+      "documents": 1,
+      "passages": 33000,
+      "indexes": 2,
+      "verifiedSources": 1,
+      "compatibleCorpora": true,
+      "statuses": [
+        [
+          "indexed",
+          1
+        ]
+      ]
+    },
+    {
+      "root": "/tmp/key-rotated-library-final",
+      "schemaVersion": 8,
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "activeLeases": 0,
+      "documents": 1,
+      "passages": 131,
+      "indexes": 2,
+      "verifiedSources": 1,
+      "compatibleCorpora": true,
+      "statuses": [
+        [
+          "indexed",
+          1
+        ]
+      ]
+    },
+    {
+      "root": "/tmp/key-image-only-library-final",
+      "schemaVersion": 8,
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "activeLeases": 0,
+      "documents": 1,
+      "passages": 0,
+      "indexes": 0,
+      "verifiedSources": 1,
+      "compatibleCorpora": true,
+      "statuses": [
+        [
+          "no_text",
+          1
+        ]
+      ]
+    },
+    {
+      "root": "/tmp/key-distinct-ten-final",
+      "schemaVersion": 8,
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "activeLeases": 0,
+      "documents": 10,
+      "passages": 1934,
+      "indexes": 20,
+      "verifiedSources": 10,
+      "compatibleCorpora": true,
+      "statuses": [
+        [
+          "indexed",
+          10
+        ]
+      ]
+    },
+    {
+      "root": "/tmp/key-skewed-library-verified",
+      "schemaVersion": 8,
+      "integrity": "ok",
+      "foreignKeyErrors": 0,
+      "activeLeases": 0,
+      "documents": 10,
+      "passages": 34737,
+      "indexes": 20,
+      "verifiedSources": 10,
+      "compatibleCorpora": true,
+      "statuses": [
+        [
+          "indexed",
+          10
+        ]
+      ]
+    }
+  ],
+  "publicationJournal": {
+    "schema": 9,
+    "integrity": "SHA-256 directory content checksum",
+    "replay": "Conditional on previous pointer; paused intents wait; superseded and damaged intents discarded",
+    "testCoverage": [
+      "reopen after staging",
+      "supersession",
+      "corruption",
+      "pause/resume",
+      "removal",
+      "idempotent completion"
+    ]
+  },
+  "longViewer100Cycles": {
+    "indexing": null,
+    "indexingLog": "",
+    "schemaVersion": 1,
+    "fixture": "/tmp/key-qualification-2026-09-11/long-book.pdf",
+    "environment": "Playwright Chromium headless, 1440x900, DPR 2",
+    "baseline": {
+      "rssMiB": 919.328125,
+      "cpuPercent": 23.1,
+      "processCount": 7
+    },
+    "afterInitialLoad": {
+      "rssMiB": 1000.671875,
+      "cpuPercent": 45.300000000000004,
+      "processCount": 7
+    },
+    "interactionCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1147.03125,
+          "cpuPercent": 30.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 99659648,
+          "residentTiles": 122,
+          "mountedPages": 1,
+          "peakResidentBytes": 101429120,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 679936,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "maximum": 16.800000000000182,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 150.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1213.296875,
+          "cpuPercent": 30,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101693312,
+          "peakResidentTiles": 124,
+          "fallbackBytes": 1359872,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000109,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.80000001192093,
+          "p95": 250.69999998807907,
+          "maximum": 250.69999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1217.921875,
+          "cpuPercent": 33.300000000000004,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 125,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999891,
+          "p95": 16.700000000000728,
+          "maximum": 16.80000000000109,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.60000002384186,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1221.890625,
+          "cpuPercent": 35.7,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 1699840,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.700000000000728,
+          "p95": 16.799999999999272,
+          "maximum": 16.799999999999272,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.5,
+          "p95": 250.5,
+          "maximum": 250.5,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 5,
+        "resources": {
+          "rssMiB": 1228.6875,
+          "cpuPercent": 32,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.799999999999272,
+          "maximum": 16.799999999999272,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 6,
+        "resources": {
+          "rssMiB": 1258.671875,
+          "cpuPercent": 37.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000000728,
+          "maximum": 16.799999999999272,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.29999995231628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 7,
+        "resources": {
+          "rssMiB": 1254.5,
+          "cpuPercent": 38,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.9000000357628,
+          "maximum": 249.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 8,
+        "resources": {
+          "rssMiB": 1255.09375,
+          "cpuPercent": 32.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 9,
+        "resources": {
+          "rssMiB": 1253.015625,
+          "cpuPercent": 37.4,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.69999998807907,
+          "p95": 250.5,
+          "maximum": 250.5,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 10,
+        "resources": {
+          "rssMiB": 1256.09375,
+          "cpuPercent": 38.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.799999999995634,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.0999999642372,
+          "maximum": 250.0999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 11,
+        "resources": {
+          "rssMiB": 1256.734375,
+          "cpuPercent": 35.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.69999998807907,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 12,
+        "resources": {
+          "rssMiB": 1255.703125,
+          "cpuPercent": 39.4,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 249.60000002384186,
+          "maximum": 249.60000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 13,
+        "resources": {
+          "rssMiB": 1257.3125,
+          "cpuPercent": 33.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.700000000004366,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.69999998807907,
+          "p95": 250.0999999642372,
+          "maximum": 250.0999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 14,
+        "resources": {
+          "rssMiB": 1261.09375,
+          "cpuPercent": 35,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.60000002384186,
+          "p95": 249.80000001192093,
+          "maximum": 249.80000001192093,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 15,
+        "resources": {
+          "rssMiB": 1258.078125,
+          "cpuPercent": 42.599999999999994,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.5,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 16,
+        "resources": {
+          "rssMiB": 1258.625,
+          "cpuPercent": 24.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 17,
+        "resources": {
+          "rssMiB": 1261.265625,
+          "cpuPercent": 33.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.80000000000291,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132,
+          "p95": 248.70000004768372,
+          "maximum": 248.70000004768372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 18,
+        "resources": {
+          "rssMiB": 1261.46875,
+          "cpuPercent": 33.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 19,
+        "resources": {
+          "rssMiB": 1262.03125,
+          "cpuPercent": 34.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.80000000000291,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250.70000004768372,
+          "maximum": 250.70000004768372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 20,
+        "resources": {
+          "rssMiB": 1265.234375,
+          "cpuPercent": 32.599999999999994,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.80000000000291,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 131.80000001192093,
+          "p95": 250.80000001192093,
+          "maximum": 250.80000001192093,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 21,
+        "resources": {
+          "rssMiB": 1265.21875,
+          "cpuPercent": 31.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 251.19999998807907,
+          "maximum": 251.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 22,
+        "resources": {
+          "rssMiB": 1265.28125,
+          "cpuPercent": 34.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249.80000001192093,
+          "maximum": 249.80000001192093,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 23,
+        "resources": {
+          "rssMiB": 1265.03125,
+          "cpuPercent": 28.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 24,
+        "resources": {
+          "rssMiB": 1266.234375,
+          "cpuPercent": 24.1,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 25,
+        "resources": {
+          "rssMiB": 1267.234375,
+          "cpuPercent": 25.4,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 26,
+        "resources": {
+          "rssMiB": 1268.609375,
+          "cpuPercent": 25.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 27,
+        "resources": {
+          "rssMiB": 1269.203125,
+          "cpuPercent": 21.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 28,
+        "resources": {
+          "rssMiB": 1269.296875,
+          "cpuPercent": 25.299999999999997,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.70000000001164,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 29,
+        "resources": {
+          "rssMiB": 1270.390625,
+          "cpuPercent": 25.1,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.80000000000291,
+          "maximum": 16.80000000000291,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 30,
+        "resources": {
+          "rssMiB": 1270.5625,
+          "cpuPercent": 26.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.69999999999709,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250.0999999642372,
+          "maximum": 250.0999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 31,
+        "resources": {
+          "rssMiB": 1269.828125,
+          "cpuPercent": 20,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 249.5999999642372,
+          "maximum": 249.5999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 32,
+        "resources": {
+          "rssMiB": 1270.03125,
+          "cpuPercent": 25.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.80000001192093,
+          "p95": 249.39999997615814,
+          "maximum": 249.39999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 33,
+        "resources": {
+          "rssMiB": 1265.703125,
+          "cpuPercent": 24.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.19999998807907,
+          "maximum": 250.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 34,
+        "resources": {
+          "rssMiB": 1265.765625,
+          "cpuPercent": 26.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 35,
+        "resources": {
+          "rssMiB": 1265.609375,
+          "cpuPercent": 27.7,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.80000001192093,
+          "maximum": 250.80000001192093,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 36,
+        "resources": {
+          "rssMiB": 1264.9375,
+          "cpuPercent": 30.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 249.10000002384186,
+          "maximum": 249.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 37,
+        "resources": {
+          "rssMiB": 1264.625,
+          "cpuPercent": 25.4,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 248.9000000357628,
+          "maximum": 248.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 38,
+        "resources": {
+          "rssMiB": 1111.796875,
+          "cpuPercent": 45,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250.20000004768372,
+          "maximum": 250.20000004768372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 39,
+        "resources": {
+          "rssMiB": 1068.78125,
+          "cpuPercent": 32.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 131.89999997615814,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 40,
+        "resources": {
+          "rssMiB": 1073.921875,
+          "cpuPercent": 33.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.29999995231628,
+          "p95": 250.0999999642372,
+          "maximum": 250.0999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 41,
+        "resources": {
+          "rssMiB": 1073.84375,
+          "cpuPercent": 34.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 248.60000002384186,
+          "maximum": 248.60000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 42,
+        "resources": {
+          "rssMiB": 1077.84375,
+          "cpuPercent": 30.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 43,
+        "resources": {
+          "rssMiB": 1078.890625,
+          "cpuPercent": 35.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 248.89999997615814,
+          "maximum": 248.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 44,
+        "resources": {
+          "rssMiB": 1080.296875,
+          "cpuPercent": 31.700000000000003,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249,
+          "maximum": 249,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 45,
+        "resources": {
+          "rssMiB": 1080.890625,
+          "cpuPercent": 36.099999999999994,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 249.69999998807907,
+          "maximum": 249.69999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 46,
+        "resources": {
+          "rssMiB": 1081.640625,
+          "cpuPercent": 28.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.60000002384186,
+          "p95": 248.69999998807907,
+          "maximum": 248.69999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 47,
+        "resources": {
+          "rssMiB": 1083,
+          "cpuPercent": 26.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.29999995231628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 48,
+        "resources": {
+          "rssMiB": 1083.21875,
+          "cpuPercent": 38.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.9000000357628,
+          "maximum": 249.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 49,
+        "resources": {
+          "rssMiB": 1083.6875,
+          "cpuPercent": 33.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.9000000357628,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 50,
+        "resources": {
+          "rssMiB": 1084,
+          "cpuPercent": 38.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 249.10000002384186,
+          "maximum": 249.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 51,
+        "resources": {
+          "rssMiB": 1083.984375,
+          "cpuPercent": 29.4,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 52,
+        "resources": {
+          "rssMiB": 1084.46875,
+          "cpuPercent": 28.4,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 53,
+        "resources": {
+          "rssMiB": 1085.828125,
+          "cpuPercent": 27.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 54,
+        "resources": {
+          "rssMiB": 1085.90625,
+          "cpuPercent": 28,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 249.9000000357628,
+          "maximum": 249.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 55,
+        "resources": {
+          "rssMiB": 1085.5625,
+          "cpuPercent": 27.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 56,
+        "resources": {
+          "rssMiB": 1086.875,
+          "cpuPercent": 33.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 249.5999999642372,
+          "maximum": 249.5999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 57,
+        "resources": {
+          "rssMiB": 1085.5,
+          "cpuPercent": 36.599999999999994,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 58,
+        "resources": {
+          "rssMiB": 1085.796875,
+          "cpuPercent": 30.400000000000002,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 59,
+        "resources": {
+          "rssMiB": 1085.40625,
+          "cpuPercent": 33.7,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 60,
+        "resources": {
+          "rssMiB": 1088.015625,
+          "cpuPercent": 31.300000000000004,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 61,
+        "resources": {
+          "rssMiB": 1097.65625,
+          "cpuPercent": 38.199999999999996,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999982538,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000017462,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 62,
+        "resources": {
+          "rssMiB": 1095.875,
+          "cpuPercent": 30.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 63,
+        "resources": {
+          "rssMiB": 1096.375,
+          "cpuPercent": 29.299999999999997,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 64,
+        "resources": {
+          "rssMiB": 1126.796875,
+          "cpuPercent": 34.7,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 134.10000002384186,
+          "p95": 249.69999998807907,
+          "maximum": 249.69999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 65,
+        "resources": {
+          "rssMiB": 1128.171875,
+          "cpuPercent": 34.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 251.30000001192093,
+          "maximum": 251.30000001192093,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 66,
+        "resources": {
+          "rssMiB": 1128.390625,
+          "cpuPercent": 32.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 134.60000002384186,
+          "p95": 249.5999999642372,
+          "maximum": 249.5999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 67,
+        "resources": {
+          "rssMiB": 1128.03125,
+          "cpuPercent": 34.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.5,
+          "p95": 250.29999995231628,
+          "maximum": 250.29999995231628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 68,
+        "resources": {
+          "rssMiB": 1128.3125,
+          "cpuPercent": 30.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 248.19999998807907,
+          "maximum": 248.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 69,
+        "resources": {
+          "rssMiB": 1128.703125,
+          "cpuPercent": 32.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.69999998807907,
+          "p95": 250.19999998807907,
+          "maximum": 250.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 70,
+        "resources": {
+          "rssMiB": 1129,
+          "cpuPercent": 26.200000000000003,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 71,
+        "resources": {
+          "rssMiB": 1129.25,
+          "cpuPercent": 33.3,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.89999997615814,
+          "maximum": 249.89999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 72,
+        "resources": {
+          "rssMiB": 1129.078125,
+          "cpuPercent": 31.199999999999996,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.4000000357628,
+          "p95": 249.19999998807907,
+          "maximum": 249.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 73,
+        "resources": {
+          "rssMiB": 1128.890625,
+          "cpuPercent": 29.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 134.19999998807907,
+          "p95": 250.5999999642372,
+          "maximum": 250.5999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 74,
+        "resources": {
+          "rssMiB": 1128.9375,
+          "cpuPercent": 35.1,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.80000001192093,
+          "p95": 250.0999999642372,
+          "maximum": 250.0999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 75,
+        "resources": {
+          "rssMiB": 1126.71875,
+          "cpuPercent": 28,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.29999995231628,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 76,
+        "resources": {
+          "rssMiB": 1126.765625,
+          "cpuPercent": 35.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 77,
+        "resources": {
+          "rssMiB": 1126.84375,
+          "cpuPercent": 30.700000000000003,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 134.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 78,
+        "resources": {
+          "rssMiB": 1130.171875,
+          "cpuPercent": 31.1,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 250.10000002384186,
+          "maximum": 250.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 79,
+        "resources": {
+          "rssMiB": 1134.125,
+          "cpuPercent": 26.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 80,
+        "resources": {
+          "rssMiB": 1137.921875,
+          "cpuPercent": 25.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 81,
+        "resources": {
+          "rssMiB": 1138.09375,
+          "cpuPercent": 27.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.30000001192093,
+          "p95": 250.39999997615814,
+          "maximum": 250.39999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 82,
+        "resources": {
+          "rssMiB": 1138.21875,
+          "cpuPercent": 23.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.79999999998836,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.5,
+          "p95": 250.69999998807907,
+          "maximum": 250.69999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 83,
+        "resources": {
+          "rssMiB": 1138.375,
+          "cpuPercent": 23.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 134,
+          "p95": 250.20000004768372,
+          "maximum": 250.20000004768372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 84,
+        "resources": {
+          "rssMiB": 1138.5,
+          "cpuPercent": 26.200000000000003,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.60000002384186,
+          "maximum": 250.60000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 85,
+        "resources": {
+          "rssMiB": 1138.609375,
+          "cpuPercent": 26.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.9000000357628,
+          "maximum": 249.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 86,
+        "resources": {
+          "rssMiB": 1133.75,
+          "cpuPercent": 24.9,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.39999997615814,
+          "p95": 249,
+          "maximum": 249,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 87,
+        "resources": {
+          "rssMiB": 1133.796875,
+          "cpuPercent": 25.6,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.60000002384186,
+          "maximum": 249.60000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 88,
+        "resources": {
+          "rssMiB": 1132.125,
+          "cpuPercent": 26.299999999999997,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 250.19999998807907,
+          "maximum": 250.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 89,
+        "resources": {
+          "rssMiB": 1133.546875,
+          "cpuPercent": 27.7,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.19999998807907,
+          "p95": 250.39999997615814,
+          "maximum": 250.39999997615814,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 90,
+        "resources": {
+          "rssMiB": 1133.484375,
+          "cpuPercent": 29,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.69999998807907,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 91,
+        "resources": {
+          "rssMiB": 1133.421875,
+          "cpuPercent": 20,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.80000001192093,
+          "p95": 249.9000000357628,
+          "maximum": 249.9000000357628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 92,
+        "resources": {
+          "rssMiB": 1130.296875,
+          "cpuPercent": 25.1,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.5999999642372,
+          "p95": 249.10000002384186,
+          "maximum": 249.10000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 93,
+        "resources": {
+          "rssMiB": 1131.34375,
+          "cpuPercent": 39.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.5,
+          "p95": 249.5999999642372,
+          "maximum": 249.5999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 94,
+        "resources": {
+          "rssMiB": 1126.9375,
+          "cpuPercent": 30,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.89999997615814,
+          "p95": 249.60000002384186,
+          "maximum": 249.60000002384186,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 95,
+        "resources": {
+          "rssMiB": 1127.171875,
+          "cpuPercent": 26,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.5,
+          "p95": 250.5999999642372,
+          "maximum": 250.5999999642372,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 96,
+        "resources": {
+          "rssMiB": 1127.5,
+          "cpuPercent": 31.300000000000004,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.30000001192093,
+          "p95": 249.79999995231628,
+          "maximum": 249.79999995231628,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 97,
+        "resources": {
+          "rssMiB": 1127.46875,
+          "cpuPercent": 32.5,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133,
+          "p95": 250.19999998807907,
+          "maximum": 250.19999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 98,
+        "resources": {
+          "rssMiB": 1129.453125,
+          "cpuPercent": 30,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133,
+          "p95": 250.69999998807907,
+          "maximum": 250.69999998807907,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 99,
+        "resources": {
+          "rssMiB": 1129.484375,
+          "cpuPercent": 31.2,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100446080,
+          "residentTiles": 125,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.70000000001164,
+          "p95": 16.79999999998836,
+          "maximum": 16.79999999998836,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 133.20000004768372,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      },
+      {
+        "cycle": 100,
+        "resources": {
+          "rssMiB": 1131.3125,
+          "cpuPercent": 35.8,
+          "processCount": 7
+        },
+        "cache": {
+          "budgetBytes": 100663296,
+          "residentBytes": 100577152,
+          "residentTiles": 124,
+          "mountedPages": 1,
+          "peakResidentBytes": 101694976,
+          "peakResidentTiles": 126,
+          "fallbackBytes": 2039808,
+          "fallbackBudgetBytes": 8388608,
+          "suspended": false
+        },
+        "frameIntervals": {
+          "median": 16.699999999953434,
+          "p95": 16.70000000001164,
+          "maximum": 16.800000000046566,
+          "framesOver20Ms": 0
+        },
+        "exactRenderSettleMs": {
+          "median": 132.39999997615814,
+          "p95": 250,
+          "maximum": 250,
+          "timeouts": 0
+        },
+        "indexingActive": false,
+        "indexingResources": null
+      }
+    ],
+    "replacementCycles": [
+      {
+        "cycle": 1,
+        "resources": {
+          "rssMiB": 1134.90625,
+          "cpuPercent": 44.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 2,
+        "resources": {
+          "rssMiB": 1136.78125,
+          "cpuPercent": 36.6,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 3,
+        "resources": {
+          "rssMiB": 1139.03125,
+          "cpuPercent": 41.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 4,
+        "resources": {
+          "rssMiB": 1141.328125,
+          "cpuPercent": 40.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 5,
+        "resources": {
+          "rssMiB": 1142.09375,
+          "cpuPercent": 32.7,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 6,
+        "resources": {
+          "rssMiB": 1143.234375,
+          "cpuPercent": 28.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 7,
+        "resources": {
+          "rssMiB": 1145.6875,
+          "cpuPercent": 27.699999999999996,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 8,
+        "resources": {
+          "rssMiB": 1146.65625,
+          "cpuPercent": 30.700000000000003,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 9,
+        "resources": {
+          "rssMiB": 1148.578125,
+          "cpuPercent": 30.4,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 10,
+        "resources": {
+          "rssMiB": 1149.609375,
+          "cpuPercent": 32.4,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 11,
+        "resources": {
+          "rssMiB": 1150.71875,
+          "cpuPercent": 36.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 12,
+        "resources": {
+          "rssMiB": 1151.859375,
+          "cpuPercent": 32.3,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 13,
+        "resources": {
+          "rssMiB": 1152.921875,
+          "cpuPercent": 34.9,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 14,
+        "resources": {
+          "rssMiB": 1154.03125,
+          "cpuPercent": 33.3,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 15,
+        "resources": {
+          "rssMiB": 1155.046875,
+          "cpuPercent": 37.3,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 16,
+        "resources": {
+          "rssMiB": 1156.078125,
+          "cpuPercent": 38.6,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 17,
+        "resources": {
+          "rssMiB": 1157.234375,
+          "cpuPercent": 38.9,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 18,
+        "resources": {
+          "rssMiB": 1075.828125,
+          "cpuPercent": 28.1,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 19,
+        "resources": {
+          "rssMiB": 1076.84375,
+          "cpuPercent": 38.400000000000006,
+          "processCount": 7
+        }
+      },
+      {
+        "cycle": 20,
+        "resources": {
+          "rssMiB": 1078.765625,
+          "cpuPercent": 37.2,
+          "processCount": 7
+        }
+      }
+    ]
+  },
+  "longViewer100CyclesNote": "100 interaction cycles and 20 replacements; compiler activity overlapped. Browser RSS includes its own baseline. No background PDF indexing in this run.",
+  "packagedSchema9": {
+    "schemaVersion": 1,
+    "fixture": "/Users/jonas/Documents/GitHub/GPUIPDF/tests/fixtures/PUBMED_16226083.pdf",
+    "repetitions": 2,
+    "environment": "Tauri 2 debug bundle, macOS WebKit, canonical SQLite pipeline",
+    "medians": {
+      "loadTotalMs": 634,
+      "featureSetupMs": 124,
+      "interactionMs": 5193,
+      "p95FrameIntervalMs": 60,
+      "maximumFrameIntervalMs": 91,
+      "exactSettleP95Ms": 511,
+      "baselineRssMiB": 291.8125,
+      "loadedRssMiB": 0,
+      "featureRssMiB": 395.484375,
+      "interactionPeakRssMiB": 720.953125,
+      "settledRssMiB": 774.078125
+    },
+    "runs": [
+      {
+        "run": 1,
+        "benchmark": {
+          "cache": {
+            "budgetBytes": 100663296,
+            "fallbackBudgetBytes": 8388608,
+            "fallbackBytes": 700416,
+            "mountedPages": 1,
+            "peakResidentBytes": 101647776,
+            "peakResidentTiles": 118,
+            "residentBytes": 100599200,
+            "residentTiles": 117,
+            "suspended": false
+          },
+          "exactRenderSettleMs": {
+            "maximum": 425,
+            "median": 299.99999999999955,
+            "p95": 425,
+            "timeouts": 0
+          },
+          "featureSetupMs": 124,
+          "frameIntervals": {
+            "framesOver20Ms": 140,
+            "maximum": 69,
+            "median": 33,
+            "p95": 50
+          },
+          "interactionMs": 5038,
+          "loadMs": 617,
+          "pageCount": 7,
+          "renderer": "pdfjs-canvas-tiles",
+          "scenario": {
+            "scrollJumps": 8,
+            "zoomChanges": 6
+          },
+          "schemaVersion": 1,
+          "sourceBytes": 411242,
+          "startedAt": "2026-09-11T17:43:12.221Z",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+        },
+        "semanticIndexStats": {
+          "chunks": 127,
+          "embeddedChunks": 127,
+          "elapsedMs": 5458.736667,
+          "modelLoadMs": 1723.684334,
+          "embeddingMs": 1929.901291,
+          "indexBuildMs": 214.177958,
+          "reused": false
+        },
+        "resources": {
+          "baseline-ready": {
+            "samples": 1,
+            "rssMiB": {
+              "median": 238.78125,
+              "p95": 238.78125,
+              "maximum": 238.78125
+            },
+            "cpuPercent": {
+              "median": 21.900000000000002,
+              "p95": 21.900000000000002,
+              "maximum": 21.900000000000002
+            }
+          },
+          "load-start": {
+            "samples": 1,
+            "rssMiB": {
+              "median": 293.6875,
+              "p95": 293.6875,
+              "maximum": 293.6875
+            },
+            "cpuPercent": {
+              "median": 47.1,
+              "p95": 47.1,
+              "maximum": 47.1
+            }
+          },
+          "load-ready": {
+            "samples": 0,
+            "rssMiB": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            },
+            "cpuPercent": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            }
+          },
+          "feature-start": {
+            "samples": 1,
+            "rssMiB": {
+              "median": 381.3125,
+              "p95": 381.3125,
+              "maximum": 381.3125
+            },
+            "cpuPercent": {
+              "median": 194.79999999999998,
+              "p95": 194.79999999999998,
+              "maximum": 194.79999999999998
+            }
+          },
+          "feature-ready": {
+            "samples": 0,
+            "rssMiB": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            },
+            "cpuPercent": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            }
+          },
+          "interaction-start": {
+            "samples": 24,
+            "rssMiB": {
+              "median": 554.09375,
+              "p95": 720.5,
+              "maximum": 720.953125
+            },
+            "cpuPercent": {
+              "median": 168,
+              "p95": 259,
+              "maximum": 278.9
+            }
+          },
+          "settled": {
+            "samples": 10,
+            "rssMiB": {
+              "median": 774.078125,
+              "p95": 778.390625,
+              "maximum": 778.390625
+            },
+            "cpuPercent": {
+              "median": 178.1,
+              "p95": 271,
+              "maximum": 271
+            }
+          }
+        },
+        "peakProcessCount": 7,
+        "peakProcesses": [
+          {
+            "pid": 36589,
+            "ppid": 36536,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 152.1875,
+            "cpuPercent": 6.8
+          },
+          {
+            "pid": 36643,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU",
+            "rssMiB": 76.03125,
+            "cpuPercent": 0.3
+          },
+          {
+            "pid": 36644,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking",
+            "rssMiB": 19.625,
+            "cpuPercent": 0
+          },
+          {
+            "pid": 36647,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+            "rssMiB": 229.578125,
+            "cpuPercent": 1.2
+          },
+          {
+            "pid": 36718,
+            "ppid": 36589,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 28.390625,
+            "cpuPercent": 0
+          },
+          {
+            "pid": 36800,
+            "ppid": 36589,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 241.125,
+            "cpuPercent": 138.3
+          },
+          {
+            "pid": 36801,
+            "ppid": 36589,
+            "command": "(key)",
+            "rssMiB": 31.453125,
+            "cpuPercent": 24.1
+          }
+        ],
+        "processNames": [
+          "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+          "(key)"
+        ]
+      },
+      {
+        "run": 2,
+        "benchmark": {
+          "cache": {
+            "budgetBytes": 100663296,
+            "fallbackBudgetBytes": 8388608,
+            "fallbackBytes": 700416,
+            "mountedPages": 1,
+            "peakResidentBytes": 101647776,
+            "peakResidentTiles": 118,
+            "residentBytes": 100599200,
+            "residentTiles": 117,
+            "suspended": false
+          },
+          "exactRenderSettleMs": {
+            "maximum": 511,
+            "median": 298.9999999999991,
+            "p95": 511,
+            "timeouts": 0
+          },
+          "featureSetupMs": 102,
+          "frameIntervals": {
+            "framesOver20Ms": 142,
+            "maximum": 91,
+            "median": 33,
+            "p95": 60
+          },
+          "interactionMs": 5193,
+          "loadMs": 634,
+          "pageCount": 7,
+          "renderer": "pdfjs-canvas-tiles",
+          "scenario": {
+            "scrollJumps": 8,
+            "zoomChanges": 6
+          },
+          "schemaVersion": 1,
+          "sourceBytes": 411242,
+          "startedAt": "2026-09-11T17:43:22.807Z",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+        },
+        "semanticIndexStats": {
+          "chunks": 127,
+          "embeddedChunks": 0,
+          "elapsedMs": 1650.602083,
+          "modelLoadMs": 0,
+          "embeddingMs": 0,
+          "indexBuildMs": 0,
+          "reused": true
+        },
+        "resources": {
+          "baseline-ready": {
+            "samples": 3,
+            "rssMiB": {
+              "median": 291.8125,
+              "p95": 291.8125,
+              "maximum": 291.8125
+            },
+            "cpuPercent": {
+              "median": 129,
+              "p95": 175.5,
+              "maximum": 175.5
+            }
+          },
+          "load-start": {
+            "samples": 1,
+            "rssMiB": {
+              "median": 336.984375,
+              "p95": 336.984375,
+              "maximum": 336.984375
+            },
+            "cpuPercent": {
+              "median": 146.8,
+              "p95": 146.8,
+              "maximum": 146.8
+            }
+          },
+          "load-ready": {
+            "samples": 0,
+            "rssMiB": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            },
+            "cpuPercent": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            }
+          },
+          "feature-start": {
+            "samples": 1,
+            "rssMiB": {
+              "median": 386.421875,
+              "p95": 386.421875,
+              "maximum": 386.421875
+            },
+            "cpuPercent": {
+              "median": 260,
+              "p95": 260,
+              "maximum": 260
+            }
+          },
+          "feature-ready": {
+            "samples": 1,
+            "rssMiB": {
+              "median": 395.484375,
+              "p95": 395.484375,
+              "maximum": 395.484375
+            },
+            "cpuPercent": {
+              "median": 239.6,
+              "p95": 239.6,
+              "maximum": 239.6
+            }
+          },
+          "interaction-start": {
+            "samples": 21,
+            "rssMiB": {
+              "median": 488.125,
+              "p95": 500.703125,
+              "maximum": 500.703125
+            },
+            "cpuPercent": {
+              "median": 76.1,
+              "p95": 136.5,
+              "maximum": 166.5
+            }
+          },
+          "settled": {
+            "samples": 3,
+            "rssMiB": {
+              "median": 501.015625,
+              "p95": 501.03125,
+              "maximum": 501.03125
+            },
+            "cpuPercent": {
+              "median": 17.6,
+              "p95": 28,
+              "maximum": 28
+            }
+          }
+        },
+        "peakProcessCount": 7,
+        "peakProcesses": [
+          {
+            "pid": 37178,
+            "ppid": 36536,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 148.453125,
+            "cpuPercent": 3.7
+          },
+          {
+            "pid": 37191,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU",
+            "rssMiB": 75.140625,
+            "cpuPercent": 12.1
+          },
+          {
+            "pid": 37192,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking",
+            "rssMiB": 16.421875,
+            "cpuPercent": 0
+          },
+          {
+            "pid": 37193,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+            "rssMiB": 231.9375,
+            "cpuPercent": 12.2
+          },
+          {
+            "pid": 37194,
+            "ppid": 37178,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 13.578125,
+            "cpuPercent": 0
+          },
+          {
+            "pid": 37259,
+            "ppid": 37178,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 15.5,
+            "cpuPercent": 0
+          }
+        ],
+        "processNames": [
+          "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+          "(key)"
+        ]
+      }
+    ]
+  },
+  "packagedNativeHelper": {
+    "helperPid": 36512,
+    "pages": 7,
+    "textCharacters": 3642,
+    "pixelBytes": 262144,
+    "preCancelledRender": "rejected",
+    "close": "ok"
+  },
+  "packagedDatabaseChecks": {
+    "schema": 9,
+    "integrity": "ok",
+    "foreignKeyErrors": 0,
+    "activeLeases": 0,
+    "pendingPublications": 0,
+    "verifiedSources": 1,
+    "corpusFingerprintsMatch": true
+  },
+  "packagedPostBuildDiagnostic": {
+    "schemaVersion": 1,
+    "fixture": "/Users/jonas/Documents/GitHub/GPUIPDF/tests/fixtures/PUBMED_16226083.pdf",
+    "repetitions": 1,
+    "powerSettings": "Battery Power:\n Sleep On Power Button 1\n lowpowermode         0\n standby              1\n ttyskeepawake        1\n hibernatemode        3\n powernap             1\n hibernatefile        /var/vm/sleepimage\n displaysleep         30\n womp                 0\n networkoversleep     0\n sleep                1\n lessbright           1\n tcpkeepalive         1\n disksleep            10\nAC Power:\n Sleep On Power Button 1\n lowpowermode         1\n standby              1\n ttyskeepawake        1\n hibernatemode        3\n powernap             1\n hibernatefile        /var/vm/sleepimage\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n disksleep            10\n",
+    "powerSource": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=22937699)\t100%; charged; 0:00 remaining present: true\n",
+    "environment": "Tauri 2 debug bundle, macOS WebKit, canonical SQLite pipeline",
+    "medians": {
+      "loadTotalMs": 667,
+      "featureSetupMs": 116,
+      "interactionMs": 5196,
+      "p95FrameIntervalMs": 52,
+      "maximumFrameIntervalMs": 88,
+      "exactSettleP95Ms": 455,
+      "baselineRssMiB": 239.796875,
+      "loadedRssMiB": 0,
+      "featureRssMiB": 399.96875,
+      "interactionPeakRssMiB": 505.859375,
+      "settledRssMiB": 504.25
+    },
+    "runs": [
+      {
+        "run": 1,
+        "benchmark": {
+          "cache": {
+            "budgetBytes": 100663296,
+            "fallbackBudgetBytes": 8388608,
+            "fallbackBytes": 700416,
+            "mountedPages": 1,
+            "peakResidentBytes": 101647776,
+            "peakResidentTiles": 118,
+            "residentBytes": 100599200,
+            "residentTiles": 117,
+            "suspended": false
+          },
+          "exactRenderSettleMs": {
+            "maximum": 455,
+            "median": 300,
+            "p95": 455,
+            "timeouts": 0
+          },
+          "featureSetupMs": 116,
+          "frameIntervals": {
+            "framesOver20Ms": 145,
+            "maximum": 88,
+            "median": 33,
+            "p95": 52
+          },
+          "interactionMs": 5196,
+          "loadMs": 667,
+          "pageCount": 7,
+          "renderer": "pdfjs-canvas-tiles",
+          "scenario": {
+            "scrollJumps": 8,
+            "zoomChanges": 6
+          },
+          "schemaVersion": 1,
+          "sourceBytes": 411242,
+          "startedAt": "2026-09-11T17:46:26.784Z",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+        },
+        "semanticIndexStats": {
+          "chunks": 127,
+          "embeddedChunks": 0,
+          "elapsedMs": 2052.248458,
+          "modelLoadMs": 0,
+          "embeddingMs": 0,
+          "indexBuildMs": 0,
+          "reused": true
+        },
+        "resources": {
+          "baseline-ready": {
+            "samples": 3,
+            "rssMiB": {
+              "median": 239.796875,
+              "p95": 239.84375,
+              "maximum": 239.84375
+            },
+            "cpuPercent": {
+              "median": 35.8,
+              "p95": 92.69999999999999,
+              "maximum": 92.69999999999999
+            }
+          },
+          "load-start": {
+            "samples": 2,
+            "rssMiB": {
+              "median": 383.609375,
+              "p95": 383.609375,
+              "maximum": 383.609375
+            },
+            "cpuPercent": {
+              "median": 182.9,
+              "p95": 182.9,
+              "maximum": 182.9
+            }
+          },
+          "load-ready": {
+            "samples": 0,
+            "rssMiB": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            },
+            "cpuPercent": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            }
+          },
+          "feature-start": {
+            "samples": 0,
+            "rssMiB": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            },
+            "cpuPercent": {
+              "median": 0,
+              "p95": 0,
+              "maximum": 0
+            }
+          },
+          "feature-ready": {
+            "samples": 1,
+            "rssMiB": {
+              "median": 399.96875,
+              "p95": 399.96875,
+              "maximum": 399.96875
+            },
+            "cpuPercent": {
+              "median": 267.2,
+              "p95": 267.2,
+              "maximum": 267.2
+            }
+          },
+          "interaction-start": {
+            "samples": 21,
+            "rssMiB": {
+              "median": 493.046875,
+              "p95": 503.65625,
+              "maximum": 505.859375
+            },
+            "cpuPercent": {
+              "median": 97.1,
+              "p95": 219.3,
+              "maximum": 250.59999999999997
+            }
+          },
+          "settled": {
+            "samples": 3,
+            "rssMiB": {
+              "median": 504.25,
+              "p95": 504.25,
+              "maximum": 504.25
+            },
+            "cpuPercent": {
+              "median": 9.5,
+              "p95": 24.2,
+              "maximum": 24.2
+            }
+          }
+        },
+        "peakProcessCount": 7,
+        "peakProcesses": [
+          {
+            "pid": 43671,
+            "ppid": 43628,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 144,
+            "cpuPercent": 21
+          },
+          {
+            "pid": 43715,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU",
+            "rssMiB": 69.796875,
+            "cpuPercent": 37.4
+          },
+          {
+            "pid": 43716,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking",
+            "rssMiB": 16.65625,
+            "cpuPercent": 0
+          },
+          {
+            "pid": 43717,
+            "ppid": 1,
+            "command": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+            "rssMiB": 212.84375,
+            "cpuPercent": 29.3
+          },
+          {
+            "pid": 43772,
+            "ppid": 43671,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 26.484375,
+            "cpuPercent": 0
+          },
+          {
+            "pid": 43789,
+            "ppid": 43671,
+            "command": "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+            "rssMiB": 13.59375,
+            "cpuPercent": 0
+          },
+          {
+            "pid": 43790,
+            "ppid": 43671,
+            "command": "(key)",
+            "rssMiB": 22.484375,
+            "cpuPercent": 82.2
+          }
+        ],
+        "processNames": [
+          "/Users/jonas/Documents/GitHub/GPUIPDF/apps/key/src-tauri/target/debug/bundle/macos/Key.app/Contents/MacOS/key",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking",
+          "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent",
+          "(key)"
+        ]
+      }
+    ]
+  },
+  "additionalPackagedFailures": [
+    {
+      "run": "post-build two-run repeat",
+      "result": "harness timed out; no performance result",
+      "log": "/tmp/key-schema9-packaged-postbuild.log"
+    },
+    {
+      "run": "Low Power Mode disabled, confirmed for AC and battery",
+      "result": "harness timed out during interaction-start; no valid normal-power timing comparison",
+      "log": "/tmp/key-schema9-webkit-normal-power.log"
+    }
+  ],
+  "benchmarkHarnessFollowup": {
+    "separateStdoutStderrBuffers": true,
+    "timeoutCleanup": true,
+    "timeoutPhaseReported": true,
+    "powerSettingsRecorded": true,
+    "earlyExitFailureProbeSeconds": 0.32
+  }
+}

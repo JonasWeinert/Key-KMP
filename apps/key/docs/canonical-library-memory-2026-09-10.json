@@ -1,0 +1,89 @@
+{
+  "fixture": "tests/fixtures/PUBMED_16226083.pdf",
+  "build": "debug",
+  "notes": [
+    "Cold isolated pipeline runs with real ONNX inference.",
+    "Some runs overlapped compilation; elapsed times are not controlled release comparisons.",
+    "Process-tree samples exclude desktop WebKit; see separate packaged benchmark."
+  ],
+  "embeddingBatches": {
+    "32": {
+      "processTreePeakMiB": 796.125,
+      "largestHelperPeakMiB": 741.453125,
+      "elapsedSeconds": 17.06245558298542,
+      "pipeline": {
+        "anchorRects": 8,
+        "coldSearchMs": 3445.115084,
+        "elapsedMs": 13316.237458,
+        "extractionReused": false,
+        "firstResultPage": 0,
+        "hash": "bb139ac37d68ad6a66fe13d214f4fa8e61bc21e34b8a6df6651b4a992c65bb44",
+        "index": {
+          "chunks": 127,
+          "elapsedMs": 8752.905166999999,
+          "embeddedChunks": 127,
+          "embeddingMs": 3750.365667,
+          "indexBuildMs": 530.337125,
+          "modelLoadMs": 2672.267208,
+          "reused": false
+        },
+        "pages": 7,
+        "warmSearchMs": 57.963959
+      }
+    },
+    "8": {
+      "processTreePeakMiB": 298.375,
+      "largestHelperPeakMiB": 244.71875,
+      "elapsedSeconds": 10.400043208006537,
+      "pipeline": {
+        "anchorRects": 8,
+        "coldSearchMs": 1774.726083,
+        "elapsedMs": 7792.79825,
+        "extractionReused": false,
+        "firstResultPage": 0,
+        "hash": "bb139ac37d68ad6a66fe13d214f4fa8e61bc21e34b8a6df6651b4a992c65bb44",
+        "index": {
+          "chunks": 127,
+          "elapsedMs": 5181.8922919999995,
+          "embeddedChunks": 127,
+          "embeddingMs": 1844.166375,
+          "indexBuildMs": 239.802042,
+          "modelLoadMs": 1622.702208,
+          "reused": false
+        },
+        "pages": 7,
+        "warmSearchMs": 36.192875
+      }
+    }
+  },
+  "desktopBatch8": [
+    {
+      "run": 1,
+      "readerLoadMs": 237,
+      "peakProcessTreeMiB": 725.96875,
+      "index": {
+        "chunks": 127,
+        "embeddedChunks": 127,
+        "elapsedMs": 4931.159375,
+        "modelLoadMs": 1649.715375,
+        "embeddingMs": 1587.971542,
+        "indexBuildMs": 238.909458,
+        "reused": false
+      }
+    },
+    {
+      "run": 2,
+      "readerLoadMs": 290.0000000000002,
+      "peakProcessTreeMiB": 469.171875,
+      "index": {
+        "chunks": 127,
+        "embeddedChunks": 0,
+        "elapsedMs": 1441.227667,
+        "modelLoadMs": 0,
+        "embeddingMs": 0,
+        "indexBuildMs": 0,
+        "reused": true
+      }
+    }
+  ]
+}

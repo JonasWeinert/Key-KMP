@@ -1,0 +1,23 @@
+{
+  "date": "2026-09-13",
+  "rustTests": {
+    "library": 42,
+    "reference": 38,
+    "desktopHost": 11
+  },
+  "packagedIpc": {
+    "ok": true,
+    "root": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-scholarly-cache-dedsdfej",
+    "restartReuse": true,
+    "doiAliases": true,
+    "negativeCache": true,
+    "unchangedFetchTimestamp": true,
+    "latencyMs": [
+      19.69,
+      1.09,
+      18.0,
+      1.08
+    ]
+  },
+  "network": "All cache and scheduling regression tests use deterministic fixtures; no live-provider availability claim."
+}

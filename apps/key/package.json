@@ -18,6 +18,7 @@
     "benchmark:pdfjs-workspace-tauri": "node scripts/benchmark-pdfjs-workspace-tauri.mjs",
     "stress:pdfjs": "node scripts/stress-pdfjs.mjs",
     "test:pdfjs-features": "node scripts/test-pdfjs-features.mjs",
+    "test:library-search-ux": "node scripts/test-library-search-ux.mjs",
     "test:pdfjs-workspace-ux": "node scripts/test-pdfjs-workspace-ux.mjs",
     "benchmark:resources": "node scripts/sample-process-resources.mjs",
     "benchmark:compare": "node scripts/compare-benchmarks.mjs"

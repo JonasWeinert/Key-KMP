@@ -25,3 +25,23 @@ export function readerHorizontalGeometry(
     pageLeft: pageWidth => (baseContentWidth - pageWidth) / 2,
   };
 }
+
+/** Half-open page range intersecting a viewport. No DOM reads; O(log pages). */
+export function readerPageWindow(
+  pages: ReadonlyArray<{ top: number; height: number }>, top: number, bottom: number,
+): [number, number] {
+  let low = 0, high = pages.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (pages[middle].top + pages[middle].height < top) low = middle + 1;
+    else high = middle;
+  }
+  const first = low;
+  high = pages.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (pages[middle].top <= bottom) low = middle + 1;
+    else high = middle;
+  }
+  return [first, low];
+}

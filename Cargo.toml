@@ -1,5 +1,11 @@
 [workspace]
 members = [
+    "crates/key-processing",
+    "crates/key-library",
+    "crates/key-store",
+    "crates/key-embed",
+    "crates/key-index",
+    "crates/key-zotero",
     "experiments/gpui-pdf-reader",
     "crates/key-editor-core",
     "crates/key-editor-gpui",
@@ -14,6 +20,7 @@ members = [
     "crates/key-pdf-runtime",
     "crates/key-pdfium",
     "crates/key-safe-http",
+    "crates/key-semantic-search",
     "crates/key-sidecar-store",
     "crates/key-ui-core",
     "crates/key-ui-gpui",
@@ -29,7 +36,7 @@ default-members = [
 ]
 # This patched dependency has its own focused engine-parity test command. Keep
 # it outside the product workspace so Cargo can execute that manifest directly.
-exclude = ["vendor/pdfium-render-tile"]
+exclude = ["vendor/pdfium-render-tile", "crates/opendataloader-pdf-rs"]
 resolver = "3"
 
 [workspace.package]

@@ -6,6 +6,7 @@ import {
   citationLinks,
   citationSummary,
   citationTabLabel,
+  isNumberedCitation,
   isScholarlyResourceUrl,
 } from './citation-details';
 
@@ -79,5 +80,9 @@ describe('citation detail presentation', () => {
       ),
     ).toBe(true);
     expect(isScholarlyResourceUrl('https://example.com/about')).toBe(false);
+  });
+  it('tells numbered citations from author-year ones', () => {
+    expect(['[4-6]', '23', '(12, 14)', '[3].'].every(isNumberedCitation)).toBe(true);
+    expect(['Smith et al., 2020', 'Bureau of Economic Analysis, 2020'].some(isNumberedCitation)).toBe(false);
   });
 });

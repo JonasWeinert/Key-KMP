@@ -1,0 +1,30 @@
+[package]
+name = "key-semantic-search"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Isolated PDF semantic extraction, chunking, embedding, and hybrid search"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+key-processing = { path = "../key-processing" }
+tempfile.workspace = true
+tantivy = "=0.26.1"
+key-library = { path = "../key-library" }
+anyhow = "1"
+asupersync = { version = "0.3.10", default-features = false, features = ["proc-macros"] }
+fastembed = { version = "5.17.2", default-features = false, features = ["ort-download-binaries-rustls-tls"] }
+frankensearch = { git = "https://github.com/Dicklesworthstone/frankensearch.git", rev = "b559c92e03242336614b995c562a13dfd1269eed", default-features = false, features = ["lexical-tantivy"] }
+frankensearch-core = { git = "https://github.com/Dicklesworthstone/frankensearch.git", rev = "b559c92e03242336614b995c562a13dfd1269eed" }
+opendataloader-pdf = { path = "../opendataloader-pdf-rs", default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[features]
+semantic-onnx = ["opendataloader-pdf/onnx"]
+
+[lints.rust]
+unsafe_code = "forbid"

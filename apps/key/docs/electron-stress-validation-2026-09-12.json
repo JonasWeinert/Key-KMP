@@ -1,0 +1,2412 @@
+{
+  "ok": true,
+  "temp": "/var/folders/1t/y4ljxp6s0cjd7r50jp5cwc7w0000gn/T/key-electron-stress-xgbJWB",
+  "cycles": [
+    {
+      "cycle": 1,
+      "document": "interaction.pdf",
+      "readyMs": 210.23641699999985,
+      "totalMs": 682.881167,
+      "resident": 1,
+      "totalMiB": 715.46875,
+      "zoom": "120%",
+      "maxFrameMs": 18.80000001192093,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4301,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 2,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 197.0559999999998,
+      "totalMs": 438.0369169999997,
+      "resident": 2,
+      "totalMiB": 901.671875,
+      "zoom": "83%",
+      "maxFrameMs": 9.300000011920929,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3875,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 3,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 265.0295000000001,
+      "totalMs": 652.5959160000002,
+      "resident": 2,
+      "totalMiB": 1024.1875,
+      "zoom": "120%",
+      "maxFrameMs": 34.30000001192093,
+      "framesOver33Ms": 1,
+      "scrollHeight": 16517,
+      "viewportHeight": 750,
+      "canvases": 0
+    },
+    {
+      "cycle": 4,
+      "document": "interaction.pdf",
+      "readyMs": 452.2854590000002,
+      "totalMs": 736.3093750000003,
+      "resident": 2,
+      "totalMiB": 1086.015625,
+      "zoom": "100%",
+      "maxFrameMs": 10.200000047683716,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3600,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 5,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 223.7378749999998,
+      "totalMs": 682.1538339999997,
+      "resident": 2,
+      "totalMiB": 950.265625,
+      "zoom": "100%",
+      "maxFrameMs": 9.300000011920929,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4631,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 6,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 255.74691600000006,
+      "totalMs": 707.3835830000007,
+      "resident": 2,
+      "totalMiB": 1086.453125,
+      "zoom": "100%",
+      "maxFrameMs": 30.5,
+      "framesOver33Ms": 0,
+      "scrollHeight": 13796,
+      "viewportHeight": 750,
+      "canvases": 0
+    },
+    {
+      "cycle": 7,
+      "document": "interaction.pdf",
+      "readyMs": 230.37466600000062,
+      "totalMs": 467.6985000000004,
+      "resident": 2,
+      "totalMiB": 1140.6875,
+      "zoom": "120%",
+      "maxFrameMs": 9.099999964237213,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4301,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 8,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 229.46687500000007,
+      "totalMs": 466.91841699999986,
+      "resident": 2,
+      "totalMiB": 954.015625,
+      "zoom": "83%",
+      "maxFrameMs": 9.299999952316284,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3875,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 9,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 242.36212499999965,
+      "totalMs": 1018.9212909999997,
+      "resident": 2,
+      "totalMiB": 1207.578125,
+      "zoom": "120%",
+      "maxFrameMs": 38.30000001192093,
+      "framesOver33Ms": 1,
+      "scrollHeight": 16517,
+      "viewportHeight": 750,
+      "canvases": 0
+    },
+    {
+      "cycle": 10,
+      "document": "interaction.pdf",
+      "readyMs": 219.08400000000074,
+      "totalMs": 457.56495799999993,
+      "resident": 2,
+      "totalMiB": 1229.734375,
+      "zoom": "100%",
+      "maxFrameMs": 10.300000011920929,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3600,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 11,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 184.5525830000006,
+      "totalMs": 424.16270800000075,
+      "resident": 2,
+      "totalMiB": 986.671875,
+      "zoom": "100%",
+      "maxFrameMs": 9,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4631,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 12,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 258.0257499999998,
+      "totalMs": 665.4442090000002,
+      "resident": 2,
+      "totalMiB": 1119.953125,
+      "zoom": "100%",
+      "maxFrameMs": 36.09999996423721,
+      "framesOver33Ms": 1,
+      "scrollHeight": 13796,
+      "viewportHeight": 750,
+      "canvases": 0
+    },
+    {
+      "cycle": 13,
+      "document": "interaction.pdf",
+      "readyMs": 253.8649579999983,
+      "totalMs": 720.0458749999998,
+      "resident": 2,
+      "totalMiB": 1227.734375,
+      "zoom": "120%",
+      "maxFrameMs": 9.100000023841858,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4301,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 14,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 189.13279199999852,
+      "totalMs": 422.9209579999988,
+      "resident": 2,
+      "totalMiB": 1004.734375,
+      "zoom": "83%",
+      "maxFrameMs": 8.699999988079071,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3875,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 15,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 257.5137500000001,
+      "totalMs": 680.7532919999994,
+      "resident": 2,
+      "totalMiB": 1113.015625,
+      "zoom": "120%",
+      "maxFrameMs": 26.69999998807907,
+      "framesOver33Ms": 0,
+      "scrollHeight": 16517,
+      "viewportHeight": 750,
+      "canvases": 0
+    },
+    {
+      "cycle": 16,
+      "document": "interaction.pdf",
+      "readyMs": 245.35179199999948,
+      "totalMs": 475.9485420000001,
+      "resident": 2,
+      "totalMiB": 1157.5,
+      "zoom": "100%",
+      "maxFrameMs": 9.5,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3600,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 17,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 200.11983300000065,
+      "totalMs": 665.841292000001,
+      "resident": 2,
+      "totalMiB": 1006.046875,
+      "zoom": "100%",
+      "maxFrameMs": 9.600000023841858,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4631,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 18,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 251.40829200000007,
+      "totalMs": 761.6706670000003,
+      "resident": 2,
+      "totalMiB": 1160.203125,
+      "zoom": "100%",
+      "maxFrameMs": 52,
+      "framesOver33Ms": 2,
+      "scrollHeight": 13796,
+      "viewportHeight": 750,
+      "canvases": 0
+    },
+    {
+      "cycle": 19,
+      "document": "interaction.pdf",
+      "readyMs": 214.88949999999932,
+      "totalMs": 449.1763750000009,
+      "resident": 2,
+      "totalMiB": 1173.453125,
+      "zoom": "120%",
+      "maxFrameMs": 8.800000011920929,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4301,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 20,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 198.09512499999983,
+      "totalMs": 432.9815839999992,
+      "resident": 2,
+      "totalMiB": 971.859375,
+      "zoom": "83%",
+      "maxFrameMs": 9.700000047683716,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3875,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 21,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 267.0475000000006,
+      "totalMs": 910.4944999999989,
+      "resident": 2,
+      "totalMiB": 1153.21875,
+      "zoom": "120%",
+      "maxFrameMs": 26.69999998807907,
+      "framesOver33Ms": 0,
+      "scrollHeight": 16517,
+      "viewportHeight": 750,
+      "canvases": 0
+    },
+    {
+      "cycle": 22,
+      "document": "interaction.pdf",
+      "readyMs": 221.61158299999988,
+      "totalMs": 465.7832499999986,
+      "resident": 2,
+      "totalMiB": 1186.359375,
+      "zoom": "100%",
+      "maxFrameMs": 9.200000047683716,
+      "framesOver33Ms": 0,
+      "scrollHeight": 3600,
+      "viewportHeight": 750,
+      "canvases": 8
+    },
+    {
+      "cycle": 23,
+      "document": "scientific-unlinked.pdf",
+      "readyMs": 196.9317090000004,
+      "totalMs": 430.87354199999936,
+      "resident": 2,
+      "totalMiB": 958.109375,
+      "zoom": "100%",
+      "maxFrameMs": 8.699999988079071,
+      "framesOver33Ms": 0,
+      "scrollHeight": 4631,
+      "viewportHeight": 750,
+      "canvases": 14
+    },
+    {
+      "cycle": 24,
+      "document": "PUBMED_33599681.pdf",
+      "readyMs": 241.5449579999986,
+      "totalMs": 687.734124999999,
+      "resident": 2,
+      "totalMiB": 1097.03125,
+      "zoom": "100%",
+      "maxFrameMs": 34.19999998807907,
+      "framesOver33Ms": 1,
+      "scrollHeight": 13796,
+      "viewportHeight": 750,
+      "canvases": 0
+    }
+  ],
+  "samples": [
+    {
+      "time": 1789239206974,
+      "resident": 0,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 235664,
+          "peakWorkingSetKiB": 235664
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 95968,
+          "peakWorkingSetKiB": 96000
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 45792,
+          "peakWorkingSetKiB": 45792
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 129408,
+          "peakWorkingSetKiB": 129408
+        }
+      ],
+      "totalMiB": 494.953125
+    },
+    {
+      "time": 1789239207655,
+      "resident": 1,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 239344,
+          "peakWorkingSetKiB": 239728
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 130208,
+          "peakWorkingSetKiB": 144240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46096,
+          "peakWorkingSetKiB": 46096
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 134544,
+          "peakWorkingSetKiB": 134544
+        },
+        {
+          "pid": 95284,
+          "type": "Tab",
+          "workingSetKiB": 182448,
+          "peakWorkingSetKiB": 182448
+        }
+      ],
+      "totalMiB": 715.46875
+    },
+    {
+      "time": 1789239207978,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 243008,
+          "peakWorkingSetKiB": 256208
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 147936,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46256,
+          "peakWorkingSetKiB": 46256
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 135184,
+          "peakWorkingSetKiB": 135184
+        },
+        {
+          "pid": 95284,
+          "type": "Tab",
+          "workingSetKiB": 182592,
+          "peakWorkingSetKiB": 183328
+        },
+        {
+          "pid": 95304,
+          "type": "Tab",
+          "workingSetKiB": 152800,
+          "peakWorkingSetKiB": 152800
+        }
+      ],
+      "totalMiB": 886.5
+    },
+    {
+      "time": 1789239208152,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 243296,
+          "peakWorkingSetKiB": 256208
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149872,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46256,
+          "peakWorkingSetKiB": 46256
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 135776,
+          "peakWorkingSetKiB": 135776
+        },
+        {
+          "pid": 95284,
+          "type": "Tab",
+          "workingSetKiB": 182928,
+          "peakWorkingSetKiB": 183328
+        },
+        {
+          "pid": 95304,
+          "type": "Tab",
+          "workingSetKiB": 165184,
+          "peakWorkingSetKiB": 165184
+        }
+      ],
+      "totalMiB": 901.671875
+    },
+    {
+      "time": 1789239208798,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 251840,
+          "peakWorkingSetKiB": 256208
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 156208,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46336,
+          "peakWorkingSetKiB": 46336
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 136096,
+          "peakWorkingSetKiB": 136096
+        },
+        {
+          "pid": 95304,
+          "type": "Tab",
+          "workingSetKiB": 165792,
+          "peakWorkingSetKiB": 165792
+        },
+        {
+          "pid": 95328,
+          "type": "Tab",
+          "workingSetKiB": 292496,
+          "peakWorkingSetKiB": 292496
+        }
+      ],
+      "totalMiB": 1024.1875
+    },
+    {
+      "time": 1789239208982,
+      "resident": 1,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 256416,
+          "peakWorkingSetKiB": 258000
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 154400,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46352,
+          "peakWorkingSetKiB": 46352
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 136128,
+          "peakWorkingSetKiB": 136128
+        },
+        {
+          "pid": 95328,
+          "type": "Tab",
+          "workingSetKiB": 300832,
+          "peakWorkingSetKiB": 300832
+        },
+        {
+          "pid": 95335,
+          "type": "Tab",
+          "workingSetKiB": 65376,
+          "peakWorkingSetKiB": 65376
+        }
+      ],
+      "totalMiB": 937.015625
+    },
+    {
+      "time": 1789239209540,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 264416,
+          "peakWorkingSetKiB": 264672
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 156496,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46352,
+          "peakWorkingSetKiB": 46352
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 136192,
+          "peakWorkingSetKiB": 136192
+        },
+        {
+          "pid": 95328,
+          "type": "Tab",
+          "workingSetKiB": 318672,
+          "peakWorkingSetKiB": 318688
+        },
+        {
+          "pid": 95335,
+          "type": "Tab",
+          "workingSetKiB": 189952,
+          "peakWorkingSetKiB": 189952
+        }
+      ],
+      "totalMiB": 1086.015625
+    },
+    {
+      "time": 1789239209981,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 264480,
+          "peakWorkingSetKiB": 265712
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 155312,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46352,
+          "peakWorkingSetKiB": 46352
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 136256,
+          "peakWorkingSetKiB": 136256
+        },
+        {
+          "pid": 95335,
+          "type": "Tab",
+          "workingSetKiB": 190048,
+          "peakWorkingSetKiB": 190048
+        },
+        {
+          "pid": 95357,
+          "type": "Tab",
+          "workingSetKiB": 165232,
+          "peakWorkingSetKiB": 165232
+        }
+      ],
+      "totalMiB": 935.234375
+    },
+    {
+      "time": 1789239210223,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 264192,
+          "peakWorkingSetKiB": 265712
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 155792,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46352,
+          "peakWorkingSetKiB": 46352
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 136960,
+          "peakWorkingSetKiB": 136960
+        },
+        {
+          "pid": 95335,
+          "type": "Tab",
+          "workingSetKiB": 199344,
+          "peakWorkingSetKiB": 199664
+        },
+        {
+          "pid": 95357,
+          "type": "Tab",
+          "workingSetKiB": 170432,
+          "peakWorkingSetKiB": 170432
+        }
+      ],
+      "totalMiB": 950.265625
+    },
+    {
+      "time": 1789239210921,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 270144,
+          "peakWorkingSetKiB": 271680
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 158416,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46352,
+          "peakWorkingSetKiB": 46352
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 138160,
+          "peakWorkingSetKiB": 138160
+        },
+        {
+          "pid": 95357,
+          "type": "Tab",
+          "workingSetKiB": 176576,
+          "peakWorkingSetKiB": 176576
+        },
+        {
+          "pid": 95383,
+          "type": "Tab",
+          "workingSetKiB": 322880,
+          "peakWorkingSetKiB": 322880
+        }
+      ],
+      "totalMiB": 1086.453125
+    },
+    {
+      "time": 1789239210980,
+      "resident": 1,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 274384,
+          "peakWorkingSetKiB": 274704
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 156512,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46352,
+          "peakWorkingSetKiB": 46352
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 138176,
+          "peakWorkingSetKiB": 138176
+        },
+        {
+          "pid": 95383,
+          "type": "Tab",
+          "workingSetKiB": 357360,
+          "peakWorkingSetKiB": 357360
+        }
+      ],
+      "totalMiB": 949.984375
+    },
+    {
+      "time": 1789239211396,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 276592,
+          "peakWorkingSetKiB": 277232
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 159808,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46400
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 138192,
+          "peakWorkingSetKiB": 138192
+        },
+        {
+          "pid": 95383,
+          "type": "Tab",
+          "workingSetKiB": 360928,
+          "peakWorkingSetKiB": 361152
+        },
+        {
+          "pid": 95402,
+          "type": "Tab",
+          "workingSetKiB": 186144,
+          "peakWorkingSetKiB": 186144
+        }
+      ],
+      "totalMiB": 1140.6875
+    },
+    {
+      "time": 1789239211866,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 278384,
+          "peakWorkingSetKiB": 279152
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 159040,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46368,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 138304,
+          "peakWorkingSetKiB": 138304
+        },
+        {
+          "pid": 95402,
+          "type": "Tab",
+          "workingSetKiB": 188560,
+          "peakWorkingSetKiB": 188560
+        },
+        {
+          "pid": 95404,
+          "type": "Tab",
+          "workingSetKiB": 166256,
+          "peakWorkingSetKiB": 166256
+        }
+      ],
+      "totalMiB": 954.015625
+    },
+    {
+      "time": 1789239211980,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 278976,
+          "peakWorkingSetKiB": 280640
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 156816,
+          "peakWorkingSetKiB": 160816
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46368,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 138432,
+          "peakWorkingSetKiB": 138432
+        },
+        {
+          "pid": 95404,
+          "type": "Tab",
+          "workingSetKiB": 166448,
+          "peakWorkingSetKiB": 166448
+        },
+        {
+          "pid": 95422,
+          "type": "Tab",
+          "workingSetKiB": 101488,
+          "peakWorkingSetKiB": 102256
+        }
+      ],
+      "totalMiB": 867.703125
+    },
+    {
+      "time": 1789239212883,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 294832,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 176096,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46368,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 140784,
+          "peakWorkingSetKiB": 140784
+        },
+        {
+          "pid": 95404,
+          "type": "Tab",
+          "workingSetKiB": 170240,
+          "peakWorkingSetKiB": 170240
+        },
+        {
+          "pid": 95422,
+          "type": "Tab",
+          "workingSetKiB": 408240,
+          "peakWorkingSetKiB": 408240
+        }
+      ],
+      "totalMiB": 1207.578125
+    },
+    {
+      "time": 1789239212981,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 294896,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 172704,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46368,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 140880,
+          "peakWorkingSetKiB": 140880
+        },
+        {
+          "pid": 95422,
+          "type": "Tab",
+          "workingSetKiB": 414704,
+          "peakWorkingSetKiB": 415792
+        },
+        {
+          "pid": 95440,
+          "type": "Tab",
+          "workingSetKiB": 101376,
+          "peakWorkingSetKiB": 102720
+        }
+      ],
+      "totalMiB": 1143.484375
+    },
+    {
+      "time": 1789239213343,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 294960,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 174800,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46368,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 141008,
+          "peakWorkingSetKiB": 141008
+        },
+        {
+          "pid": 95422,
+          "type": "Tab",
+          "workingSetKiB": 414720,
+          "peakWorkingSetKiB": 415792
+        },
+        {
+          "pid": 95440,
+          "type": "Tab",
+          "workingSetKiB": 187392,
+          "peakWorkingSetKiB": 187392
+        }
+      ],
+      "totalMiB": 1229.734375
+    },
+    {
+      "time": 1789239213766,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295056,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 174192,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 141280,
+          "peakWorkingSetKiB": 141280
+        },
+        {
+          "pid": 95440,
+          "type": "Tab",
+          "workingSetKiB": 187568,
+          "peakWorkingSetKiB": 187568
+        },
+        {
+          "pid": 95457,
+          "type": "Tab",
+          "workingSetKiB": 165856,
+          "peakWorkingSetKiB": 165856
+        }
+      ],
+      "totalMiB": 986.671875
+    },
+    {
+      "time": 1789239213981,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295104,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 173248,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 141408,
+          "peakWorkingSetKiB": 141408
+        },
+        {
+          "pid": 95457,
+          "type": "Tab",
+          "workingSetKiB": 166080,
+          "peakWorkingSetKiB": 166080
+        },
+        {
+          "pid": 95458,
+          "type": "Tab",
+          "workingSetKiB": 140368,
+          "peakWorkingSetKiB": 140368
+        }
+      ],
+      "totalMiB": 940.046875
+    },
+    {
+      "time": 1789239214433,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295312,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 175456,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 141408,
+          "peakWorkingSetKiB": 141408
+        },
+        {
+          "pid": 95457,
+          "type": "Tab",
+          "workingSetKiB": 166368,
+          "peakWorkingSetKiB": 166368
+        },
+        {
+          "pid": 95458,
+          "type": "Tab",
+          "workingSetKiB": 321888,
+          "peakWorkingSetKiB": 321888
+        }
+      ],
+      "totalMiB": 1119.953125
+    },
+    {
+      "time": 1789239214987,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295648,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 177136,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143104,
+          "peakWorkingSetKiB": 143104
+        },
+        {
+          "pid": 95458,
+          "type": "Tab",
+          "workingSetKiB": 394992,
+          "peakWorkingSetKiB": 394992
+        },
+        {
+          "pid": 95476,
+          "type": "Tab",
+          "workingSetKiB": 195264,
+          "peakWorkingSetKiB": 195264
+        }
+      ],
+      "totalMiB": 1223.1875
+    },
+    {
+      "time": 1789239215153,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295568,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 177808,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143152,
+          "peakWorkingSetKiB": 143152
+        },
+        {
+          "pid": 95458,
+          "type": "Tab",
+          "workingSetKiB": 396320,
+          "peakWorkingSetKiB": 396320
+        },
+        {
+          "pid": 95476,
+          "type": "Tab",
+          "workingSetKiB": 197952,
+          "peakWorkingSetKiB": 197968
+        }
+      ],
+      "totalMiB": 1227.734375
+    },
+    {
+      "time": 1789239215575,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295568,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 176480,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143408,
+          "peakWorkingSetKiB": 143408
+        },
+        {
+          "pid": 95476,
+          "type": "Tab",
+          "workingSetKiB": 202096,
+          "peakWorkingSetKiB": 202096
+        },
+        {
+          "pid": 95502,
+          "type": "Tab",
+          "workingSetKiB": 164896,
+          "peakWorkingSetKiB": 164896
+        }
+      ],
+      "totalMiB": 1004.734375
+    },
+    {
+      "time": 1789239215983,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295648,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 176432,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143488,
+          "peakWorkingSetKiB": 143488
+        },
+        {
+          "pid": 95502,
+          "type": "Tab",
+          "workingSetKiB": 165088,
+          "peakWorkingSetKiB": 165088
+        },
+        {
+          "pid": 95521,
+          "type": "Tab",
+          "workingSetKiB": 211696,
+          "peakWorkingSetKiB": 211696
+        }
+      ],
+      "totalMiB": 1014.40625
+    },
+    {
+      "time": 1789239216257,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295664,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 177872,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46400,
+          "peakWorkingSetKiB": 46416
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143504,
+          "peakWorkingSetKiB": 143504
+        },
+        {
+          "pid": 95502,
+          "type": "Tab",
+          "workingSetKiB": 165488,
+          "peakWorkingSetKiB": 165488
+        },
+        {
+          "pid": 95521,
+          "type": "Tab",
+          "workingSetKiB": 310800,
+          "peakWorkingSetKiB": 310800
+        }
+      ],
+      "totalMiB": 1113.015625
+    },
+    {
+      "time": 1789239216733,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295776,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 177440,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46512,
+          "peakWorkingSetKiB": 46512
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143552,
+          "peakWorkingSetKiB": 143552
+        },
+        {
+          "pid": 95521,
+          "type": "Tab",
+          "workingSetKiB": 333648,
+          "peakWorkingSetKiB": 334080
+        },
+        {
+          "pid": 95524,
+          "type": "Tab",
+          "workingSetKiB": 188352,
+          "peakWorkingSetKiB": 188352
+        }
+      ],
+      "totalMiB": 1157.5
+    },
+    {
+      "time": 1789239216983,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295840,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 175280,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46512,
+          "peakWorkingSetKiB": 46512
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143664,
+          "peakWorkingSetKiB": 143664
+        },
+        {
+          "pid": 95524,
+          "type": "Tab",
+          "workingSetKiB": 188544,
+          "peakWorkingSetKiB": 188544
+        },
+        {
+          "pid": 95544,
+          "type": "Tab",
+          "workingSetKiB": 151136,
+          "peakWorkingSetKiB": 151136
+        }
+      ],
+      "totalMiB": 977.515625
+    },
+    {
+      "time": 1789239217399,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295872,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 176624,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46512,
+          "peakWorkingSetKiB": 46512
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143760,
+          "peakWorkingSetKiB": 143760
+        },
+        {
+          "pid": 95524,
+          "type": "Tab",
+          "workingSetKiB": 197120,
+          "peakWorkingSetKiB": 197600
+        },
+        {
+          "pid": 95544,
+          "type": "Tab",
+          "workingSetKiB": 170304,
+          "peakWorkingSetKiB": 170304
+        }
+      ],
+      "totalMiB": 1006.046875
+    },
+    {
+      "time": 1789239217984,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300896,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149392,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46512,
+          "peakWorkingSetKiB": 46512
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143792,
+          "peakWorkingSetKiB": 143792
+        },
+        {
+          "pid": 95544,
+          "type": "Tab",
+          "workingSetKiB": 176112,
+          "peakWorkingSetKiB": 176112
+        },
+        {
+          "pid": 95563,
+          "type": "Tab",
+          "workingSetKiB": 291152,
+          "peakWorkingSetKiB": 291152
+        }
+      ],
+      "totalMiB": 1081.890625
+    },
+    {
+      "time": 1789239218157,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 302480,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149616,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46512,
+          "peakWorkingSetKiB": 46512
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143792,
+          "peakWorkingSetKiB": 143792
+        },
+        {
+          "pid": 95544,
+          "type": "Tab",
+          "workingSetKiB": 176416,
+          "peakWorkingSetKiB": 176416
+        },
+        {
+          "pid": 95563,
+          "type": "Tab",
+          "workingSetKiB": 369232,
+          "peakWorkingSetKiB": 369232
+        }
+      ],
+      "totalMiB": 1160.203125
+    },
+    {
+      "time": 1789239218609,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 302544,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149888,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46512,
+          "peakWorkingSetKiB": 46512
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 144048,
+          "peakWorkingSetKiB": 144048
+        },
+        {
+          "pid": 95563,
+          "type": "Tab",
+          "workingSetKiB": 373056,
+          "peakWorkingSetKiB": 373072
+        },
+        {
+          "pid": 95583,
+          "type": "Tab",
+          "workingSetKiB": 185568,
+          "peakWorkingSetKiB": 185568
+        }
+      ],
+      "totalMiB": 1173.453125
+    },
+    {
+      "time": 1789239218986,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 302736,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149472,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 144096,
+          "peakWorkingSetKiB": 144096
+        },
+        {
+          "pid": 95583,
+          "type": "Tab",
+          "workingSetKiB": 187728,
+          "peakWorkingSetKiB": 187936
+        },
+        {
+          "pid": 95587,
+          "type": "Tab",
+          "workingSetKiB": 162112,
+          "peakWorkingSetKiB": 162112
+        }
+      ],
+      "totalMiB": 969.40625
+    },
+    {
+      "time": 1789239219042,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 302736,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149472,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 144112,
+          "peakWorkingSetKiB": 144112
+        },
+        {
+          "pid": 95583,
+          "type": "Tab",
+          "workingSetKiB": 187536,
+          "peakWorkingSetKiB": 187968
+        },
+        {
+          "pid": 95587,
+          "type": "Tab",
+          "workingSetKiB": 164800,
+          "peakWorkingSetKiB": 164800
+        }
+      ],
+      "totalMiB": 971.859375
+    },
+    {
+      "time": 1789239219942,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 288400,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 150672,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 144240,
+          "peakWorkingSetKiB": 144240
+        },
+        {
+          "pid": 95587,
+          "type": "Tab",
+          "workingSetKiB": 168912,
+          "peakWorkingSetKiB": 168912
+        },
+        {
+          "pid": 95607,
+          "type": "Tab",
+          "workingSetKiB": 382144,
+          "peakWorkingSetKiB": 382384
+        }
+      ],
+      "totalMiB": 1153.21875
+    },
+    {
+      "time": 1789239219987,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 288592,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149648,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 144240,
+          "peakWorkingSetKiB": 144240
+        },
+        {
+          "pid": 95587,
+          "type": "Tab",
+          "workingSetKiB": 168912,
+          "peakWorkingSetKiB": 168912
+        },
+        {
+          "pid": 95607,
+          "type": "Tab",
+          "workingSetKiB": 390032,
+          "peakWorkingSetKiB": 390528
+        }
+      ],
+      "totalMiB": 1160.109375
+    },
+    {
+      "time": 1789239220420,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 288432,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149968,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 144256,
+          "peakWorkingSetKiB": 144256
+        },
+        {
+          "pid": 95607,
+          "type": "Tab",
+          "workingSetKiB": 398288,
+          "peakWorkingSetKiB": 398320
+        },
+        {
+          "pid": 95630,
+          "type": "Tab",
+          "workingSetKiB": 187360,
+          "peakWorkingSetKiB": 187360
+        }
+      ],
+      "totalMiB": 1186.359375
+    },
+    {
+      "time": 1789239220851,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 288688,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 149344,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 142992,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95630,
+          "type": "Tab",
+          "workingSetKiB": 187584,
+          "peakWorkingSetKiB": 187584
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 165968,
+          "peakWorkingSetKiB": 165968
+        }
+      ],
+      "totalMiB": 958.109375
+    },
+    {
+      "time": 1789239220987,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 288736,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 148304,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143056,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166096,
+          "peakWorkingSetKiB": 166096
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 101344,
+          "peakWorkingSetKiB": 102640
+        }
+      ],
+      "totalMiB": 873.109375
+    },
+    {
+      "time": 1789239221539,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 295088,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 150592,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143120,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166480,
+          "peakWorkingSetKiB": 166480
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 321552,
+          "peakWorkingSetKiB": 321552
+        }
+      ],
+      "totalMiB": 1097.03125
+    },
+    {
+      "time": 1789239221988,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 299632,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 164960,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143120,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166848,
+          "peakWorkingSetKiB": 166848
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 367152,
+          "peakWorkingSetKiB": 367184
+        }
+      ],
+      "totalMiB": 1160.390625
+    },
+    {
+      "time": 1789239222989,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300016,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 141712,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143008,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166880,
+          "peakWorkingSetKiB": 166880
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 366240,
+          "peakWorkingSetKiB": 367184
+        }
+      ],
+      "totalMiB": 1137.09375
+    },
+    {
+      "time": 1789239223990,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300016,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 141728,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143056,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166832,
+          "peakWorkingSetKiB": 166880
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 366624,
+          "peakWorkingSetKiB": 367184
+        }
+      ],
+      "totalMiB": 1137.484375
+    },
+    {
+      "time": 1789239224991,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300016,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 141728,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143072,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166864,
+          "peakWorkingSetKiB": 166880
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 366992,
+          "peakWorkingSetKiB": 367184
+        }
+      ],
+      "totalMiB": 1137.890625
+    },
+    {
+      "time": 1789239225992,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300176,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 141712,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143120,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166864,
+          "peakWorkingSetKiB": 166880
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 367200,
+          "peakWorkingSetKiB": 367232
+        }
+      ],
+      "totalMiB": 1138.28125
+    },
+    {
+      "time": 1789239226635,
+      "resident": 2,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300304,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 141632,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 143120,
+          "peakWorkingSetKiB": 144384
+        },
+        {
+          "pid": 95633,
+          "type": "Tab",
+          "workingSetKiB": 166880,
+          "peakWorkingSetKiB": 166880
+        },
+        {
+          "pid": 95652,
+          "type": "Tab",
+          "workingSetKiB": 367488,
+          "peakWorkingSetKiB": 367488
+        }
+      ],
+      "totalMiB": 1138.625
+    },
+    {
+      "time": 1789239226994,
+      "resident": 0,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300128,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 142816,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 146208,
+          "peakWorkingSetKiB": 146208
+        }
+      ],
+      "totalMiB": 620.78125
+    },
+    {
+      "time": 1789239228019,
+      "resident": 0,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300128,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 142848,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 146368,
+          "peakWorkingSetKiB": 146368
+        }
+      ],
+      "totalMiB": 620.96875
+    },
+    {
+      "time": 1789239228786,
+      "resident": 0,
+      "processes": [
+        {
+          "pid": 95262,
+          "type": "Browser",
+          "workingSetKiB": 300128,
+          "peakWorkingSetKiB": 314816
+        },
+        {
+          "pid": 95263,
+          "type": "GPU",
+          "workingSetKiB": 142848,
+          "peakWorkingSetKiB": 210240
+        },
+        {
+          "pid": 95264,
+          "type": "Utility",
+          "workingSetKiB": 46528,
+          "peakWorkingSetKiB": 46528
+        },
+        {
+          "pid": 95283,
+          "type": "Tab",
+          "workingSetKiB": 146368,
+          "peakWorkingSetKiB": 146368
+        }
+      ],
+      "totalMiB": 620.96875
+    }
+  ],
+  "errors": [],
+  "cleanup": {
+    "canSuspend": true,
+    "waitMs": 2096,
+    "closedResident": 0,
+    "finalDocuments": [
+      {
+        "authors": [],
+        "completed": 13,
+        "documentHash": "3fbd6365229717147c2fdce5ed3b72989222f9adaf577b4ed8757fc57e1cbabc",
+        "documentId": "3fbd6365229717147c2fdce5ed3b72989222f9adaf577b4ed8757fc57e1cbabc",
+        "error": null,
+        "hasSource": true,
+        "keywordReady": true,
+        "pageCount": 3,
+        "status": "indexed",
+        "title": "interaction.pdf",
+        "total": 13,
+        "updatedAtMs": 1789239227382,
+        "year": null,
+        "workspaceId": "172c6e18302370857407134022328f5a1e03debd443f53a732a267d4dcc8b6b7",
+        "workspaceName": "Personal"
+      },
+      {
+        "authors": [],
+        "completed": 6,
+        "documentHash": "730482eadf824082e6362004856563fb67afd9a33df3943c70e75a899c60aa93",
+        "documentId": "730482eadf824082e6362004856563fb67afd9a33df3943c70e75a899c60aa93",
+        "error": null,
+        "hasSource": true,
+        "keywordReady": true,
+        "pageCount": 3,
+        "status": "indexed",
+        "title": "scientific-unlinked.pdf",
+        "total": 6,
+        "updatedAtMs": 1789239226142,
+        "year": null,
+        "workspaceId": "172c6e18302370857407134022328f5a1e03debd443f53a732a267d4dcc8b6b7",
+        "workspaceName": "Personal"
+      },
+      {
+        "authors": [],
+        "completed": 198,
+        "documentHash": "9da25aacefeaffafef88c9c73cc7c1b26bc266496a2c8db1e7792947331eee79",
+        "documentId": "9da25aacefeaffafef88c9c73cc7c1b26bc266496a2c8db1e7792947331eee79",
+        "error": null,
+        "hasSource": true,
+        "keywordReady": true,
+        "pageCount": 9,
+        "status": "indexed",
+        "title": "PUBMED_33599681.pdf",
+        "total": 198,
+        "updatedAtMs": 1789239225017,
+        "year": null,
+        "workspaceId": "172c6e18302370857407134022328f5a1e03debd443f53a732a267d4dcc8b6b7",
+        "workspaceName": "Personal"
+      }
+    ]
+  },
+  "activeEndMiB": 1138.625,
+  "startMiB": 494.953125,
+  "endMiB": 620.96875,
+  "peakMiB": 1229.734375,
+  "scope": "Electron app.getAppMetrics workingSetSize: main/renderers/GPU/utility processes; Rust workers excluded. Synthetic foreground switching/zoom/scroll and split/separate; local debug build, not a latency guarantee."
+}

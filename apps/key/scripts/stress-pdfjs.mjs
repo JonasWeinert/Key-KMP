@@ -43,6 +43,9 @@ const preview = spawn('npm', ['run', 'preview', '--', '--host', '127.0.0.1', '--
   stdio: ['ignore', 'pipe', 'inherit'],
 });
 
+let indexingProcess;
+let indexingDone;
+let indexingLog = '';
 try {
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Vite preview did not start')), 20_000);
@@ -62,7 +65,7 @@ try {
   const rootPid = server.process().pid;
   const browser = await chromium.connect(server.wsEndpoint());
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
-  await page.goto('http://127.0.0.1:4173/?renderer=pdfjs', { waitUntil: 'networkidle' });
+  await page.goto('http://127.0.0.1:4173/?renderer=pdfjs&benchmark=1', { waitUntil: 'networkidle' });
   await sleep(500);
   const baseline = treeTotals(rootPid);
   const input = page.locator('input[type=file]');
@@ -85,12 +88,25 @@ try {
   await loadDocument();
   await sleep(300);
   const afterInitialLoad = treeTotals(rootPid);
+  if (process.env.KEY_STRESS_INDEX_BINARY) {
+    if (!process.env.KEY_STRESS_INDEX_LIBRARY) throw new Error('An isolated indexing library is required');
+    indexingProcess = spawn(process.env.KEY_STRESS_INDEX_BINARY, [process.env.KEY_STRESS_INDEX_INPUT ?? pdfPath, process.env.KEY_STRESS_INDEX_LIBRARY], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const collect = chunk => { indexingLog = (indexingLog + String(chunk)).slice(-128 * 1024); };
+    indexingProcess.stdout.on('data', collect); indexingProcess.stderr.on('data', collect);
+    indexingDone = new Promise(resolve => {
+      indexingProcess.on('error', error => resolve({ error: String(error) }));
+      indexingProcess.on('exit', code => resolve({ exitCode: code }));
+    });
+  }
   const interactionCycles = [];
   for (let cycle = 1; cycle <= interactionCycleCount; cycle += 1) {
     await page.evaluate(() => {
       window.__PDFJS_BENCHMARK_RESULT__ = undefined;
     });
-    await page.getByRole('button', { name: 'Benchmark' }).click();
+    await page.evaluate(async () => {
+      if (!window.__PDFJS_RUN_BENCHMARK__) throw new Error('Benchmark harness is unavailable');
+      await window.__PDFJS_RUN_BENCHMARK__();
+    });
     await page.waitForFunction(() => Boolean(window.__PDFJS_BENCHMARK_RESULT__), null, {
       timeout: 120_000,
     });
@@ -99,6 +115,10 @@ try {
       cycle,
       resources: treeTotals(rootPid),
       cache: await page.evaluate(() => window.__PDFJS_BENCHMARK_RESULT__?.cache),
+      frameIntervals: await page.evaluate(() => window.__PDFJS_BENCHMARK_RESULT__?.frameIntervals),
+      exactRenderSettleMs: await page.evaluate(() => window.__PDFJS_BENCHMARK_RESULT__?.exactRenderSettleMs),
+      indexingActive: indexingProcess?.exitCode === null,
+      indexingResources: indexingProcess?.exitCode === null ? treeTotals(indexingProcess.pid) : null,
     });
   }
 
@@ -110,7 +130,10 @@ try {
     replacementCycles.push({ cycle, resources: treeTotals(rootPid) });
   }
 
+  const indexing = indexingDone ? await indexingDone : null;
   const output = {
+    indexing,
+    indexingLog,
     schemaVersion: 1,
     fixture: pdfPath,
     environment: 'Playwright Chromium headless, 1440x900, DPR 2',
@@ -125,5 +148,6 @@ try {
   await browser.close();
   await server.close();
 } finally {
+  indexingProcess?.kill('SIGTERM');
   preview.kill('SIGTERM');
 }

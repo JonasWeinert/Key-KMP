@@ -1,0 +1,22 @@
+{
+  "name": "@key/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.tsx",
+    "./styles.css": "./src/styles.css",
+    "./office.css": "./src/office.css",
+    "./fonts.css": "./src/fonts.css"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "motion": "^13.2.0",
+    "@fontsource-variable/geist": "^5.2.0",
+    "@fontsource-variable/geist-mono": "^5.2.0"
+  }
+}

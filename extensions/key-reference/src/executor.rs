@@ -21,6 +21,7 @@ struct ScopeId(u64);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum ReferenceTaskPriority {
+    Urgent,
     High,
     #[default]
     Normal,
@@ -28,13 +29,14 @@ pub(crate) enum ReferenceTaskPriority {
 }
 
 impl ReferenceTaskPriority {
-    const ORDERED: [Self; 3] = [Self::High, Self::Normal, Self::Low];
+    const ORDERED: [Self; 4] = [Self::Urgent, Self::High, Self::Normal, Self::Low];
 
     const fn index(self) -> usize {
         match self {
-            Self::High => 0,
-            Self::Normal => 1,
-            Self::Low => 2,
+            Self::Urgent => 0,
+            Self::High => 1,
+            Self::Normal => 2,
+            Self::Low => 3,
         }
     }
 }
@@ -357,7 +359,7 @@ struct FairQueue {
 }
 
 struct QueueState {
-    priorities: [ScopeQueue; 3],
+    priorities: [ScopeQueue; 4],
     queued: usize,
     closed: bool,
 }

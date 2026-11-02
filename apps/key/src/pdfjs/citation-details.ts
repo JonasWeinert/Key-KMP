@@ -42,6 +42,12 @@ export function citationBibliographyLine(metadata?: ScholarlyMetadata) {
     .join(' · ');
 }
 
+/** Whether a citation is printed as numbers ("[4-6]", "²³") rather than names and years,
+ *  whose list numbers are the reader's own and aren't shown. */
+export function isNumberedCitation(source: string) {
+  return /^[[(]?[\d\s,;–—-]+[\])]?[.,;:]?$/.test(source.trim());
+}
+
 export function citationTabLabel(
   number: number,
   metadata?: ScholarlyMetadata,

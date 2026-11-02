@@ -1,0 +1,9 @@
+{
+  "model": "Snowflake/snowflake-arctic-embed-xs",
+  "revision": "d8c86521100d3556476a063fc2342036d45c106f",
+  "artifact": "onnx/model_quantized.onnx",
+  "fastembedVariant": "SnowflakeArcticEmbedXSQ",
+  "license": "Apache-2.0",
+  "dimension": 384,
+  "modelSha256": "e6aa5e656466a73d7c3111e9a3378bd13e5b93af30eaac2b3f13fd56692589a1"
+}

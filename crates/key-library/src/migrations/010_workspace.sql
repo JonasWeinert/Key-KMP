@@ -1,0 +1,17 @@
+BEGIN IMMEDIATE;
+CREATE TABLE workspace_identity(singleton INTEGER PRIMARY KEY CHECK(singleton=1),id TEXT NOT NULL UNIQUE,name TEXT NOT NULL,root TEXT NOT NULL,created_at INTEGER NOT NULL);
+CREATE TABLE workspace_projects(id TEXT PRIMARY KEY,name TEXT NOT NULL,folder TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL);
+CREATE TABLE workspace_records(id TEXT PRIMARY KEY,kind TEXT NOT NULL CHECK(kind IN ('source','note','document','page','database','file')),document_hash TEXT UNIQUE REFERENCES documents(hash) ON DELETE CASCADE,title TEXT NOT NULL,properties TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(properties) AND json_type(properties)='object'),body TEXT NOT NULL DEFAULT '',revision INTEGER NOT NULL DEFAULT 1,updated_at INTEGER NOT NULL,CHECK((kind='source')=(document_hash IS NOT NULL)));
+CREATE TABLE workspace_project_records(project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,record_id TEXT NOT NULL REFERENCES workspace_records(id) ON DELETE CASCADE,PRIMARY KEY(project_id,record_id));
+CREATE INDEX workspace_record_projects ON workspace_project_records(record_id,project_id);
+CREATE TABLE workspace_linked_folders(id TEXT PRIMARY KEY,project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,path TEXT NOT NULL,UNIQUE(project_id,path));
+CREATE TABLE workspace_linked_files(folder_id TEXT NOT NULL REFERENCES workspace_linked_folders(id) ON DELETE CASCADE,path TEXT NOT NULL,record_id TEXT NOT NULL REFERENCES workspace_records(id) ON DELETE CASCADE,content_hash TEXT NOT NULL,size INTEGER NOT NULL,seen_at INTEGER NOT NULL,PRIMARY KEY(folder_id,path));
+CREATE VIRTUAL TABLE workspace_record_fts USING fts5(id UNINDEXED,title,body,properties);
+CREATE TRIGGER workspace_record_insert AFTER INSERT ON workspace_records BEGIN INSERT INTO workspace_record_fts VALUES(new.id,new.title,new.body,new.properties); END;
+CREATE TRIGGER workspace_record_delete AFTER DELETE ON workspace_records BEGIN DELETE FROM workspace_record_fts WHERE id=old.id; END;
+CREATE TRIGGER workspace_record_update AFTER UPDATE ON workspace_records BEGIN DELETE FROM workspace_record_fts WHERE id=old.id; INSERT INTO workspace_record_fts VALUES(new.id,new.title,new.body,new.properties); END;
+INSERT INTO workspace_records(id,kind,document_hash,title,updated_at) SELECT 'source:'||hash,'source',hash,title,updated_at FROM documents;
+CREATE TRIGGER workspace_source_insert AFTER INSERT ON documents BEGIN INSERT INTO workspace_records(id,kind,document_hash,title,updated_at) VALUES('source:'||new.hash,'source',new.hash,new.title,new.updated_at); END;
+CREATE TRIGGER workspace_source_update AFTER UPDATE OF title ON documents BEGIN UPDATE workspace_records SET title=new.title,revision=revision+1,updated_at=new.updated_at WHERE document_hash=new.hash; END;
+PRAGMA user_version=10;
+COMMIT;

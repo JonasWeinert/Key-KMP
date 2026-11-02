@@ -1,0 +1,51 @@
+.key-global-drawer.key-ui-root {
+  font: var(--key-ui-text-base)/var(--key-ui-line) var(--key-ui-font);
+  background: var(--key-ui-bg);
+  color: var(--key-ui-text);
+}
+.key-global-drawer .key-shell-dialog {
+  background: var(--key-ui-bg);
+  color: var(--key-ui-text);
+}
+.key-global-dialog.key-global-drawer {
+  top: calc(50% + 20px);
+  left: 50%;
+  bottom: auto;
+  translate: -50% -50%;
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  border: 1px solid var(--key-ui-border);
+  border-radius: 24px;
+  overflow: auto;
+  box-shadow: var(--key-ui-shadow);
+}
+.key-global-dialog .key-shell-dialog {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 24px;
+}
+.key-global-dialog .key-shell-dialog h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin: 0 0 12px;
+}
+.key-global-dialog .key-shell-dialog p {
+  font-size: var(--key-ui-text-base);
+  color: var(--key-ui-muted);
+}
+.key-ui-root
+  .key-shell-dialog
+  :is(input:not([type="checkbox"]), select, textarea) {
+  font-family: var(--key-ui-font);
+}
+.key-global-drawer.key-ui-root .key-agent-fill-dialog {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}

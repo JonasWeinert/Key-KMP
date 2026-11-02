@@ -1,0 +1,883 @@
+import { Button, Input } from "@key/design-system";
+import { Icon, type IconName } from "./icons";
+import { ModelProgressPill, useModelProgress } from "./model-progress";
+import Onboarding from "./Onboarding";
+import { notesChanged } from "./NotePage";
+import { markdownToPlainText } from "./note-editor";
+import Settings, { type SettingsSection } from "./Settings";
+import { bridge, type AppInfo, type AppSettings, type Note } from "./library-api";
+import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
+import type { SearchPreviewState } from "./search-preview";
+import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { type LibrarySource, type LibraryHit } from "./LibraryHome";
+import "./shell.css";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
+import CollectionTree from "./CollectionTree";
+import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
+interface Workspace {
+  id: string;
+  name: string;
+  root: string;
+  icon?: string;
+  color?: string;
+}
+interface Project {
+  id: string;
+  name: string;
+  folder: string;
+}
+interface RecordItem {
+  id: string;
+  kind: string;
+  documentHash?: string;
+  title: string;
+  body: string;
+  properties: Record<string, unknown>;
+  revision: number;
+  workspaceId?: string;
+}
+interface TabState {
+  searchPreview?: SearchPreviewState;
+  tabs: {
+    id: string;
+    title: string;
+    views: {
+      id: string;
+      title: string;
+      kind: string;
+      workspaceId?: string;
+      content?: ContentSpec;
+    }[];
+  }[];
+  activeTabId: string;
+  activeViewId: string;
+  splitRatio?: number;
+}
+const api = () =>
+  (
+    window as unknown as {
+      key: {
+        invoke: <T>(
+          command: string,
+          args?: Record<string, unknown>,
+          workspaceId?: string,
+        ) => Promise<T>;
+        workspaces: () => Promise<Workspace[]>;
+        addWorkspace: () => Promise<Workspace | null>;
+        openSources: (workspaceId?: string) => Promise<void>;
+        openSource: (
+          source: LibrarySource,
+          hit?: LibraryHit,
+          results?: LibraryHit[],
+        ) => Promise<void>;
+        tabs: () => Promise<TabState>;
+        tabAction: (
+          action: string,
+          payload?: Record<string, unknown>,
+        ) => Promise<void>;
+        on: (
+          event: string,
+          callback: (...args: unknown[]) => void,
+        ) => () => void;
+      };
+    }
+  ).key;
+// The sidebar can be dragged between these widths; below the minimum its rows stop being readable.
+const SIDEBAR_MIN = 180,
+  SIDEBAR_MAX = 360,
+  SIDEBAR_DEFAULT = 240;
+const clampSidebar = (width: number) => Math.round(Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, width)));
+
+const emptyTabs: TabState = { tabs: [], activeTabId: "", activeViewId: "" };
+
+const tabSummary = (state: TabState): TabSummary[] =>
+  state.tabs.map((tab) => ({
+    id: tab.id,
+    title: tab.title,
+    kind: (tab.views[0]?.kind as TabSummary["kind"]) || "home",
+    active: tab.id === state.activeTabId,
+    closable: true,
+    views: tab.views.map((view) => ({
+      ...view,
+      active: view.id === state.activeViewId,
+    })),
+  }));
+const officeTabs: TabsApi = {
+  list: () => api().tabs().then(tabSummary),
+  onChanged: (callback) =>
+    api().on("tabs-changed", (state) =>
+      callback(tabSummary(state as TabState)),
+    ),
+  focusView: (viewId) => {
+    void api().tabAction("focus", { viewId });
+  },
+  activate: (tabId) => api().tabAction("activate", { tabId }),
+  close: (tabId) => api().tabAction("close", { tabId }),
+  reorder: (tabId, index) => api().tabAction("reorder", { tabId, index }),
+  showNewMenu: () => api().tabAction("new"),
+  showMenu: (x, y) => api().tabAction("tab-menu", { x, y }),
+  showTabMenu: (tabId, x, y) => api().tabAction("tab-context-menu", { tabId, x, y }),
+  dropView: (drop) => api().tabAction("drop-view", drop),
+  notifyChromePressed: () => {
+    void api().tabAction("chrome-pressed");
+  },
+};
+export default function App() {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]),
+    [workspaceId, setWorkspaceId] = useState<string>();
+  const [projects, setProjects] = useState<Project[]>([]),
+    [projectId, setProjectId] = useState<string>();
+  const [records, setRecords] = useState<RecordItem[]>([]),
+    [tabs, setTabs] = useState<TabState>(emptyTabs);
+  const [section, setSection] = useState("sources"),
+    [record, setRecord] = useState<RecordItem>();
+  const [error, setError] = useState(""),
+    [refreshKey, setRefreshKey] = useState(0);
+  const splitFrame = useRef<number | null>(null);
+  const splitPending = useRef(0.5);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem("key.sidebar.collapsed") === "true",
+  );
+  const sidebarSlot = useRef<HTMLDivElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(sidebarCollapsed ? 0 : 240);
+  // The open width the user dragged to, remembered; the slot animates between it and 0.
+  const [sidebarSize, setSidebarSize] = useState(() =>
+    clampSidebar(Number(localStorage.getItem("key.sidebar.width")) || SIDEBAR_DEFAULT),
+  );
+  const [sidebarResizing, setSidebarResizing] = useState(false);
+  useEffect(() => {
+    localStorage.setItem("key.sidebar.width", String(sidebarSize));
+  }, [sidebarSize]);
+  useEffect(() => {
+    localStorage.setItem("key.sidebar.collapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+  useEffect(() => {
+    const node = sidebarSlot.current;
+    if (!node) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const width = Math.round(node.getBoundingClientRect().width);
+        setSidebarWidth(width);
+        void api().tabAction("sidebar-width", { width });
+      });
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  const [dragRatio, setDragRatio] = useState<number>();
+  const resizeSplit = (x: number) => {
+    const ratio = Math.max(
+      0.2,
+      Math.min(
+        0.8,
+        (x - sidebarWidth) / Math.max(1, window.innerWidth - sidebarWidth),
+      ),
+    );
+    setDragRatio(ratio);
+    splitPending.current = ratio;
+    if (splitFrame.current === null)
+      splitFrame.current = requestAnimationFrame(() => {
+        splitFrame.current = null;
+        action("resize-split", { ratio: splitPending.current });
+      });
+  };
+  const [createMenu, setCreateMenu] = useState(false),
+    [dialog, setDialog] = useState<"project" | "folder" | null>(null),
+    [dialogValue, setDialogValue] = useState("");
+
+  useEffect(() => {
+    if (!createMenu) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (
+        event instanceof PointerEvent &&
+        (event.target as Element).closest?.(".key-create-menu, [aria-label='Create item']")
+      )
+        return;
+      setCreateMenu(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [createMenu]);
+  const invoke = useCallback(
+    <T,>(command: string, args?: Record<string, unknown>, id?: string) =>
+      api().invoke<T>(command, args, id),
+    [],
+  );
+  const task = async (action: () => Promise<void>) => {
+    setError("");
+    try {
+      await action();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+  const action = (name: string, payload?: Record<string, unknown>) =>
+    void task(() => api().tabAction(name, payload));
+  // App preferences, Settings and the first-run welcome.
+  const [prefs, setPrefs] = useState<{ settings: AppSettings; info: AppInfo }>();
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>();
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    void bridge()
+      .appSettings()
+      .then((loaded) => {
+        setPrefs(loaded);
+        if (!loaded.settings.onboarded) setWelcome(true);
+      })
+      .catch((e) => setError(String(e)));
+    return api().on("open-settings", () => setSettingsSection("general"));
+  }, []);
+  const updatePrefs = (patch: Partial<AppSettings>) =>
+    void bridge()
+      .setAppSettings(patch)
+      .then((settings) => setPrefs((p) => p && { ...p, settings }))
+      .catch((e) => setError(String(e)));
+  const refreshWorkspaces = () => void api().workspaces().then(setWorkspaces).catch(() => {});
+  useEffect(() => {
+    void task(async () => {
+      setWorkspaces(await api().workspaces());
+      setTabs(await api().tabs());
+    });
+    const a = api().on("tabs-changed", () => {
+      void api()
+        .tabs()
+        .then(setTabs)
+        .catch((e) => setError(String(e)));
+    });
+    const b = api().on("library-changed", () => {
+      setRefreshKey((k) => k + 1);
+      void api().workspaces().then(setWorkspaces).catch(() => {});
+    });
+    return () => {
+      a();
+      b();
+    };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setProjects([]);
+    setRecords([]);
+    if (!workspaceId) return;
+    void Promise.all([
+      invoke<Project[]>("workspace_projects", {}, workspaceId),
+      invoke<RecordItem[]>(
+        "workspace_records",
+        { projectId: projectId || null, limit: 500, offset: 0 },
+        workspaceId,
+      ),
+    ])
+      .then(([p, r]) => {
+        if (!cancelled) {
+          setProjects(p);
+          setRecords(r);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoke, workspaceId, projectId, refreshKey]);
+  const chooseScope = (id?: string, project?: string) => {
+    setWorkspaceId(id);
+    setProjectId(project);
+    action("open-content", {
+      section: "sources",
+      workspaceId: id,
+      projectId: project,
+    });
+  };
+  const selectRecord = (r: RecordItem) => {
+    if (r.documentHash) {
+      void task(() =>
+        api().openSource({
+          documentId: r.documentHash!,
+          documentHash: r.documentHash!,
+          title: r.title,
+          status: "indexed",
+          pageCount: 0,
+          completed: 0,
+          total: 0,
+          workspaceId: r.workspaceId || workspaceId,
+        }),
+      );
+      return;
+    }
+    if (r.properties?.path && r.properties?.editor) {
+      action("open-office-record", {
+        recordId: r.id,
+        workspaceId: r.workspaceId || workspaceId,
+      });
+      return;
+    }
+    action("open-content", {
+      section: "record",
+      workspaceId: r.workspaceId || workspaceId,
+      projectId,
+      record: r,
+    });
+  };
+  // Standalone notes (key-store), listed in the sidebar and opened as tabs.
+  const [notes, setNotes] = useState<Note[]>([]);
+  useEffect(() => {
+    if (!workspaceId) return setNotes([]);
+    const load = () => void invoke<Note[]>("store_notes", {}, workspaceId).then(setNotes).catch(() => setNotes([]));
+    load();
+    window.addEventListener("key:notes-changed", load);
+    return () => window.removeEventListener("key:notes-changed", load);
+  }, [invoke, workspaceId, refreshKey]);
+  const openNote = (note: Pick<Note, "id" | "title">) =>
+    action("open-content", { section: "note", workspaceId, noteId: note.id, title: note.title });
+  const createNote = () =>
+    void task(async () => {
+      setCreateMenu(false);
+      if (!workspaceId) throw Error("Choose a workspace to create a note.");
+      const note = await invoke<Note>("store_note_save", { id: null, sourceId: null, title: "", body: "" }, workspaceId);
+      notesChanged();
+      openNote(note);
+    });
+  const createRecord = (kind: string) => {
+    if (kind === "note") return createNote();
+    setCreateMenu(false);
+    if (!workspaceId) {
+      setError("Choose a workspace to create an item.");
+      return;
+    }
+    action("open-content", {
+      section: "record",
+      workspaceId,
+      projectId,
+      record: {
+        id: "",
+        kind,
+        title: "",
+        body: "",
+        properties: {},
+        revision: 0,
+      },
+    });
+  };
+  // The model is shared by every workspace, so any host can report it.
+  const model = useModelProgress(invoke, workspaceId || workspaces[0]?.id);
+  const selectedWorkspace = workspaces.find((w) => w.id === workspaceId),
+    selectedProject = projects.find((p) => p.id === projectId);
+  const activeTab = tabs.tabs.find((t) => t.id === tabs.activeTabId),
+    activeView = activeTab?.views.find((v) => v.id === tabs.activeViewId);
+  useEffect(() => {
+    if (activeView?.content) {
+      setWorkspaceId(activeView.content.workspaceId);
+      setProjectId(activeView.content.projectId);
+      setSection(activeView.content.section);
+      setRecord(activeView.content.record);
+    } else if (activeView) {
+      setWorkspaceId(activeView.workspaceId);
+      setProjectId(undefined);
+      setRecord(undefined);
+      setSection("");
+    }
+  }, [activeView?.id, activeView?.content?.record?.id]);
+  const recordIcon = (r: RecordItem): IconName =>
+    r.kind === "note" ? "note" : r.kind === "database" ? "database" : "doc";
+  const sidebarToggle = (
+    <button
+      className="key-sidebar-toggle"
+      aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      aria-expanded={!sidebarCollapsed}
+      title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+      onClick={() => setSidebarCollapsed((v) => !v)}
+    >
+      <Icon name="sidebar" />
+    </button>
+  );
+  const navItem = (
+    label: string,
+    icon: IconName,
+    current: boolean,
+    onClick: () => void,
+    disabled = false,
+  ) => (
+    <button
+      className="kx-nav-item"
+      aria-current={current ? "page" : undefined}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon name={icon} />
+      <span>{label}</span>
+    </button>
+  );
+  return (
+    <div
+      className="key-shell"
+      data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
+    >
+      <GlobalDrawerHost />
+      {prefs && settingsSection && !welcome && (
+        <Settings
+          section={settingsSection}
+          invoke={invoke}
+          workspaces={workspaces}
+          settings={prefs.settings}
+          info={prefs.info}
+          onSettings={updatePrefs}
+          onClose={() => setSettingsSection(undefined)}
+          onShowWelcome={() => {
+            setSettingsSection(undefined);
+            setWelcome(true);
+          }}
+          onOpenLibrary={(id) => {
+            setSettingsSection(undefined);
+            action("open-content", { section: "sources", workspaceId: id });
+          }}
+          onWorkspacesChanged={refreshWorkspaces}
+        />
+      )}
+      {prefs && welcome && (
+        <Onboarding
+          invoke={invoke}
+          workspaces={workspaces}
+          info={prefs.info}
+          theme={prefs.settings.theme}
+          onTheme={(theme) => updatePrefs({ theme })}
+          onFinish={(id) => {
+            setWelcome(false);
+            updatePrefs({ onboarded: true });
+            refreshWorkspaces();
+            if (id) action("open-content", { section: "sources", workspaceId: id });
+          }}
+        />
+      )}
+      <div
+        ref={sidebarSlot}
+        className={`key-sidebar-slot ${sidebarCollapsed ? "collapsed" : ""}`}
+        data-resizing={sidebarResizing || undefined}
+        style={{ "--kx-sidebar-width": `${sidebarSize}px` } as React.CSSProperties}
+      >
+        <aside
+          className="key-sidebar key-ui-root"
+          style={
+            {
+              "--workspace-accent": selectedWorkspace?.color || "#64748b",
+            } as React.CSSProperties
+          }
+          inert={sidebarCollapsed}
+          aria-hidden={sidebarCollapsed}
+        >
+          <div className="kx-sidebar-titlebar">{sidebarToggle}</div>
+          <WorkspaceSwitcher
+            workspaces={workspaces}
+            selectedId={workspaceId}
+            onSelect={chooseScope}
+            onAdd={async () => {
+              const added = await api().addWorkspace();
+              setWorkspaces(await api().workspaces());
+              if (added) chooseScope(added.id);
+            }}
+            onSave={async (id, icon, color) => {
+              await api().invoke(
+                "workspace_set_appearance",
+                { icon, color },
+                id,
+              );
+              setWorkspaces(await api().workspaces());
+            }}
+          />
+          <nav className="kx-nav" aria-label="Library">
+            {navItem("Home", "home", section === "home", () =>
+              action("open-home"),
+            )}
+            {navItem("Sources", "books", section === "sources", () =>
+              action("open-content", {
+                section: "sources",
+                workspaceId,
+                projectId,
+              }),
+            )}
+            {navItem(
+              "All items",
+              "layers",
+              section === "records",
+              () =>
+                action("open-content", {
+                  section: "records",
+                  workspaceId,
+                  projectId,
+                }),
+              !workspaceId,
+            )}
+          </nav>
+          <div className="kx-sidebar-scroll">
+            {workspaceId ? (
+              <CollectionTree
+                invoke={invoke}
+                workspaceId={workspaceId}
+                onShowSources={() =>
+                  action("open-content", { section: "sources", workspaceId })
+                }
+              />
+            ) : (
+              <p className="key-sidebar-hint">
+                Choose a workspace to see its collections and pages.
+              </p>
+            )}
+            <div className="key-sidebar-section">
+              <span>Notes</span>
+              <button disabled={!workspaceId} aria-label="New note" title="New note" onClick={createNote}>
+                <Icon name="plus" size={14} />
+              </button>
+            </div>
+            <nav className="kx-nav" aria-label="Notes">
+              {notes.map((n) => (
+                <button
+                  key={n.id}
+                  className="kx-nav-item"
+                  aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
+                  onClick={() => openNote(n)}
+                  title={n.title || markdownToPlainText(n.body).slice(0, 120) || "Untitled note"}
+                >
+                  <Icon name="note" />
+                  <span>{n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note"}</span>
+                </button>
+              ))}
+              {workspaceId && !notes.length && <p className="key-sidebar-hint">No notes yet.</p>}
+            </nav>
+            <div className="key-sidebar-section">
+              <span>Pages</span>
+              <button
+                disabled={!workspaceId}
+                aria-label="Create item"
+                title="New page, note or document"
+                aria-expanded={createMenu}
+                onClick={() => setCreateMenu(!createMenu)}
+              >
+                <Icon name="plus" size={14} />
+              </button>
+            </div>
+            {createMenu && (
+              <div className="key-create-menu">
+                {(
+                  [
+                    ["note", "Note", "note"],
+                    ["page", "Page", "doc"],
+                    ["database", "Database", "database"],
+                  ] as const
+                ).map(([kind, label, icon]) => (
+                  <button
+                    key={kind}
+                    onClick={() => createRecord(kind)}
+                  >
+                    <Icon name={icon} />
+                    New {label.toLowerCase()}
+                  </button>
+                ))}
+                <hr />
+                {["docs", "sheets", "slides", "markdown", "html"].map(
+                  (kind) => (
+                    <button
+                      key={kind}
+                      onClick={() => {
+                        setCreateMenu(false);
+                        action("create-office", { kind, workspaceId });
+                      }}
+                    >
+                      <Icon name="doc" />
+                      New {kind === "docs" ? "document" : kind}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+            <nav className="kx-nav" aria-label="Pages">
+              {records
+                .filter((r) => r.kind !== "source")
+                .map((r) => (
+                  <button
+                    key={r.id}
+                    className="kx-nav-item"
+                    aria-current={record?.id === r.id ? "page" : undefined}
+                    onClick={() => selectRecord(r)}
+                  >
+                    <Icon name={recordIcon(r)} />
+                    <span>{r.title || "Untitled"}</span>
+                  </button>
+                ))}
+              {workspaceId &&
+                !records.some((r) => r.kind !== "source") &&
+                !createMenu && (
+                  <p className="key-sidebar-hint">No pages yet.</p>
+                )}
+            </nav>
+          </div>
+          <div className="key-sidebar-footer">
+            <ModelProgressPill progress={model} />
+            {projectId && (
+              <button
+                className="kx-nav-item"
+                onClick={() =>
+                  action("link-folder", { workspaceId, projectId })
+                }
+              >
+                <Icon name="link" />
+                <span>Link folder…</span>
+              </button>
+            )}
+            <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
+              <Icon name="gear" />
+              <span>Settings</span>
+            </button>
+            <small>
+              <Icon name="disk" size={13} />
+              <span>
+                {selectedWorkspace
+                  ? "Stored on this Mac"
+                  : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`}
+              </span>
+            </small>
+          </div>
+        </aside>
+        {!sidebarCollapsed && (
+          <div
+            className="kx-sidebar-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuemin={SIDEBAR_MIN}
+            aria-valuemax={SIDEBAR_MAX}
+            aria-valuenow={sidebarSize}
+            title="Drag to resize · double-click to reset"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setSidebarResizing(true);
+            }}
+            onPointerMove={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) setSidebarSize(clampSidebar(e.clientX));
+            }}
+            onPointerUp={() => setSidebarResizing(false)}
+            onPointerCancel={() => setSidebarResizing(false)}
+            onDoubleClick={() => setSidebarSize(SIDEBAR_DEFAULT)}
+          />
+        )}
+      </div>
+      <div className="kx-main">
+      <TabBar
+        api={officeTabs}
+        trailingControls={
+          <div className="key-chrome-layout-controls">
+            {activeTab && activeTab.views.length > 1 && (
+              <>
+                <button
+                  title="Swap panes"
+                  aria-label="Swap panes"
+                  onClick={() => action("swap")}
+                >
+                  <Icon name="swap" />
+                </button>
+                <button
+                  title="Separate panes"
+                  aria-label="Separate panes"
+                  onClick={() =>
+                    action("separate", { viewId: tabs.activeViewId })
+                  }
+                >
+                  <Icon name="detach" />
+                </button>
+              </>
+            )}
+            {tabs.tabs.length > 1 && (
+              <button
+                title="Move this tab to a new window"
+                aria-label="Move tab to new window"
+                onClick={() => action("pop-out", { tabId: tabs.activeTabId })}
+              >
+                <Icon name="windows" />
+              </button>
+            )}
+            <button
+              title="Split with another tab"
+              aria-label="Split with another tab"
+              disabled={
+                activeTab?.views.length === 2 ||
+                !tabs.tabs.some(
+                  (t) => t.id !== tabs.activeTabId && t.views.length === 1,
+                )
+              }
+              onClick={() => action("split-menu")}
+            >
+              <Icon name="split" />
+            </button>
+          </div>
+        }
+        chromeControl={sidebarCollapsed ? sidebarToggle : undefined}
+      />
+      <div className="key-shell-body key-ui-root">
+        <div className="key-content-panes">
+          {tabs.tabs
+            .flatMap((t) => t.views)
+            .filter((v) => v.content)
+            .map((v) => {
+              const index =
+                activeTab?.views.findIndex((p) => p.id === v.id) ?? -1;
+              const split = activeTab?.views.length === 2;
+              const ratio = dragRatio ?? tabs.splitRatio ?? 0.5;
+              return (
+                <div
+                  key={v.id}
+                  data-content-view={v.id}
+                  className="key-content-pane"
+                  hidden={index < 0}
+                  onPointerDownCapture={() => {
+                    if (tabs.activeViewId !== v.id)
+                      action("focus", { viewId: v.id });
+                  }}
+                  onFocusCapture={() => {
+                    if (tabs.activeViewId !== v.id)
+                      action("focus", { viewId: v.id });
+                  }}
+                  style={{
+                    top: tabs.searchPreview ? 40 : 0,
+                    left:
+                      split && index === 1 ? `calc(${ratio * 100}% + 3px)` : 0,
+                    width: split
+                      ? index === 0
+                        ? `calc(${ratio * 100}% - 3px)`
+                        : `calc(${(1 - ratio) * 100}% - 3px)`
+                      : "100%",
+                  }}
+                >
+                  <WorkspaceContent
+                    viewId={v.id}
+                    spec={v.content || { section: "sources" }}
+                    visible={index >= 0}
+                    tabs={tabs}
+                  />
+                </div>
+              );
+            })}
+          {error && (
+            <div className="key-shell-error" role="alert">
+              <span>{error}</span>
+              <Button onClick={() => setError("")}>Dismiss</Button>
+            </div>
+          )}
+        </div>
+      </div>
+      </div>
+      {activeTab?.views.length === 2 && (
+        <div
+          className="key-split-divider"
+          role="separator"
+          aria-label="Resize split panes"
+          aria-orientation="vertical"
+          aria-valuemin={20}
+          aria-valuemax={80}
+          aria-valuenow={Math.round(
+            (dragRatio ?? tabs.splitRatio ?? 0.5) * 100,
+          )}
+          tabIndex={0}
+          style={{
+            top: tabs.searchPreview ? 80 : 40,
+            left: `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) * ${dragRatio ?? tabs.splitRatio ?? 0.5} - 3px)`,
+          }}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            resizeSplit(e.clientX);
+          }}
+          onPointerMove={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId))
+              resizeSplit(e.clientX);
+          }}
+          onPointerUp={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+              action("resize-split", { ratio: splitPending.current });
+              setDragRatio(undefined);
+            }
+          }}
+          onPointerCancel={() => setDragRatio(undefined)}
+          onDoubleClick={() => action("resize-split", { ratio: 0.5 })}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+              e.preventDefault();
+              action("resize-split", {
+                ratio:
+                  (tabs.splitRatio ?? 0.5) +
+                  (e.key === "ArrowLeft" ? -0.025 : 0.025),
+              });
+            }
+          }}
+        />
+      )}{" "}
+      {dialog && (
+        <GlobalDialog label={dialog === "project" ? "New project" : "Link a folder"} onClose={()=>setDialog(null)}>
+          <form
+            className="key-shell-dialog"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!workspaceId) return;
+              void task(async () => {
+                if (dialog === "project") {
+                  const p = await invoke<Project>(
+                    "workspace_create_project",
+                    { name: dialogValue },
+                    workspaceId,
+                  );
+                  chooseScope(workspaceId, p.id);
+                } else {
+                  const folder = await invoke<{ id: string }>(
+                    "workspace_link_folder",
+                    { projectId, path: dialogValue },
+                    workspaceId,
+                  );
+                  await invoke(
+                    "workspace_scan_linked_folder",
+                    { id: folder.id },
+                    workspaceId,
+                  );
+                }
+                setDialog(null);
+                setRefreshKey((k) => k + 1);
+              });
+            }}
+          >
+            <h2>{dialog === "project" ? "New project" : "Link a folder"}</h2>
+            <p>
+              {dialog === "project"
+                ? "Projects are subfolders and filtered views of this workspace."
+                : "Files stay in their original folder. Their metadata is added to this project and supported sources are indexed."}
+            </p>
+            <label>
+              {dialog === "project" ? "Project name" : "Absolute folder path"}
+              <Input
+                autoFocus
+                required
+                value={dialogValue}
+                onChange={(e) => setDialogValue(e.target.value)}
+              />
+            </label>
+            <div>
+              <Button type="button" onClick={() => setDialog(null)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {dialog === "project" ? "Create project" : "Link and scan"}
+              </Button>
+            </div>
+          </form>
+        </GlobalDialog>
+      )}
+    </div>
+  );
+}
