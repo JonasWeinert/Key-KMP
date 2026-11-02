@@ -5,6 +5,7 @@ import { PluginKey } from "@tiptap/pm/state";
 import { Suggestion } from "@tiptap/suggestion";
 import type { SuggestionProps } from "@tiptap/suggestion";
 import type { IconName } from "../icons";
+import { insertVideo, pickImageFiles } from "./mediaBehaviors";
 import { getRuntime } from "./runtime";
 import type { PickMode } from "./runtime";
 import { mentionLabel, rememberSource, sourceLine } from "./sourceCache";
@@ -55,16 +56,43 @@ export const SLASH_ITEMS: SlashItem[] = [
   {
     id: "image",
     label: "Image",
-    hint: "Embed by URL",
+    hint: "Upload from your Mac",
     group: "Media",
     icon: "image",
-    keywords: ["picture", "photo", "img", "url"],
+    keywords: ["picture", "photo", "img", "upload", "file"],
+    run: (e, r) => {
+      clear(e, r).run();
+      if (getRuntime(e)?.saveImage) pickImageFiles(e);
+      else promptImageUrl(e);
+    },
+  },
+  {
+    id: "image-url",
+    label: "Image from URL",
+    hint: "Embed by link",
+    group: "Media",
+    icon: "link",
+    keywords: ["picture", "photo", "img", "url", "web"],
+    run: (e, r) => {
+      clear(e, r).run();
+      promptImageUrl(e);
+    },
+  },
+  {
+    id: "video",
+    label: "Video",
+    hint: "YouTube, Vimeo or a video link",
+    group: "Media",
+    icon: "video",
+    keywords: ["youtube", "vimeo", "embed", "movie", "film"],
     run: (e, r) => {
       clear(e, r).run();
       getRuntime(e)?.promptUrl({
-        title: "Image URL",
-        placeholder: "https://…",
-        submit: (src) => e.chain().focus().setImage({ src }).run(),
+        title: "Video link",
+        placeholder: "https://www.youtube.com/watch?v=…",
+        submit: (url) => {
+          if (!insertVideo(e, url)) e.chain().focus().insertContent(url).run();
+        },
       });
     },
   },
@@ -229,6 +257,14 @@ export const NoteMenus = Extension.create<{ controller: MenuController | null }>
     ];
   },
 });
+
+function promptImageUrl(editor: Editor) {
+  getRuntime(editor)?.promptUrl({
+    title: "Image URL",
+    placeholder: "https://…",
+    submit: (src) => editor.chain().focus().setImage({ src }).run(),
+  });
+}
 
 export function insertSource(editor: Editor, range: Range, ref: SourceRef, mode: PickMode) {
   rememberSource(ref);

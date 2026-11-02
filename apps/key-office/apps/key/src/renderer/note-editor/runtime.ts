@@ -22,6 +22,10 @@ export interface NoteRuntime {
   resolve(id: string): Promise<SourceRef | null>;
   open(id: string, page?: number): void;
   promptUrl(request: UrlPromptRequest): void;
+  /** Stores an image file in the workspace and answers its `media/…` path; null when notes can't store files here. */
+  saveImage: ((file: File) => Promise<string>) | null;
+  /** A URL the editor can load for an image's `src`. */
+  mediaUrl(src: string): string;
   pickMode: PickMode;
   /** query the latest finished source search was for (drives the "Searching…" row) */
   lastSourceQuery: string | null;

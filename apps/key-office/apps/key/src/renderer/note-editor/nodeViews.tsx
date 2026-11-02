@@ -1,10 +1,13 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import type { ReactNodeViewProps } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { Icon } from "../icons";
 import type { IconName } from "../icons";
+import { parseVideoUrl, videoMeta } from "./media";
+import type { VideoMeta } from "./media";
 import { getRuntime } from "./runtime";
 import { peekSource, subscribeSources } from "./sourceCache";
 import { CALLOUT_TONES } from "./types";
@@ -238,6 +241,233 @@ export function SourceQuoteView({ node, editor }: ReactNodeViewProps) {
           <span>{parts.join(" · ")}</span>
         </button>
       </figcaption>
+    </NodeViewWrapper>
+  );
+}
+
+// ── Video embed ────────────────────────────────────────────────────────────
+
+const PROVIDER_LABEL = { youtube: "YouTube", vimeo: "Vimeo", file: "Video" } as const;
+
+/** Opens a web link in the user's browser (the shell hands new windows to the system). */
+function openExternal(url: string) {
+  window.open(url, "_blank", "noopener");
+}
+
+export function VideoEmbedView({ node, editor, selected, updateAttributes }: ReactNodeViewProps) {
+  const url = String(node.attrs.url ?? "");
+  const title = String(node.attrs.title ?? "");
+  const info = parseVideoUrl(url);
+  const [playing, setPlaying] = useState(false);
+  const [meta, setMeta] = useState<VideoMeta>({});
+  const [thumbFailed, setThumbFailed] = useState(false);
+
+  useEffect(() => {
+    if (!info) return;
+    let live = true;
+    void videoMeta(info).then((found) => {
+      if (!live) return;
+      setMeta(found);
+      // keep the title in the note, so it is searchable and shows offline
+      if (found.title && !title && editor.isEditable) updateAttributes({ title: found.title });
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
+
+  if (!info) {
+    return (
+      <NodeViewWrapper className={`ne-video is-broken${selected ? " is-selected" : ""}`} data-drag-handle="">
+        <div className="ne-video-bar" contentEditable={false}>
+          <Icon name="video" size={14} />
+          <span className="ne-video-title">{url || "Video link missing"}</span>
+        </div>
+      </NodeViewWrapper>
+    );
+  }
+
+  const shownTitle = title || meta.title || url;
+  const thumbnail = thumbFailed ? undefined : (info.thumbnail ?? meta.thumbnail);
+  return (
+    <NodeViewWrapper className={`ne-video${selected ? " is-selected" : ""}${playing ? " is-playing" : ""}`} data-drag-handle="" data-provider={info.provider}>
+      <div className="ne-video-frame" contentEditable={false}>
+        {info.provider === "file" ? (
+          <video className="ne-video-player" src={info.embedUrl} controls preload="metadata" />
+        ) : playing ? (
+          <iframe
+            className="ne-video-player"
+            src={info.embedUrl}
+            title={shownTitle}
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        ) : (
+          <button
+            type="button"
+            className="ne-video-poster"
+            aria-label={`Play ${shownTitle}`}
+            title="Play here"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setPlaying(true)}
+          >
+            {thumbnail ? <img src={thumbnail} alt="" draggable={false} onError={() => setThumbFailed(true)} /> : <Icon name="video" size={32} />}
+            <span className="ne-video-play">
+              <Icon name="play" size={22} />
+            </span>
+          </button>
+        )}
+      </div>
+      <div className="ne-video-bar" contentEditable={false}>
+        <span className="ne-video-provider">{PROVIDER_LABEL[info.provider]}</span>
+        <span className="ne-video-title" title={shownTitle}>
+          {shownTitle}
+        </span>
+        {playing && (
+          <button type="button" className="ne-video-action" onMouseDown={(e) => e.preventDefault()} onClick={() => setPlaying(false)} aria-label="Stop video" title="Stop">
+            <Icon name="close" size={13} />
+          </button>
+        )}
+        <button
+          type="button"
+          className="ne-video-action"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => openExternal(info.url)}
+          aria-label={`Open in ${info.provider === "file" ? "browser" : PROVIDER_LABEL[info.provider]}`}
+          title="Open in your browser"
+        >
+          <Icon name="external" size={13} />
+        </button>
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+// ── Image ──────────────────────────────────────────────────────────────────
+
+const MIN_IMAGE_WIDTH = 80;
+
+function Lightbox({ src, caption, onClose }: { src: string; caption: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  return createPortal(
+    <div className="ne-lightbox" role="dialog" aria-modal="true" aria-label={caption || "Image"} onClick={onClose}>
+      <figure className="ne-lightbox-figure">
+        <img src={src} alt={caption} />
+        {caption && <figcaption>{caption}</figcaption>}
+      </figure>
+      <button type="button" className="ne-lightbox-close" aria-label="Close" onClick={onClose}>
+        <Icon name="close" size={16} />
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
+export function ImageView({ node, editor, selected, updateAttributes }: ReactNodeViewProps) {
+  const src = String(node.attrs.src ?? "");
+  const caption = String(node.attrs.title ?? "");
+  const alt = String(node.attrs.alt ?? "") || caption;
+  const width = typeof node.attrs.width === "number" ? (node.attrs.width as number) : null;
+  const url = getRuntime(editor)?.mediaUrl(src) ?? src;
+  const [failed, setFailed] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const [draft, setDraft] = useState(caption);
+  const frameRef = useRef<HTMLDivElement>(null);
+  useEffect(() => setFailed(false), [url]);
+  useEffect(() => setDraft(caption), [caption]);
+  const editable = editor.isEditable;
+
+  const startResize = (event: React.PointerEvent<HTMLSpanElement>, side: 1 | -1) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const frame = frameRef.current;
+    const column = frame?.parentElement;
+    if (!frame || !column) return;
+    const startX = event.clientX;
+    const startWidth = frame.getBoundingClientRect().width;
+    const max = column.getBoundingClientRect().width;
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    let next = startWidth;
+    const move = (e: PointerEvent) => {
+      // the image stays centred, so it grows on both sides
+      next = Math.round(Math.min(max, Math.max(MIN_IMAGE_WIDTH, startWidth + side * 2 * (e.clientX - startX))));
+      setDragWidth(next);
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      setDragWidth(null);
+      // the full column width means "fit", which keeps the plain Markdown form
+      updateAttributes({ width: next >= max - 1 ? null : next });
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  };
+
+  const commitCaption = () => {
+    const next = draft.replace(/\s+/g, " ").trim();
+    if (next !== caption) updateAttributes({ title: next || null });
+  };
+
+  const shownWidth = dragWidth ?? width;
+  return (
+    <NodeViewWrapper as="figure" className={`ne-image${selected ? " is-selected" : ""}`} data-drag-handle="">
+      <div className="ne-image-frame" ref={frameRef} contentEditable={false} style={shownWidth ? { width: shownWidth } : undefined}>
+        {failed ? (
+          <div className="ne-image-missing">
+            <Icon name="image" size={20} />
+            <span>Image not found</span>
+          </div>
+        ) : (
+          <img src={url} alt={alt} draggable={false} onError={() => setFailed(true)} onClick={() => setZoomed(true)} title="Click to enlarge" />
+        )}
+        {editable && !failed && (
+          <>
+            <span className="ne-image-handle is-left" onPointerDown={(e) => startResize(e, -1)} aria-hidden="true" />
+            <span className="ne-image-handle is-right" onPointerDown={(e) => startResize(e, 1)} aria-hidden="true" />
+          </>
+        )}
+      </div>
+      {(editable || caption) && (
+        <figcaption className="ne-image-caption" contentEditable={false}>
+          <input
+            value={draft}
+            placeholder="Add a caption"
+            aria-label="Image caption"
+            spellCheck
+            readOnly={!editable}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitCaption}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitCaption();
+                editor.commands.focus();
+              } else if (e.key === "Escape") {
+                setDraft(caption);
+                editor.commands.focus();
+              }
+            }}
+          />
+        </figcaption>
+      )}
+      {zoomed && <Lightbox src={url} caption={caption || alt} onClose={() => setZoomed(false)} />}
     </NodeViewWrapper>
   );
 }

@@ -115,11 +115,247 @@
   max-width: 100%;
   height: auto;
   border-radius: var(--ne-radius);
-  margin: 0.6em 0;
 }
-.ne-prose img.ProseMirror-selectednode {
+
+/* ── image: centred, resizable from either edge, caption below ─────────── */
+
+.ne-image {
+  margin: 0.8em 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ne-image-frame {
+  position: relative;
+  max-width: 100%;
+  line-height: 0;
+}
+.ne-image-frame img {
+  width: 100%;
+  cursor: zoom-in;
+}
+.ne-image.is-selected .ne-image-frame img {
   outline: 2px solid var(--kx-accent);
   outline-offset: 2px;
+}
+.ne-image-handle {
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 44px;
+  max-height: 40%;
+  margin-top: -22px;
+  border-radius: 3px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-card);
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 0.15s var(--kx-ease);
+  touch-action: none;
+}
+.ne-image-handle.is-left {
+  left: 6px;
+}
+.ne-image-handle.is-right {
+  right: 6px;
+}
+.ne-image-frame:hover .ne-image-handle,
+.ne-image.is-selected .ne-image-handle {
+  opacity: 1;
+}
+.ne-image-missing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 22px;
+  line-height: 1.3;
+  border-radius: var(--ne-radius);
+  background: var(--kx-fill);
+  color: var(--kx-text-3);
+}
+.ne-image-caption {
+  width: 100%;
+  margin-top: 6px;
+}
+.ne-image-caption input {
+  width: 100%;
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.86em;
+  text-align: center;
+  color: var(--kx-text-2);
+  outline: none;
+}
+.ne-image-caption input::placeholder {
+  color: var(--kx-text-3);
+  opacity: 0;
+  transition: opacity 0.15s var(--kx-ease);
+}
+.ne-image:hover .ne-image-caption input::placeholder,
+.ne-image.is-selected .ne-image-caption input::placeholder,
+.ne-image-caption input:focus::placeholder {
+  opacity: 1;
+}
+
+.ne-lightbox {
+  --ne-lightbox-scrim: rgb(0 0 0 / 82%);
+  --ne-lightbox-text: #f2f2f4;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 48px;
+  background: var(--ne-lightbox-scrim);
+  backdrop-filter: blur(6px);
+  cursor: zoom-out;
+  animation: ne-fade 0.16s var(--kx-ease);
+}
+.ne-lightbox-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  max-height: 100%;
+}
+.ne-lightbox-figure img {
+  max-width: 100%;
+  max-height: calc(100vh - 140px);
+  object-fit: contain;
+  border-radius: 6px;
+}
+.ne-lightbox-figure figcaption {
+  color: var(--ne-lightbox-text);
+  font-size: 13px;
+  text-align: center;
+}
+.ne-lightbox-close {
+  position: absolute;
+  top: 52px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--kx-bg-raised);
+  color: var(--kx-text);
+  cursor: pointer;
+}
+@keyframes ne-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ── video: a preview card that plays in place ─────────────────────────── */
+
+.ne-video {
+  margin: 0.8em 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-card);
+}
+.ne-video.is-selected {
+  box-shadow: 0 0 0 2px var(--kx-accent), var(--kx-shadow-card);
+}
+.ne-video-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--kx-bg-sunken);
+}
+.ne-video.is-broken .ne-video-frame {
+  display: none;
+}
+.ne-video-player {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.ne-video-poster {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text-3);
+  cursor: pointer;
+}
+.ne-video-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+}
+.ne-video-play {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding-left: 3px;
+  border-radius: 50%;
+  background: var(--kx-bg-raised);
+  color: var(--kx-text);
+  box-shadow: var(--kx-shadow-lift);
+  transition: transform 0.15s var(--kx-ease);
+}
+.ne-video-poster:hover .ne-video-play {
+  transform: scale(1.08);
+}
+.ne-video-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  font-size: 0.86em;
+  color: var(--kx-text-2);
+  user-select: none;
+}
+.ne-video-provider {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--kx-fill);
+  font-size: 0.86em;
+  font-weight: 600;
+  color: var(--kx-text-2);
+}
+.ne-video-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--kx-text);
+}
+.ne-video-action {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-2);
+  cursor: pointer;
+}
+.ne-video-action:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
 }
 
 /* ── lists ───────────────────────────────────────────────────────────────── */
@@ -559,7 +795,7 @@
 
 /* ── selection of atoms / drag ───────────────────────────────────────────── */
 
-.ne-prose .ProseMirror-selectednode:not(.ne-source-card):not(hr):not(img) {
+.ne-prose .ProseMirror-selectednode:not(.ne-source-card):not(hr):not(img):not(.node-image):not(.node-videoEmbed) {
   border-radius: 6px;
   box-shadow: 0 0 0 2px var(--kx-accent-soft);
 }

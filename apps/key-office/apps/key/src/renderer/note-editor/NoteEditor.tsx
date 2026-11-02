@@ -9,10 +9,11 @@ import { BubbleToolbar, normalizeUrl } from "./BubbleToolbar";
 import { NoteKeymap, SourceLinks } from "./behaviors";
 import { NoteMenus } from "./menus";
 import type { MenuController, MenuState } from "./menus";
-import { CalloutView, SourceEmbedView, SourceQuoteView, ToggleView } from "./nodeViews";
+import { NoteMedia } from "./mediaBehaviors";
+import { CalloutView, ImageView, SourceEmbedView, SourceQuoteView, ToggleView, VideoEmbedView } from "./nodeViews";
 import { NoteRuntimeExtension } from "./runtime";
 import type { NoteRuntime, UrlPromptRequest } from "./runtime";
-import { Callout, SourceEmbed, SourceQuote, Toggle, buildSchemaExtensions, serializeNote } from "./schema";
+import { Callout, NoteImage, SourceEmbed, SourceQuote, Toggle, VideoEmbed, buildSchemaExtensions, serializeNote } from "./schema";
 import { resolveSourceCached } from "./sourceCache";
 import { SuggestionMenu, usePopoverPosition } from "./SuggestionMenu";
 import type { SuggestionMenuHandle } from "./SuggestionMenu";
@@ -29,7 +30,10 @@ function buildEditorExtensions(runtime: NoteRuntime, controller: MenuController)
       toggle: Toggle.extend({ addNodeView: () => ReactNodeViewRenderer(ToggleView) }),
       sourceEmbed: SourceEmbed.extend({ addNodeView: () => ReactNodeViewRenderer(SourceEmbedView) }),
       sourceQuote: SourceQuote.extend({ addNodeView: () => ReactNodeViewRenderer(SourceQuoteView) }),
+      videoEmbed: VideoEmbed.extend({ addNodeView: () => ReactNodeViewRenderer(VideoEmbedView) }),
+      image: NoteImage.extend({ addNodeView: () => ReactNodeViewRenderer(ImageView) }).configure({ inline: false }),
     }),
+    NoteMedia,
     NoteRuntimeExtension.configure({ runtime }),
     Placeholder.configure({
       includeChildren: true,
@@ -127,6 +131,11 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
         }
         setPrompt({ request, rect });
       },
+      get saveImage() {
+        const media = propsRef.current.media;
+        return media ? (file: File) => media.save(file) : null;
+      },
+      mediaUrl: (src) => propsRef.current.media?.url(src) ?? src,
       pickMode: "link",
       lastSourceQuery: null,
     }),
