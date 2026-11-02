@@ -775,6 +775,11 @@ fn escape(text: &str) -> String {
     out
 }
 
+/// Plain text (an annotation's text or comment) as a Markdown paragraph.
+pub fn paragraph(text: &str) -> String {
+    escape_line_starts(&escape(text))
+}
+
 /// Text that would start a heading, quote, list or fence at the start of a line is escaped.
 fn escape_line_starts(text: &str) -> String {
     text.split('\n')
