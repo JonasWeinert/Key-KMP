@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { placeSearchResultTab } from "./search-preview-model";
-import type { WorkspaceTabsState, WorkspaceTab } from "./tab-model";
-const tab = (id: string, ...views: string[]): WorkspaceTab => ({
-  id,
-  viewIds: views as [string] | [string, string],
-  activeViewId: views[0],
-  splitRatio: 0.4,
-});
+import { tabWithLayout, type WorkspaceTabsState, type WorkspaceTab } from "./tab-model";
+const tab = (id: string, ...views: string[]): WorkspaceTab =>
+  tabWithLayout(
+    { id },
+    views.length === 1
+      ? { view: views[0] }
+      : { split: "row", ratio: 0.4, a: { view: views[0] }, b: { view: views[1] } },
+  );
 const state = (...tabs: WorkspaceTab[]): WorkspaceTabsState => ({
   tabs,
   activeTabId: tabs[0].id,

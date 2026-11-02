@@ -9,6 +9,12 @@ import {
   singleWorkspaceTab,
   splitWithTab,
   swapWorkspaceSplit,
+  layoutViews,
+  layoutPanes,
+  neighbourPane,
+  resetWorkspaceSplits,
+  replaceWorkspaceView,
+  MAX_PANES,
   type WorkspaceTabsState,
 } from "./tab-model";
 function initial(): WorkspaceTabsState {
@@ -22,7 +28,8 @@ function invariant(state: WorkspaceTabsState, expected: string[]) {
   for (const tab of state.tabs) {
     expect(tab.viewIds).toContain(tab.activeViewId);
     expect(tab.viewIds.length).toBeGreaterThanOrEqual(1);
-    expect(tab.viewIds.length).toBeLessThanOrEqual(2);
+    expect(tab.viewIds.length).toBeLessThanOrEqual(MAX_PANES);
+    expect(layoutViews(tab.layout)).toEqual(tab.viewIds);
     expect(Number.isFinite(tab.splitRatio)).toBe(true);
   }
   if (state.tabs.length)
@@ -47,14 +54,18 @@ describe("Electron global view ownership", () => {
     for (const id of ["a", "c", "d"]) state = closeWorkspaceView(state, id);
     invariant(state, []);
   });
-  it("rejects merging with a split target instead of dropping its other view", () => {
+  it("merges a split target's whole arrangement beside the focused pane", () => {
     let state = initial();
     const [a, b, c] = state.tabs;
     state = splitWithTab(state, b.id, c.id);
-    const before = state;
-    state = splitWithTab(state, a.id, b.id);
-    expect(state).toBe(before);
+    state = splitWithTab(state, a.id, b.id, "bottom");
     invariant(state, ["a", "b", "c", "d"]);
+    expect(state.tabs[0].layout).toEqual({
+      split: "column",
+      ratio: 0.5,
+      a: { view: "a" },
+      b: { split: "row", ratio: 0.5, a: { view: "b" }, b: { view: "c" } },
+    });
   });
   it("closing one split view retains the other owner and resets geometry", () => {
     let state = initial();
@@ -73,9 +84,10 @@ describe("Electron global view ownership", () => {
     let state = initial();
     const id = state.tabs[0].id;
     state = setWorkspaceSplitRatio(state, id, 2);
-    expect(state.tabs[0].splitRatio).toBe(0.8);
+    expect(state.tabs[0].splitRatio).toBe(0.9);
     state = setWorkspaceSplitRatio(state, id, -1);
-    expect(state.tabs[0].splitRatio).toBe(0.2);
+    expect(state.tabs[0].splitRatio).toBe(0.1);
+    expect(setWorkspaceSplitRatio(state, id, 0.5, "../x")).toBe(state);
     for (const value of [NaN, Infinity, -Infinity])
       expect(setWorkspaceSplitRatio(state, id, value)).toBe(state);
   });
@@ -160,5 +172,79 @@ describe("spatial tab drops", () => {
     expect(applyWorkspaceViewDrop(state,{kind:"split",viewId:"a",targetTabId:"missing"})).toBe(state);
     expect(applyWorkspaceViewDrop(state,{kind:"swap",viewId:"a",targetViewId:"b"})).toBe(state);
     expect(applyWorkspaceViewDrop(state,{kind:"detach",viewId:"a",index:NaN})).toBe(state);
+  });
+});
+
+describe("nested pane layouts", () => {
+  function three(): WorkspaceTabsState {
+    // a | (b over c)
+    let state = initial();
+    state = applyWorkspaceViewDrop(state, { kind: "split", viewId: "b", targetTabId: state.tabs[0].id, edge: "right" });
+    state = applyWorkspaceViewDrop(state, { kind: "split", viewId: "c", targetTabId: state.tabs[0].id, targetViewId: "b", edge: "bottom" });
+    return state;
+  }
+  it("splits any pane on any edge and keeps reading order", () => {
+    const state = three();
+    invariant(state, ["a", "b", "c", "d"]);
+    expect(state.tabs[0].viewIds).toEqual(["a", "b", "c"]);
+    expect(state.tabs[0].activeViewId).toBe("c");
+    const left = applyWorkspaceViewDrop(state, { kind: "split", viewId: "d", targetTabId: state.tabs[0].id, targetViewId: "c", edge: "left" });
+    expect(left.tabs[0].viewIds).toEqual(["a", "b", "d", "c"]);
+    invariant(left, ["a", "b", "c", "d"]);
+  });
+  it("lays out nested panes edge to edge with dividers between them", () => {
+    const { panes, dividers } = layoutPanes(three().tabs[0].layout, { x: 240, y: 40, width: 1200, height: 900 });
+    const byId = Object.fromEntries(panes.map((p) => [p.viewId, p]));
+    expect(byId.a).toEqual({ viewId: "a", x: 240, y: 40, width: 597, height: 900 });
+    expect(byId.b).toEqual({ viewId: "b", x: 843, y: 40, width: 597, height: 447 });
+    expect(byId.c).toEqual({ viewId: "c", x: 843, y: 493, width: 597, height: 447 });
+    expect(dividers.map((d) => [d.path, d.split, d.x, d.y, d.width, d.height])).toEqual([
+      ["", "row", 837, 40, 6, 900],
+      ["b", "column", 843, 487, 597, 6],
+    ]);
+  });
+  it("resizes, swaps and resets the split holding the focused pane", () => {
+    let state = three();
+    const id = state.tabs[0].id;
+    state = setWorkspaceSplitRatio(state, id, 0.3, "b");
+    expect(state.tabs[0].splitRatio).toBe(0.5);
+    expect((state.tabs[0].layout as any).b.ratio).toBe(0.3);
+    state = swapWorkspaceSplit(state, id);
+    expect(state.tabs[0].viewIds).toEqual(["a", "c", "b"]);
+    state = resetWorkspaceSplits(state, id);
+    expect((state.tabs[0].layout as any).b.ratio).toBe(0.5);
+  });
+  it("finds neighbours by position", () => {
+    const layout = three().tabs[0].layout;
+    expect(neighbourPane(layout, "a", "right")).toBe("b");
+    expect(neighbourPane(layout, "b", "bottom")).toBe("c");
+    expect(neighbourPane(layout, "c", "left")).toBe("a");
+    expect(neighbourPane(layout, "a", "left")).toBeUndefined();
+  });
+  it("closes a nested pane, focusing what took its place", () => {
+    let state = three();
+    state = closeWorkspaceView(state, "c");
+    expect(state.tabs[0].viewIds).toEqual(["a", "b"]);
+    expect(state.tabs[0].activeViewId).toBe("b");
+    invariant(state, ["a", "b", "d"]);
+  });
+  it("moves a pane within its own tab, and separates every pane", () => {
+    let state = three();
+    state = applyWorkspaceViewDrop(state, { kind: "split", viewId: "a", targetTabId: state.tabs[0].id, targetViewId: "c", edge: "right" });
+    expect(state.tabs[0].viewIds).toEqual(["b", "c", "a"]);
+    invariant(state, ["a", "b", "c", "d"]);
+    state = separateWorkspaceTab(state, state.tabs[0].id);
+    expect(state.tabs.map((t) => t.viewIds)).toEqual([["b"], ["c"], ["a"], ["d"]]);
+  });
+  it("replaces a launcher pane in place and caps panes per tab", () => {
+    let state = replaceWorkspaceView(three(), "b", "x");
+    expect(state.tabs[0].viewIds).toEqual(["a", "x", "c"]);
+    expect(state.tabs[0].activeViewId).toBe("x");
+    let many: WorkspaceTabsState = { tabs: [singleWorkspaceTab("v0")], activeTabId: null };
+    for (let i = 1; i < MAX_PANES + 3; i++) {
+      many = { ...many, tabs: [...many.tabs, singleWorkspaceTab(`v${i}`)] };
+      many = applyWorkspaceViewDrop(many, { kind: "split", viewId: `v${i}`, targetTabId: many.tabs[0].id });
+    }
+    expect(many.tabs[0].viewIds.length).toBe(MAX_PANES);
   });
 });
