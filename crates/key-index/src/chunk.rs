@@ -249,7 +249,7 @@ fn split(text: String, ranges: Vec<Range<usize>>) -> Vec<(String, Vec<Range<usiz
     out
 }
 
-fn sentences(text: &str) -> Vec<&str> {
+pub(crate) fn sentences(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0;
     let bytes = text.as_bytes();

@@ -15,6 +15,7 @@ import {
   type Invoke,
   type LibraryStatus,
   type Passage,
+  type NoteHit,
   type SearchHit,
   type SearchResult,
   type Source,
@@ -70,6 +71,7 @@ export default function ReferenceLibrary({
   refreshKey,
   onOpen,
   onOpenHit,
+  onOpenNote,
 }: {
   invoke: Invoke;
   workspaceId: string;
@@ -78,6 +80,7 @@ export default function ReferenceLibrary({
   refreshKey: number;
   onOpen: (source: Source) => void;
   onOpenHit: (hit: OpenHit) => void;
+  onOpenNote: (note: { id: string; title: string }) => void;
 }) {
   const initial = currentSelection(workspaceId);
   const [collectionId, setCollectionId] = useState<string | undefined>(initial?.collectionId);
@@ -495,12 +498,13 @@ export default function ReferenceLibrary({
   };
 
   // Results only re-render when they change, not on every keystroke; handlers stay stable.
-  const latest = useRef({ select, open, runSearch, onOpenHit, search });
-  latest.current = { select, open, runSearch, onOpenHit, search };
+  const latest = useRef({ select, open, runSearch, onOpenHit, onOpenNote, search });
+  latest.current = { select, open, runSearch, onOpenHit, onOpenNote, search };
   const resultHandlers = useMemo<ResultHandlers>(
     () => ({
       onPointer: (id, e) => latest.current.select(id, e),
       onOpen: (source) => latest.current.open(source),
+      onOpenNote: (note) => latest.current.onOpenNote(note),
       onMore: () => {
         const current = latest.current.search;
         if (current) void latest.current.runSearch(current.query, current.limit + 120);
@@ -1152,6 +1156,7 @@ function creatorList(creators: Creator[], max: number) {
   return list.length > max ? `${list.slice(0, max).join(", ")} et al.` : list.join(", ");
 }
 function passagePlace(passage: Passage) {
+  if (passage.noteId) return "Note";
   if (passage.page !== null) return `p. ${passage.page + 1}`;
   if (passage.startSeconds !== null) {
     const s = Math.round(passage.startSeconds);
@@ -1165,6 +1170,7 @@ interface ResultHandlers {
   onPointer: (id: string, e: React.MouseEvent) => void;
   onOpen: (source: Source) => void;
   onOpenPassage: (hit: SearchHit, passage: Passage) => void;
+  onOpenNote: (note: { id: string; title: string }) => void;
   onMore: () => void;
 }
 
@@ -1182,8 +1188,10 @@ const SearchResults = memo(function SearchResults({
   const result = search.result;
   const pattern = useMemo(() => queryPattern(search.query), [search.query]);
   const hits = result?.hits ?? [];
+  const notes = result?.notes ?? [];
   const inDetails = hits.filter((h) => h.metadataMatch).length;
-  const inText = hits.filter((h) => h.passages.length).length;
+  const inText = hits.filter((h) => h.passages.some((p) => !p.noteId)).length;
+  const inNotes = hits.filter((h) => h.passages.some((p) => p.noteId)).length + notes.length;
   return (
     <div className="kx-results" role="listbox" aria-label="Search results" aria-multiselectable tabIndex={0} data-busy={search.busy}>
       {search.error ? (
@@ -1192,10 +1200,19 @@ const SearchResults = memo(function SearchResults({
         </p>
       ) : result ? (
         <div className="kx-results-head">
-          <strong>{hits.length ? `${hits.length === search.limit ? `Top ${hits.length}` : hits.length} ${hits.length === 1 ? "source" : "sources"}` : "No matches"}</strong>
-          {!!hits.length && (
+          <strong>
+            {hits.length || notes.length
+              ? [
+                  hits.length && `${hits.length === search.limit ? `Top ${hits.length}` : hits.length} ${hits.length === 1 ? "source" : "sources"}`,
+                  notes.length && `${notes.length} ${notes.length === 1 ? "note" : "notes"}`,
+                ]
+                  .filter(Boolean)
+                  .join(" and ")
+              : "No matches"}
+          </strong>
+          {!!(hits.length || notes.length) && (
             <span>
-              {[inDetails && `${inDetails} in titles and details`, inText && `${inText} in full text`].filter(Boolean).join(" · ")}
+              {[inDetails && `${inDetails} in titles and details`, inText && `${inText} in full text`, inNotes && `${inNotes} in notes`].filter(Boolean).join(" · ")}
               {result.semantic ? " · matched by words and meaning" : ""}
             </span>
           )}
@@ -1207,7 +1224,10 @@ const SearchResults = memo(function SearchResults({
           ))}
         </div>
       )}
-      {result && !hits.length && <p className="kx-results-empty">Nothing matched “{search.query}”. Try other words or a broader collection.</p>}
+      {notes.map((note) => (
+        <NoteHitRow key={note.noteId} note={note} pattern={pattern} handlers={handlers} />
+      ))}
+      {result && !hits.length && !notes.length && <p className="kx-results-empty">Nothing matched “{search.query}”. Try other words or a broader collection.</p>}
       {hits.map((hit) => (
         <SearchHitRow
           key={hit.sourceId}
@@ -1302,34 +1322,66 @@ const SearchHitRow = memo(function SearchHitRow({
                       </span>
                     </li>
                   ))}
-                  {hit.passages.map((passage) => {
-                    const openable = passage.page !== null;
-                    return (
-                      <li key={passage.id}>
-                        <button
-                          className="kx-passage"
-                          data-related={!!passage.related}
-                          disabled={!openable}
-                          title={openable ? `Open page ${passage.page! + 1}` : undefined}
-                          onClick={() => openable && handlers.onOpenPassage(hit, passage)}
-                        >
-                          <span className="kx-match-where">
-                            {passagePlace(passage)}
-                            {passage.related && <em>related</em>}
-                          </span>
-                          <span className="kx-match-text">
-                            <Snippet snippet={passage.snippet} pattern={pattern} />
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
+                  {hit.passages.map((passage) => (
+                    <PassageMatch
+                      key={passage.id}
+                      passage={passage}
+                      pattern={pattern}
+                      // A note opens with its source's page; a document passage at its page.
+                      onOpen={passage.noteId ? () => handlers.onOpen(source) : passage.page !== null ? () => handlers.onOpenPassage(hit, passage) : undefined}
+                    />
+                  ))}
                 </ul>
               )}
             </div>
           </article>
         );
       });
+
+/** One place a query matched; opens it when it can be opened. */
+function PassageMatch({ passage, pattern, onOpen }: { passage: Passage; pattern?: RegExp; onOpen?: () => void }) {
+  return (
+    <li>
+      <button
+        className="kx-passage"
+        data-related={!!passage.related}
+        disabled={!onOpen}
+        title={!onOpen ? undefined : passage.noteId ? "Open note" : `Open page ${passage.page! + 1}`}
+        onClick={onOpen}
+      >
+        <span className="kx-match-where">
+          {passagePlace(passage)}
+          {passage.related && <em>related</em>}
+        </span>
+        <span className="kx-match-text">
+          <Snippet snippet={passage.snippet} pattern={pattern} />
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/** A standalone note among the results; opens in its own tab. */
+const NoteHitRow = memo(function NoteHitRow({ note, pattern, handlers }: { note: NoteHit; pattern?: RegExp; handlers: ResultHandlers }) {
+  const open = () => handlers.onOpenNote({ id: note.noteId, title: note.title });
+  return (
+    <article className="kx-hit" role="option" aria-selected={false} data-note={note.noteId} onDoubleClick={open}>
+      <span className="kx-row-kind" data-kind="note">
+        <Icon name="note" size={15} />
+      </span>
+      <div className="kx-hit-body">
+        <strong className="kx-hit-title">
+          <Highlight text={note.title || "Untitled note"} pattern={pattern} />
+        </strong>
+        <ul className="kx-hit-matches">
+          {note.passages.map((passage) => (
+            <PassageMatch key={passage.id} passage={passage} pattern={pattern} onOpen={open} />
+          ))}
+        </ul>
+      </div>
+    </article>
+  );
+});
 
 function AddMenu({ onFiles, onBlank, onIdentifier, onZotero }: { onFiles: () => void; onBlank: () => void; onIdentifier: () => void; onZotero: () => void }) {
   return (

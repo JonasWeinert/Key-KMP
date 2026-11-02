@@ -1,6 +1,7 @@
 // Hybrid search: FTS5 keyword ranks and sqlite-vec nearest neighbours are fused
 // with reciprocal-rank fusion, then grouped into one hit per source. Each hit carries
-// the source itself, the metadata fields that matched and its best passages.
+// the source itself, the metadata fields that matched and its best passages, including
+// those of its notes. Standalone notes are ranked the same way and returned beside them.
 use crate::{ListQuery, Result, Source, e, fts_any, fts_any_prefix, read_source, select_sources, vector_blob, where_clause};
 use rusqlite::{Connection, OptionalExtension, params_from_iter, types::Value};
 use serde::{Deserialize, Serialize};
@@ -39,6 +40,8 @@ pub struct SearchPassage {
     pub score: f64,
     /// Found by meaning only: no query word occurs in it.
     pub related: bool,
+    /// Set when the passage is from a note rather than the document.
+    pub note_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -63,19 +66,60 @@ pub struct SearchHit {
     pub passages: Vec<SearchPassage>,
 }
 
+/// A note that belongs to no source.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteHit {
+    pub note_id: String,
+    /// Its title, or else its first line.
+    pub title: String,
+    pub score: f64,
+    pub passages: Vec<SearchPassage>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub hits: Vec<SearchHit>,
+    /// Standalone notes, only when nothing narrows the search to part of the library.
+    pub notes: Vec<NoteHit>,
     pub semantic: bool,
     pub keyword_passages: usize,
     pub semantic_passages: usize,
 }
 
+/// What a passage is ranked under: its source (also for a source's note), or a standalone note.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum Owner {
+    Source(String),
+    Note(String),
+}
+
 struct Candidate {
-    source_id: String,
+    owner: Owner,
     score: f64,
     snippet: Option<String>,
+}
+
+fn owner(source_id: Option<String>, note_id: Option<String>) -> Owner {
+    match source_id {
+        Some(id) => Owner::Source(id),
+        None => Owner::Note(note_id.unwrap_or_default()),
+    }
+}
+
+/// Standalone notes belong to no collection, kind or tag, so they only match when nothing
+/// narrows the search.
+fn whole_library(filter: &ListQuery) -> bool {
+    filter.collection_id.is_none()
+        && filter.tag.is_none()
+        && filter.kind.is_none()
+        && filter.item_type.is_none()
+        && filter.ids.is_none()
+        && filter.filters.is_empty()
+        && filter.year_from.is_none()
+        && filter.year_to.is_none()
+        && matches!(filter.scope.as_deref(), None | Some("all"))
 }
 
 pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) -> Result<SearchResult> {
@@ -84,6 +128,9 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
     filter.text = None;
     let (clause, values) = where_clause(&filter);
     let eligible = format!("SELECT s.id FROM sources s {clause}");
+    // Passages of eligible sources and their notes, and of standalone notes when they count.
+    let standalone = if whole_library(&filter) { "OR (c.note_id IS NOT NULL AND n.source_id IS NULL)" } else { "" };
+    let owned = format!("(coalesce(c.source_id, n.source_id) IN ({eligible}) {standalone})");
     let limit = filter.limit.unwrap_or(50).min(500);
     let mut chunks: HashMap<i64, Candidate> = HashMap::new();
     let mut keyword_passages = 0;
@@ -95,19 +142,19 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
             args.extend(values.iter().cloned());
             let mut statement = db
                 .prepare(&format!(
-                    "SELECT c.id, c.source_id, snippet(chunks_fts, 0, '[[', ']]', '…', 28)
-                     FROM chunks_fts JOIN chunks c ON c.id = chunks_fts.rowid
-                     WHERE chunks_fts MATCH ?1 AND c.source_id IN ({eligible})
+                    "SELECT c.id, coalesce(c.source_id, n.source_id), c.note_id, snippet(chunks_fts, 0, '[[', ']]', '…', 28)
+                     FROM chunks_fts JOIN chunks c ON c.id = chunks_fts.rowid LEFT JOIN notes n ON n.id = c.note_id
+                     WHERE chunks_fts MATCH ?1 AND {owned}
                      ORDER BY bm25(chunks_fts) LIMIT {CANDIDATES}"
                 ))
                 .map_err(e)?;
             let rows = statement
-                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))
+                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, owner(r.get(1)?, r.get(2)?), r.get::<_, String>(3)?)))
                 .map_err(e)?;
             for (rank, row) in rows.enumerate() {
-                let (id, source_id, snippet) = row.map_err(e)?;
+                let (id, owner, snippet) = row.map_err(e)?;
                 keyword_passages += 1;
-                chunks.insert(id, Candidate { source_id, score: 1.0 / (RRF_K + rank as f64 + 1.0), snippet: Some(snippet) });
+                chunks.insert(id, Candidate { owner, score: 1.0 / (RRF_K + rank as f64 + 1.0), snippet: Some(snippet) });
             }
         }
     }
@@ -116,11 +163,11 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
         if let Some(vector) = vector {
             let mut statement = db
                 .prepare(&format!(
-                    "SELECT knn.rowid, c.source_id
+                    "SELECT knn.rowid, coalesce(c.source_id, n.source_id), c.note_id
                      FROM (SELECT rowid, distance FROM chunk_vectors WHERE embedding MATCH ?1 AND k = {CANDIDATES}) knn
-                     JOIN chunks c ON c.id = knn.rowid
+                     JOIN chunks c ON c.id = knn.rowid LEFT JOIN notes n ON n.id = c.note_id
                      WHERE (knn.distance <= {MAX_SEMANTIC_DISTANCE} OR knn.rowid IN (SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?2))
-                       AND c.source_id IN ({eligible})
+                       AND {owned}
                      ORDER BY knn.distance"
                 ))
                 .map_err(e)?;
@@ -131,16 +178,16 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
             let mut args: Vec<Value> = vec![Value::Blob(vector_blob(vector)?), Value::Text(keyword)];
             args.extend(values.iter().cloned());
             let rows = statement
-                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))
+                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, owner(r.get(1)?, r.get(2)?))))
                 .map_err(e)?;
             for (rank, row) in rows.enumerate() {
-                let (id, source_id) = row.map_err(e)?;
+                let (id, owner) = row.map_err(e)?;
                 semantic_passages += 1;
                 let rrf = 1.0 / (RRF_K + rank as f64 + 1.0);
                 chunks
                     .entry(id)
                     .and_modify(|c| c.score += rrf)
-                    .or_insert(Candidate { source_id, score: rrf, snippet: None });
+                    .or_insert(Candidate { owner, score: rrf, snippet: None });
             }
         }
     }
@@ -167,32 +214,60 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
         }
     }
 
-    let mut by_source: HashMap<String, Vec<(i64, Candidate)>> = HashMap::new();
+    let mut by_owner: HashMap<Owner, Vec<(i64, Candidate)>> = HashMap::new();
     for (id, candidate) in chunks {
-        by_source.entry(candidate.source_id.clone()).or_default().push((id, candidate));
+        by_owner.entry(candidate.owner.clone()).or_default().push((id, candidate));
     }
-    let mut ranked: Vec<(String, f64)> = by_source
+    let mut ranked: Vec<(Owner, f64)> = by_owner
         .iter()
-        .map(|(id, list)| {
+        .map(|(owner, list)| {
             let best = list.iter().map(|(_, c)| c.score).fold(0.0, f64::max);
             // A little credit for several matching passages, without letting long documents dominate.
             let breadth = list.iter().map(|(_, c)| c.score).sum::<f64>() * 0.15;
-            (id.clone(), best + breadth + metadata.get(id).copied().unwrap_or(0.0))
+            let lift = match owner {
+                Owner::Source(id) => metadata.get(id).copied().unwrap_or(0.0),
+                Owner::Note(_) => 0.0,
+            };
+            (owner.clone(), best + breadth + lift)
         })
         .collect();
     for (id, score) in &metadata {
-        if !by_source.contains_key(id) {
-            ranked.push((id.clone(), *score));
+        if !by_owner.contains_key(&Owner::Source(id.clone())) {
+            ranked.push((Owner::Source(id.clone()), *score));
         }
     }
     ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
-    ranked.truncate(limit);
+    let (mut sources, mut notes): (Vec<_>, Vec<_>) = ranked.into_iter().partition(|(owner, _)| matches!(owner, Owner::Source(_)));
+    sources.truncate(limit);
+    notes.truncate(limit.min(10));
 
     let per_source = query.passages_per_source.unwrap_or(3).min(20);
-    let mut hits = Vec::with_capacity(ranked.len());
     let mut text_of = db
-        .prepare("SELECT page, start_seconds, text FROM chunks WHERE id = ?")
+        .prepare("SELECT page, start_seconds, text, note_id FROM chunks WHERE id = ?")
         .map_err(e)?;
+    // The best passages of one hit; `skip_abstract` when the abstract already shows as a field.
+    let mut passages_of = |owner: &Owner, skip_abstract: bool| -> Result<Vec<SearchPassage>> {
+        let mut list = by_owner.remove(owner).unwrap_or_default();
+        list.sort_by(|a, b| b.1.score.total_cmp(&a.1.score));
+        let mut passages = Vec::new();
+        for (id, candidate) in list {
+            if passages.len() == per_source {
+                break;
+            }
+            let (page, start_seconds, text, note_id): (Option<i64>, Option<f64>, String, Option<String>) = text_of
+                .query_row([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+                .map_err(e)?;
+            if skip_abstract && note_id.is_none() && page.is_none() && start_seconds.is_none() {
+                continue;
+            }
+            let related = candidate.snippet.is_none();
+            let snippet = candidate.snippet.unwrap_or_else(|| excerpt(&text, 220));
+            passages.push(SearchPassage { id: id.to_string(), page, start_seconds, snippet, text, score: candidate.score, related, note_id });
+        }
+        Ok(passages)
+    };
+
+    let mut hits = Vec::with_capacity(sources.len());
     let mut source_of = db.prepare(&format!("{} WHERE s.id = ?", select_sources())).map_err(e)?;
     let snippets = FIELDS
         .iter()
@@ -207,10 +282,11 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
             "SELECT {snippets} FROM sources_fts WHERE sources_fts MATCH ?1 AND rowid = (SELECT rowid FROM sources WHERE id = ?2)"
         ))
         .map_err(e)?;
-    for (source_id, score) in ranked {
-        let Some(source) = source_of.query_row([&source_id], read_source).optional().map_err(e)? else { continue };
+    for (owner, score) in sources {
+        let Owner::Source(source_id) = &owner else { continue };
+        let Some(source) = source_of.query_row([source_id], read_source).optional().map_err(e)? else { continue };
         let mut fields = Vec::new();
-        if let (Some(phrase), true) = (&metadata_phrase, metadata.contains_key(&source_id)) {
+        if let (Some(phrase), true) = (&metadata_phrase, metadata.contains_key(source_id)) {
             let found = fields_of
                 .query_row([phrase.as_str(), source_id.as_str()], |r| {
                     (0..FIELDS.len()).map(|i| r.get::<_, Option<String>>(i)).collect::<rusqlite::Result<Vec<_>>>()
@@ -224,37 +300,41 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
                 }
             }
         }
-        // The abstract is also indexed as a passage; show it once, as the field.
+        // The abstract is also indexed as a passage, and notes are too; show each once.
         let abstract_shown = fields.iter().any(|f| f.field == "abstract");
-        let mut list = by_source.remove(&source_id).unwrap_or_default();
-        list.sort_by(|a, b| b.1.score.total_cmp(&a.1.score));
-        let mut passages = Vec::new();
-        for (id, candidate) in list {
-            if passages.len() == per_source {
-                break;
-            }
-            let (page, start_seconds, text): (Option<i64>, Option<f64>, String) = text_of
-                .query_row([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
-                .map_err(e)?;
-            if abstract_shown && page.is_none() && start_seconds.is_none() {
-                continue;
-            }
-            let related = candidate.snippet.is_none();
-            let snippet = candidate.snippet.unwrap_or_else(|| excerpt(&text, 220));
-            passages.push(SearchPassage { id: id.to_string(), page, start_seconds, snippet, text, score: candidate.score, related });
+        let passages = passages_of(&owner, abstract_shown)?;
+        if passages.iter().any(|p| p.note_id.is_some()) {
+            fields.retain(|f| f.field != "notes");
         }
         hits.push(SearchHit {
-            metadata_match: metadata.contains_key(&source_id),
-            document_hash: source.file_hash().unwrap_or(&source_id).to_string(),
+            metadata_match: metadata.contains_key(source_id),
+            document_hash: source.file_hash().unwrap_or(source_id).to_string(),
             title: source.title().to_string(),
-            source_id,
+            source_id: source_id.clone(),
             score,
             source: Some(source),
             fields,
             passages,
         });
     }
-    Ok(SearchResult { hits, semantic: vector.is_some() && mode != "keyword", keyword_passages, semantic_passages })
+
+    let mut title_of = db
+        .prepare("SELECT title, (SELECT text FROM chunks WHERE note_id = notes.id ORDER BY seq LIMIT 1) FROM notes WHERE id = ?")
+        .map_err(e)?;
+    let mut note_hits = Vec::with_capacity(notes.len());
+    for (owner, score) in notes {
+        let Owner::Note(note_id) = &owner else { continue };
+        let Some((title, first)) = title_of
+            .query_row([note_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?)))
+            .optional()
+            .map_err(e)?
+        else {
+            continue;
+        };
+        let title = if title.trim().is_empty() { excerpt(first.as_deref().unwrap_or("").lines().next().unwrap_or(""), 80) } else { title };
+        note_hits.push(NoteHit { note_id: note_id.clone(), title, score, passages: passages_of(&owner, false)? });
+    }
+    Ok(SearchResult { hits, notes: note_hits, semantic: vector.is_some() && mode != "keyword", keyword_passages, semantic_passages })
 }
 
 fn excerpt(text: &str, limit: usize) -> String {

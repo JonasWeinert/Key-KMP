@@ -725,6 +725,9 @@ export default function WorkspaceContent({
                 }),
               )
             }
+            onOpenNote={(note) =>
+              void task(() => api().tabAction("open-content", { section: "note", workspaceId: library.id, noteId: note.id, title: note.title }))
+            }
             onOpenHit={({ source, passage, results, query }) => {
               const hash = "documentHash" in source ? source.documentHash : (source.fileHash ?? source.id);
               void task(() =>

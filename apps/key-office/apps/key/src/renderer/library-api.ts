@@ -89,6 +89,8 @@ export interface Passage {
   score: number;
   /** Found by meaning only: none of the query words occur in it. */
   related?: boolean;
+  /** Set when the passage is from a note rather than the document. */
+  noteId?: string | null;
 }
 export interface FieldMatch {
   field: "creators" | "container" | "abstract" | "tags" | "notes" | "identifiers";
@@ -104,8 +106,18 @@ export interface SearchHit {
   fields: FieldMatch[];
   passages: Passage[];
 }
+/** A note that belongs to no source. */
+export interface NoteHit {
+  noteId: string;
+  /** Its title, or else its first line. */
+  title: string;
+  score: number;
+  passages: Passage[];
+}
 export interface SearchResult {
   hits: SearchHit[];
+  /** Standalone notes, only when nothing narrows the search. */
+  notes: NoteHit[];
   semantic: boolean;
   keywordPassages: number;
   semanticPassages: number;

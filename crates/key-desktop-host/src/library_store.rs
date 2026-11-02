@@ -141,7 +141,12 @@ impl Library {
                 let source: Option<String> = arg(args, "sourceId")?;
                 let title: Option<String> = arg(args, "title")?;
                 let body: String = arg(args, "body")?;
-                json_output(self.store.save_note(id.as_deref(), source.as_deref(), &title.unwrap_or_default(), &body, None)?)
+                let note = self.store.save_note(id.as_deref(), source.as_deref(), &title.unwrap_or_default(), &body, None)?;
+                // Searchable as soon as it is saved; a failure leaves it for the indexer to retry.
+                if let Err(error) = self.indexer.index_note(&note) {
+                    eprintln!("Key note indexing for {}: {error}", note.id);
+                }
+                json_output(note)
             })(),
             "store_note_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_note(&id)?)),
             // Filters to offer while the user types, counted within the current view.

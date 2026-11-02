@@ -1,7 +1,7 @@
 // Run serially: native windows and focus are shared with other GUI checks.
 // Details panel: one Details list, drag-resizable and remembered. Notes: a source note
 // written with the block editor (slash menu, @-link) saves as Markdown with custom fences,
-// opens in its own tab, and standalone notes come from the sidebar.
+// opens in its own tab, and standalone notes come from the sidebar. Both are found by search.
 const { _electron: electron } = require("playwright-core");
 const { mkdtemp, readFile, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
@@ -114,8 +114,28 @@ const assert = require("node:assert/strict");
     await shot(page, "3-standalone-dark");
     await page.evaluate(() => window.key.setAppSettings({ theme: "system" }));
 
+    // Notes are searchable as they are saved: a source's note under its source, a
+    // standalone note beside the sources, opening in its tab.
+    const methods = await call("store_search", { text: "methods", mode: "keyword", limit: 5 });
+    assert.equal(methods.notes[0]?.noteId, standalone[0].id);
+    const compare = await call("store_search", { text: "compare", mode: "keyword", limit: 5 });
+    assert.ok(compare.hits[0]?.passages.some((p) => p.noteId), "a source's note passage");
+    await page.evaluate((id) => window.key.tabAction("open-content", { section: "sources", workspaceId: id }), ws.id);
+    const search = page.getByRole("combobox", { name: "Search the library", exact: true });
+    await search.fill("methods");
+    await search.press("Enter");
+    const noteHit = page.locator(`.kx-hit[data-note="${standalone[0].id}"]`);
+    await noteHit.waitFor();
+    await page.locator(".kx-results-head", { hasText: /1 note/ }).waitFor();
+    await shot(page, "4-note-in-search");
+    await noteHit.locator(".kx-passage").first().click();
+    await page.waitForFunction(async () => {
+      const { tabs, activeTabId } = await window.key.tabs();
+      return tabs.find((t) => t.id === activeTabId)?.title.includes("Chapter plan");
+    });
+
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ ok: true, temp, details: true, resized: after, sourceNote: true, noteTab: true, standalone: true }));
+    console.log(JSON.stringify({ ok: true, temp, details: true, resized: after, sourceNote: true, noteTab: true, standalone: true, searchable: true }));
   } catch (e) {
     await app.windows()[0]?.screenshot({ path: path.join(temp, "failure.png") }).catch(() => {});
     console.error("Artifacts", temp);

@@ -47,6 +47,12 @@ fn indexed(kind: &str) -> bool {
 }
 
 pub fn chunk_layout(blocks: &[LayoutBlock]) -> Vec<ChunkInput> {
+    chunk_blocks(blocks, true)
+}
+
+/// Blocks to passages. With `merge`, short prose blocks join their neighbours; without it
+/// every block is its own passage (notes, whose passages must not shift when one changes).
+pub(crate) fn chunk_blocks(blocks: &[LayoutBlock], merge: bool) -> Vec<ChunkInput> {
     let mut out: Vec<ChunkInput> = Vec::new();
     let mut section: Option<String> = None;
     let mut open: Option<ChunkInput> = None;
@@ -73,7 +79,7 @@ pub fn chunk_layout(blocks: &[LayoutBlock]) -> Vec<ChunkInput> {
         }
         // Tables, equations and the like stand alone; prose merges with its neighbours.
         let prose = matches!(block.kind.as_str(), "paragraph" | "list" | "footnote");
-        let fits = open.as_ref().is_some_and(|c| {
+        let fits = merge && open.as_ref().is_some_and(|c| {
             c.page == Some(block.page) && c.kind.as_deref().is_some_and(|k| prose && matches!(k, "paragraph" | "list" | "footnote")) && c.text.len() + text.len() < TARGET_CHARS
         });
         if !fits {

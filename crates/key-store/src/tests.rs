@@ -188,6 +188,55 @@ fn standalone_and_source_notes_stay_searchable() {
 }
 
 #[test]
+fn note_passages_keep_unchanged_vectors_and_show_in_search() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let source = store.insert_source(input(json!({"kind": "reference", "title": "Nets"}))).unwrap();
+    let chunk = |text: &str| ChunkInput { text: text.into(), kind: Some("paragraph".into()), ..Default::default() };
+    let attached = store.save_note(None, Some(&source.id), "", "…", None).unwrap();
+    let standalone = store.save_note(None, None, "Ideas", "…", None).unwrap();
+    assert_eq!(store.stale_notes(10).unwrap().len(), 2);
+    store.replace_note_chunks(&attached.id, attached.updated_at, &[chunk("Larval habitats shrank near rivers."), chunk("Bed nets cut transmission.")]).unwrap();
+    store.replace_note_chunks(&standalone.id, standalone.updated_at, &[chunk("Chapter plan for malaria work.")]).unwrap();
+    assert!(store.stale_notes(10).unwrap().is_empty());
+    // An outdated version never overwrites newer passages.
+    store.replace_note_chunks(&standalone.id, standalone.updated_at - 1, &[chunk("Old text.")]).unwrap();
+
+    // Vectors wait until a note has been left alone; then each passage gets its note's title, or its source's.
+    assert!(store.chunks_without_vectors(10).unwrap().is_empty());
+    let settle = |store: &Store| store.db().unwrap().execute("UPDATE notes SET updated_at = updated_at - 60000, indexed_at = indexed_at - 60000", []).unwrap();
+    settle(&store);
+    let waiting = store.chunks_without_vectors(10).unwrap();
+    let titles: Vec<(&str, &str)> = waiting.iter().map(|(_, title, text)| (title.as_str(), text.as_str())).collect();
+    assert_eq!(titles, vec![("Nets", "Larval habitats shrank near rivers."), ("Nets", "Bed nets cut transmission."), ("Ideas", "Chapter plan for malaria work.")]);
+    store.set_chunk_vectors(&waiting.iter().enumerate().map(|(i, (id, _, _))| (*id, unit(i))).collect::<Vec<_>>()).unwrap();
+
+    // An edit re-embeds only the passage that changed.
+    let edited = store.save_note(Some(&attached.id), None, "", "…", None).unwrap();
+    store.replace_note_chunks(&edited.id, edited.updated_at, &[chunk("Larval habitats shrank near rivers."), chunk("Bed nets cut transmission sharply.")]).unwrap();
+    settle(&store);
+    let waiting = store.chunks_without_vectors(10).unwrap();
+    assert_eq!(waiting.iter().map(|(_, _, text)| text.as_str()).collect::<Vec<_>>(), vec!["Bed nets cut transmission sharply."]);
+    assert_eq!(store.vector_count().unwrap(), 2);
+
+    // A source's note passages show under the source; standalone notes beside the sources.
+    let search = |text: &str, filter: ListQuery| store.search(&SearchQuery { text: text.into(), filter, ..Default::default() }, None).unwrap();
+    let found = search("larval", ListQuery::default());
+    assert_eq!(found.hits[0].source_id, source.id);
+    assert_eq!(found.hits[0].passages[0].note_id.as_deref(), Some(attached.id.as_str()));
+    assert!(found.hits[0].fields.iter().all(|f| f.field != "notes"));
+    let found = search("malaria", ListQuery::default());
+    assert_eq!((found.notes[0].note_id.as_str(), found.notes[0].title.as_str()), (standalone.id.as_str(), "Ideas"));
+    assert!(search("malaria", ListQuery { kind: Some("pdf".into()), ..Default::default() }).notes.is_empty());
+
+    // Deleting a note takes its passages and vectors with it.
+    store.delete_note(&attached.id).unwrap();
+    assert!(search("larval", ListQuery::default()).hits.is_empty());
+    assert_eq!(store.vector_count().unwrap(), 1);
+    assert_eq!(store.db().unwrap().query_row("SELECT count(*) FROM chunk_vectors", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+}
+
+#[test]
 fn suggestions_become_filters_that_narrow_lists_and_search() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).unwrap();

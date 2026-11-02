@@ -1,18 +1,19 @@
 // Workspace library database. One SQLite file holds sources (fixed bibliographic
 // columns plus user JSON properties), collections, notes, annotations and the
-// chunked text that full-text and vector search run over.
+// chunked text of documents and notes that full-text and vector search run over.
 mod analysis;
 mod filters;
 mod properties;
 mod search;
 pub use analysis::{CitationInput, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
 pub use filters::{Filter, Suggestion};
-pub use search::{SearchHit, SearchPassage, SearchQuery, SearchResult};
+pub use search::{NoteHit, SearchHit, SearchPassage, SearchQuery, SearchResult};
 
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter, types::Value};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value as Json};
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, Once},
     time::{SystemTime, UNIX_EPOCH},
@@ -20,12 +21,23 @@ use std::{
 
 pub type Result<T> = std::result::Result<T, String>;
 pub const EMBEDDING_DIMENSIONS: usize = 768;
+/// A note's new passages get their vectors once it has been left alone this long, so
+/// typing does not re-embed a paragraph every few seconds. Keyword search is immediate.
+pub const NOTE_SETTLE_MS: i64 = 30_000;
+/// Passages without a vector that are ready for one (`?1`: notes edited before this time).
+/// Sources still in the pipeline are embedded there instead.
+const AWAITING_VECTOR: &str = "FROM chunks c
+     LEFT JOIN sources s ON s.id = c.source_id
+     LEFT JOIN notes n ON n.id = c.note_id
+     LEFT JOIN sources ns ON ns.id = n.source_id
+     WHERE c.embedded = 0 AND (s.index_status IN ('ready', 'no_text', 'missing') OR n.updated_at <= ?1)";
 const MIGRATIONS: &[&str] = &[
     include_str!("migrations/001_initial.sql"),
     include_str!("migrations/002_properties.sql"),
     include_str!("migrations/003_embedded.sql"),
     include_str!("migrations/004_analysis.sql"),
     include_str!("migrations/005_citations.sql"),
+    include_str!("migrations/006_note_passages.sql"),
 ];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
@@ -792,6 +804,61 @@ impl Store {
         Ok(note)
     }
 
+    /// Replaces a note's passages as cut from the version saved at `version` (its updated_at).
+    /// Passages whose text is unchanged keep their row, so their vector is kept and only new
+    /// or edited ones wait for embedding. A newer save wins: its own indexing writes instead.
+    pub fn replace_note_chunks(&self, note_id: &str, version: i64, chunks: &[ChunkInput]) -> Result<()> {
+        let db = self.db()?;
+        let tx = db.unchecked_transaction().map_err(e)?;
+        let current: Option<i64> = tx
+            .query_row("SELECT updated_at FROM notes WHERE id = ?", [note_id], |r| r.get(0))
+            .optional()
+            .map_err(e)?;
+        if current != Some(version) {
+            return Ok(());
+        }
+        let mut existing: HashMap<String, Vec<i64>> = HashMap::new();
+        {
+            let mut rows = tx.prepare("SELECT id, text FROM chunks WHERE note_id = ? ORDER BY seq DESC").map_err(e)?;
+            for row in rows.query_map([note_id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))).map_err(e)? {
+                let (id, text) = row.map_err(e)?;
+                existing.entry(text).or_default().push(id);
+            }
+            let mut keep = tx.prepare("UPDATE chunks SET seq = ?2, kind = ?3, section = ?4 WHERE id = ?1").map_err(e)?;
+            let mut insert = tx
+                .prepare("INSERT INTO chunks(note_id, seq, text, kind, section) VALUES (?1, ?2, ?3, ?4, ?5)")
+                .map_err(e)?;
+            for (seq, chunk) in chunks.iter().enumerate() {
+                match existing.get_mut(&chunk.text).and_then(Vec::pop) {
+                    Some(id) => keep.execute(params![id, seq as i64, chunk.kind, chunk.section]).map_err(e)?,
+                    None => insert.execute(params![note_id, seq as i64, chunk.text, chunk.kind, chunk.section]).map_err(e)?,
+                };
+            }
+            let mut delete = tx.prepare("DELETE FROM chunks WHERE id = ?").map_err(e)?;
+            for id in existing.into_values().flatten() {
+                delete.execute([id]).map_err(e)?;
+            }
+        }
+        tx.execute("UPDATE notes SET indexed_at = ?2 WHERE id = ?1", params![note_id, version]).map_err(e)?;
+        tx.commit().map_err(e)
+    }
+
+    /// Notes edited since their passages were cut (or never cut, like imported ones).
+    pub fn stale_notes(&self, limit: usize) -> Result<Vec<Note>> {
+        let db = self.read()?;
+        let mut statement = db
+            .prepare(
+                "SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes
+                 WHERE indexed_at IS NULL OR indexed_at < updated_at ORDER BY updated_at DESC LIMIT ?",
+            )
+            .map_err(e)?;
+        statement
+            .query_map([limit as i64], read_note)
+            .map_err(e)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(e)
+    }
+
     pub fn delete_note(&self, id: &str) -> Result<()> {
         let db = self.db()?;
         let source: Option<String> = db
@@ -871,15 +938,10 @@ impl Store {
             .map_err(e)
     }
 
-    /// Passages of finished sources still waiting for their vector.
+    /// Passages waiting for their vector (see `AWAITING_VECTOR`).
     pub fn unembedded_chunks(&self) -> Result<i64> {
         self.read()?
-            .query_row(
-                "SELECT count(*) FROM chunks c JOIN sources s ON s.id = c.source_id
-                 WHERE c.embedded = 0 AND s.index_status IN ('ready', 'no_text', 'missing')",
-                [],
-                |r| r.get(0),
-            )
+            .query_row(&format!("SELECT count(*) {AWAITING_VECTOR}"), [now_ms() - NOTE_SETTLE_MS], |r| r.get(0))
             .map_err(e)
     }
 
@@ -927,18 +989,17 @@ impl Store {
         tx.commit().map_err(e)
     }
 
-    /// Chunks of finished sources that have text but no vector yet (indexed before the
-    /// model was ready). Sources still in the pipeline are embedded there instead.
+    /// Passages waiting for their vector, with the title they are embedded under: the
+    /// source's, or for a note its own title, else its source's.
     pub fn chunks_without_vectors(&self, limit: usize) -> Result<Vec<(i64, String, String)>> {
         let db = self.db()?;
         let mut statement = db
-            .prepare(
-                "SELECT c.id, s.title, c.text FROM chunks c JOIN sources s ON s.id = c.source_id
-                 WHERE c.embedded = 0 AND s.index_status IN ('ready', 'no_text', 'missing') ORDER BY c.id LIMIT ?",
-            )
+            .prepare(&format!(
+                "SELECT c.id, coalesce(s.title, nullif(n.title, ''), ns.title, ''), c.text {AWAITING_VECTOR} ORDER BY c.id LIMIT ?2"
+            ))
             .map_err(e)?;
         statement
-            .query_map([limit as i64], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .query_map(params![now_ms() - NOTE_SETTLE_MS, limit as i64], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
             .map_err(e)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(e)

@@ -7,13 +7,18 @@
 // Scheduling: one source is extracted while the previous one is embedded. What the
 // user is working with goes first (opened in the reader, then selected, then on
 // screen); everything else follows files-before-references, newest first.
+//
+// Notes are cut into passages as they are saved (cheap, so keyword search is current);
+// their vectors follow through the same back-fill once a note has been left alone.
 mod chunk;
 mod layout;
+mod note;
 pub use chunk::{PageText, TextChar, chunk_pages};
 pub use layout::{Layout, LayoutBlock, LayoutSentence, chunk_layout};
+pub use note::chunk_note;
 
 use key_embed::{Embedder, ModelDir};
-use key_store::{ChunkInput, Source, Store};
+use key_store::{ChunkInput, Note, Source, Store};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -280,6 +285,23 @@ impl Indexer {
         slot.clone()
     }
 
+    /// Cuts a note into passages. Unchanged passages keep their vectors; the rest are
+    /// embedded by the back-fill once the note settles.
+    pub fn index_note(&self, note: &Note) -> Result<()> {
+        let title = note.title.trim();
+        let markdown = if title.is_empty() { note.body.clone() } else { format!("{title}\n\n{}", note.body) };
+        self.store.replace_note_chunks(&note.id, note.updated_at, &chunk_note(&markdown))
+    }
+
+    /// Notes saved without passing through `index_note` (imports, older libraries).
+    fn index_stale_notes(&self) {
+        for note in self.store.stale_notes(50).unwrap_or_default() {
+            if let Err(error) = self.index_note(&note) {
+                eprintln!("Key note indexing for {}: {error}", note.id);
+            }
+        }
+    }
+
     pub fn embed_query(&self, text: &str) -> Option<Vec<f32>> {
         self.embedder()?.embed_query(text).ok()
     }
@@ -328,6 +350,7 @@ impl Indexer {
             if let Ok(done) = self.finished.lock().map(|mut done| std::mem::take(&mut *done)) {
                 in_flight.retain(|id| !done.contains(id));
             }
+            self.index_stale_notes();
             let next = self.queue(1, &in_flight).into_iter().next().map(|(id, _)| id);
             let Some(id) = next else {
                 if in_flight.is_empty() {
