@@ -99,7 +99,55 @@ const assert=require('node:assert/strict');
   const noteOwner=state.tabs.find(t=>t.views[0].id===b);
   await drag(tab(noteOwner.id),tab(beta.id),'Release to split');await page.mouse.up();await pane(b).waitFor();await pane(b).focus();await page.keyboard.press('Alt+Shift+ArrowDown');
   await page.waitForFunction(()=>document.querySelectorAll('.tab-split-pane').length===0);await ownership();
-  const report={ok:true,temp,evidence,ownedViews:allIds.length,verified:['split feedback before rearrangement','original far-edge reorder in both directions','singleton split','armed swap cancellation','selected-half swap','vertical pane detach','keyboard detach']};
+  // Content edges. Dragging a tab below the strip shows the tab it came from again; its
+  // panes take the drop: an edge splits there, previewed over a still frame of the
+  // (hidden) native reader, so the preview is never painted under it.
+  state=await ownership();
+  const readerTab=state.tabs.find(t=>t.views.length===1&&t.views[0].id===pdfId);
+  const noteTab=state.tabs.find(t=>t.views.length===1&&t.views[0].id===a);
+  assert(readerTab&&noteTab,JSON.stringify(state.tabs));
+  await page.evaluate(tabId=>window.key.tabAction('activate',{tabId}),readerTab.id);await settle();
+  const readerView=()=>app.evaluate(({BrowserWindow})=>{const v=BrowserWindow.getAllWindows()[0].contentView.children.find(v=>v.webContents?.getURL().endsWith('/pdf.html'));return {bounds:v.getBounds(),visible:v.getVisible()};});
+  const reader=(await readerView()).bounds;
+  const noteBox=await tab(noteTab.id).boundingBox();
+  await page.mouse.move(noteBox.x+noteBox.width/2,noteBox.y+noteBox.height/2);await page.mouse.down();
+  await page.mouse.move(noteBox.x+noteBox.width/2,noteBox.y+80,{steps:6});
+  await page.mouse.move(reader.x+reader.width-30,reader.y+reader.height/2,{steps:12});
+  await page.getByRole('status').filter({hasText:'Release to split right of'}).waitFor();
+  assert.equal((await page.evaluate(()=>window.key.tabs())).activeTabId,readerTab.id,'the drag shows the tab it came from');
+  const preview=await page.locator('.key-pane-drop-preview').boundingBox();
+  assert(preview.x>reader.x+reader.width/2-8&&preview.x+preview.width<=reader.x+reader.width,`preview covers the right half: ${JSON.stringify({preview,reader})}`);
+  await page.locator('.key-native-overlay-frame').first().waitFor();
+  for(let i=0;i<30&&(await readerView()).visible;i++) await settle();
+  assert.equal((await readerView()).visible,false,'the native reader steps aside for its frame while targeting');
+  await page.screenshot({path:path.join(temp,'edge-preview.png')});
+  evidence.push({action:'edge split',feedback:await page.locator('.tab-drop-feedback').innerText(),preview});
+  await page.mouse.up();
+  await page.waitForFunction(()=>document.querySelectorAll('.key-split-divider').length===1);
+  state=await ownership();
+  const edged=state.tabs.find(t=>t.id===readerTab.id);
+  assert.deepEqual(edged.layout,{split:'row',ratio:.5,a:{view:pdfId},b:{view:a}});
+  assert.equal(state.tabs.some(t=>t.id===noteTab.id),false,'the dropped tab joined the reader');
+  assert.equal(await page.locator('.key-native-overlay-frame').count(),0,'frames go when the drag ends');
+  for(let i=0;i<30&&!(await readerView()).visible;i++) await settle();
+  assert.equal((await readerView()).visible,true);
+  // A pane chip dropped on the bottom edge of another pane re-arranges inside its group.
+  await page.evaluate(tabId=>window.key.tabAction('activate',{tabId}),readerTab.id);await settle();
+  const chip=page.locator(`[data-tab-id="${readerTab.id}"] [data-view-id="${a}"]`);
+  const chipBox=await chip.boundingBox();
+  const readerNow=(await readerView()).bounds;
+  await page.mouse.move(chipBox.x+chipBox.width/2,chipBox.y+chipBox.height/2);await page.mouse.down();
+  await page.mouse.move(readerNow.x+readerNow.width/2,readerNow.y+readerNow.height-20,{steps:14});
+  await page.getByRole('status').filter({hasText:'Release to split below'}).waitFor();
+  await page.mouse.up();
+  await page.waitForFunction(()=>document.querySelectorAll('.key-split-divider-column').length===1);
+  state=await ownership();
+  assert.deepEqual(state.tabs.find(t=>t.id===readerTab.id).layout,{split:'column',ratio:.5,a:{view:pdfId},b:{view:a}});
+  const stacked=(await readerView()).bounds;
+  const divider=await page.locator('.key-split-divider-column').boundingBox();
+  assert(Math.abs(stacked.y+stacked.height-divider.y)<=1&&stacked.width===divider.width&&stacked.x===divider.x,`reader above the divider: ${JSON.stringify({stacked,divider})}`);
+  evidence.push({action:'pane moved below',layout:'column'});
+  const report={ok:true,temp,evidence,ownedViews:allIds.length,verified:['split feedback before rearrangement','original far-edge reorder in both directions','singleton split','armed swap cancellation','selected-half swap','vertical pane detach','keyboard detach','tab dropped on a content edge splits beside the native reader','drop preview over a still frame of the native view','pane re-arranged to a bottom edge']};
   await writeFile(path.join(temp,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
  }finally{await app.evaluate(({app})=>app.exit(0));}
 })().catch(error=>{console.error(error);process.exitCode=1});

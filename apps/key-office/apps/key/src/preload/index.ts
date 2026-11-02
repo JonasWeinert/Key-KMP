@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld("key", {
         "reader-focus",
         "search-navigation",
         "operation-error",
+        "focus-pane",
+        "open-workspace-switcher",
       ].includes(event)
     )
       throw Error("Unknown event");
