@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Icon } from "../icons";
+import type { IconName } from "../icons";
 import { SLASH_GROUPS } from "./menus";
 import type { MenuState, SlashItem } from "./menus";
 import type { SourceRef } from "./types";
@@ -9,7 +10,15 @@ export interface SuggestionMenuHandle {
   handleKey(event: KeyboardEvent): boolean;
 }
 
-const MODE_TITLE = { link: "Link a source", embed: "Embed a source", quote: "Quote from a source" } as const;
+const MODE_TITLE = { link: "Link to", embed: "Embed a source", quote: "Quote from a source" } as const;
+const ITEM_ICON = { note: "note", canvas: "canvas", record: "doc" } as const;
+
+function refIcon(ref: SourceRef, mode: MenuState["mode"]): IconName {
+  if (mode === "quote") return "quote";
+  if (ref.itemKind && ref.itemKind !== "source") return ITEM_ICON[ref.itemKind];
+  if (ref.anchor?.startsWith("highlight:")) return "quote";
+  return ref.kind === "book" ? "book" : ref.kind === "image" ? "image" : ref.kind === "web" ? "globe" : "doc";
+}
 
 /** Places a popover under (or above) an anchor rect, kept inside the viewport. */
 export function usePopoverPosition(rect: DOMRect | null, deps: unknown[]) {
@@ -127,11 +136,13 @@ export const SuggestionMenu = forwardRef<SuggestionMenuHandle, { state: MenuStat
       <div className="ne-menu-group">
         <div className="ne-menu-heading">{MODE_TITLE[state.mode]}</div>
         {count === 0 ? (
-          <div className="ne-menu-empty">{state.loading ? "Searching…" : state.query ? "No matching sources" : "Type to search the library"}</div>
+          <div className="ne-menu-empty">
+            {state.loading ? "Searching…" : state.query ? (state.mode === "link" ? "Nothing matches" : "No matching sources") : state.mode === "link" ? "Type to search notes, sources, highlights and canvases" : "Type to search the library"}
+          </div>
         ) : (
           sources.map((ref, i) => (
             <button
-              key={ref.id}
+              key={`${ref.itemKind ?? "source"}:${ref.id}:${ref.anchor ?? ""}`}
               type="button"
               role="option"
               aria-selected={i === index}
@@ -141,7 +152,7 @@ export const SuggestionMenu = forwardRef<SuggestionMenuHandle, { state: MenuStat
               onClick={() => state.command(ref)}
             >
               <span className="ne-menu-icon">
-                <Icon name={state.mode === "quote" ? "quote" : ref.kind === "book" ? "book" : "doc"} size={16} />
+                <Icon name={refIcon(ref, state.mode)} size={16} data-color={ref.color} />
               </span>
               <span className="ne-menu-text">
                 <span className="ne-menu-label">{ref.title}</span>

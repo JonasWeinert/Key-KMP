@@ -1,0 +1,57 @@
+/* "Linked from" on note and source pages: quiet rows under the content. */
+.kx-linked-from ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kx-linked-from-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--kx-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.kx-linked-from-row:hover,
+.kx-linked-from-row:focus-visible {
+  background: var(--kx-fill);
+  outline: none;
+}
+.kx-linked-from-row > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--kx-text-3);
+}
+.kx-linked-from-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.kx-linked-from-title {
+  font-size: 13px;
+  font-weight: 550;
+}
+.kx-linked-from-via,
+.kx-linked-from-place {
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+.kx-linked-from-context {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--kx-text-2);
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

@@ -1,6 +1,6 @@
 import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
-import type { SourceRef } from "./types";
+import type { ItemLink, SourceRef } from "./types";
 
 /** What the @ source picker inserts when an item is chosen. */
 export type PickMode = "link" | "embed" | "quote";
@@ -18,9 +18,10 @@ export interface UrlPromptRequest {
  */
 export interface NoteRuntime {
   placeholder(): string;
-  search(query: string): Promise<SourceRef[]>;
+  search(query: string, mode: PickMode): Promise<SourceRef[]>;
   resolve(id: string): Promise<SourceRef | null>;
   open(id: string, page?: number): void;
+  openItem(item: ItemLink): void;
   promptUrl(request: UrlPromptRequest): void;
   pickMode: PickMode;
   /** query the latest finished source search was for (drives the "Searching…" row) */

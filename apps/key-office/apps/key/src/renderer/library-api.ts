@@ -186,6 +186,7 @@ export interface Bridge {
   openPath(path: string): Promise<void>;
   revealPath(path: string): Promise<void>;
   pathForFile(file: File): string;
+  on(event: string, callback: (value: unknown) => void): () => void;
 }
 export const bridge = () => (window as unknown as { key: Bridge }).key;
 

@@ -9,6 +9,7 @@ import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, itemTypeLabel, shortCre
 import { libraryChanged } from "./library-nav";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
+import LinkedFrom from "./LinkedFrom";
 import { PropertySheet, usePropertyDefinitions, type PropertySheetState } from "./PropertySheets";
 import { AutoText, Creators, DEFAULT_FIELDS, FIELDS, FieldRow, MORE_FIELDS, TagEditor, TypedProperties } from "./SourceInspector";
 
@@ -468,9 +469,13 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             searchSources={sources.searchSources}
             resolveSource={sources.resolveSource}
             onOpenSource={sources.onOpenSource}
-            placeholder="Write about this source. Type / for blocks, @ to link another source"
+            searchItems={sources.searchItems}
+            onOpenItem={sources.onOpenItem}
+            placeholder="Write about this source. Type / for blocks, @ to link anything"
           />
         </div>
+
+        <LinkedFrom invoke={invoke} workspaceId={workspaceId} item={{ kind: "source", id: sourceId }} />
 
         {notes.length > 1 && (
           <section className="kx-page-section">
@@ -486,6 +491,8 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
                   searchSources={sources.searchSources}
                   resolveSource={sources.resolveSource}
                   onOpenSource={sources.onOpenSource}
+                  searchItems={sources.searchItems}
+                  onOpenItem={sources.onOpenItem}
                 />
               </div>
             ))}
