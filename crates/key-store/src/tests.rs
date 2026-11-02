@@ -357,3 +357,31 @@ fn analysis_keeps_references_with_their_place_and_links_cited_works() {
     assert_eq!(store.source(&citing.id).unwrap().unwrap().index_status, "pending");
     assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 1);
 }
+
+#[test]
+fn finds_imported_sources_and_notes_by_origin_and_moves_notes() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let ids = store
+        .insert_sources(vec![
+            input(json!({"kind": "reference", "title": "One", "origin": "zotero", "originKey": "AAAA1111"})),
+            input(json!({"kind": "reference", "title": "Two", "origin": "zotero", "originKey": "BBBB2222"})),
+            input(json!({"kind": "reference", "title": "Mine"})),
+        ])
+        .unwrap();
+    let index = store.origin_index("zotero").unwrap();
+    assert_eq!(index.len(), 2);
+    assert_eq!(index["AAAA1111"].0, ids[0]);
+
+    let note = store.save_note(None, Some(&ids[0]), "", "Walked **far**", Some("zotero:NOTE0001")).unwrap();
+    assert_eq!(store.note_by_origin("zotero:NOTE0001").unwrap().unwrap().id, note.id);
+    assert!(store.note_by_origin("zotero:NOPE").unwrap().is_none());
+    store.set_note_source(&note.id, Some(&ids[1])).unwrap();
+    assert!(store.notes(&ids[0]).unwrap().is_empty());
+    assert_eq!(store.notes(&ids[1]).unwrap()[0].body, "Walked **far**");
+    // Note text is searchable under the source it moved to.
+    let page = store.list_sources(&ListQuery { text: Some("walked".into()), ..Default::default() }).unwrap();
+    assert_eq!(page.items.iter().map(|s| s.id.clone()).collect::<Vec<_>>(), vec![ids[1].clone()]);
+    store.set_note_source(&note.id, None).unwrap();
+    assert_eq!(store.standalone_notes().unwrap().len(), 1);
+}
