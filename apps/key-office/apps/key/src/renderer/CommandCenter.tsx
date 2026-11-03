@@ -7,16 +7,18 @@ import { copyCitation, copyItemLink, describeCount, openItemAt, sendToCanvas, se
 import { onSendTo, quickLook, selectedItems, showInInspector } from "./item-ui";
 import { bridge, type Invoke, type Note } from "./library-api";
 import Palette, { type Command } from "./Palette";
+import { openSearchTab } from "./global-search";
 import type { DraggedItem } from "./note-editor";
 import { notesChanged } from "./NotePage";
 
-type Open = { mode: "open" } | { mode: "commands" } | { mode: "send"; items: DraggedItem[] } | { mode: "shortcuts" };
+type Open = { mode: "open" } | { mode: "search" } | { mode: "commands" } | { mode: "send"; items: DraggedItem[] } | { mode: "shortcuts" };
 
 export const SHORTCUTS: [string, [string, string][]][] = [
   [
     "Find and open",
     [
       ["⌘P", "Open quickly: any note, source, highlight, canvas or page"],
+      ["⌘⇧F", "Search everything; ⌘↩ opens the search as a tab"],
       ["⌘K", "Commands for the selection"],
       ["Space", "Quick look at the hovered or selected item"],
       ["↩ / ⌥↩", "Open · open beside the current pane"],
@@ -88,9 +90,12 @@ export default function CommandCenter({
   invoke,
   workspaceId,
   commands,
+  section,
 }: {
   invoke: Invoke;
   workspaceId?: string;
+  /** The focused pane's section; the library's search starts with sources only. */
+  section?: string;
   /** The window's own commands (new note, toggle sidebar …). */
   commands: Command[];
 }) {
@@ -106,6 +111,11 @@ export default function CommandCenter({
     window.addEventListener("key:shortcuts", show);
     return () => window.removeEventListener("key:shortcuts", show);
   }, []);
+  useEffect(() => {
+    const show = () => setTimeout(() => setOpen({ mode: "search" }));
+    window.addEventListener("key:search", show);
+    return () => window.removeEventListener("key:search", show);
+  }, []);
   useEffect(
     () =>
       bridge().on("command", (name) => {
@@ -115,6 +125,8 @@ export default function CommandCenter({
             return setOpen({ mode: "open" });
           case "palette":
             return setOpen({ mode: "commands" });
+          case "search":
+            return setOpen({ mode: "search" });
           case "shortcuts":
             return setOpen({ mode: "shortcuts" });
           case "highlights":
@@ -192,11 +204,26 @@ export default function CommandCenter({
       />
     );
   }
+  if (open.mode === "search")
+    return (
+      <Palette
+        invoke={invoke}
+        workspaceId={workspaceId}
+        label="Search"
+        placeholder={section === "sources" ? "Search sources… (or choose All)" : "Search notes, sources, highlights, canvases and pages…"}
+        find={{ kinds: section === "sources" ? ["source"] : [], filters: [] }}
+        onExpand={(state) => openSearchTab(workspaceId, state)}
+        onPick={(found, how) => openItemAt(found, how.alt ? "split" : "tab", found.title)}
+        onClose={close}
+      />
+    );
   return (
     <Palette
       invoke={invoke}
       workspaceId={workspaceId}
       label={open.mode === "open" ? "Open quickly" : "Commands"}
+      find={open.mode === "open" ? { kinds: [], filters: [] } : undefined}
+      onExpand={open.mode === "open" ? (state) => openSearchTab(workspaceId, state) : undefined}
       placeholder={open.mode === "open" ? "Open a note, source, highlight, canvas or page…" : "Type a command or search…"}
       commands={open.mode === "commands" ? [...forSelection, ...commands] : []}
       onPick={(found, how) => openItemAt(found, how.alt ? "split" : "tab", found.title)}

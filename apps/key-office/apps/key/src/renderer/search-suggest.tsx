@@ -38,6 +38,11 @@ const FIELD: Record<string, { label: string; icon: IconName }> = {
   collection: { label: "Collection", icon: "folder" },
   year: { label: "Year", icon: "clock" },
   property: { label: "Property", icon: "list" },
+  itemType: { label: "Item type", icon: "doc" },
+  kind: { label: "Kind", icon: "doc" },
+  abstract: { label: "Abstract", icon: "doc" },
+  // "Only in" one note, canvas, page or source (the search tab's sidebar picks).
+  item: { label: "Only in", icon: "pin" },
 };
 // Specific matches come first, in this order; a typed year leads.
 const ORDER = ["year", "creator", "container", "tag", "collection", "property"];
@@ -50,8 +55,8 @@ const CONTAINS: [string, string][] = [
 ];
 
 export const filterKey = (f: Pick<SearchFilter, "field" | "op" | "value" | "key">) => `${f.field}:${f.op ?? "contains"}:${f.key ?? ""}:${f.value.toLowerCase()}`;
-/** Filters as the store takes them (no display label). */
-export const storeFilters = (filters: SearchFilter[]) => filters.map(({ field, op, value, key }) => ({ field, op, value, key }));
+/** Filters as the store takes them (no display label, no search-tab item picks). */
+export const storeFilters = (filters: SearchFilter[]) => filters.filter((f) => f.field !== "item").map(({ field, op, value, key }) => ({ field, op, value, key }));
 
 export default function SearchField({
   invoke,
@@ -65,6 +70,8 @@ export default function SearchField({
   inputRef,
   onSubmit,
   onArrowIntoResults,
+  label = "Search the library",
+  placeholder = "Search titles, authors, notes and full text",
 }: {
   invoke: Invoke;
   workspaceId: string;
@@ -78,6 +85,8 @@ export default function SearchField({
   inputRef: RefObject<HTMLInputElement | null>;
   onSubmit: () => void;
   onArrowIntoResults: () => void;
+  label?: string;
+  placeholder?: string;
 }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [index, setIndex] = useState(-1);
@@ -182,7 +191,7 @@ export default function SearchField({
       <Icon name="search" size={14} />
       <div className="kx-search-field" onMouseDown={(e) => e.target === e.currentTarget && (e.preventDefault(), inputRef.current?.focus())}>
         {filters.map((f) => (
-          <span key={filterKey(f)} className="kx-token" data-field={f.field} title={`${tokenScope(f)} ${f.label}`}>
+          <span key={filterKey(f)} className="kx-token" data-field={f.field} data-value={f.value} title={`${tokenScope(f)} ${f.label}`}>
             <Icon name={(FIELD[f.field] ?? FIELD.property).icon} size={11} />
             <span className="kx-token-scope">{tokenScope(f)}</span>
             <span className="kx-token-value">{f.label}</span>
@@ -198,12 +207,12 @@ export default function SearchField({
         <input
           ref={inputRef}
           className="kx-search-input"
-          aria-label="Search the library"
+          aria-label={label}
           aria-expanded={showMenu}
           aria-controls="kx-suggest"
           aria-activedescendant={index >= 0 ? `kx-suggest-${index}` : undefined}
           role="combobox"
-          placeholder={filters.length ? "Search within these filters" : "Search titles, authors, notes and full text"}
+          placeholder={filters.length ? "Search within these filters" : placeholder}
           value={text}
           onChange={(e) => {
             onText(e.target.value);
@@ -257,6 +266,7 @@ export default function SearchField({
 
 /** "Author", "Status" or "Title contains" in front of the token's value. */
 function tokenScope(f: SearchFilter) {
+  if (f.field === "item") return FIELD.item.label;
   const field = f.field === "property" ? (f.key ?? "Property") : (FIELD[f.field]?.label ?? f.field);
   return f.op === "is" ? field : `${field} contains`;
 }

@@ -3,13 +3,14 @@
 // followed by the PDF's highlights (each quotable into the note) and any further notes.
 // Opened beside the PDF reader for sources that have one, and as the library's details
 // panel (`variant="side"`), so a source looks the same wherever it is shown.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apa, apaInText, bibtex } from "./citation";
 import { Icon } from "./icons";
 import { ProgressRing } from "./index-activity";
 import { ItemPage } from "./ItemPage";
 import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, formatBytes, itemTypeLabel, shortCreators, type Collection, type Facet, type Invoke, type Note, type Source } from "./library-api";
 import { libraryChanged } from "./library-nav";
+import { FilterButton, FilterLink, FilterLinks, fieldFilter, showInLibrary, sourceFilter } from "./filter-links";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
 import LinkedFrom from "./LinkedFrom";
@@ -55,6 +56,9 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
   const [notes, setNotes] = useState<Note[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [part, setPart] = useState<"all" | "notes" | "highlights" | "info" | "linked">("all");
+  // In the library's side panel a clicked value filters the library; on its own page it opens the library filtered.
+  const libraryFilter = useContext(FilterLinks);
+  const filterBy = libraryFilter ?? ((filter: Parameters<typeof showInLibrary>[1]) => showInLibrary(workspaceId, filter));
   const [collections, setCollections] = useState<Collection[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<Facet[]>([]);
   const [moreFields, setMoreFields] = useState(false);
@@ -302,6 +306,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
   const progress = side?.progress;
 
   return (
+    <FilterLinks.Provider value={filterBy}>
     <ItemPage
       kind="source"
       className="kx-source-page"
@@ -327,6 +332,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
                 </option>
               ))}
             </select>
+            <FilterButton filter={sourceFilter.itemType(source.itemType || "document")} />
           </span>
           {/* The page's parts, one at a time or all together. */}
           <nav className="kx-page-parts" role="tablist" aria-label="Show">
@@ -436,7 +442,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
         {/* One grid: bibliographic fields, tags, collections and the user's properties. */}
         <section className="kx-page-properties" aria-label="Properties">
           {shown.map(([key, label, kind]) => (
-            <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
+            <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} filter={fieldFilter(key, source[key])} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
           ))}
           <div className="kx-field-row kx-page-chips">
             <span>Tags</span>
@@ -448,7 +454,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
               {source.collections.map((id) => (
                 <span className="kx-chip" key={id}>
                   <Icon name="folder" size={11} />
-                  <span>{names.get(id) ?? "Collection"}</span>
+                  <FilterLink filter={sourceFilter.collection(id, names.get(id) ?? "Collection")}>{names.get(id) ?? "Collection"}</FilterLink>
                   <button
                     aria-label={`Remove from ${names.get(id) ?? "collection"}`}
                     onClick={() =>
@@ -693,5 +699,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
         />
       )}
     </ItemPage>
+    </FilterLinks.Provider>
   );
 }

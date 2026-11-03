@@ -4,6 +4,7 @@ import { Icon } from "./icons";
 import type { Collection, Invoke } from "./library-api";
 import { hasExternalDrop, hasItemDrag, importDrop, readItemDrag } from "./item-links";
 import { toast } from "./item-actions";
+import { sidebarClick } from "./sidebar-intent";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 
 /** Nesting indent, capped so deep levels still leave room for the name in a narrow sidebar. */
@@ -97,10 +98,11 @@ export default function CollectionTree({
       return next;
     });
 
-  const choose = (collectionId?: string) => {
-    if (workspaceId) selectLibrary({ workspaceId, collectionId });
-    onShowSources();
-  };
+  const choose = (collectionId?: string) =>
+    sidebarClick({ kind: "sources", collectionId, title: collections.find((c) => c.id === collectionId)?.name }, () => {
+      if (workspaceId) selectLibrary({ workspaceId, collectionId });
+      onShowSources();
+    });
   const run = (command: string, args: Record<string, unknown>) => invoke(command, args, workspaceId).then(() => libraryChanged());
   const create = async (name: string, parentId?: string) => {
     setCreating(null);

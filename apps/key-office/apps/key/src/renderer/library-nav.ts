@@ -1,9 +1,13 @@
 // Shared selection between the sidebar's collection tree and the Sources view, which
 // render in the same document. Each workspace remembers its own selection.
+import type { SearchFilter } from "./search-suggest";
+
 export interface LibrarySelection {
   workspaceId: string;
   collectionId?: string;
   scope?: string;
+  /** Search filters to show, e.g. from clicking a tag on a source page. */
+  filters?: SearchFilter[];
 }
 type Listener = (selection: LibrarySelection) => void;
 const listeners = new Set<Listener>();

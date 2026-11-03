@@ -1,7 +1,9 @@
 // The editors a source's details are made of (fields, creators, tags, typed properties),
 // shared by the source page, which is also the library's details panel, and other pages.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Creator } from "./citation";
+import { FilterButton, FilterLink, FilterLinks, fieldFilter, sourceFilter } from "./filter-links";
+import type { SearchFilter } from "./search-suggest";
 import { Icon } from "./icons";
 import { formulaValue, type PropertyDefinition } from "./PropertySheets";
 import type { Facet, Source } from "./library-api";
@@ -94,7 +96,7 @@ export function AutoText({ value, onCommit, className, placeholder, label }: { v
   );
 }
 
-export function FieldRow({ label, value, kind, onCommit }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void }) {
+export function FieldRow({ label, value, kind, onCommit, filter }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void; filter?: SearchFilter }) {
   const text = value === undefined || value === null ? "" : String(value);
   const [draft, setDraft] = useState(text);
   useEffect(() => setDraft(text), [text]);
@@ -121,6 +123,7 @@ export function FieldRow({ label, value, kind, onCommit }: { label: string; valu
           <Icon name="external" size={12} />
         </a>
       )}
+      <FilterButton filter={filter} />
     </label>
   );
 }
@@ -129,6 +132,26 @@ export function Creators({ creators, onCommit }: { creators: Creator[]; onCommit
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(creators);
   useEffect(() => setDraft(creators), [creators]);
+  const filterBy = useContext(FilterLinks);
+  // Each name shows that person's sources; a pencil edits the list.
+  if (!editing && filterBy && creators.length)
+    return (
+      <div className="kx-creators">
+        <Icon name="user" size={12} />
+        <span>
+          {creators.map((c, i) => (
+            <Fragment key={i}>
+              {i > 0 && ", "}
+              <FilterLink filter={sourceFilter.creator(c)}>{c.literal || [c.given, c.family].filter(Boolean).join(" ")}</FilterLink>
+              {c.role && c.role !== "author" ? ` (${c.role})` : ""}
+            </Fragment>
+          ))}
+        </span>
+        <button className="kx-filter-button" title="Edit creators" aria-label="Edit creators" onClick={() => setEditing(true)}>
+          <Icon name="pen" size={11} />
+        </button>
+      </div>
+    );
   if (!editing)
     return (
       <button
@@ -198,7 +221,7 @@ export function TagEditor({ tags, suggestions, onCommit }: { tags: string[]; sug
     <div className="kx-chips">
       {tags.map((tag) => (
         <span className="kx-chip" key={tag} title={tag}>
-          <span>{tag}</span>
+          <FilterLink filter={sourceFilter.tag(tag)}>{tag}</FilterLink>
           <button aria-label={`Remove tag ${tag}`} onClick={() => onCommit(tags.filter((t) => t !== tag))}>
             <Icon name="close" size={9} />
           </button>
@@ -293,6 +316,7 @@ export function TypedProperties({
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               />
             )}
+            <FilterButton filter={definition.type !== "formula" && definition.type !== "boolean" && text ? sourceFilter.property(definition.name, text) : undefined} />
             {onFill ? (
               definition.type !== "formula" && (
                 <button className="kx-row-remove" title={`Fill “${definition.name}” with AI`} aria-label={`Fill ${definition.name} with AI`} onClick={() => onFill(definition.name)}>

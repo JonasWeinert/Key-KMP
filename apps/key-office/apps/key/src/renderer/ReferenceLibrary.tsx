@@ -31,6 +31,7 @@ import { Highlight, Snippet, hasMatch, queryPattern } from "./search-highlight";
 import SearchField, { storeFilters, type SearchFilter } from "./search-suggest";
 import SourceItemPage from "./SourcePage";
 import { indexLabel } from "./SourceInspector";
+import { FilterLink, FilterLinks, sourceFilter, withFilter } from "./filter-links";
 import {
   AgentFillSheet,
   IdentifierSheet,
@@ -89,7 +90,7 @@ export default function ReferenceLibrary({
   const [tag, setTag] = useState<string>();
   const [text, setText] = useState("");
   // Filter tokens picked from search suggestions; they narrow the list and any search.
-  const [filters, setFilters] = useState<SearchFilter[]>([]);
+  const [filters, setFilters] = useState<SearchFilter[]>(initial?.filters ?? []);
   const [items, setItems] = useState<Source[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<SourcePage["counts"]>();
@@ -195,6 +196,7 @@ export default function ReferenceLibrary({
         setCollectionId(s.collectionId);
         setScope(s.scope ?? "all");
         setText("");
+        if (s.filters) setFilters(s.filters);
       }),
     [workspaceId],
   );
@@ -542,10 +544,13 @@ export default function ReferenceLibrary({
     [],
   );
 
+  // A clicked tag, author, year … joins the search's filter tokens.
+  const addFilter = useCallback((filter: SearchFilter) => setFilters((current) => withFilter(current, filter)), []);
   const collectionName = collections.find((c) => c.id === collectionId)?.name;
   const title = scope === "trashed" ? "Trash" : collectionName ?? (scope === "starred" ? "Starred" : scope === "unfiled" ? "Unfiled" : scope === "attention" ? "Needs attention" : "All sources");
 
   return (
+    <FilterLinks.Provider value={addFilter}>
     <section
       ref={libraryRef}
       className={`kx-library ${dropping ? "dropping" : ""}`}
@@ -876,6 +881,7 @@ export default function ReferenceLibrary({
         />
       )}
     </section>
+    </FilterLinks.Provider>
   );
 }
 
@@ -901,7 +907,26 @@ function SourceRow({
   onDragStart: (e: React.DragEvent) => void;
 }) {
   const status = indexLabel(source);
-  const meta = [shortCreators(source.creators), source.year, source.containerShort || source.containerTitle].filter(Boolean).join(" · ");
+  const container = source.containerShort || source.containerTitle;
+  const meta = [
+    source.creators.length > 0 && (
+      <FilterLink key="a" filter={sourceFilter.creator(source.creators[0])}>
+        {shortCreators(source.creators)}
+      </FilterLink>
+    ),
+    source.year && (
+      <FilterLink key="y" filter={sourceFilter.year(source.year)}>
+        {source.year}
+      </FilterLink>
+    ),
+    container && (
+      <FilterLink key="c" filter={source.containerTitle ? sourceFilter.container(source.containerTitle) : undefined}>
+        {container}
+      </FilterLink>
+    ),
+  ]
+    .filter(Boolean)
+    .flatMap((part, i) => (i ? [" · ", part] : [part]));
   return (
     <div
       className="kx-row"
@@ -923,7 +948,7 @@ function SourceRow({
         <strong>{source.title || "Untitled"}</strong>
         <span>
           {progress && <b className="kx-row-stage">{progress.label}</b>}
-          {meta || (!progress && <em>No details yet</em>)}
+          {meta.length ? meta : !progress && <em>No details yet</em>}
         </span>
       </span>
       <span className="kx-row-end">
@@ -1145,7 +1170,11 @@ const SearchHitRow = memo(function SearchHitRow({
                     <Highlight text={authors} pattern={pattern} />
                   </span>
                 )}
-                {source.year && <span>{source.year}</span>}
+                {source.year && (
+                  <span>
+                    <FilterLink filter={sourceFilter.year(source.year)}>{source.year}</FilterLink>
+                  </span>
+                )}
                 {container && (
                   <span>
                     <Highlight text={container} pattern={pattern} />
@@ -1156,7 +1185,9 @@ const SearchHitRow = memo(function SearchHitRow({
                 <span className="kx-hit-tags">
                   {tags.map((t) => (
                     <span key={t} className="kx-hit-tag">
-                      <Highlight text={t} pattern={pattern} />
+                      <FilterLink filter={sourceFilter.tag(t)}>
+                        <Highlight text={t} pattern={pattern} />
+                      </FilterLink>
                     </span>
                   ))}
                 </span>

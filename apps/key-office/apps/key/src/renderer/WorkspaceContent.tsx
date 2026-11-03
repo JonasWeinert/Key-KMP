@@ -3,6 +3,7 @@ import { Button, Input, Textarea, Select } from "@key/design-system";
 import NotePage from "./NotePage";
 import CanvasPage from "./canvas/CanvasPage";
 import SourcePage from "./SourcePage";
+import SearchPage from "./SearchPage";
 import HighlightsPage from "./HighlightsPage";
 import type { SearchPreviewState } from "./search-preview";
 import { EntryDetails } from "./EntryTools";
@@ -212,7 +213,7 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas" | "highlights";
+  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas" | "highlights" | "search";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
@@ -726,6 +727,7 @@ export default function WorkspaceContent({
         <CanvasPage invoke={invoke} workspaceId={workspaceId} canvasId={spec.canvasId} viewId={viewId} />
       )}
       {section === "highlights" && workspaceId && <HighlightsPage invoke={invoke} workspaceId={workspaceId} />}
+      {section === "search" && workspaceId && <SearchPage invoke={invoke} workspaceId={workspaceId} active={visible && tabs.activeViewId === viewId} />}
       {section === "note" && workspaceId && spec.noteId && (
         <NotePage invoke={invoke} workspaceId={workspaceId} noteId={spec.noteId} viewId={viewId} />
       )}

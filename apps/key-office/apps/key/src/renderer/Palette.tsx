@@ -6,6 +6,8 @@ import { Icon, type IconName } from "./icons";
 import type { Invoke } from "./library-api";
 import { FoundList, foundKeys, useCollapsedGroups, visibleFound } from "./search-sections";
 import { useUnifiedSearch, type Found, type SearchOptions } from "./unified-search";
+import { EMPTY_FIND, useFind, type FindState } from "./global-search";
+import { KindChips } from "./SearchPage";
 import { fuzzyScore } from "./note-editor/menus";
 import "./palette.css";
 
@@ -31,12 +33,24 @@ export interface PaletteProps {
   /** Under the results: hints, or a choice like Link · Embed · Cite. */
   footer?: ReactNode;
   initialQuery?: string;
+  /** Search everything, with kind chips, starting from these kinds and filters. */
+  find?: Omit<FindState, "text">;
+  /** Opens the search as a tab (⌘↩). */
+  onExpand?: (state: FindState) => void;
 }
 
-export default function Palette({ invoke, workspaceId, label, placeholder, options, commands = [], onPick, onClose, footer, initialQuery = "" }: PaletteProps) {
+export default function Palette({ invoke, workspaceId, label, placeholder, options, commands = [], onPick, onClose, footer, initialQuery = "", find, onExpand }: PaletteProps) {
   const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
-  const found = useUnifiedSearch(invoke, workspaceId, query, options);
+  const [narrowed, setNarrowed] = useState(find);
+  const findState: FindState | undefined = narrowed && { ...narrowed, text: query };
+  const plain = useUnifiedSearch(narrowed ? undefined : invoke, workspaceId, query, options);
+  const everything = useFind(narrowed ? invoke : undefined, workspaceId, findState ?? EMPTY_FIND);
+  const found = narrowed ? everything.found : plain;
+  const expand = onExpand && findState && (() => {
+    onClose();
+    onExpand(findState);
+  });
   const { collapsed, toggle } = useCollapsedGroups();
   const list = useRef<HTMLDivElement>(null);
   const q = query.trim();
@@ -69,6 +83,10 @@ export default function Palette({ invoke, workspaceId, label, placeholder, optio
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape") return onClose();
+              if (e.key === "Enter" && e.metaKey && expand) {
+                e.preventDefault();
+                return expand();
+              }
               if (e.key === "Enter") {
                 e.preventDefault();
                 return pick(active, { alt: e.altKey, meta: e.metaKey, shift: e.shiftKey });
@@ -84,6 +102,16 @@ export default function Palette({ invoke, workspaceId, label, placeholder, optio
             }}
           />
         </div>
+        {narrowed && (
+          <div className="kx-palette-chips">
+            <KindChips result={everything} kinds={narrowed.kinds} onKinds={(kinds) => setNarrowed({ ...narrowed, kinds })} />
+            {expand && (
+              <button type="button" className="kx-palette-expand" title="Open this search in its own tab (⌘↩)" onMouseDown={(e) => e.preventDefault()} onClick={expand}>
+                <Icon name="detach" size={12} /> Open in tab
+              </button>
+            )}
+          </div>
+        )}
         <div className="kx-palette-list" ref={list}>
           {shownCommands.length > 0 && (
             <section className="kx-palette-commands">
@@ -120,7 +148,7 @@ export default function Palette({ invoke, workspaceId, label, placeholder, optio
         <footer className="kx-palette-foot">
           {footer ?? (
             <span>
-              <kbd>↩</kbd> open · <kbd>⌥↩</kbd> beside · <kbd>⌥←</kbd> collapse section
+              <kbd>↩</kbd> open · <kbd>⌥↩</kbd> beside · <kbd>⌥←</kbd> collapse section{expand && <> · <kbd>⌘↩</kbd> open as tab</>}
             </span>
           )}
         </footer>
