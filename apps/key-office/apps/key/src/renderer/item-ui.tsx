@@ -153,6 +153,12 @@ export function ItemBody({ info, invoke, workspaceId, size = "card" }: { info: I
       <p className="kx-item-empty">Empty</p>
     );
   if (info.canvas) return <CanvasMinimap nodes={info.canvas.nodes} />;
+  if (info.file)
+    return (
+      <div className="kx-item-source">
+        {info.file.missing ? <p className="kx-item-empty">The file is not in its folder, or the folder is offline.</p> : <Thumbnail path={info.file.path} size={size === "large" ? 720 : 360} />}
+      </div>
+    );
   if (info.source)
     return (
       <div className="kx-item-source">

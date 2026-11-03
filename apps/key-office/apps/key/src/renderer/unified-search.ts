@@ -70,8 +70,18 @@ export function targetFound(target: LinkTarget): Found {
     detail: highlight ? target.context : target.detail,
     color: target.color,
     group: "titles",
-    where: highlight ? [target.context, target.page != null ? `p. ${target.page + 1}` : ""].filter(Boolean).join(" · ") : target.kind === "note" ? (target.detail === "source note" ? "Note on a source" : "Note") : target.kind === "canvas" ? "Canvas" : undefined,
-    sourceKind: target.kind === "source" && !highlight ? target.detail : undefined,
+    where: highlight
+      ? [target.context, target.page != null ? `p. ${target.page + 1}` : ""].filter(Boolean).join(" · ")
+      : target.kind === "note"
+        ? target.detail === "source note"
+          ? "Note on a source"
+          : "Note"
+        : target.kind === "canvas"
+          ? "Canvas"
+          : target.kind === "file"
+            ? target.context
+            : undefined,
+    sourceKind: (target.kind === "source" && !highlight) || target.kind === "file" ? target.detail : undefined,
   };
 }
 
@@ -126,6 +136,15 @@ export async function searchText(invoke: Invoke, workspaceId: string, query: str
     for (const passage of note.passages.slice(0, 1)) {
       const into = passage.related ? meaning : text;
       into.push({ kind: "note", id: note.noteId, title: note.title || "Untitled note", group: into === text ? "text" : "meaning", where: "Note", snippet: passage.snippet });
+    }
+  }
+  // Files of indexed linked folders: a name match is a detail, passages go below.
+  for (const file of result.files ?? []) {
+    const base = { kind: "file" as const, id: file.fileId, title: file.name, sourceKind: undefined, detail: undefined };
+    if (file.nameMatch && !file.passages.length) details.push({ ...base, group: "titles", where: file.path });
+    for (const passage of file.passages.slice(0, 1)) {
+      const into = passage.related ? meaning : text;
+      into.push({ ...base, group: into === text ? "text" : "meaning", where: file.path, snippet: passage.snippet });
     }
   }
   return { details, text, meaning, semantic: result.semantic };

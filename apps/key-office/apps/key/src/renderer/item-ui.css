@@ -242,6 +242,8 @@
 }
 .kx-toast {
   display: flex;
+  width: max-content;
+  max-width: min(560px, 80vw);
   align-items: center;
   gap: 12px;
   padding: 7px 8px 7px 14px;

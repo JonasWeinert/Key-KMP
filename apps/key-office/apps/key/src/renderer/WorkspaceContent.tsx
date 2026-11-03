@@ -5,6 +5,7 @@ import CanvasPage from "./canvas/CanvasPage";
 import SourcePage from "./SourcePage";
 import SearchPage from "./SearchPage";
 import HighlightsPage from "./HighlightsPage";
+import LinkedFileView from "./LinkedFileView";
 import type { SearchPreviewState } from "./search-preview";
 import { EntryDetails } from "./EntryTools";
 import { RecordProperties } from "./RecordProperties";
@@ -213,13 +214,14 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas" | "highlights" | "search";
+  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas" | "highlights" | "search" | "file";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
   noteId?: string;
   sourceId?: string;
   canvasId?: string;
+  fileId?: string;
 }
 export default function WorkspaceContent({
   viewId,
@@ -728,6 +730,7 @@ export default function WorkspaceContent({
       )}
       {section === "highlights" && workspaceId && <HighlightsPage invoke={invoke} workspaceId={workspaceId} />}
       {section === "search" && workspaceId && <SearchPage invoke={invoke} workspaceId={workspaceId} active={visible && tabs.activeViewId === viewId} />}
+      {section === "file" && workspaceId && spec.fileId && <LinkedFileView invoke={invoke} workspaceId={workspaceId} fileId={spec.fileId} />}
       {section === "note" && workspaceId && spec.noteId && (
         <NotePage invoke={invoke} workspaceId={workspaceId} noteId={spec.noteId} viewId={viewId} />
       )}

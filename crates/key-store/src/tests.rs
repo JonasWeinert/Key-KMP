@@ -600,3 +600,165 @@ fn notes_and_sources_keep_page_fields_properties_and_appearance() {
     let source = store.update_source(&source.id, &patch(json!({"appearance": {"cover": {"kind": "color", "value": "#f4d9b0"}}}))).unwrap();
     assert_eq!(source.appearance.len(), 2);
 }
+
+fn linked_workspace() -> (tempfile::TempDir, tempfile::TempDir, Store) {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let store = Store::open(workspace.path().join(".key")).unwrap();
+    (workspace, outside, store)
+}
+
+fn file_by_name(store: &Store, folder: &str, dir: &str, name: &str) -> LinkedFile {
+    store.linked_entries(folder, dir).unwrap().files.into_iter().find(|f| f.name == name).unwrap()
+}
+
+#[test]
+fn linked_folders_list_files_and_skip_hidden_ones() {
+    let (workspace, outside, store) = linked_workspace();
+    let root = outside.path();
+    std::fs::create_dir_all(root.join("notes/deep")).unwrap();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    std::fs::create_dir_all(root.join("node_modules/x")).unwrap();
+    std::fs::write(root.join("readme.md"), "# Hello").unwrap();
+    std::fs::write(root.join("notes/a.txt"), "alpha").unwrap();
+    std::fs::write(root.join("notes/deep/b.pdf"), "%PDF").unwrap();
+    std::fs::write(root.join(".DS_Store"), "x").unwrap();
+    std::fs::write(root.join(".git/HEAD"), "x").unwrap();
+    std::fs::write(root.join("node_modules/x/i.js"), "x").unwrap();
+
+    assert!(store.link_folder(workspace.path()).is_err(), "the workspace itself cannot be linked");
+    let folder = store.link_folder(root).unwrap();
+    assert!(folder.tracked && !folder.indexed);
+    let report = store.sync_linked_folder(&folder.id, &[]).unwrap();
+    assert_eq!(report.added, 3);
+    let top = store.linked_entries(&folder.id, "").unwrap();
+    assert_eq!(top.dirs.iter().map(|d| d.name.as_str()).collect::<Vec<_>>(), ["notes"]);
+    assert_eq!(top.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["readme.md"]);
+    assert_eq!(top.files[0].kind, "markdown");
+    let notes = store.linked_entries(&folder.id, "notes").unwrap();
+    assert_eq!(notes.dirs[0].path, "notes/deep");
+    assert_eq!(store.linked_folders().unwrap()[0].files, 3);
+    // Linking it again answers the same folder.
+    assert_eq!(store.link_folder(root).unwrap().id, folder.id);
+}
+
+#[test]
+fn linked_files_keep_their_id_and_links_across_renames_moves_and_absence() {
+    let (_workspace, outside, store) = linked_workspace();
+    let root = outside.path();
+    std::fs::create_dir_all(root.join("sub")).unwrap();
+    std::fs::write(root.join("plan.md"), "# Plan").unwrap();
+    let folder = store.link_folder(root).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    let plan = file_by_name(&store, &folder.id, "", "plan.md");
+
+    let note = store.save_note(None, None, "Index", "", None).unwrap();
+    let file_ref = ItemRef::new("file", &plan.id, None);
+    store.replace_links(&ItemRef::new("note", &note.id, None), &[link(ItemRef::new("note", &note.id, None), file_ref.clone(), "plan.md")]).unwrap();
+    assert_eq!(store.item_links("file", &plan.id).unwrap().backlinks.len(), 1);
+
+    // A rename, seen only as two changed paths, keeps the id (same inode).
+    std::fs::rename(root.join("plan.md"), root.join("sub/plan v2.md")).unwrap();
+    let report = store.sync_linked_folder(&folder.id, &["plan.md".into(), "sub/plan v2.md".into()]).unwrap();
+    assert_eq!((report.moved, report.added, report.removed), (1, 0, 0));
+    let moved = store.linked_file(&plan.id).unwrap().unwrap();
+    assert_eq!(moved.path, "sub/plan v2.md");
+    let outgoing = store.item_links("note", &note.id).unwrap().outgoing;
+    assert_eq!(outgoing[0].to.title, "plan v2.md");
+    assert!(!outgoing[0].broken);
+
+    // Gone: the link breaks but the row stays; back: it mends.
+    let saved = std::fs::read(root.join("sub/plan v2.md")).unwrap();
+    std::fs::remove_file(root.join("sub/plan v2.md")).unwrap();
+    assert_eq!(store.sync_linked_folder(&folder.id, &["sub".into()]).unwrap().removed, 1);
+    assert!(store.linked_file(&plan.id).unwrap().unwrap().missing);
+    assert!(store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+    // Returns as a new file elsewhere: matched by content (its hash was read when opened).
+    store.read_linked_text(&plan.id).ok();
+    let _ = store.remember_linked_hash(&plan.id, moved.mtime, &linked_hash(&saved));
+    std::fs::write(root.join("restored.md"), &saved).unwrap();
+    let report = store.sync_linked_folder(&folder.id, &["restored.md".into()]).unwrap();
+    assert_eq!(report.moved, 1);
+    assert_eq!(store.linked_file(&plan.id).unwrap().unwrap().path, "restored.md");
+    assert!(!store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+
+    // A folder that cannot be read keeps its manifest.
+    let folder_path = root.to_path_buf();
+    let away = folder_path.with_file_name(format!("{}-away", folder_path.file_name().unwrap().to_string_lossy()));
+    std::fs::rename(&folder_path, &away).unwrap();
+    assert!(store.sync_linked_folder(&folder.id, &[]).unwrap().missing);
+    assert!(store.linked_folder(&folder.id).unwrap().unwrap().missing);
+    assert!(!store.linked_file(&plan.id).unwrap().unwrap().missing);
+    std::fs::rename(&away, &folder_path).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    assert!(!store.linked_folder(&folder.id).unwrap().unwrap().missing);
+
+    // Unlinking breaks links for good.
+    store.unlink_folder(&folder.id).unwrap();
+    assert!(store.linked_file(&plan.id).unwrap().is_none());
+    assert!(store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+}
+
+fn linked_hash(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[test]
+fn markdown_in_linked_folders_is_editable_with_a_conflict_guard() {
+    let (_workspace, outside, store) = linked_workspace();
+    std::fs::write(outside.path().join("todo.md"), "one").unwrap();
+    std::fs::write(outside.path().join("data.csv"), "a,b").unwrap();
+    let folder = store.link_folder(outside.path()).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    let todo = file_by_name(&store, &folder.id, "", "todo.md");
+    let (read, text) = store.read_linked_text(&todo.id).unwrap();
+    assert_eq!(text, "one");
+    let written = store.write_linked_text(&todo.id, "two", Some(read.mtime)).unwrap();
+    assert_eq!(std::fs::read_to_string(outside.path().join("todo.md")).unwrap(), "two");
+    assert_eq!(written.size, 3);
+    // Saving over a version changed elsewhere is refused.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(outside.path().join("todo.md"), "three!").unwrap();
+    assert!(store.write_linked_text(&todo.id, "four", Some(written.mtime)).is_err());
+    // Only Markdown is writable; the temporary file never stays behind or shows.
+    let csv = file_by_name(&store, &folder.id, "", "data.csv");
+    assert!(store.write_linked_text(&csv.id, "x", None).is_err());
+    assert_eq!(store.sync_linked_folder(&folder.id, &[]).unwrap().added, 0);
+}
+
+#[test]
+fn indexed_linked_files_are_searchable_and_untracked_folders_list_from_disk() {
+    let (_workspace, outside, store) = linked_workspace();
+    std::fs::write(outside.path().join("malaria.md"), "Bed nets reduce malaria.").unwrap();
+    std::fs::write(outside.path().join("photo.jpg"), [0u8, 1, 2]).unwrap();
+    let folder = store.link_folder(outside.path()).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    // Tracked but not indexed: nothing to index, nothing found.
+    assert!(store.stale_linked_files(10, &[]).unwrap().is_empty());
+    store.set_linked_folder(&folder.id, None, Some(true)).unwrap();
+    let stale = store.stale_linked_files(10, &[]).unwrap();
+    assert_eq!(stale.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["malaria.md"]);
+    let file = &stale[0];
+    store.replace_file_chunks(&file.id, file.mtime, &[ChunkInput { text: "Bed nets reduce malaria.".into(), embedding: Some(unit(3)), ..Default::default() }], None).unwrap();
+    assert!(store.stale_linked_files(10, &[]).unwrap().is_empty());
+    assert_eq!(store.linked_folders().unwrap()[0].indexed_files, 1);
+
+    let found = store.search(&SearchQuery { text: "malaria".into(), ..Default::default() }, None).unwrap();
+    assert_eq!(found.files.len(), 1);
+    assert_eq!(found.files[0].file_id, file.id);
+    assert!(found.files[0].passages[0].snippet.contains("[[malaria]]"));
+    let by_meaning = store.search(&SearchQuery { text: "mosquito".into(), mode: Some("semantic".into()), ..Default::default() }, Some(&unit(3))).unwrap();
+    assert_eq!(by_meaning.files.len(), 1);
+    // The link picker finds it by name.
+    let targets = store.link_targets("mala", &["file".into()], 5).unwrap();
+    assert_eq!(targets[0].item.id, file.id);
+
+    // Indexing off drops the passages; tracking off lists from disk.
+    store.set_linked_folder(&folder.id, Some(false), None).unwrap();
+    assert!(store.search(&SearchQuery { text: "malaria".into(), ..Default::default() }, None).unwrap().files.is_empty());
+    let entries = store.linked_entries(&folder.id, "").unwrap();
+    assert_eq!(entries.files.len(), 2);
+    let photo = entries.files.iter().find(|f| f.name == "photo.jpg").unwrap();
+    assert!(!photo.id.is_empty() || store.linked_file_at(&folder.id, "photo.jpg").is_ok());
+}

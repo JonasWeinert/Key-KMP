@@ -43,7 +43,7 @@ export const NoteKeymap = Extension.create({
 
 const sourceLinkKey = new PluginKey<DecorationSet>("noteSourceLinks");
 
-const OPEN_TITLE: Record<ItemLink["kind"], string> = { source: "Open source", note: "Open note", canvas: "Open canvas", record: "Open page" };
+const OPEN_TITLE: Record<ItemLink["kind"], string> = { source: "Open source", note: "Open note", canvas: "Open canvas", record: "Open page", file: "Open file" };
 
 function linkRanges(doc: PMNode): Array<{ from: number; to: number; item: ItemLink }> {
   const ranges: Array<{ from: number; to: number; item: ItemLink }> = [];

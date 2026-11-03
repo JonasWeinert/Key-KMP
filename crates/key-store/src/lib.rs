@@ -3,13 +3,15 @@
 // chunked text of documents and notes that full-text and vector search run over.
 mod analysis;
 mod filters;
+mod linked;
 mod links;
 mod properties;
 mod search;
 pub use analysis::{CitationInput, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
 pub use filters::{Filter, Suggestion};
+pub use linked::{LinkedDir, LinkedEntries, LinkedFile, LinkedFolder, MAX_PDF_BYTES, MAX_TEXT_BYTES, SyncReport, file_kind};
 pub use links::{Canvas, CanvasSummary, ItemLinks, ItemRef, Link, LinkEnd, LinkInput, LinkTarget, canvas_links, note_title};
-pub use search::{NoteHit, SearchHit, SearchPassage, SearchQuery, SearchResult};
+pub use search::{FileHit, NoteHit, SearchHit, SearchPassage, SearchQuery, SearchResult};
 
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter, types::Value};
 use serde::{Deserialize, Serialize};
@@ -32,7 +34,8 @@ const AWAITING_VECTOR: &str = "FROM chunks c
      LEFT JOIN sources s ON s.id = c.source_id
      LEFT JOIN notes n ON n.id = c.note_id
      LEFT JOIN sources ns ON ns.id = n.source_id
-     WHERE c.embedded = 0 AND (s.index_status IN ('ready', 'no_text', 'missing') OR n.updated_at <= ?1)";
+     LEFT JOIN linked_files lf ON lf.id = c.file_id
+     WHERE c.embedded = 0 AND (s.index_status IN ('ready', 'no_text', 'missing') OR n.updated_at <= ?1 OR c.file_id IS NOT NULL)";
 const MIGRATIONS: &[&str] = &[
     include_str!("migrations/001_initial.sql"),
     include_str!("migrations/002_properties.sql"),
@@ -42,6 +45,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/006_note_passages.sql"),
     include_str!("migrations/007_links_canvases.sql"),
     include_str!("migrations/008_pages.sql"),
+    include_str!("migrations/009_linked_folders.sql"),
 ];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
@@ -1153,7 +1157,7 @@ impl Store {
         let db = self.db()?;
         let mut statement = db
             .prepare(&format!(
-                "SELECT c.id, coalesce(s.title, nullif(n.title, ''), ns.title, ''), c.text {AWAITING_VECTOR} ORDER BY c.id LIMIT ?2"
+                "SELECT c.id, coalesce(s.title, nullif(n.title, ''), ns.title, lf.name, ''), c.text {AWAITING_VECTOR} ORDER BY c.id LIMIT ?2"
             ))
             .map_err(e)?;
         statement

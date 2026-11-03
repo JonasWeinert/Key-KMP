@@ -122,10 +122,21 @@ export interface NoteHit {
   score: number;
   passages: Passage[];
 }
+export interface FileHit {
+  fileId: string;
+  name: string;
+  /** The folder's name and the path inside it. */
+  path: string;
+  score: number;
+  nameMatch: boolean;
+  passages: SearchHit["passages"];
+}
 export interface SearchResult {
   hits: SearchHit[];
   /** Standalone notes, only when nothing narrows the search. */
   notes: NoteHit[];
+  /** Files of indexed linked folders, likewise. */
+  files?: FileHit[];
   semantic: boolean;
   keywordPassages: number;
   semanticPassages: number;

@@ -13,6 +13,7 @@ pub const NOTE: &str = "note";
 pub const SOURCE: &str = "source";
 pub const CANVAS: &str = "canvas";
 pub const RECORD: &str = "record";
+// Files in linked folders: `super::linked::FILE`.
 
 /// An item, or a place inside one: `page:3`, `highlight:<id>`, `heading:<slug>`, `node:<id>`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -239,6 +240,34 @@ impl Store {
                 });
             }
         }
+        if wants(super::linked::FILE) {
+            // Files of tracked folders by name; the folder's name shows beside it.
+            let mut statement = db
+                .prepare(
+                    "SELECT f.id, f.name, f.path, d.name, f.mtime FROM linked_files f JOIN linked_folders d ON d.id = f.folder_id
+                     WHERE f.missing_at IS NULL AND d.tracked = 1 AND f.name LIKE ?1 ESCAPE '\\'
+                     ORDER BY f.mtime DESC LIMIT ?2",
+                )
+                .map_err(e)?;
+            let rows = statement
+                .query_map(params![pattern, limit], |r| {
+                    Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?, r.get::<_, i64>(4)?))
+                })
+                .map_err(e)?;
+            for row in rows {
+                let (id, name, path, folder, mtime) = row.map_err(e)?;
+                let dir = path.rsplit_once('/').map(|(d, _)| format!("{folder}/{d}")).unwrap_or(folder);
+                out.push(LinkTarget {
+                    item: ItemRef::new(super::linked::FILE, &id, None),
+                    detail: Some(super::linked::file_kind(&name).into()),
+                    title: name,
+                    context: Some(dir),
+                    color: None,
+                    page: None,
+                    updated_at: mtime,
+                });
+            }
+        }
         // Without text, highlights come only when asked for by name (the most recent first).
         if wants("highlight") && (!text.trim().is_empty() || kinds.iter().any(|k| k == "highlight")) {
             let mut statement = db
@@ -370,9 +399,15 @@ pub(crate) fn forget_item(db: &Connection, kind: &str, id: &str) -> Result<()> {
     Ok(())
 }
 
-fn mend_links_to(db: &Connection, kind: &str, id: &str) -> Result<()> {
+pub(crate) fn mend_links_to(db: &Connection, kind: &str, id: &str) -> Result<()> {
     db.execute("UPDATE links SET broken_at = NULL WHERE to_kind = ?1 AND to_id = ?2 AND to_anchor IS NULL AND broken_at IS NOT NULL", params![kind, id])
         .map_err(e)?;
+    Ok(())
+}
+
+/// Marks links to an item broken while it is away (a linked file that disappeared).
+pub(crate) fn break_links_to(db: &Connection, kind: &str, id: &str) -> Result<()> {
+    db.execute("UPDATE links SET broken_at = ?3 WHERE to_kind = ?1 AND to_id = ?2 AND broken_at IS NULL", params![kind, id, now_ms()]).map_err(e)?;
     Ok(())
 }
 
@@ -430,6 +465,11 @@ fn target_exists(db: &Connection, item: &ItemRef) -> Result<bool> {
         NOTE => "notes",
         SOURCE => "sources",
         CANVAS => "canvases",
+        super::linked::FILE => {
+            return db
+                .query_row("SELECT EXISTS(SELECT 1 FROM linked_files WHERE id = ? AND missing_at IS NULL)", [&item.id], |r| r.get(0))
+                .map_err(e);
+        }
         // Records live in the workspace's other database; the host checks those.
         _ => return Ok(true),
     };
@@ -528,6 +568,14 @@ fn lookup(db: &Connection, kind: &str, id: &str) -> Result<Option<(String, Optio
             .map_err(e),
         CANVAS => db
             .query_row("SELECT title FROM canvases WHERE id = ?", [id], |r| Ok((or_untitled(&r.get::<_, String>(0)?, "Untitled canvas"), None)))
+            .optional()
+            .map_err(e),
+        // A file that disappeared reads as missing, under the link's own text.
+        super::linked::FILE => db
+            .query_row("SELECT name FROM linked_files WHERE id = ? AND missing_at IS NULL", [id], |r| {
+                let name: String = r.get(0)?;
+                Ok((name.clone(), Some(super::linked::file_kind(&name).to_string())))
+            })
             .optional()
             .map_err(e),
         _ => Ok(None),
