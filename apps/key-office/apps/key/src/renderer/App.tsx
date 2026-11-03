@@ -993,18 +993,20 @@ export default function App() {
                 <span>Link folder…</span>
               </button>
             )}
-            <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
-              <Icon name="gear" />
-              <span>Settings</span>
-            </button>
-            <small>
-              <Icon name="disk" size={13} />
-              <span>
-                {selectedWorkspace
-                  ? "Stored on this Mac"
-                  : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`}
-              </span>
-            </small>
+            <div className="kx-sidebar-foot-row">
+              <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
+                <Icon name="gear" />
+                <span>Settings</span>
+              </button>
+              {(() => {
+                const where = selectedWorkspace ? "Stored on this Mac" : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`;
+                return (
+                  <span className="kx-sidebar-storage" title={where} aria-label={where} role="img">
+                    <Icon name="disk" size={13} />
+                  </span>
+                );
+              })()}
+            </div>
           </div>
         </aside>
         {!sidebarCollapsed && (
