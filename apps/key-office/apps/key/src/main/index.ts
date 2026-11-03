@@ -1857,7 +1857,7 @@ else
           )
             emit("library-changed");
           // Every view showing a note or a PDF's highlights stays in step with edits made elsewhere.
-          if (command === "store_note_save" || command === "store_note_delete")
+          if (command === "store_note_save" || command === "store_note_meta" || command === "store_note_delete")
             emit("note-changed", { workspaceId: targetWorkspace, noteId: (result as any)?.id ?? args?.id, sourceId: (result as any)?.sourceId ?? args?.sourceId });
           // Backlinks are rewritten by these saves, and titles they show change with renames.
           if (["store_note_save", "store_note_delete", "store_canvas_save", "store_canvas_delete", "store_update", "store_delete", "library_apply_annotations", "library_save_annotations"].includes(command))

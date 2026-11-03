@@ -66,6 +66,7 @@ export function PropertySheet({
   definitions,
   onClose,
   onSaved,
+  onCreated,
 }: {
   state: PropertySheetState;
   invoke: Invoke;
@@ -73,6 +74,8 @@ export function PropertySheet({
   definitions: PropertyDefinition[];
   onClose: () => void;
   onSaved: () => void;
+  /** A new property was defined under this name (pages that are not sources add it to themselves). */
+  onCreated?: (name: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -115,6 +118,7 @@ export function PropertySheet({
         }
       }
       onSaved();
+      if (!editing) onCreated?.(name);
       if (configureAgent) setAgentFor(name);
       else onClose();
     } catch (e) {

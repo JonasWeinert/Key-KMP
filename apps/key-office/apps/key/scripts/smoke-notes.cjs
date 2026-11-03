@@ -1,6 +1,6 @@
 // Run serially: native windows and focus are shared with other GUI checks.
-// Details panel: one Details list, drag-resizable and remembered. Notes: a source note
-// written with the block editor (slash menu, @-link) saves as Markdown with custom fences,
+// Details panel (the source's page): one property list, drag-resizable and remembered.
+// Notes: a source's page note written with the block editor (slash menu, @-link) saves as Markdown with custom fences,
 // opens in its own tab, and standalone notes come from the sidebar. Both are found by search.
 // Media: a typed YouTube link becomes a playable preview, a pasted image is stored in the
 // workspace's media folder, and both render again after the window reloads.
@@ -66,8 +66,8 @@ function png(width, height, [r, g, b]) {
     await page.evaluate((id) => window.key.tabAction("open-content", { section: "sources", workspaceId: id }), ws.id);
     await page.locator(".kx-row").first().click();
 
-    // One Details list: bibliographic fields, then the user's properties.
-    const details = page.locator(".kx-details");
+    // One property list: bibliographic fields, then the user's properties.
+    const details = page.locator(".kx-inspector .kx-page-properties");
     await details.locator(".kx-field-row", { hasText: "Year" }).waitFor();
     await details.locator(".kx-typed-row", { hasText: "Status" }).waitFor();
     assert.equal(await page.locator(".kx-inspector-section h3", { hasText: /^Properties$/ }).count(), 0);
@@ -85,20 +85,19 @@ function png(width, height, [r, g, b]) {
     assert(Math.abs(after - 600) < 3, `resized width ${after}`);
     assert.equal(await page.evaluate(() => localStorage.getItem("key.library.inspectorWidth")), "600");
 
-    // A source note: a callout from the slash menu, then an @-link to the source.
-    await page.getByRole("button", { name: "New note", exact: true }).last().click();
-    const editor = page.locator(".kx-note-card .ProseMirror").first();
+    // The page's note: a callout from the slash menu, then an @-link to the source.
+    const editor = page.locator(".kx-inspector .kx-page-note .ProseMirror").first();
     await editor.click();
     await page.waitForFunction(() => document.activeElement?.classList.contains("ProseMirror"));
     await page.keyboard.type("/callout");
     await page.locator(".ne-menu-item[aria-selected=true]", { hasText: "Callout" }).waitFor();
     await page.keyboard.press("Enter");
-    await page.locator(".kx-note-card .ne-callout").waitFor();
+    await page.locator(".kx-inspector .kx-page-note .ne-callout").waitFor();
     await page.keyboard.type("Compare with ");
     await page.keyboard.type("@Interac");
     await page.locator(".ne-menu-item", { hasText: "Interaction study" }).waitFor();
     await page.keyboard.press("Enter");
-    await page.locator(".kx-note-card a[href^='key://source/']").waitFor();
+    await page.locator(".kx-inspector .kx-page-note a[href^='key://source/']").waitFor();
     let body = "";
     for (let i = 0; i < 40 && !body.includes("key://source/"); i++) {
       await page.waitForTimeout(150);
@@ -116,8 +115,8 @@ function png(width, height, [r, g, b]) {
     await shot(page, "1-source-note");
 
     // Open the note in its own tab and give it a title; the tab follows.
-    await page.locator(".kx-note-card").first().hover();
-    await page.getByRole("button", { name: "Open note in a tab" }).click();
+    await page.locator(".kx-inspector .kx-page-note").hover();
+    await page.locator(".kx-inspector").getByRole("button", { name: "Open note in a tab" }).click();
     const title = page.getByRole("textbox", { name: "Note title" });
     await title.fill("Reading notes");
     await page.waitForFunction(async () => (await window.key.tabs()).tabs.some((t) => t.title.includes("Reading notes")));

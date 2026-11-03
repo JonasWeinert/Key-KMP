@@ -29,7 +29,8 @@ import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, o
 import type { Creator } from "./citation";
 import { Highlight, Snippet, hasMatch, queryPattern } from "./search-highlight";
 import SearchField, { storeFilters, type SearchFilter } from "./search-suggest";
-import SourceInspector, { indexLabel } from "./SourceInspector";
+import SourceItemPage from "./SourcePage";
+import { indexLabel } from "./SourceInspector";
 import {
   AgentFillSheet,
   IdentifierSheet,
@@ -794,32 +795,25 @@ export default function ReferenceLibrary({
         />
       )}
       {inspector && (
-        <SourceInspector
-          key={inspector.id}
-          source={inspector}
-          invoke={invoke}
-          workspaceId={workspaceId}
-          collections={collections}
-          tagSuggestions={facets.tags}
-          onChanged={(source) => {
-            updateSource(source);
-            if (source.collections.length !== inspector.collections.length || source.tags.join("\n") !== inspector.tags.join("\n")) libraryChanged();
-          }}
-          onOpen={openExternal}
-          onOpenPage={(source) =>
-            void bridge().tabAction("open-source-page", { workspaceId, sourceId: source.id, title: source.title || "Untitled", read: false })
-          }
-          onClose={() => setFocusId(undefined)}
-          definitions={definitions}
-          progress={jobProgress(activity, inspector.id)}
-          onPropertySheet={setSheet}
-          onAgentFill={(name) => setAgent({ targets: [inspector], name })}
-          onDownload={async () => {
-            const lookup = await invoke<{ fullTextUrl?: string | null }>("scholarly_lookup_resource", { resource: inspector.doi || inspector.url }, workspaceId);
-            if (!lookup.fullTextUrl) throw Error("No open-access PDF was found for this reference.");
-            updateSource(await invoke<Source>("library_download_pdf", { url: lookup.fullTextUrl, sourceId: inspector.id }, workspaceId));
-          }}
-        />
+        // The details panel is the source's page, the same component as its own tab.
+        <aside className="kx-inspector kx-inspector-page" aria-label="Source details">
+          <SourceItemPage
+            key={inspector.id}
+            invoke={invoke}
+            workspaceId={workspaceId}
+            sourceId={inspector.id}
+            side={{
+              onChanged: (source) => {
+                updateSource(source);
+                if (source.collections.length !== inspector.collections.length || source.tags.join("\n") !== inspector.tags.join("\n")) libraryChanged();
+              },
+              onOpenPage: (source) => void bridge().tabAction("open-source-page", { workspaceId, sourceId: source.id, title: source.title || "Untitled", read: false }),
+              onClose: () => setFocusId(undefined),
+              progress: jobProgress(activity, inspector.id),
+              onAgentFill: (name) => setAgent({ targets: [inspector], name }),
+            }}
+          />
+        </aside>
       )}
       {sheet && (
         <PropertySheet
