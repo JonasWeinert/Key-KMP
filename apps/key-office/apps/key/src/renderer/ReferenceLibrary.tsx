@@ -1061,7 +1061,8 @@ const SearchResults = memo(function SearchResults({
           Search failed: {search.error}
         </p>
       ) : result ? (
-        <div className="kx-results-head">
+        // With nothing found, the single message below says so.
+        (hits.length > 0 || notes.length > 0) && <div className="kx-results-head">
           <strong>
             {hits.length || notes.length
               ? [

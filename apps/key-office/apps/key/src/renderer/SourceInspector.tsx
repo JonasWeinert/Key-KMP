@@ -46,7 +46,7 @@ const ROLES = ["author", "editor", "translator", "container-author", "contributo
 export function indexLabel(source: Source): { tone: string; label: string } {
   switch (source.indexStatus) {
     case "ready":
-      return { tone: "ready", label: `Searchable · ${source.indexTotal} passages` };
+      return { tone: "ready", label: `Searchable · ${source.indexTotal} ${source.indexTotal === 1 ? "passage" : "passages"}` };
     case "indexing":
       return { tone: "busy", label: source.indexTotal ? `Indexing ${source.indexedChunks} of ${source.indexTotal}` : "Reading text…" };
     case "pending":

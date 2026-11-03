@@ -159,7 +159,7 @@ export default function CommandCenter({
         { id: "sel-send", label: `Send ${describeCount(selection)} to…`, icon: "arrowRight", shortcut: "⌘⇧S", run: () => setTimeout(() => setOpen({ mode: "send", items: selection })) },
         { id: "sel-link", label: "Copy link", icon: "link", shortcut: "⌘L", run: () => void copyItemLink(selection.map((item) => ({ item, title: item.title }))) },
         { id: "sel-cite", label: "Copy citation", icon: "quote", shortcut: "⌘⇧C", run: () => void copyCitation(invoke, workspaceId, selection) },
-        { id: "sel-inspect", label: "Show in inspector", icon: "panelRight", shortcut: "⌘⇧I", run: () => showInInspector(selection) },
+        { id: "sel-inspect", label: "Show selection in inspector", icon: "panelRight", run: () => showInInspector(selection) },
       ]
     : [];
   if (open.mode === "send") {

@@ -5,7 +5,9 @@
   flex-direction: column;
   box-sizing: border-box;
   width: 100%;
-  height: min(520px, 70vh);
+  /* As tall as its results, up to a limit. */
+  height: auto;
+  max-height: min(520px, 70vh);
   padding: 14px 12px 10px;
 }
 .kx-palette-field {
@@ -37,11 +39,9 @@
 }
 .kx-palette-heading {
   padding: 6px 8px 4px;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 .kx-palette-commands {
   padding-bottom: 4px;
@@ -109,10 +109,8 @@
 }
 .kx-shortcuts h3 {
   margin: 0 0 6px;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .kx-shortcuts dl {
   margin: 0;

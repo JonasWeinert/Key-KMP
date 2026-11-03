@@ -41,7 +41,7 @@ export const sourceFilter = {
   }),
   retracted: (): SearchFilter => ({ field: "retracted", op: "is", value: "true", label: "Retracted" }),
   oaStatus: (status: string): SearchFilter => ({ field: "oaStatus", op: "is", value: status, label: OA_LABEL[status] ?? status }),
-  workType: (type: string): SearchFilter => ({ field: "workType", op: "is", value: type, label: type.replace(/-/g, " ") }),
+  workType: (type: string): SearchFilter => ({ field: "workType", op: "is", value: type, label: type[0].toUpperCase() + type.slice(1).replace(/-/g, " ") }),
   language: (code: string): SearchFilter => ({ field: "language", op: "is", value: code, label: languageName(code) }),
 };
 

@@ -190,7 +190,7 @@ export function SourceCard({ source }: { source: Source }) {
   return (
     <>
       <span className="kx-cover" data-tone={coverTone(source.id)} aria-hidden="true">
-        <span className="kx-cover-kind">{source.kind === "reference" ? itemTypeLabel(source.itemType).toUpperCase() : source.kind.toUpperCase()}</span>
+        <span className="kx-cover-kind">{source.kind === "reference" ? itemTypeLabel(source.itemType) : source.kind === "pdf" ? "PDF" : source.kind[0].toUpperCase() + source.kind.slice(1)}</span>
         <span className="kx-cover-title">{source.title || "Untitled"}</span>
         {!!source.pageCount && <span className="kx-cover-pages">{source.pageCount} pp.</span>}
         {thumbnail && <img className="kx-cover-thumb" src={thumbnail} alt="" draggable={false} />}

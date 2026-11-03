@@ -482,3 +482,24 @@
   gap: 8px;
   padding: 12px 20px 18px;
 }
+
+/* Links in pages (ORCID, OpenAlex, home pages) read as accent text, underlined on hover. */
+.kx-item-page .kx-research-row a,
+.kx-item-page .kx-enrich-line a {
+  color: var(--kx-accent);
+  text-decoration: none;
+}
+.kx-item-page .kx-research-row a:hover,
+.kx-item-page .kx-enrich-line a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Lists of names in one row are separated by commas, so multi-word ones stay apart. */
+.kx-research-row:is([data-research="Keywords"], [data-research="Topics"], [data-research="Co-authors"], [data-research="Journals"], [data-research="Authors"], [data-research="People"], [data-research="Narrower"]) .kx-research-values {
+  gap: 4px 0;
+}
+.kx-research-row:is([data-research="Keywords"], [data-research="Topics"], [data-research="Co-authors"], [data-research="Journals"], [data-research="Authors"], [data-research="People"], [data-research="Narrower"]) .kx-research-values > :not(:last-child)::after {
+  content: ",";
+  margin-right: 6px;
+  color: var(--kx-text-3);
+}

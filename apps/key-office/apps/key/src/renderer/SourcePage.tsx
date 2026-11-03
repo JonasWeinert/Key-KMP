@@ -449,7 +449,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
               )}
             </div>
             <footer className="kx-inspector-foot">
-              Added {new Date(source.addedAt).toLocaleDateString()} · Modified {new Date(source.updatedAt).toLocaleDateString()}
+              Added {readableDate(source.addedAt)} · Modified {readableDate(source.updatedAt)}
               {source.origin === "zotero" ? " · from Zotero" : ""}
             </footer>
           </section>
@@ -730,7 +730,7 @@ function ResearchRows({ source, graph, onEnrich }: { source: Source; graph?: Sou
             )}
           </>,
         )}
-      {source.workType && row("Work type", <FilterLink filter={sourceFilter.workType(source.workType)}>{source.workType.replace(/-/g, " ")}</FilterLink>)}
+      {source.workType && row("Work type", <FilterLink filter={sourceFilter.workType(source.workType)}>{workTypeLabel(source.workType)}</FilterLink>)}
       {!!graph?.topics.length &&
         row(
           "Topics",
@@ -782,4 +782,15 @@ function ResearchRows({ source, graph, onEnrich }: { source: Source; graph?: Sou
       )}
     </>
   );
+}
+
+/** "Article", "Book chapter" for OpenAlex's article, book-chapter … */
+function workTypeLabel(type: string) {
+  const text = type.replace(/-/g, " ");
+  return text[0].toUpperCase() + text.slice(1);
+}
+
+/** "3 Nov 2026". */
+function readableDate(at: number) {
+  return new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }

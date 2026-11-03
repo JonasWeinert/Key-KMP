@@ -129,10 +129,8 @@
 }
 .kx-page-popover h4 {
   margin: 8px 0 6px;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font: 600 11px var(--kx-font);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 .kx-page-popover h4:first-child {
   margin-top: 0;

@@ -12,9 +12,11 @@ import {
   onToast,
   openItemAt,
   shellContext,
+  toast,
   type ItemInfo,
   type Toast,
 } from "./item-actions";
+import { libraryChanged } from "./library-nav";
 import { itemLinks } from "./item-links";
 import { bridge, type Invoke } from "./library-api";
 import NoteEditor, { itemFromHref, itemHref, setEmbedRenderer, type DraggedItem, type ItemLink } from "./note-editor";
@@ -245,7 +247,8 @@ setEmbedRenderer((item, depth, label) => <EmbedBody item={item} depth={depth} la
 
 // ── Hover card ───────────────────────────────────────────────────────────────
 
-const HOVER_DELAY = 550;
+/** Resting this long on an item previews it (Space previews at once). */
+const HOVER_DELAY = 1100;
 
 function placeNear(rect: DOMRect, box: HTMLElement | null): CSSProperties {
   if (!box) return { visibility: "hidden" };
@@ -314,10 +317,37 @@ export function itemMenuEntries(items: { item: ItemLink; title: string }[], extr
     { label: "Quick look", icon: "search", shortcut: "Space", run: () => quickLook(first.item) },
     "-",
     { label: items.length > 1 ? `Copy ${items.length} links` : "Copy link", icon: "link", shortcut: "⌘L", run: () => void copyItemLink(items) },
-    { label: "Copy citation", icon: "quote", shortcut: "⌘⇧C", disabled: !sourceLike, run: () => invoke && workspaceId && void copyCitation(invoke, workspaceId, items.map((i) => i.item)) },
+    ...(sourceLike ? [{ label: "Copy citation", icon: "quote" as const, shortcut: "⌘⇧C", run: () => invoke && workspaceId && void copyCitation(invoke, workspaceId, items.map((i) => i.item)) }] : []),
     "-",
     { label: "Send to canvas or note…", icon: "canvas", shortcut: "⌘⇧S", run: () => sendTo(asDragged) },
     { label: "Show in inspector", icon: "panelRight", shortcut: "⌘⇧I", run: () => showInInspector(asDragged) },
+    ...trashEntries(items),
+  ];
+}
+
+/** "Move to Trash" for whole sources (they can be restored) and notes (after asking). */
+function trashEntries(items: { item: ItemLink; title: string }[]): (MenuEntry | "-")[] {
+  const { invoke, workspaceId } = shellContext();
+  if (!invoke || !workspaceId || items.some(({ item }) => item.anchor || (item.kind !== "source" && item.kind !== "note"))) return [];
+  const sources = items.filter(({ item }) => item.kind === "source").map(({ item }) => item.id);
+  const notes = items.filter(({ item }) => item.kind === "note").map(({ item }) => item.id);
+  return [
+    "-",
+    {
+      label: notes.length ? (items.length > 1 ? `Delete ${items.length} items…` : "Delete note…") : "Move to Trash",
+      icon: "trash",
+      run: async () => {
+        if (notes.length && !window.confirm(notes.length === 1 ? "Delete this note? This cannot be undone." : `Delete ${notes.length} notes? This cannot be undone.`)) return;
+        if (sources.length) await invoke("store_trash", { ids: sources, trashed: true }, workspaceId);
+        for (const id of notes) await invoke("store_note_delete", { id }, workspaceId);
+        window.dispatchEvent(new Event("key:notes-changed"));
+        libraryChanged();
+        if (sources.length)
+          toast(sources.length === 1 ? "Moved to Trash" : `Moved ${sources.length} sources to Trash`, () =>
+            void invoke("store_trash", { ids: sources, trashed: false }, workspaceId).then(() => libraryChanged()),
+          );
+      },
+    },
   ];
 }
 
@@ -342,12 +372,22 @@ function ContextMenu({ request, onClose }: { request: MenuRequest; onClose: () =
       onClose();
     };
     document.addEventListener("pointerdown", close, true);
+    // Escape closes it wherever focus is, and so does moving to another tab or pane.
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", key, true);
     window.addEventListener("blur", onClose);
     window.addEventListener("resize", onClose);
+    const offTabs = bridge().on("tabs-changed", onClose);
     return () => {
       document.removeEventListener("pointerdown", close, true);
+      window.removeEventListener("keydown", key, true);
       window.removeEventListener("blur", onClose);
       window.removeEventListener("resize", onClose);
+      offTabs();
     };
   }, [onClose]);
   const run = (entry: MenuEntry) => {
@@ -501,6 +541,8 @@ function Toasts() {
 // ── The layer ────────────────────────────────────────────────────────────────
 
 const typing = (el: Element | null) => !!el?.closest?.("input, textarea, select, [contenteditable='true']");
+/** A focused control takes Space itself (a button presses, a menu item runs). */
+const control = (el: Element | null) => !!el?.closest?.("button, a[href], summary, [role='button'], [role='menuitem'], [role='option'], [role='tab'], [role='radio'], [role='checkbox']");
 
 /** Hover previews, item menus, quick look and toasts for the whole window. */
 export function ItemLayer() {
@@ -554,7 +596,7 @@ export function ItemLayer() {
       setMenu({ x: e.clientX, y: e.clientY, entries: itemMenuEntries(chosen) });
     };
     const key = (e: KeyboardEvent) => {
-      if (e.key !== " " || e.repeat || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || typing(document.activeElement)) return;
+      if (e.key !== " " || e.repeat || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || typing(document.activeElement) || control(document.activeElement)) return;
       const target = pointed.current ?? (selection.length ? selection[0] : undefined);
       if (!target) return;
       e.preventDefault();

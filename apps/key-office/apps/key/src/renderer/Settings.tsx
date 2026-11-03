@@ -89,12 +89,18 @@ export function Group({ title, footer, children }: { title?: string; footer?: Re
     </section>
   );
 }
-function Row({ label, detail, children }: { label: ReactNode; detail?: ReactNode; children?: ReactNode }) {
+/** A setting: its label and a quiet line beneath. A `path` line stays on one line, cut at
+ *  the end, with the whole path on hover. */
+function Row({ label, detail, children, path }: { label: ReactNode; detail?: ReactNode; children?: ReactNode; path?: boolean }) {
   return (
     <div className="kx-settings-row">
       <div>
         <span>{label}</span>
-        {detail && <small>{detail}</small>}
+        {detail && (
+          <small className={path ? "kx-settings-path" : undefined} title={path && typeof detail === "string" ? detail : undefined}>
+            {detail}
+          </small>
+        )}
       </div>
       {children && <div className="kx-settings-control">{children}</div>}
     </div>
@@ -193,6 +199,7 @@ function Libraries({
                 {w.name}
               </>
             }
+            path
             detail={`${counts[w.id] === undefined ? "…" : `${counts[w.id].toLocaleString()} sources`} · ${w.root.replace(/^\/Users\/[^/]+/, "~")}`}
           >
             <button className="kx-settings-button" onClick={() => void bridge().revealPath(w.root)}>
@@ -383,7 +390,7 @@ function SearchSettings({
             </span>
           </Row>
         )}
-        <Row label="Model folder" detail={info.modelDir.replace(/^\/Users\/[^/]+/, "~")}>
+        <Row label="Model folder" path detail={info.modelDir.replace(/^\/Users\/[^/]+/, "~")}>
           <button className="kx-settings-button" onClick={() => void bridge().revealPath(info.modelDir)}>
             Show in Finder
           </button>
@@ -666,7 +673,7 @@ function About({ info }: { info: AppInfo }) {
           ["Libraries", info.workspaceParent],
           ["Search model", info.modelDir],
         ].map(([label, path]) => (
-          <Row key={label} label={label} detail={home(path)}>
+          <Row key={label} label={label} path detail={home(path)}>
             <button className="kx-settings-button" onClick={() => void bridge().revealPath(path)}>
               Show in Finder
             </button>

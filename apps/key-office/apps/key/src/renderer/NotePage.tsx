@@ -3,6 +3,7 @@
 // saved as Markdown as you type. Works for standalone notes and for notes on a source.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
+import "./entity.css";
 import { ItemPage, ItemProperties, type AppearancePatch } from "./ItemPage";
 import { shortCreators, type Invoke, type Note, type Source } from "./library-api";
 import type { Creator } from "./citation";
@@ -111,20 +112,24 @@ export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invo
           <span className="kx-note-saved" aria-live="polite">
             {saved === "saving" ? "Saving…" : `Saved · ${new Date(note.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`}
           </span>
-          <button
-            className="kx-icon-button"
-            title="Delete note"
-            aria-label="Delete note"
-            onClick={async () => {
-              if (!window.confirm("Delete this note? This cannot be undone.")) return;
-              await invoke("store_note_delete", { id: noteId }, workspaceId);
-              notesChanged();
-              setError("This note was deleted.");
-              setNote(undefined);
-            }}
-          >
-            <Icon name="trash" size={14} />
-          </button>
+          <details className="kx-menu kx-source-more">
+            <summary className="kx-icon-button" title="More" aria-label="More">
+              <Icon name="more" size={14} />
+            </summary>
+            <div className="kx-menu-popover" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
+              <button
+                onClick={async () => {
+                  if (!window.confirm("Delete this note? This cannot be undone.")) return;
+                  await invoke("store_note_delete", { id: noteId }, workspaceId);
+                  notesChanged();
+                  setError("This note was deleted.");
+                  setNote(undefined);
+                }}
+              >
+                Delete note…
+              </button>
+            </div>
+          </details>
         </header>
       }
       titleText={note.title}

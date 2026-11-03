@@ -605,10 +605,8 @@
 }
 .kx-match-where {
   display: grid;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font: 600 10.5px/1.9 var(--kx-font);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
 }
 .kx-passage .kx-match-where {
@@ -1806,8 +1804,6 @@
   background: transparent;
   color: var(--kx-text-2);
   font: 600 12px var(--kx-font);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .kx-page-abstract-toggle > svg {
   transition: transform 160ms var(--kx-ease);
@@ -1857,8 +1853,6 @@
   margin: 0 0 10px;
   color: var(--kx-text-2);
   font: 600 12px var(--kx-font);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .kx-page-highlights {
   display: grid;
@@ -2108,9 +2102,7 @@
   background: transparent;
   color: var(--kx-text-2);
   font: 600 12px var(--kx-font);
-  letter-spacing: 0.02em;
   text-align: left;
-  text-transform: uppercase;
 }
 .kx-page-details-toggle:hover {
   background: var(--kx-fill);
