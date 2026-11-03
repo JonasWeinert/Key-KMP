@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useReducer, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
@@ -10,8 +10,8 @@ import { parseVideoUrl, videoMeta } from "./media";
 import type { VideoMeta } from "./media";
 import { getRuntime } from "./runtime";
 import { peekSource, subscribeSources } from "./sourceCache";
-import { CALLOUT_TONES } from "./types";
-import type { CalloutTone, SourceRef } from "./types";
+import { CALLOUT_TONES, itemFromHref } from "./types";
+import type { CalloutTone, ItemLink, SourceRef } from "./types";
 
 function useSource(editor: Editor, id: string): SourceRef | null | undefined {
   const [, bump] = useReducer((n: number) => n + 1, 0);
@@ -210,6 +210,31 @@ export function SourceEmbedView({ node, editor, selected }: ReactNodeViewProps) 
         >
           <Icon name="external" size={14} />
         </button>
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+// ── Item embed ─────────────────────────────────────────────────────────────
+
+/** How an embedded item shows (set by the app); `depth` counts embeds within embeds. */
+export type EmbedRenderer = (item: ItemLink, depth: number, label: string) => ReactNode;
+let embedRenderer: EmbedRenderer | null = null;
+export function setEmbedRenderer(render: EmbedRenderer) {
+  embedRenderer = render;
+}
+/** How deep the embed being drawn is: a note embedded in a note that embeds it stops there. */
+export const EmbedDepth = createContext(0);
+
+export function ItemEmbedView({ node, editor, selected }: ReactNodeViewProps) {
+  const href = String(node.attrs.href ?? "");
+  const label = String(node.attrs.label || "") || "Embedded item";
+  const item = itemFromHref(href);
+  const depth = useContext(EmbedDepth);
+  return (
+    <NodeViewWrapper className={`ne-item-embed${selected ? " is-selected" : ""}`} data-drag-handle="">
+      <div className="ne-item-embed-inner" contentEditable={false} data-item={href} data-item-title={label} onDoubleClick={() => item && getRuntime(editor)?.openItem(item)}>
+        <EmbedDepth.Provider value={depth + 1}>{item && embedRenderer ? embedRenderer(item, depth + 1, label) : <span className="ne-item-embed-missing">{label}</span>}</EmbedDepth.Provider>
       </div>
     </NodeViewWrapper>
   );

@@ -29,11 +29,11 @@ function clear(editor: Editor, range: Range) {
   return editor.chain().focus().deleteRange(range);
 }
 
-/** Inserts "@" so the source picker opens, in the given mode. */
+/** Types a picker's trigger so it opens: "[[" links, "![[" embeds, "@" cites (or quotes). */
 function openPicker(editor: Editor, range: Range, mode: PickMode) {
   const runtime = getRuntime(editor);
-  if (runtime) runtime.pickMode = mode;
-  clear(editor, range).insertContent("@").run();
+  if (runtime && (mode === "quote" || mode === "cite")) runtime.pickMode = mode;
+  clear(editor, range).insertContent(mode === "link" ? "[[" : mode === "embed" ? "![[" : "@").run();
 }
 
 export const SLASH_ITEMS: SlashItem[] = [
@@ -50,8 +50,9 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "todo", label: "To-do list", hint: "Checkboxes to tick off", group: "Lists", icon: "check", keywords: ["task", "checkbox", "[]"], run: (e, r) => clear(e, r).toggleTaskList().run() },
   { id: "callout", label: "Callout", hint: "Highlighted note box", group: "Research", icon: "info", keywords: ["note", "tip", "warning", "admonition", "box"], run: (e, r) => clear(e, r).wrapIn("callout", { tone: "info" }).run() },
   { id: "toggle", label: "Toggle", hint: "Collapsible section", group: "Research", icon: "chevronRight", keywords: ["collapse", "details", "fold"], run: (e, r) => clear(e, r).wrapIn("toggle", { title: "" }).run() },
-  { id: "link-source", label: "Link to anything", hint: "Note, source, highlight or canvas, like @", group: "Research", icon: "link", keywords: ["mention", "cite", "reference", "@", "note", "canvas", "highlight", "backlink"], run: (e, r) => openPicker(e, r, "link") },
-  { id: "embed-source", label: "Embed a source", hint: "Card for a library item", group: "Research", icon: "books", keywords: ["card", "reference", "paper"], run: (e, r) => openPicker(e, r, "embed") },
+  { id: "link-source", label: "Link to anything", hint: "Note, source, highlight or canvas, like [[", group: "Research", icon: "link", keywords: ["mention", "reference", "[[", "note", "canvas", "highlight", "backlink"], run: (e, r) => openPicker(e, r, "link") },
+  { id: "cite-source", label: "Cite a source", hint: "In-text citation, like @ (add p. 12 for a page)", group: "Research", icon: "quote", keywords: ["citation", "reference", "@", "apa", "page"], run: (e, r) => openPicker(e, r, "cite") },
+  { id: "embed-source", label: "Embed anything", hint: "A live note, highlight, canvas or source, like ![[", group: "Research", icon: "books", keywords: ["card", "transclude", "include", "paper", "![["], run: (e, r) => openPicker(e, r, "embed") },
   { id: "quote-source", label: "Quote from a source", hint: "Quotation with attribution", group: "Research", icon: "quote", keywords: ["citation", "excerpt", "cite"], run: (e, r) => openPicker(e, r, "quote") },
   {
     id: "image",
@@ -148,6 +149,8 @@ export interface MenuState {
   rect: DOMRect | null;
   mode: PickMode;
   loading: boolean;
+  /** The text and meaning sections are still being searched. */
+  more?: boolean;
   command: (item: SlashItem | SourceRef) => void;
 }
 
@@ -165,6 +168,17 @@ function notInCode(editor: Editor): boolean {
 
 export const slashPluginKey = new PluginKey("noteSlash");
 export const sourcePluginKey = new PluginKey("noteSourcePicker");
+export const linkPluginKey = new PluginKey("noteLinkPicker");
+export const embedPluginKey = new PluginKey("noteEmbedPicker");
+
+/** "[[smith]]" typed whole: the closing brackets are not part of the search. */
+const cleanQuery = (query: string) => query.replace(/\]\]?$/, "").trim();
+/** A citation's page: "smith p. 12" searches "smith" and cites page 12. */
+export function splitLocator(query: string, mode: PickMode): { text: string; page?: number } {
+  if (mode !== "cite") return { text: query };
+  const match = /^(.*?)[\s,]+(?:p{1,2}\.?|page)\s*(\d+)\s*$/i.exec(query);
+  return match ? { text: match[1].trim(), page: Number(match[2]) - 1 } : { text: query };
+}
 
 export const NoteMenus = Extension.create<{ controller: MenuController | null }>({
   name: "noteMenus",
@@ -187,17 +201,89 @@ export const NoteMenus = Extension.create<{ controller: MenuController | null }>
       command: (item) => props.command(item as SlashItem),
     });
 
-    const sourceState = (props: SuggestionProps<SourceRef, SourceRef>): MenuState => {
+    const sourceState = (props: SuggestionProps<SourceRef, SourceRef>, mode: PickMode, items = props.items): MenuState => {
       const runtime = getRuntime(editor);
       return {
         kind: "source",
-        items: props.items,
+        items,
         query: props.query,
         rect: props.clientRect?.() ?? null,
-        mode: runtime?.pickMode ?? "link",
+        mode,
         loading: runtime?.lastSourceQuery !== props.query,
+        more: !!runtime && runtime.moreQuery === props.query && runtime.morePending,
         command: (item) => props.command(item as SourceRef),
       };
+    };
+
+    /** A picker opened by `char`; "@" takes the mode the slash menu asked for, else cites. */
+    const picker = (char: string, key: PluginKey, fixed?: PickMode) => {
+      let last: SuggestionProps<SourceRef, SourceRef> | null = null;
+      const modeNow = () => fixed ?? getRuntime(editor)?.pickMode ?? "cite";
+      return Suggestion<SourceRef, SourceRef>({
+        editor,
+        pluginKey: key,
+        char,
+        allowSpaces: true,
+        debounce: 120,
+        // "[[" inside "![[" belongs to the embed picker.
+        allow: ({ editor: e, range }) => notInCode(e) && !(char === "[[" && e.state.doc.textBetween(Math.max(0, range.from - 1), range.from) === "!"),
+        items: async ({ query }) => {
+          const runtime = getRuntime(editor);
+          if (!runtime) return [];
+          const mode = modeNow();
+          const { text } = splitLocator(cleanQuery(query), mode);
+          try {
+            const found = (await runtime.search(text, mode)).slice(0, 12);
+            // The text and meaning sections follow when the library search answers.
+            runtime.moreQuery = query;
+            runtime.morePending = text.length >= 2;
+            if (runtime.morePending)
+              void runtime
+                .searchMore(text, mode)
+                .catch(() => [])
+                .then((more) => {
+                  if (runtime.moreQuery !== query || !last) return;
+                  runtime.morePending = false;
+                  const seen = new Set(found.map((f) => `${f.itemKind ?? "source"}:${f.id}:${f.anchor ?? ""}`));
+                  const extra = more.filter((m) => !seen.has(`${m.itemKind ?? "source"}:${m.id}:${m.anchor ?? ""}`));
+                  controller()?.onUpdate(sourceState(last, mode, [...last.items, ...extra]));
+                });
+            return found;
+          } catch {
+            return [];
+          } finally {
+            runtime.lastSourceQuery = query;
+          }
+        },
+        command: ({ editor: e, range, props: ref }) => {
+          const runtime = getRuntime(e);
+          const mode = modeNow();
+          if (runtime) runtime.pickMode = "cite";
+          const { page } = splitLocator(cleanQuery(last?.query ?? ""), mode);
+          insertSource(e, range, ref, mode, page);
+        },
+        render: () => ({
+          onStart: (props) => {
+            last = props;
+            controller()?.onOpen(sourceState(props, modeNow()));
+          },
+          onUpdate: (props) => {
+            last = props;
+            controller()?.onUpdate(sourceState(props, modeNow()));
+          },
+          onKeyDown: ({ event }) => (event.key === "Escape" ? false : (controller()?.onKeyDown(event) ?? false)),
+          onExit: () => {
+            last = null;
+            const runtime = getRuntime(editor);
+            if (runtime) {
+              runtime.pickMode = "cite";
+              runtime.lastSourceQuery = null;
+              runtime.moreQuery = null;
+            }
+            controller()?.onClose();
+          },
+        }),
+      });
     };
 
     return [
@@ -215,45 +301,9 @@ export const NoteMenus = Extension.create<{ controller: MenuController | null }>
           onExit: () => controller()?.onClose(),
         }),
       }),
-      Suggestion<SourceRef, SourceRef>({
-        editor,
-        pluginKey: sourcePluginKey,
-        char: "@",
-        allowSpaces: true,
-        debounce: 120,
-        allow: ({ editor: e }) => notInCode(e),
-        items: async ({ query }) => {
-          const runtime = getRuntime(editor);
-          if (!runtime) return [];
-          try {
-            const found = await runtime.search(query.trim(), runtime.pickMode);
-            return found.slice(0, 12);
-          } catch {
-            return [];
-          } finally {
-            runtime.lastSourceQuery = query;
-          }
-        },
-        command: ({ editor: e, range, props: ref }) => {
-          const runtime = getRuntime(e);
-          const mode = runtime?.pickMode ?? "link";
-          if (runtime) runtime.pickMode = "link";
-          insertSource(e, range, ref, mode);
-        },
-        render: () => ({
-          onStart: (props) => controller()?.onOpen(sourceState(props)),
-          onUpdate: (props) => controller()?.onUpdate(sourceState(props)),
-          onKeyDown: ({ event }) => (event.key === "Escape" ? false : (controller()?.onKeyDown(event) ?? false)),
-          onExit: () => {
-            const runtime = getRuntime(editor);
-            if (runtime) {
-              runtime.pickMode = "link";
-              runtime.lastSourceQuery = null;
-            }
-            controller()?.onClose();
-          },
-        }),
-      }),
+      picker("@", sourcePluginKey),
+      picker("[[", linkPluginKey, "link"),
+      picker("![[", embedPluginKey, "embed"),
     ];
   },
 });
@@ -266,12 +316,14 @@ function promptImageUrl(editor: Editor) {
   });
 }
 
-export function insertSource(editor: Editor, range: Range, ref: SourceRef, mode: PickMode) {
+export function insertSource(editor: Editor, range: Range, ref: SourceRef, mode: PickMode, page?: number) {
   const item = refItem(ref);
+  const wholeSource = item.kind === "source" && !item.anchor;
   // The cache holds whole sources; a highlight shares its source's id.
-  if (item.kind === "source" && !item.anchor) rememberSource(ref);
+  if (wholeSource) rememberSource(ref);
   if (mode === "embed") {
-    editor.chain().focus().deleteRange(range).insertContent({ type: "sourceEmbed", attrs: { id: ref.id, label: sourceLine(ref) } }).run();
+    const node = wholeSource ? { type: "sourceEmbed", attrs: { id: ref.id, label: sourceLine(ref) } } : { type: "itemEmbed", attrs: { href: itemHref(item), label: ref.title } };
+    editor.chain().focus().deleteRange(range).insertContent(node).run();
     return;
   }
   if (mode === "quote") {
@@ -283,12 +335,31 @@ export function insertSource(editor: Editor, range: Range, ref: SourceRef, mode:
       .run();
     return;
   }
+  // A cited page is part of the link, so it opens there.
+  const at = mode === "cite" && wholeSource && page !== undefined ? { ...item, anchor: `page:${page}` } : item;
+  const label = mentionLabel(ref);
+  const href = itemHref(at);
   editor
     .chain()
     .focus()
     .insertContentAt(range, [
-      { type: "text", text: mentionLabel(ref), marks: [{ type: "link", attrs: { href: itemHref(item) } }] },
+      { type: "text", text: label, marks: [{ type: "link", attrs: { href } }] },
       { type: "text", text: " " },
     ])
     .run();
+  // Sources and highlights are cited "(Palma et al., 2022, p. 4)" once their details load.
+  const runtime = getRuntime(editor);
+  if (mode !== "cite" || item.kind !== "source" || !runtime) return;
+  const from = range.from;
+  const anchorPage = page ?? (item.anchor?.startsWith("page:") ? Number(item.anchor.slice(5)) : undefined);
+  void runtime.cite(ref, anchorPage).then((cite) => {
+    if (!cite || editor.isDestroyed) return;
+    const to = from + label.length;
+    if (editor.state.doc.textBetween(from, Math.min(to, editor.state.doc.content.size)) !== label) return;
+    const text = item.anchor?.startsWith("highlight:") && ref.title ? `“${ref.title}” ${cite}` : cite;
+    editor
+      .chain()
+      .insertContentAt({ from, to }, [{ type: "text", text, marks: [{ type: "link", attrs: { href } }] }])
+      .run();
+  });
 }

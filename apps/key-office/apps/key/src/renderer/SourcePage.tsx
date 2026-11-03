@@ -477,6 +477,8 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             onOpenSource={sources.onOpenSource}
             media={sources.media}
             searchItems={sources.searchItems}
+            searchItemsMore={sources.searchItemsMore}
+            citeLabel={sources.citeLabel}
             onOpenItem={sources.onOpenItem}
             placeholder="Write about this source. Type / for blocks, @ to link anything"
           />
@@ -500,6 +502,8 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
                   onOpenSource={sources.onOpenSource}
                   media={sources.media}
                   searchItems={sources.searchItems}
+                  searchItemsMore={sources.searchItemsMore}
+                  citeLabel={sources.citeLabel}
                   onOpenItem={sources.onOpenItem}
                 />
               </div>

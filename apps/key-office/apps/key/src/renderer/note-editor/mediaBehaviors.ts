@@ -9,21 +9,54 @@ import { getRuntime } from "./runtime";
 import { imageFiles, parseVideoUrl } from "./media";
 import { itemHref, readItemDrag, type DraggedItem } from "./types";
 
-/** Links to dragged items, comma-separated, at `pos` (moved to the end of a word it would split). */
-function insertItemLinks(editor: Editor, items: DraggedItem[], pos: number): boolean {
+export type DropMode = "link" | "embed" | "cite";
+
+/** Text links at `pos` (moved to the end of a word it would split), comma-separated. Answers
+ * the range the links themselves take. */
+function insertLinks(editor: Editor, links: { text: string; href: string }[], pos: number): { from: number; to: number } | null {
   const { doc } = editor.state;
   const word = /[\p{L}\p{N}]/u;
   const charAt = (at: number) => (at > 0 && at < doc.content.size ? doc.textBetween(at, at + 1, "\n", "\n") : "");
   while (word.test(charAt(pos - 1)) && word.test(charAt(pos))) pos++;
   const before = charAt(pos - 1);
-  const label = (title: string) => (title.length > 60 ? `${title.slice(0, 57).trimEnd()}…` : title || "Untitled");
-  const content = items.flatMap((item, i) => [
-    ...(i ? [{ type: "text", text: ", " }] : []),
-    { type: "text", text: label(item.title), marks: [{ type: "link", attrs: { href: itemHref(item) } }] },
-  ]);
+  const content = links.flatMap((link, i) => [...(i ? [{ type: "text", text: ", " }] : []), { type: "text", text: link.text, marks: [{ type: "link", attrs: { href: link.href } }] }]);
   const lead = before && !/\s/.test(before) ? [{ type: "text", text: " " }] : [];
   const trail = /\s/.test(charAt(pos)) ? [] : [{ type: "text", text: " " }];
-  return editor.chain().focus().insertContentAt(pos, [...lead, ...content, ...trail]).run();
+  if (!editor.chain().focus().insertContentAt(pos, [...lead, ...content, ...trail]).run()) return null;
+  const from = pos + lead.length;
+  return { from, to: from + content.reduce((n, part) => n + part.text.length, 0) };
+}
+
+const short = (title: string) => (title.length > 60 ? `${title.slice(0, 57).trimEnd()}…` : title || "Untitled");
+
+/**
+ * Dragged items placed at `pos`: links, live embeds (as blocks after the paragraph), or
+ * citations. A plain drop offers to turn its links into embeds or citations.
+ */
+export async function insertDroppedItems(editor: Editor, items: DraggedItem[], pos: number, mode: DropMode, offerChoice = true): Promise<boolean> {
+  const runtime = getRuntime(editor);
+  if (mode === "embed") {
+    const $pos = editor.state.doc.resolve(Math.min(pos, editor.state.doc.content.size));
+    const at = $pos.depth > 0 && $pos.parent.isTextblock && $pos.parent.content.size ? $pos.after(1) : pos;
+    const nodes = items.map((item) =>
+      item.kind === "source" && !item.anchor ? { type: "sourceEmbed", attrs: { id: item.id, label: item.title } } : { type: "itemEmbed", attrs: { href: itemHref(item), label: item.title } },
+    );
+    return editor.chain().focus().insertContentAt(at, nodes).run();
+  }
+  if (mode === "cite" && runtime) {
+    const links = await Promise.all(
+      items.map(async (item) => {
+        const page = item.anchor?.startsWith("page:") ? Number(item.anchor.slice(5)) : undefined;
+        const cite = item.kind === "source" ? await runtime.cite({ id: item.id, title: item.title, itemKind: item.kind, anchor: item.anchor }, page).catch(() => undefined) : undefined;
+        const quote = item.anchor?.startsWith("highlight:") && item.title ? `“${item.title}” ` : "";
+        return { text: cite ? `${quote}${cite}` : short(item.title), href: itemHref(item) };
+      }),
+    );
+    return !!insertLinks(editor, links, pos);
+  }
+  const range = insertLinks(editor, items.map((item) => ({ text: short(item.title), href: itemHref(item) })), pos);
+  if (range && offerChoice) runtime?.dropped(items, range.from, range.to);
+  return !!range;
 }
 
 /** The selection sits in an empty top-level-ish paragraph a block can replace. */
@@ -122,7 +155,10 @@ export const NoteMedia = Extension.create({
             if (items.length) {
               event.preventDefault();
               const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
-              return insertItemLinks(editor, items, at?.pos ?? view.state.selection.from);
+              // ⌥ embeds, ⌘ cites; a plain drop links (and offers the other two).
+              const mode: DropMode = event.altKey ? "embed" : event.metaKey || event.ctrlKey ? "cite" : "link";
+              void insertDroppedItems(editor, items, at?.pos ?? view.state.selection.from, mode);
+              return true;
             }
             const files = imageFiles(event.dataTransfer?.files);
             if (!files.length || !getRuntime(editor)?.saveImage) return false;

@@ -121,6 +121,8 @@ export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invo
           onOpenSource={sources.onOpenSource}
           media={sources.media}
           searchItems={sources.searchItems}
+          searchItemsMore={sources.searchItemsMore}
+          citeLabel={sources.citeLabel}
           onOpenItem={sources.onOpenItem}
           className="kx-note-page-editor"
         />

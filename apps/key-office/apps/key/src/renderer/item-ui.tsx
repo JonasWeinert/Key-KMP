@@ -16,7 +16,7 @@ import {
 } from "./item-actions";
 import { itemLinks } from "./item-links";
 import { bridge, type Invoke } from "./library-api";
-import NoteEditor, { itemFromHref, itemHref, type DraggedItem, type ItemLink } from "./note-editor";
+import NoteEditor, { itemFromHref, itemHref, setEmbedRenderer, type DraggedItem, type ItemLink } from "./note-editor";
 import { noteSources } from "./note-sources";
 import { currentTheme, highlightColor } from "./canvas/canvas-colors";
 import "./item-ui.css";
@@ -143,6 +143,8 @@ export function ItemBody({ info, invoke, workspaceId, size = "card" }: { info: I
           onOpenSource={sources.onOpenSource}
           media={sources.media}
           searchItems={sources.searchItems}
+          searchItemsMore={sources.searchItemsMore}
+          citeLabel={sources.citeLabel}
           onOpenItem={sources.onOpenItem}
         />
       </div>
@@ -194,6 +196,40 @@ function UsedIn({ invoke, workspaceId, item }: { invoke: Invoke; workspaceId: st
   if (!count) return null;
   return <span>Used in {count === 1 ? "1 place" : `${count} places`}</span>;
 }
+
+// ── Embeds in notes ──────────────────────────────────────────────────────────
+
+/** An item embedded in a note: its header and, one level deep, its live content. */
+function EmbedBody({ item, depth, label }: { item: ItemLink; depth: number; label: string }) {
+  const { invoke, workspaceId } = shellContext();
+  const info = useItemInfo(invoke, workspaceId, item);
+  if (!invoke || !workspaceId) return null;
+  return (
+    <div className="kx-embed" data-kind={item.kind}>
+      <div className="kx-embed-head">
+        <Icon name={info?.icon ?? "doc"} size={13} />
+        <span className="kx-embed-title">{info?.title ?? label}</span>
+        {info?.subtitle && <span className="kx-embed-sub">{info.subtitle}</span>}
+        <button
+          type="button"
+          className="kx-embed-open"
+          title="Open (⌥-click: beside)"
+          aria-label="Open embedded item"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => openItemAt(item, e.altKey ? "split" : "here", info?.title)}
+        >
+          <Icon name="external" size={13} />
+        </button>
+      </div>
+      {info && depth < 2 && (
+        <div className="kx-embed-body">
+          <ItemBody info={info} invoke={invoke} workspaceId={workspaceId} />
+        </div>
+      )}
+    </div>
+  );
+}
+setEmbedRenderer((item, depth, label) => <EmbedBody item={item} depth={depth} label={label} />);
 
 // ── Hover card ───────────────────────────────────────────────────────────────
 

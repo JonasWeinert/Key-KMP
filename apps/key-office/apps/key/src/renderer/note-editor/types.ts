@@ -21,6 +21,11 @@ export interface SourceRef {
   anchor?: string;
   /** A highlight's colour. */
   color?: string;
+  /** Which search section it came from: titles and details, the text, or related by meaning. */
+  group?: "titles" | "text" | "meaning";
+  /** Where it matched ("p. 4", "Abstract") and the passage, with `[[match]]` markers. */
+  where?: string;
+  snippet?: string;
 }
 
 /** Where a note's images live: the workspace stores files and shows them back. */
@@ -46,6 +51,10 @@ export interface NoteEditorProps {
   searchItems?: (query: string) => Promise<SourceRef[]>;
   /** Opens a link to something other than a whole source. */
   onOpenItem?: (item: ItemLink) => void;
+  /** The picker's slower sections (matches in the text and by meaning), after `searchItems`. */
+  searchItemsMore?: (query: string) => Promise<SourceRef[]>;
+  /** An in-text citation for a picked source or highlight, e.g. "(Palma et al., 2022, p. 4)". */
+  citeLabel?: (ref: SourceRef, page?: number) => Promise<string | undefined>;
   placeholder?: string;
   autoFocus?: boolean;
   /** Shows the note without editing it (a canvas card); links and media still work. */

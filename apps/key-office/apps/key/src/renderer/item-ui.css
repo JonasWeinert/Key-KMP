@@ -266,3 +266,56 @@
 .kx-toast button:hover {
   background: var(--kx-fill-2);
 }
+
+/* Items embedded in notes */
+.kx-embed-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px 7px 12px;
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.kx-embed-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kx-text);
+  font-weight: 600;
+}
+.kx-embed-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kx-text-3);
+}
+.kx-embed-open {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-3);
+}
+.kx-embed-open:hover {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-embed-body {
+  max-height: 420px;
+  overflow: auto;
+  padding: 0 14px 12px;
+  border-top: 0.5px solid var(--kx-line);
+}
+.kx-embed[data-kind="note"] .kx-embed-body,
+.kx-embed[data-kind="record"] .kx-embed-body {
+  padding-top: 4px;
+}
+.kx-embed .kx-item-quote {
+  margin-top: 10px;
+}

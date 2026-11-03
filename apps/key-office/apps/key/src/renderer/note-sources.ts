@@ -2,6 +2,7 @@
 // cards and quotes, and open them (at a page when a quote has one).
 import { bridge, shortCreators, type Invoke, type Source, type SourcePage } from "./library-api";
 import type { ItemLink, NoteMediaHost, SourceRef } from "./note-editor";
+import type { Found } from "./unified-search";
 
 type OpenSource = (source: unknown, hit?: unknown) => Promise<unknown>;
 
@@ -11,6 +12,23 @@ export function sourceRef(source: Source): SourceRef {
     title: source.title || "Untitled",
     detail: [shortCreators(source.creators), source.year].filter(Boolean).join(" "),
     kind: source.kind,
+  };
+}
+
+/** A search entry as the note pickers show and insert it. */
+function foundRef(found: Found): SourceRef {
+  return {
+    id: found.id,
+    title: found.title,
+    detail: found.where,
+    kind: found.sourceKind,
+    itemKind: found.kind,
+    anchor: found.anchor,
+    color: found.color,
+    page: found.anchor?.startsWith("page:") ? Number(found.anchor.slice(5)) : undefined,
+    group: found.group,
+    where: found.group === "titles" && !found.snippet ? undefined : found.where,
+    snippet: found.snippet,
   };
 }
 
@@ -31,10 +49,20 @@ export function noteSources(invoke: Invoke, workspaceId: string) {
   };
   return {
     media,
-    // The @ picker links to anything; cards and quotes stay with sources.
+    // The pickers search everything: titles and details at once, the text and meaning after.
     searchItems: async (query: string): Promise<SourceRef[]> => {
-      const { itemSearch } = await import("./item-links");
-      return itemSearch(invoke, workspaceId)(query);
+      const { searchTitles } = await import("./unified-search");
+      return (await searchTitles(invoke, workspaceId, query, { limit: 6 })).map(foundRef);
+    },
+    searchItemsMore: async (query: string): Promise<SourceRef[]> => {
+      const { searchText, mergeFound } = await import("./unified-search");
+      const merged = mergeFound([], await searchText(invoke, workspaceId, query, { limit: 8 }));
+      return [...merged.titles, ...merged.text, ...merged.meaning].map(foundRef);
+    },
+    citeLabel: async (ref: SourceRef, page?: number) => {
+      const { describeItem, inTextCitation } = await import("./item-actions");
+      const info = await describeItem(invoke, workspaceId, { kind: "source", id: ref.id, anchor: ref.anchor });
+      return info.source ? inTextCitation(info.source, page ?? info.highlight?.page) : undefined;
     },
     onOpenItem: (item: ItemLink) => void import("./item-links").then(({ openItem }) => openItem(invoke, workspaceId, item)),
     searchSources: async (query: string): Promise<SourceRef[]> => {

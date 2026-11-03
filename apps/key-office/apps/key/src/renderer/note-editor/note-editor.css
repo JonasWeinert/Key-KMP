@@ -1141,3 +1141,85 @@
   --ne-radius: 8px;
   --ne-mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
+
+/* An item embedded in a note: a live view of another note, highlight, canvas or source. */
+.ne-item-embed {
+  margin: 10px 0;
+}
+.ne-item-embed-inner {
+  border: 0.5px solid var(--kx-line-strong);
+  border-radius: 10px;
+  background: var(--kx-bg-raised);
+  overflow: hidden;
+}
+.ne-item-embed.is-selected .ne-item-embed-inner {
+  outline: 2px solid var(--kx-accent);
+  outline-offset: 1px;
+}
+.ne-item-embed-missing {
+  display: block;
+  padding: 10px 12px;
+  color: var(--kx-text-3);
+}
+
+/* Picker sections and passages */
+.ne-menu-section .kx-section-head {
+  padding: 6px 8px 2px;
+}
+.ne-menu-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+.ne-menu-snippet strong {
+  font-weight: 600;
+}
+.ne-menu-snippet mark {
+  background: var(--search-hit-bg);
+  color: inherit;
+  border-radius: 2px;
+}
+.ne-menu-section[data-group="meaning"] .ne-menu-item:not(.is-active) .ne-menu-label {
+  color: var(--kx-text-2);
+}
+.ne-menu-foot {
+  padding: 6px 8px 2px;
+  border-top: 0.5px solid var(--kx-line);
+  color: var(--kx-text-3);
+  font-size: 11px;
+}
+
+/* After a drop: keep the links, or make them embeds or citations. */
+.ne-drop-choice {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 3px 3px 10px;
+  border-radius: 9px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+  font-size: 12px;
+  color: var(--kx-text-3);
+}
+.ne-drop-choice span {
+  margin-right: 6px;
+}
+.ne-drop-choice button {
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text);
+  font: inherit;
+}
+.ne-drop-choice button:hover {
+  background: var(--kx-fill-2);
+}
+.ne-drop-choice button[aria-pressed="true"] {
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent-ink);
+}

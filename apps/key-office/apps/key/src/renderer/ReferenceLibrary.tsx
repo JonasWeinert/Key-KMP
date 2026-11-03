@@ -1,4 +1,6 @@
 import { itemAttrs, selectItems } from "./item-ui";
+import { SectionHeader, useCollapsedGroups } from "./search-sections";
+import { GROUPS, type SearchGroup } from "./unified-search";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBanner, ActivityPill, ProgressRing, jobProgress, useLibraryStatus } from "./index-activity";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
@@ -283,10 +285,15 @@ export default function ReferenceLibrary({
   );
   const pauseIndexing = (paused: boolean) => void invoke("store_index_control", { action: paused ? "pause" : "resume" }, workspaceId);
 
-  // While searching, selection, arrow keys and bulk actions work on the results.
+  // While searching, selection, arrow keys and bulk actions work on the results, in the
+  // order of their sections (collapsed sections left out).
+  const { collapsed: collapsedGroups } = useCollapsedGroups();
   const rows = useMemo(
-    () => (search?.result ? search.result.hits.flatMap((h) => (h.source ? [h.source] : [])) : items),
-    [search?.result, items],
+    () =>
+      search?.result
+        ? GROUPS.filter((g) => !collapsedGroups.includes(g)).flatMap((g) => search.result!.hits.filter((h) => hitGroup(h) === g).flatMap((h) => (h.source ? [h.source] : [])))
+        : items,
+    [search?.result, items, collapsedGroups],
   );
   useEffect(() => {
     const source = rows.find((s) => s.id === focusId);
@@ -990,6 +997,10 @@ interface ResultHandlers {
   onMore: () => void;
 }
 
+/** A result's section: matched in its details, in its text, or only by meaning. */
+const hitGroup = (hit: SearchHit): SearchGroup => (hit.metadataMatch ? "titles" : hit.passages.some((p) => !p.related) ? "text" : "meaning");
+const noteGroup = (note: NoteHit): SearchGroup => (note.passages.some((p) => !p.related) ? "text" : "meaning");
+
 const SearchResults = memo(function SearchResults({
   search,
   focusId,
@@ -1002,6 +1013,7 @@ const SearchResults = memo(function SearchResults({
   handlers: ResultHandlers;
 }) {
   const result = search.result;
+  const { collapsed, toggle } = useCollapsedGroups();
   const pattern = useMemo(() => queryPattern(search.query), [search.query]);
   const hits = result?.hits ?? [];
   const notes = result?.notes ?? [];
@@ -1040,20 +1052,35 @@ const SearchResults = memo(function SearchResults({
           ))}
         </div>
       )}
-      {notes.map((note) => (
-        <NoteHitRow key={note.noteId} note={note} pattern={pattern} handlers={handlers} />
-      ))}
       {result && !hits.length && !notes.length && <p className="kx-results-empty">Nothing matched “{search.query}”. Try other words or a broader collection.</p>}
-      {hits.map((hit) => (
-        <SearchHitRow
-          key={hit.sourceId}
-          hit={hit}
-          pattern={pattern}
-          selected={selected.has(hit.sourceId) || (!selected.size && focusId === hit.sourceId)}
-          focused={focusId === hit.sourceId}
-          handlers={handlers}
-        />
-      ))}
+      {GROUPS.map((group) => {
+        const inGroup = hits.filter((h) => hitGroup(h) === group);
+        const notesInGroup = notes.filter((n) => noteGroup(n) === group);
+        if (!inGroup.length && !notesInGroup.length) return null;
+        const shut = collapsed.includes(group);
+        return (
+          <section key={group} className="kx-results-section" data-group={group}>
+            <SectionHeader group={group} count={inGroup.length + notesInGroup.length} collapsed={shut} onToggle={() => toggle(group)} />
+            {!shut && (
+              <>
+                {notesInGroup.map((note) => (
+                  <NoteHitRow key={note.noteId} note={note} pattern={pattern} handlers={handlers} />
+                ))}
+                {inGroup.map((hit) => (
+                  <SearchHitRow
+                    key={hit.sourceId}
+                    hit={hit}
+                    pattern={pattern}
+                    selected={selected.has(hit.sourceId) || (!selected.size && focusId === hit.sourceId)}
+                    focused={focusId === hit.sourceId}
+                    handlers={handlers}
+                  />
+                ))}
+              </>
+            )}
+          </section>
+        );
+      })}
       {hits.length === search.limit && search.limit < 300 && (
         <button className="kx-results-more" onClick={handlers.onMore}>
           Show more results

@@ -1010,6 +1010,8 @@ function ItemCard({
               onOpenSource={sources.onOpenSource}
               media={sources.media}
               searchItems={sources.searchItems}
+              searchItemsMore={sources.searchItemsMore}
+              citeLabel={sources.citeLabel}
               onOpenItem={sources.onOpenItem}
               className="kx-canvas-card-note"
             />

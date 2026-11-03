@@ -23,10 +23,11 @@ const TOKEN_NAME: Record<FenceKind, string> = {
   video: "videoEmbed",
   // the editor's image node also takes marked's `![alt](src)` tokens, which share this type
   image: "image",
+  embed: "itemEmbed",
 };
 
 /** Fences whose body is a plain line (a label, title or caption), not Markdown blocks. */
-const LINE_BODY: readonly FenceKind[] = ["source", "video", "image"];
+const LINE_BODY: readonly FenceKind[] = ["source", "video", "image", "embed"];
 
 function fenceTokenizer(kind: FenceKind, accept?: (attrs: Record<string, string>) => boolean, inline = false) {
   return {
@@ -183,6 +184,51 @@ export const SourceEmbed = Node.create({
     const ref = peekSource(id);
     const line = ref ? sourceLine(ref) : String(node.attrs?.label || "") || id;
     return renderFence("source", [["id", id]], line.replace(/\n+/g, " "));
+  },
+});
+
+/**
+ * Another item shown in the note and kept current: a note, page, highlight, canvas or
+ * source. Markdown: a fence with the item's key:// address and its title as a fallback.
+ */
+export const ItemEmbed = Node.create({
+  name: "itemEmbed",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      href: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-href") ?? "",
+        renderHTML: (attrs) => ({ "data-href": attrs.href }),
+      },
+      label: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-label") ?? "",
+        renderHTML: (attrs) => (attrs.label ? { "data-label": attrs.label } : {}),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: "div[data-item-embed]" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-item-embed": "", class: "ne-item-embed" })];
+  },
+
+  markdownTokenizer: fenceTokenizer("embed", (attrs) => Boolean(attrs.href)),
+
+  parseMarkdown(token, helpers) {
+    return helpers.createNode("itemEmbed", { href: token.attrs?.href ?? "", label: bodyLine(token) });
+  },
+
+  renderMarkdown(node) {
+    return renderFence("embed", [["href", String(node.attrs?.href ?? "")]], String(node.attrs?.label || "Embedded item").replace(/\n+/g, " "));
   },
 });
 
@@ -370,6 +416,7 @@ export interface NoteSchemaParts {
   sourceEmbed?: AnyExtension;
   sourceQuote?: AnyExtension;
   videoEmbed?: AnyExtension;
+  itemEmbed?: AnyExtension;
   image?: AnyExtension;
   codeBlock?: AnyExtension;
 }
@@ -401,6 +448,7 @@ export function buildSchemaExtensions(parts: NoteSchemaParts = {}): AnyExtension
     parts.sourceEmbed ?? SourceEmbed,
     parts.sourceQuote ?? SourceQuote,
     parts.videoEmbed ?? VideoEmbed,
+    parts.itemEmbed ?? ItemEmbed,
   ];
 }
 

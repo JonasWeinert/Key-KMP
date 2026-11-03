@@ -10,18 +10,19 @@ import { NoteKeymap, SourceLinks } from "./behaviors";
 import { NoteMenus } from "./menus";
 import type { MenuController, MenuState } from "./menus";
 import { NoteMedia } from "./mediaBehaviors";
-import { CalloutView, ImageView, SourceEmbedView, SourceQuoteView, ToggleView, VideoEmbedView } from "./nodeViews";
+import { CalloutView, ImageView, ItemEmbedView, SourceEmbedView, SourceQuoteView, ToggleView, VideoEmbedView } from "./nodeViews";
 import { NoteRuntimeExtension } from "./runtime";
 import type { NoteRuntime, UrlPromptRequest } from "./runtime";
-import { Callout, NoteImage, SourceEmbed, SourceQuote, Toggle, VideoEmbed, buildSchemaExtensions, serializeNote } from "./schema";
+import { Callout, ItemEmbed, NoteImage, SourceEmbed, SourceQuote, Toggle, VideoEmbed, buildSchemaExtensions, serializeNote } from "./schema";
 import { resolveSourceCached } from "./sourceCache";
 import { SuggestionMenu, usePopoverPosition } from "./SuggestionMenu";
 import type { SuggestionMenuHandle } from "./SuggestionMenu";
-import type { NoteEditorProps } from "./types";
+import type { DraggedItem, NoteEditorProps } from "./types";
+import { insertDroppedItems, type DropMode } from "./mediaBehaviors";
 import "./note-editor.css";
 
 const SAVE_DELAY_MS = 400;
-const DEFAULT_PLACEHOLDER = "Type / for blocks, @ to link anything";
+const DEFAULT_PLACEHOLDER = "Type / for blocks, [[ to link, @ to cite";
 
 function buildEditorExtensions(runtime: NoteRuntime, controller: MenuController): AnyExtension[] {
   return [
@@ -31,6 +32,7 @@ function buildEditorExtensions(runtime: NoteRuntime, controller: MenuController)
       sourceEmbed: SourceEmbed.extend({ addNodeView: () => ReactNodeViewRenderer(SourceEmbedView) }),
       sourceQuote: SourceQuote.extend({ addNodeView: () => ReactNodeViewRenderer(SourceQuoteView) }),
       videoEmbed: VideoEmbed.extend({ addNodeView: () => ReactNodeViewRenderer(VideoEmbedView) }),
+      itemEmbed: ItemEmbed.extend({ addNodeView: () => ReactNodeViewRenderer(ItemEmbedView) }),
       image: NoteImage.extend({ addNodeView: () => ReactNodeViewRenderer(ImageView) }).configure({ inline: false }),
     }),
     NoteMedia,
@@ -97,6 +99,45 @@ function UrlPrompt({ request, rect, onClose }: { request: UrlPromptRequest; rect
   );
 }
 
+/** After items are dropped in as links: turn them into embeds or citations instead. */
+function DropChoice({ editor, choice, onClose }: { editor: NonNullable<ReturnType<typeof useEditor>>; choice: { items: DraggedItem[]; from: number; to: number; rect: DOMRect }; onClose: () => void }) {
+  const { ref, style } = usePopoverPosition(choice.rect, []);
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 7000);
+    const dismiss = (e: Event) => {
+      if (e instanceof PointerEvent && ref.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    document.addEventListener("keydown", dismiss, true);
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("keydown", dismiss, true);
+      document.removeEventListener("pointerdown", dismiss, true);
+    };
+  }, [onClose]);
+  const turn = (mode: DropMode) => {
+    onClose();
+    if (mode === "link") return;
+    editor.chain().deleteRange({ from: choice.from, to: choice.to }).run();
+    void insertDroppedItems(editor, choice.items, choice.from, mode, false);
+  };
+  return (
+    <div ref={ref} className="ne-popover ne-drop-choice" style={style} role="toolbar" aria-label="Insert as" onMouseDown={(e) => e.preventDefault()}>
+      <span>Insert as</span>
+      <button type="button" aria-pressed="true" onClick={() => turn("link")}>
+        Link
+      </button>
+      <button type="button" onClick={() => turn("embed")} title="⌥ while dropping">
+        Embed
+      </button>
+      <button type="button" onClick={() => turn("cite")} title="⌘ while dropping">
+        Citation
+      </button>
+    </div>
+  );
+}
+
 export default function NoteEditor(props: NoteEditorProps): JSX.Element {
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -104,6 +145,7 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const menuRef = useRef<SuggestionMenuHandle>(null);
   const [prompt, setPrompt] = useState<{ request: UrlPromptRequest; rect: DOMRect | null } | null>(null);
+  const [dropChoice, setDropChoice] = useState<{ items: DraggedItem[]; from: number; to: number; rect: DOMRect } | null>(null);
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
 
   const controller = useMemo<MenuController>(
@@ -119,8 +161,16 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
   const runtime = useMemo<NoteRuntime>(
     () => ({
       placeholder: () => propsRef.current.placeholder ?? DEFAULT_PLACEHOLDER,
-      // Links can point at anything; cards and quotes need a source.
-      search: (query, mode) => (mode === "link" && propsRef.current.searchItems ? propsRef.current.searchItems(query) : propsRef.current.searchSources(query)),
+      // Links, embeds and citations can point at anything; quotes need a source.
+      search: (query, mode) => (mode !== "quote" && propsRef.current.searchItems ? propsRef.current.searchItems(query) : propsRef.current.searchSources(query)),
+      searchMore: async (query, mode) => (mode !== "quote" && propsRef.current.searchItemsMore ? propsRef.current.searchItemsMore(query) : []),
+      cite: async (ref, page) => propsRef.current.citeLabel?.(ref, page),
+      dropped: (items, from, to) => {
+        const editor = editorRef.current;
+        if (!editor || editor.isDestroyed) return;
+        const c = editor.view.coordsAtPos(Math.min(to, editor.state.doc.content.size));
+        setDropChoice({ items, from, to, rect: new DOMRect(c.left, c.top, 0, c.bottom - c.top) });
+      },
       resolve: (id) => resolveSourceCached(id, (x) => propsRef.current.resolveSource(x)),
       open: (id, page) => propsRef.current.onOpenSource(id, page),
       openItem: (item) => {
@@ -142,8 +192,10 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
         return media ? (file: File) => media.save(file) : null;
       },
       mediaUrl: (src) => propsRef.current.media?.url(src) ?? src,
-      pickMode: "link",
+      pickMode: "cite",
       lastSourceQuery: null,
+      moreQuery: null,
+      morePending: false,
     }),
     [],
   );
@@ -234,6 +286,7 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
           would otherwise make them the frame for these fixed-position menus. */}
       {createPortal(<SuggestionMenu ref={menuRef} state={menu} />, document.body)}
       {prompt && createPortal(<UrlPrompt request={prompt.request} rect={prompt.rect} onClose={() => setPrompt(null)} />, document.body)}
+      {editor && dropChoice && createPortal(<DropChoice editor={editor} choice={dropChoice} onClose={() => setDropChoice(null)} />, document.body)}
     </div>
   );
 }
