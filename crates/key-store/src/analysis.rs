@@ -77,6 +77,15 @@ pub struct SourceReference {
     pub matched_source_id: Option<String>,
 }
 
+/// A heading found by layout analysis (see `Store::sections`).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectedSection {
+    pub title: String,
+    pub page: i64,
+    pub top: f64,
+}
+
 impl Store {
     /// Records how a source's text was extracted. With `references`, its bibliography is
     /// detected and looked up (again) next; otherwise there is none to find.
@@ -287,6 +296,36 @@ impl Store {
                 .map_err(e),
             None => Ok(None),
         }
+    }
+
+    /// The document's sections as layout analysis found them: each heading once, in reading
+    /// order, with the page and height (0..1) where it starts. For PDFs without an outline.
+    pub fn sections(&self, source_id: &str) -> Result<Vec<DetectedSection>> {
+        let db = self.read()?;
+        let mut statement = db
+            .prepare(
+                "SELECT section, page, rects FROM chunks c WHERE source_id = ?1 AND section IS NOT NULL AND trim(section) <> '' AND page IS NOT NULL
+                   AND seq = (SELECT min(seq) FROM chunks d WHERE d.source_id = ?1 AND d.section = c.section)
+                 ORDER BY seq",
+            )
+            .map_err(e)?;
+        let rows = statement
+            .query_map([source_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, Option<String>>(2)?)))
+            .map_err(e)?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (title, page, rects) = row.map_err(e)?;
+            let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+            if title.chars().count() > 120 {
+                continue;
+            }
+            let top = rects
+                .and_then(|r| serde_json::from_str::<Vec<[u16; 4]>>(&r).ok())
+                .and_then(|r| r.first().map(|rect| f64::from(rect[1]) / 65535.0))
+                .unwrap_or(0.0);
+            out.push(DetectedSection { title, page, top });
+        }
+        Ok(out)
     }
 
     pub fn references(&self, source_id: &str) -> Result<Vec<SourceReference>> {

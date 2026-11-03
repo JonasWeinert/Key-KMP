@@ -13,13 +13,18 @@ contextBridge.exposeInMainWorld("key", {
   tabs: () => ipcRenderer.invoke("key:tabs"),
   openSources: (id?: string) => ipcRenderer.invoke("key:open-sources", id),
   importZotero: (options?: unknown) => ipcRenderer.invoke("key:import-zotero", options),
+  zoteroWorkspace: () => ipcRenderer.invoke("key:zotero-workspace"),
+  syncZotero: () => ipcRenderer.invoke("key:sync-zotero"),
   addFiles: (workspaceId: string, collectionId?: string) =>
     ipcRenderer.invoke("key:add-files", workspaceId, collectionId),
   importPaths: (workspaceId: string, paths: string[], collectionId?: string) =>
     ipcRenderer.invoke("key:import-paths", workspaceId, paths, collectionId),
   openPath: (path: string) => ipcRenderer.invoke("key:open-path", path),
   revealPath: (path: string) => ipcRenderer.invoke("key:reveal-path", path),
+  thumbnail: (path: string, size?: number) => ipcRenderer.invoke("key:thumbnail", path, size),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
+  startFileDrag: (paths: string[]) => ipcRenderer.send("key:start-file-drag", paths),
+  captureSave: (text: string) => ipcRenderer.invoke("key:capture-save", text),
   openSource: (source: unknown, hit?: unknown, results?: unknown[]) =>
     ipcRenderer.invoke("key:open-source", source, hit, results),
   tabAction: (action: string, payload?: unknown) =>
@@ -28,6 +33,7 @@ contextBridge.exposeInMainWorld("key", {
   readerDismiss: () => ipcRenderer.invoke("key:reader-dismiss"),
   readerNotes: () => ipcRenderer.invoke("key:reader-notes"),
   readerAddToNote: (passage: unknown) => ipcRenderer.invoke("key:reader-add-to-note", passage),
+  readerSendTo: (highlight: unknown) => ipcRenderer.invoke("key:reader-send-to", highlight),
   readerAnalysis: () => ipcRenderer.invoke("key:reader-analysis"),
   readerReanalyze: () => ipcRenderer.invoke("key:reader-reanalyze"),
   readerOpenSource: (sourceId: string) => ipcRenderer.invoke("key:reader-open-source", sourceId),
@@ -45,12 +51,19 @@ contextBridge.exposeInMainWorld("key", {
         "library-changed",
         "open-settings",
         "note-changed",
+        "links-changed",
+        "linked-folders-changed",
         "note-append",
         "annotations-changed",
         "search-target",
         "reader-focus",
         "search-navigation",
         "operation-error",
+        "focus-pane",
+        "open-workspace-switcher",
+        "toggle-inspector",
+        "command",
+        "send-items",
       ].includes(event)
     )
       throw Error("Unknown event");

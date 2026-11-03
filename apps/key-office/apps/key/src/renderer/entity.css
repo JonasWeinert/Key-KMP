@@ -1,0 +1,505 @@
+/* ── People, journals and topics: the popover, page facts, reference lists ── */
+.kx-entity-popover {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 300px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+  animation: kx-pop 140ms var(--kx-ease);
+}
+.kx-entity-popover > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.kx-entity-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent);
+}
+.kx-entity-heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.kx-entity-heading strong {
+  font: 600 13.5px var(--kx-font);
+}
+.kx-entity-heading small,
+.kx-entity-line {
+  margin: 0;
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.kx-entity-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+  font: 500 10.5px var(--kx-font);
+}
+.kx-entity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.kx-entity-chip {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+  font: 12px var(--kx-font);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-entity-chip:hover {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-entity-popover > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* A retracted work says so before anything else. */
+.kx-retracted {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--kx-red) 12%, transparent);
+  color: var(--kx-red);
+  font: 600 13px var(--kx-font);
+}
+.kx-retracted span {
+  color: var(--kx-text-2);
+  font-weight: 400;
+}
+
+/* Chips for topics, keywords and funders in a source's research facts. */
+.kx-research {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.kx-research-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 26%) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+.kx-research-row > span:first-child {
+  color: var(--kx-text-2);
+}
+.kx-research-values {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+  /* Lines up with the text of the editable fields above (their inputs pad by 6px). */
+  padding: 0 6px;
+}
+.kx-research-values small {
+  color: var(--kx-text-3);
+}
+.kx-enrich-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kx-text-3);
+  font-size: 12px;
+}
+.kx-enrich-line button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--kx-accent);
+  font: inherit;
+}
+
+/* What a work cites and what cites it: each row opens in place to its abstract. Works in
+   the library carry a small mark. */
+.kx-work-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kx-work-list > li {
+  border-bottom: 1px solid var(--kx-line);
+}
+.kx-work-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text);
+  font: 13.5px/1.4 var(--kx-font);
+  text-align: left;
+}
+.kx-work-head:hover {
+  background: var(--kx-fill);
+}
+.kx-work-head > svg {
+  flex: none;
+  margin-top: 5px;
+  color: var(--kx-text-3);
+  transition: transform 140ms var(--kx-ease);
+}
+.kx-work-head[aria-expanded="true"] > svg {
+  transform: rotate(90deg);
+}
+.kx-work-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.kx-work-title {
+  color: var(--kx-text);
+}
+.kx-work-text small {
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.kx-work-badge {
+  flex: none;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent);
+  font: 500 11px/16px var(--kx-font);
+}
+.kx-work-body {
+  padding: 0 4px 10px 22px;
+  animation: kx-pop 140ms var(--kx-ease);
+}
+.kx-work-abstract {
+  margin: 2px 0 8px;
+  color: var(--kx-text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.kx-work-muted {
+  color: var(--kx-text-2);
+}
+.kx-work-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kx-work-actions a.kx-page-action {
+  text-decoration: none;
+}
+
+/* An entity page: facts in a grid, then everything the library connects to it. */
+.kx-entity-page-inner {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 18px 56px 120px;
+}
+.kx-entity-page[data-narrow="true"] .kx-entity-page-inner {
+  padding: 14px 24px 100px;
+}
+.kx-entity-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  margin-bottom: 18px;
+}
+.kx-entity-title {
+  margin: 0 0 4px;
+  font: 700 30px var(--kx-font-display);
+}
+.kx-entity-subtitle {
+  margin: 0 0 14px;
+  color: var(--kx-text-2);
+  font-size: 14px;
+}
+.kx-entity-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.kx-entity-fact {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--kx-fill);
+}
+.kx-entity-fact strong {
+  display: block;
+  font: 600 18px var(--kx-font);
+}
+.kx-entity-fact span {
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+}
+.kx-entity-merge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--kx-accent-soft);
+  font-size: 13px;
+}
+.kx-entity-merge > span {
+  flex: 1;
+  min-width: 180px;
+}
+.kx-year-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 64px;
+  margin: 6px 0 2px;
+}
+.kx-year-bars span {
+  flex: 1;
+  min-height: 1px;
+  border-radius: 2px 2px 0 0;
+  background: var(--kx-accent);
+  opacity: 0.75;
+}
+.kx-year-axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--kx-text-3);
+  font-size: 11px;
+}
+
+/* Settings: possible duplicate people. */
+.kx-merge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.kx-merge-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--kx-fill);
+  font-size: 13px;
+}
+.kx-merge-list li > span {
+  flex: 1;
+  min-width: 200px;
+}
+.kx-merge-list small {
+  color: var(--kx-text-3);
+}
+
+/* "More" in a page's header: a quiet icon that opens a menu. */
+.kx-source-more > summary {
+  list-style: none;
+}
+.kx-source-more > summary::-webkit-details-marker {
+  display: none;
+}
+.kx-source-more > .kx-menu-popover {
+  right: 0;
+  left: auto;
+}
+.kx-source-page-bar.kx-note-page-head {
+  margin-bottom: 20px;
+}
+.kx-source-page-bar .kx-note-source select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.kx-entity-title.kx-note-title {
+  margin-bottom: 14px;
+  font: 700 30px var(--kx-font-display);
+}
+.kx-entity-page {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Possible duplicates: a wider sheet with the two people side by side. */
+.key-global-drawer.key-global-sheet:has(.kx-merge-review) {
+  width: min(780px, calc(100vw - 48px));
+  margin-left: max(calc(min(780px, 100vw - 48px) / -2), -390px);
+}
+.kx-merge-review .key-property-body {
+  padding: 4px 20px 8px;
+}
+.kx-merge-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+.kx-merge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--kx-line);
+  border-radius: 12px;
+  background: var(--kx-bg);
+  color: var(--kx-text);
+  font: 13px/1.4 var(--kx-font);
+  text-align: left;
+  transition:
+    border-color 140ms var(--kx-ease),
+    box-shadow 140ms var(--kx-ease);
+}
+.kx-merge-card:hover {
+  border-color: var(--kx-line-strong);
+}
+.kx-merge-card[aria-pressed="true"] {
+  border-color: var(--kx-accent);
+  box-shadow: 0 0 0 3px var(--kx-accent-soft);
+}
+.kx-merge-keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 9px;
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+  font: 500 11px/18px var(--kx-font);
+}
+.kx-merge-card[aria-pressed="true"] .kx-merge-keep {
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+}
+.kx-merge-name {
+  font: 600 16px/1.25 var(--kx-font-display);
+}
+.kx-merge-sub {
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.kx-merge-facts {
+  display: grid;
+  gap: 3px;
+  margin: 4px 0 0;
+}
+.kx-merge-facts > div {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 8px;
+}
+.kx-merge-facts dt {
+  color: var(--kx-text-3);
+  font-size: 12px;
+}
+.kx-merge-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12.5px;
+}
+.kx-merge-sources {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--kx-line);
+  list-style: none;
+}
+.kx-merge-sources li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.kx-merge-source-title {
+  overflow: hidden;
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-merge-sources small {
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+}
+.kx-merge-into {
+  display: grid;
+  place-items: center;
+  color: var(--kx-text-3);
+}
+.kx-merge-explain {
+  margin: 12px 2px 0;
+  color: var(--kx-text-2);
+  font-size: 12.5px;
+}
+.kx-merge-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 30px 0;
+  color: var(--kx-text-2);
+}
+.kx-merge-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 18px;
+}
+
+/* Links in pages (ORCID, OpenAlex, home pages) read as accent text, underlined on hover. */
+.kx-item-page .kx-research-row a,
+.kx-item-page .kx-enrich-line a {
+  color: var(--kx-accent);
+  text-decoration: none;
+}
+.kx-item-page .kx-research-row a:hover,
+.kx-item-page .kx-enrich-line a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Lists of names in one row are separated by commas, so multi-word ones stay apart. */
+.kx-research-row:is([data-research="Keywords"], [data-research="Topics"], [data-research="Co-authors"], [data-research="Journals"], [data-research="Authors"], [data-research="People"], [data-research="Narrower"]) .kx-research-values {
+  gap: 4px 0;
+}
+.kx-research-row:is([data-research="Keywords"], [data-research="Topics"], [data-research="Co-authors"], [data-research="Journals"], [data-research="Authors"], [data-research="People"], [data-research="Narrower"]) .kx-research-values > :not(:last-child)::after {
+  content: ",";
+  margin-right: 6px;
+  color: var(--kx-text-3);
+}

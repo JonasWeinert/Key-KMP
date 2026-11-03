@@ -18,6 +18,10 @@ pub struct Library {
     pub store: Store,
     pub indexer: Indexer,
     pub references: super::reference_worker::ReferenceWorker,
+    pub openalex: super::openalex::OpenAlex,
+    /// One Zotero import or sync at a time; its progress while it runs.
+    zotero: std::sync::Mutex<()>,
+    zotero_progress: std::sync::Arc<std::sync::Mutex<Option<key_zotero::Progress>>>,
 }
 
 struct HostPdfText(NativePdfService);
@@ -69,7 +73,22 @@ impl Library {
         // The app turns the layout model off through the environment (Settings).
         indexer.set_layout_model(std::env::var("KEY_LAYOUT_MODEL_ENABLED").map_or(true, |v| v != "0"));
         let references = super::reference_worker::ReferenceWorker::start(store.clone(), native, cache);
-        Ok(Self { store, indexer, references })
+        let openalex = super::openalex::OpenAlex::start(store.clone());
+        Ok(Self { store, indexer, references, openalex, zotero: Default::default(), zotero_progress: Default::default() })
+    }
+
+    fn zotero_run(&self, options: &key_zotero::ImportOptions, mode: key_zotero::Mode) -> Result<key_zotero::ImportReport, String> {
+        let _running = self.zotero.lock().map_err(|e| e.to_string())?;
+        let progress = self.zotero_progress.clone();
+        let report = key_zotero::run(&self.store, options, mode, &|p| {
+            if let Ok(mut current) = progress.lock() {
+                *current = Some(p);
+            }
+        });
+        *self.zotero_progress.lock().map_err(|e| e.to_string())? = None;
+        self.indexer.wake();
+        self.openalex.wake();
+        report
     }
 
     /// A key-store source the reader knows by content hash (or id, before hashing).
@@ -87,6 +106,7 @@ impl Library {
             "store_create" => arg::<SourceInput>(args, "source").and_then(|input| {
                 let source = self.store.insert_source(input)?;
                 self.indexer.wake();
+                self.openalex.wake();
                 json_output(source)
             }),
             "store_update" => (|| {
@@ -94,6 +114,7 @@ impl Library {
                 let patch: Map<String, Json> = arg(args, "patch")?;
                 let source = self.store.update_source(&id, &patch)?;
                 self.indexer.wake();
+                self.openalex.wake();
                 json_output(source)
             })(),
             "store_trash" => (|| json_output(self.store.trash(&arg::<Vec<String>>(args, "ids")?, arg::<Option<bool>>(args, "trashed")?.unwrap_or(true))?))(),
@@ -116,6 +137,22 @@ impl Library {
                 let name: Option<String> = arg(args, "name")?;
                 let parent: Option<Option<String>> = args.get("parentId").map(|v| v.as_str().map(String::from));
                 self.store.update_collection(&id, name.as_deref(), parent.as_ref().map(|p| p.as_deref()))?;
+                json_output(true)
+            })(),
+            "store_collection_reorder" => (|| {
+                let parent: Option<String> = arg(args, "parentId")?;
+                self.store.reorder_collections(parent.as_deref(), &arg::<Vec<String>>(args, "ids")?)?;
+                json_output(true)
+            })(),
+            // Small JSON settings the renderer keeps per workspace (the sidebar's order and folders).
+            "store_ui_get" => arg::<String>(args, "key").and_then(|key| {
+                let value = self.store.meta(&format!("ui.{key}"))?;
+                json_output(value.and_then(|v| serde_json::from_str::<Json>(&v).ok()))
+            }),
+            "store_ui_set" => (|| {
+                let key: String = arg(args, "key")?;
+                let value: Json = arg(args, "value")?;
+                self.store.set_meta(&format!("ui.{key}"), &value.to_string())?;
                 json_output(true)
             })(),
             "store_collection_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_collection(&id)?)),
@@ -148,7 +185,32 @@ impl Library {
                 }
                 json_output(note)
             })(),
+            // A note's page metadata: `patch` holds `fields`, `properties` and `appearance`
+            // objects, each merged (null removes a key). Never touches the text.
+            "store_note_meta" => (|| {
+                let id: String = arg(args, "id")?;
+                let patch: Map<String, Json> = arg(args, "patch")?;
+                json_output(self.store.update_note_meta(&id, &patch)?)
+            })(),
             "store_note_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_note(&id)?)),
+            // Cross-references: what an item links to and what links to it, and the items a
+            // link can point at (notes, sources, highlights, canvases).
+            "store_links" => (|| json_output(self.store.item_links(&arg::<String>(args, "kind")?, &arg::<String>(args, "id")?)?))(),
+            "store_link_targets" => (|| {
+                let text: Option<String> = arg(args, "text")?;
+                let kinds: Option<Vec<String>> = arg(args, "kinds")?;
+                let limit: Option<usize> = arg(args, "limit")?;
+                json_output(self.store.link_targets(&text.unwrap_or_default(), &kinds.unwrap_or_default(), limit.unwrap_or(8))?)
+            })(),
+            "store_canvases" => self.store.canvases().and_then(json_output),
+            "store_canvas" => arg::<String>(args, "id").and_then(|id| json_output(self.store.canvas(&id)?)),
+            "store_canvas_save" => (|| {
+                let id: Option<String> = arg(args, "id")?;
+                let title: Option<String> = arg(args, "title")?;
+                let doc: Option<Json> = arg(args, "doc")?;
+                json_output(self.store.save_canvas(id.as_deref(), title.as_deref(), doc.as_ref())?)
+            })(),
+            "store_canvas_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_canvas(&id)?)),
             // Filters to offer while the user types, counted within the current view.
             "store_suggest" => (|| {
                 let text: String = arg(args, "text")?;
@@ -170,6 +232,7 @@ impl Library {
                     "busy": self.indexer.is_busy(),
                     "activity": self.indexer.activity(),
                     "references": self.store.references_activity()?,
+                    "enrichment": self.store.enrichment_queue(self.openalex.options().auto)?,
                     "vectors": self.store.vector_count()?,
                     "counts": counts,
                 }))
@@ -215,11 +278,33 @@ impl Library {
             })(),
             "store_import_zotero" => (|| {
                 let options: key_zotero::ImportOptions = serde_json::from_value(args.clone()).map_err(|e| e.to_string())?;
-                let report = key_zotero::import(&self.store, &options)?;
-                self.indexer.wake();
-                json_output(report)
+                json_output(self.zotero_run(&options, key_zotero::Mode::Import)?)
             })(),
             "store_zotero_location" => json_output(key_zotero::default_data_dir()),
+            // The import dialogue: collections with counts, and what the chosen options cover.
+            "store_zotero_preview" => (|| {
+                let options: key_zotero::ImportOptions = serde_json::from_value(args.clone()).map_err(|e| e.to_string())?;
+                json_output(key_zotero::preview(&options)?)
+            })(),
+            "store_zotero_progress" => self.zotero_progress.lock().map_err(|e| e.to_string()).and_then(|p| json_output(p.clone())),
+            "store_zotero_status" => key_zotero::last_run(&self.store).and_then(json_output),
+            // Called on a timer while sync is on: cheap unless zotero.sqlite changed.
+            "store_zotero_sync" => (|| {
+                let force = arg::<Option<bool>>(args, "force")?.unwrap_or(false);
+                let Some(options) = key_zotero::last_run(&self.store)?.options else {
+                    return json_output(json!({ "ran": false, "reason": "never-imported" }));
+                };
+                let data_dir = options.data_dir.clone().or_else(key_zotero::default_data_dir).ok_or("No Zotero library found.")?;
+                if !force && !key_zotero::changed_since_last_run(&self.store, &data_dir, 4000)? {
+                    return json_output(json!({ "ran": false }));
+                }
+                let Ok(_running) = self.zotero.try_lock() else {
+                    return json_output(json!({ "ran": false, "reason": "busy" }));
+                };
+                drop(_running);
+                let report = self.zotero_run(&options, key_zotero::Mode::Sync)?;
+                json_output(json!({ "ran": true, "report": report }))
+            })(),
             "store_attach_file" => (|| {
                 let id: String = arg(args, "id")?;
                 let path: PathBuf = arg(args, "path")?;
@@ -233,6 +318,7 @@ impl Library {
                     "analysis": self.store.analysis(&id)?,
                     "references": self.store.references(&id)?,
                     "citations": self.store.citations(&id)?,
+                    "sections": self.store.sections(&id)?,
                     "layoutModel": self.indexer.layout_model(),
                     "indexStatus": self.store.source(&id)?.map(|s| s.index_status),
                 }))
@@ -256,7 +342,7 @@ impl Library {
                 json_output(json!({ "layoutModel": self.indexer.layout_model(), "outdated": self.store.outdated_analyses(engine)? }))
             })(),
             "store_provenance" => arg::<String>(args, "id").and_then(|id| json_output(self.store.property_provenance(&id)?)),
-            _ => return None,
+            _ => return super::openalex::dispatch(self, command, args).or_else(|| super::linked_folders::dispatch(self, command, args, root)),
         };
         Some(result)
     }
@@ -449,6 +535,34 @@ impl Library {
     }
 
     /// Files from the system temp folder (downloads) are copied into the workspace.
+    /// Keeps an image a note shows in the workspace's `media` folder, named by its content,
+    /// and answers the path notes reference it by (relative, so the workspace can move).
+    pub fn save_media(&self, args: &Json, bytes: &[u8], root: &Path) -> Result<Output, String> {
+        let name: Option<String> = arg(args, "name")?;
+        let mime: Option<String> = arg(args, "mime")?;
+        let path: Option<PathBuf> = arg(args, "path")?;
+        let data = match (&path, bytes.is_empty()) {
+            (_, false) => bytes.to_vec(),
+            (Some(path), true) => std::fs::read(path).map_err(|e| format!("Couldn't read {}: {e}", path.display()))?,
+            (None, true) => return Err("No image to save".into()),
+        };
+        let from_name = name.as_deref().map(Path::new).or(path.as_deref()).and_then(|p| p.extension()).and_then(|e| e.to_str());
+        let extension = media_extension(from_name, mime.as_deref(), &data).ok_or("Not an image Key can show")?;
+        use sha2::Digest;
+        let hash: String = sha2::Sha256::digest(&data).iter().map(|b| format!("{b:02x}")).collect();
+        let file = format!("{hash}.{extension}");
+        let directory = root.join("media");
+        std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+        let target = directory.join(&file);
+        if !target.is_file() {
+            // Written aside first, so a half-written file is never shown.
+            let partial = directory.join(format!(".{file}.partial"));
+            std::fs::write(&partial, &data).map_err(|e| e.to_string())?;
+            std::fs::rename(&partial, &target).map_err(|e| e.to_string())?;
+        }
+        json_output(json!({"src": format!("media/{file}"), "size": data.len()}))
+    }
+
     fn stored_path(&self, path: &Path, hash: &str, root: &Path) -> Result<PathBuf, String> {
         let temporary = path.starts_with(std::env::temp_dir()) || path.to_string_lossy().contains("/T/");
         if !temporary {
@@ -577,5 +691,40 @@ fn classify(path: &Path) -> (&'static str, &'static str, String) {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "tif" | "tiff" => ("image", "image", format!("image/{extension}")),
         "txt" | "md" => ("file", "document", "text/plain".into()),
         _ => ("file", "document", "application/octet-stream".into()),
+    }
+}
+
+/// The extension a note image is stored under: from its name or type, else its first bytes.
+fn media_extension(name: Option<&str>, mime: Option<&str>, data: &[u8]) -> Option<&'static str> {
+    const KNOWN: [&str; 8] = ["png", "jpg", "gif", "webp", "svg", "avif", "bmp", "heic"];
+    let normal = |e: &str| match e.to_ascii_lowercase().as_str() {
+        "jpeg" | "jpg" => Some("jpg"),
+        other => KNOWN.iter().copied().find(|k| *k == other),
+    };
+    if let Some(found) = name.and_then(normal) {
+        return Some(found);
+    }
+    if let Some(found) = mime.and_then(|m| m.strip_prefix("image/")).map(|m| m.trim_end_matches("+xml")).and_then(normal) {
+        return Some(found);
+    }
+    match data {
+        [0x89, b'P', b'N', b'G', ..] => Some("png"),
+        [0xFF, 0xD8, 0xFF, ..] => Some("jpg"),
+        [b'G', b'I', b'F', b'8', ..] => Some("gif"),
+        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => Some("webp"),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod media_tests {
+    use super::media_extension;
+
+    #[test]
+    fn picks_the_extension_from_name_type_or_bytes() {
+        assert_eq!(media_extension(Some("JPEG"), None, b""), Some("jpg"));
+        assert_eq!(media_extension(None, Some("image/svg+xml"), b""), Some("svg"));
+        assert_eq!(media_extension(Some("exe"), Some("text/plain"), b"\x89PNG\r\n"), Some("png"));
+        assert_eq!(media_extension(None, None, b"hello"), None);
     }
 }

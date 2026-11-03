@@ -605,10 +605,8 @@
 }
 .kx-match-where {
   display: grid;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font: 600 10.5px/1.9 var(--kx-font);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
 }
 .kx-passage .kx-match-where {
@@ -1276,69 +1274,7 @@
   text-overflow: ellipsis;
 }
 
-/* Table view */
-.kx-table-head,
-.kx-table-row {
-  display: grid;
-  align-items: center;
-  column-gap: 12px;
-  padding: 0 12px 0 20px;
-}
-.kx-table-head {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  height: 30px;
-  background: var(--kx-bg);
-  box-shadow: inset 0 -1px 0 var(--kx-line);
-}
-.kx-table-head > button {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--kx-text-2);
-  font: 500 11.5px var(--kx-font);
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.kx-table-head > button[data-sorted="true"] {
-  color: var(--kx-text);
-}
-.kx-table-row {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 36px;
-  box-shadow: inset 0 -1px 0 var(--kx-line);
-  font-size: 12.5px;
-  cursor: default;
-  user-select: none;
-}
-.kx-table-row > span,
-.kx-table-row > output {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--kx-text-2);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.kx-table-row:hover {
-  background: var(--kx-bg-sunken);
-}
-.kx-table-row[aria-selected="true"] {
-  background: var(--kx-accent-soft);
-}
-.kx-list:focus-within .kx-table-row[aria-selected="true"] {
-  background: var(--kx-accent);
-}
-.kx-list:focus-within .kx-table-row[aria-selected="true"] > span {
-  color: var(--kx-accent-ink);
-}
+/* Table view: layout lives in database-view.css; these are the source cells. */
 .kx-cell-title {
   display: flex;
   align-items: center;
@@ -1785,6 +1721,18 @@
 .kx-page-action-primary:hover {
   background: color-mix(in srgb, var(--kx-accent) 88%, var(--kx-text));
 }
+/* An image source shows its picture under the title. */
+.kx-source-page .kx-source-image {
+  margin: 4px 0 14px;
+}
+.kx-source-page .kx-source-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 8px;
+  box-shadow: var(--kx-shadow-card);
+}
+
 .kx-source-page .kx-source-page-title {
   margin: 0 0 4px -6px;
   padding: 2px 6px;
@@ -1856,8 +1804,6 @@
   background: transparent;
   color: var(--kx-text-2);
   font: 600 12px var(--kx-font);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .kx-page-abstract-toggle > svg {
   transition: transform 160ms var(--kx-ease);
@@ -1907,8 +1853,6 @@
   margin: 0 0 10px;
   color: var(--kx-text-2);
   font: 600 12px var(--kx-font);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .kx-page-highlights {
   display: grid;
@@ -2158,9 +2102,7 @@
   background: transparent;
   color: var(--kx-text-2);
   font: 600 12px var(--kx-font);
-  letter-spacing: 0.02em;
   text-align: left;
-  text-transform: uppercase;
 }
 .kx-page-details-toggle:hover {
   background: var(--kx-fill);
@@ -2186,4 +2128,45 @@
 .kx-page-details {
   padding-bottom: 6px;
   border-bottom: 1px solid var(--kx-line);
+}
+
+/* A source page's parts: Overview shows all of them, the others one each. */
+.kx-page-parts {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 0 10px;
+  padding: 2px;
+  width: fit-content;
+  border-radius: 8px;
+  background: var(--kx-fill);
+}
+.kx-page-parts button {
+  padding: 3px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: inherit;
+  font-size: 12.5px;
+}
+.kx-page-parts button[aria-selected="true"] {
+  background: var(--kx-bg-raised);
+  color: var(--kx-text);
+  box-shadow: var(--kx-shadow-sm);
+}
+.kx-source-page-inner[data-part="notes"] [data-part-of]:not([data-part-of="notes"]),
+.kx-source-page-inner[data-part="highlights"] [data-part-of]:not([data-part-of="highlights"]),
+.kx-source-page-inner[data-part="info"] [data-part-of]:not([data-part-of="info"]),
+.kx-source-page-inner[data-part="linked"] [data-part-of]:not([data-part-of="linked"]) {
+  display: none;
+}
+.kx-source-page-inner:not([data-part="all"]) .kx-source-image {
+  display: none;
+}
+.kx-page-parts-hint {
+  color: var(--kx-text-3);
+  font-size: 12.5px;
+}
+.kx-page-highlights li[draggable="true"] {
+  cursor: grab;
 }

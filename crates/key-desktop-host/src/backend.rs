@@ -5,6 +5,10 @@ mod native_process;
 mod scholarly_resolver;
 #[path = "library_store.rs"]
 mod library_store;
+#[path = "linked_folders.rs"]
+mod linked_folders;
+#[path = "openalex.rs"]
+mod openalex;
 #[path = "reference_worker.rs"]
 mod reference_worker;
 use crate::ipc;
@@ -3021,6 +3025,10 @@ impl Host {
             headers,
             body: &body,
         };
+        // A note's image arrives as bytes (pasted or dropped) rather than JSON.
+        if command == "store_media_save" {
+            return self.library.save_media(args, binary, &self.root);
+        }
         if let Some(result) = self.library_dispatch(command, args).await {
             return result;
         }

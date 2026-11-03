@@ -44,7 +44,8 @@ const assert = require("node:assert/strict");
     await page
       .getByRole("button", { name: "Create item", exact: true })
       .click();
-    await page.getByRole("button", { name: "New note", exact: true }).click();
+    // A page record: "New note" now makes a library note, which has no custom properties.
+    await page.locator(".key-create-menu").getByRole("button", { name: "New page", exact: true }).click();
     await page
       .getByRole("textbox", { name: "Page title", exact: true })
       .fill("Qualifying research note");
@@ -73,7 +74,7 @@ const assert = require("node:assert/strict");
       .fill("Reviewed notes");
     await page
       .getByRole("combobox", { name: /Item type/ })
-      .selectOption("note");
+      .selectOption("page");
     await page.getByLabel("Property name", { exact: true }).fill("reviewed");
     await page.getByLabel("Equals", { exact: true }).fill("true");
     await page
@@ -96,7 +97,7 @@ const assert = require("node:assert/strict");
     const db = persisted.find((r) => r.title === "Reviewed notes");
     assert.equal(db.kind, "database");
     assert.deepEqual(db.properties.view, {
-      kind: "note",
+      kind: "page",
       property: "reviewed",
       value: "true",
     });

@@ -1,3 +1,4 @@
+import { onLibraryChanged } from "./library-nav";
 import { useEffect, useState } from "react";
 import type { LibrarySource } from "./LibraryHome";
 import { notesChanged } from "./NotePage";
@@ -84,6 +85,13 @@ export default function HomeView({
     setRecent([]);
     setSummary(undefined);
   }, [workspace?.id]);
+  // The status poll's counts move when sources arrive or finish indexing anywhere (an import,
+  // Zotero sync, a lookup in the background); the recent list follows them.
+  const libraryStatus = useLibraryStatus(invoke, workspace?.id, active);
+  const counts = libraryStatus?.counts;
+  const stamp = counts ? `${counts.all}:${counts.ready}:${counts.indexing}:${counts.attention}` : "";
+  const [revision, setRevision] = useState(0);
+  useEffect(() => onLibraryChanged(() => setRevision((r) => r + 1)), []);
   useEffect(() => {
     if (!active || !workspace) return;
     let current = true;
@@ -107,9 +115,8 @@ export default function HomeView({
     return () => {
       current = false;
     };
-  }, [workspace?.id, active, invoke, refreshKey]);
+  }, [workspace?.id, active, invoke, refreshKey, stamp, revision]);
   const model = useModelProgress(invoke, workspace?.id, active);
-  const libraryStatus = useLibraryStatus(invoke, workspace?.id, active);
   const total = summary?.total ?? 0,
     searchable = summary?.counts?.searchable ?? recent.filter((d) => d.status === "indexed").length;
   const actions: { label: string; hint: string; icon: IconName; tone: string; run: () => void; disabled?: boolean }[] = [
@@ -240,7 +247,7 @@ export default function HomeView({
                     title={source.title}
                   >
                     <span className="kx-cover" data-tone={coverTone(source.documentHash)} aria-hidden="true">
-                      <span className="kx-cover-kind">{source.kind === "pdf" ? "PDF" : source.kind.toUpperCase()}</span>
+                      <span className="kx-cover-kind">{source.kind === "pdf" ? "PDF" : source.kind[0].toUpperCase() + source.kind.slice(1)}</span>
                       <span className="kx-cover-title">{source.title.replace(/\.pdf$/i, "").replace(/_+/g, " ")}</span>
                       {source.pageCount > 0 && <span className="kx-cover-pages">{source.pageCount} pp.</span>}
                     </span>

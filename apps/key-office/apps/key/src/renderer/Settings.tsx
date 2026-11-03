@@ -1,10 +1,13 @@
 // Settings: a window-sized sheet with a sidebar of sections, like macOS System Settings.
 // General (appearance), Libraries, Search & indexing, AI and About.
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { GlobalDrawer } from "./GlobalDrawer";
 import { Icon, type IconName } from "./icons";
 import { ActivityPanel, useLibraryStatus } from "./index-activity";
-import { bridge, type AppInfo, type AppSettings, type Invoke, type Theme, type WorkspaceSummary } from "./library-api";
+import { bridge, type AppInfo, type AppSettings, type Invoke, type MergeSuggestion, type Theme, type WorkspaceSummary, type ZoteroStatus } from "./library-api";
+import "./entity.css";
+import MergeReview from "./MergeReview";
+import { Conflicts, ZoteroImport } from "./ZoteroImport";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
 
 export type SettingsSection = "general" | "libraries" | "search" | "ai" | "about";
@@ -63,7 +66,9 @@ export default function Settings({
           </header>
           <div className="kx-settings-scroll">
             {section === "general" && <General settings={settings} onSettings={onSettings} onShowWelcome={onShowWelcome} />}
-            {section === "libraries" && <Libraries invoke={invoke} workspaces={workspaces} info={info} onOpenLibrary={onOpenLibrary} onChanged={onWorkspacesChanged} />}
+            {section === "libraries" && (
+              <Libraries invoke={invoke} workspaces={workspaces} info={info} settings={settings} onSettings={onSettings} onOpenLibrary={onOpenLibrary} onChanged={onWorkspacesChanged} />
+            )}
             {section === "search" && <SearchSettings invoke={invoke} workspaces={workspaces} info={info} settings={settings} onSettings={onSettings} />}
             {section === "ai" && <AiSettings invoke={invoke} workspaceId={workspaces[0]?.id} />}
             {section === "about" && <About info={info} />}
@@ -84,12 +89,18 @@ export function Group({ title, footer, children }: { title?: string; footer?: Re
     </section>
   );
 }
-function Row({ label, detail, children }: { label: ReactNode; detail?: ReactNode; children?: ReactNode }) {
+/** A setting: its label and a quiet line beneath. A `path` line stays on one line, cut at
+ *  the end, with the whole path on hover. */
+function Row({ label, detail, children, path }: { label: ReactNode; detail?: ReactNode; children?: ReactNode; path?: boolean }) {
   return (
     <div className="kx-settings-row">
       <div>
         <span>{label}</span>
-        {detail && <small>{detail}</small>}
+        {detail && (
+          <small className={path ? "kx-settings-path" : undefined} title={path && typeof detail === "string" ? detail : undefined}>
+            {detail}
+          </small>
+        )}
       </div>
       {children && <div className="kx-settings-control">{children}</div>}
     </div>
@@ -146,24 +157,34 @@ function Libraries({
   invoke,
   workspaces,
   info,
+  settings,
+  onSettings,
   onOpenLibrary,
   onChanged,
 }: {
   invoke: Invoke;
   workspaces: WorkspaceSummary[];
   info: AppInfo;
+  settings: AppSettings;
+  onSettings: (patch: Partial<AppSettings>) => void;
   onOpenLibrary: (workspaceId: string) => void;
   onChanged: () => void;
 }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [importing, setImporting] = useState(false);
-  const [message, setMessage] = useState("");
   useEffect(() => {
     for (const w of workspaces)
       void invoke<{ counts: { all: number } }>("store_status", {}, w.id)
         .then((s) => setCounts((c) => ({ ...c, [w.id]: s.counts.all })))
         .catch(() => {});
   }, [invoke, workspaces]);
+  // One sheet at a time: the import dialogue takes the place of this page.
+  if (importing)
+    return (
+      <div className="kx-settings-group kx-settings-zotero-import">
+        <ZoteroImport invoke={invoke} workspaceId={workspaces[0]?.id} onClose={() => setImporting(false)} onDone={() => onChanged()} />
+      </div>
+    );
   return (
     <>
       <Group title="Your libraries" footer="Each library is a folder on this Mac. Linked files stay where they are; Key keeps its index in a hidden .key folder inside.">
@@ -178,6 +199,7 @@ function Libraries({
                 {w.name}
               </>
             }
+            path
             detail={`${counts[w.id] === undefined ? "…" : `${counts[w.id].toLocaleString()} sources`} · ${w.root.replace(/^\/Users\/[^/]+/, "~")}`}
           >
             <button className="kx-settings-button" onClick={() => void bridge().revealPath(w.root)}>
@@ -194,33 +216,124 @@ function Libraries({
           </button>
         </Row>
       </Group>
-      <Group title="Import" footer={message || undefined}>
+      <ZoteroSettings invoke={invoke} workspaces={workspaces} info={info} settings={settings} onSettings={onSettings} onImport={() => setImporting(true)} />
+    </>
+  );
+}
+
+/** The Zotero library Key imported into: the workspace in a folder named Zotero. */
+const zoteroWorkspaceOf = (workspaces: WorkspaceSummary[]) => workspaces.find((w) => /\/Zotero$/.test(w.root));
+
+function ZoteroSettings({
+  invoke,
+  workspaces,
+  info,
+  settings,
+  onSettings,
+  onImport,
+}: {
+  invoke: Invoke;
+  workspaces: WorkspaceSummary[];
+  info: AppInfo;
+  settings: AppSettings;
+  onSettings: (patch: Partial<AppSettings>) => void;
+  onImport: () => void;
+}) {
+  const workspace = zoteroWorkspaceOf(workspaces);
+  const [status, setStatus] = useState<ZoteroStatus>();
+  const [syncing, setSyncing] = useState(false);
+  useEffect(() => {
+    if (!workspace) return;
+    let stopped = false;
+    const load = () =>
+      void invoke<ZoteroStatus>("store_zotero_status", {}, workspace.id)
+        .then((s) => !stopped && setStatus(s))
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 10_000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [invoke, workspace?.id]);
+  const imported = !!status?.at;
+  const report = status?.report;
+  const when = status?.at ? new Date(status.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "";
+  return (
+    <Group
+      title="Zotero"
+      footer="Key reads a copy of Zotero’s database and never writes to Zotero. Changes made in Zotero come to Key; edits you make in Key are kept, and where both changed, Key’s version stays and is listed here."
+    >
+      <Row
+        label="Import from Zotero"
+        detail={
+          info.zoteroFound
+            ? `Library found at ${info.zoteroDir.replace(/^\/Users\/[^/]+/, "~")}. Choose collections and what comes along; importing again updates what came before.`
+            : "No Zotero library found in your home folder."
+        }
+      >
+        <button className="kx-settings-button" disabled={!info.zoteroFound} onClick={onImport}>
+          {imported ? "Import again…" : "Import…"}
+        </button>
+      </Row>
+      <Row
+        label="Keep in sync with Zotero"
+        detail={
+          imported
+            ? settings.zoteroSync
+              ? `Checks for changes every half minute while Key is open. Last ${report && status?.options ? "synced" : "imported"} ${when}.`
+              : `Imported once, ${when}. Turn on to bring over later changes, deletions and moves.`
+            : "Import your library first."
+        }
+      >
+        <input
+          type="checkbox"
+          className="kx-switch"
+          aria-label="Keep in sync with Zotero"
+          disabled={!imported}
+          checked={settings.zoteroSync}
+          onChange={(e) => onSettings({ zoteroSync: e.target.checked })}
+        />
+      </Row>
+      {imported && settings.zoteroSync && (
         <Row
-          label="Zotero"
-          detail={info.zoteroFound ? `Library found at ${info.zoteroDir.replace(/^\/Users\/[^/]+/, "~")}. Items, collections, notes, tags and PDFs come across; Zotero itself is not changed.` : "No Zotero library found in your home folder."}
+          label="Sync now"
+          detail={
+            report
+              ? [
+                  report.added && `${report.added.toLocaleString()} added`,
+                  report.updated && `${report.updated.toLocaleString()} updated`,
+                  report.trashed && `${report.trashed.toLocaleString()} moved to the trash`,
+                  report.notesUpdated && `${report.notesUpdated.toLocaleString()} notes updated`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Up to date."
+              : undefined
+          }
         >
           <button
             className="kx-settings-button"
-            disabled={!info.zoteroFound || importing}
+            disabled={syncing}
             onClick={async () => {
-              setImporting(true);
-              setMessage("");
+              setSyncing(true);
               try {
-                const { workspace, report } = await bridge().importZotero();
-                setMessage(`Imported ${report.items?.toLocaleString() ?? "your"} items into “${workspace.name}”.`);
-                onChanged();
-              } catch (e) {
-                setMessage(String(e).replace(/^Error: /, ""));
+                await bridge().syncZotero();
+                if (workspace) setStatus(await invoke<ZoteroStatus>("store_zotero_status", {}, workspace.id));
               } finally {
-                setImporting(false);
+                setSyncing(false);
               }
             }}
           >
-            {importing ? "Importing…" : "Import"}
+            {syncing ? "Syncing…" : "Sync now"}
           </button>
         </Row>
-      </Group>
-    </>
+      )}
+      {!!report?.conflictCount && (
+        <div className="kx-settings-row kx-settings-row-wide">
+          <Conflicts report={report} />
+        </div>
+      )}
+    </Group>
   );
 }
 
@@ -277,7 +390,7 @@ function SearchSettings({
             </span>
           </Row>
         )}
-        <Row label="Model folder" detail={info.modelDir.replace(/^\/Users\/[^/]+/, "~")}>
+        <Row label="Model folder" path detail={info.modelDir.replace(/^\/Users\/[^/]+/, "~")}>
           <button className="kx-settings-button" onClick={() => void bridge().revealPath(info.modelDir)}>
             Show in Finder
           </button>
@@ -392,6 +505,69 @@ function SearchSettings({
           </button>
         </Row>
       </Group>
+      <Group
+        title="OpenAlex"
+        footer="Sources with a DOI, PMID or OpenAlex id are looked up in OpenAlex, the open catalogue of research: authors with their ORCID, the journal, topics, funding, open-access status, retractions and the works each one cites. Citation counts are refreshed when a page is opened. Only identifiers are sent, never your files or notes."
+      >
+        <Row label="Look up new sources" detail={status?.enrichment ? `${status.enrichment.toLocaleString()} waiting` : "Off: only when you choose Look up in OpenAlex."}>
+          <input
+            type="checkbox"
+            className="kx-switch"
+            aria-label="Look up new sources in OpenAlex"
+            checked={settings.openalex}
+            onChange={(e) => onSettings({ openalex: e.target.checked })}
+          />
+        </Row>
+        <Row label="Contact email" detail="OpenAlex asks for one so it can reach whoever sends many requests.">
+          <input
+            className="kx-settings-select"
+            type="email"
+            aria-label="OpenAlex contact email"
+            placeholder="you@example.org"
+            defaultValue={settings.openalexMailto}
+            onBlur={(e) => e.target.value.trim() !== settings.openalexMailto && onSettings({ openalexMailto: e.target.value.trim() })}
+          />
+        </Row>
+        <Row label="API key" detail="Optional. A free key gives you a daily budget of your own.">
+          <input
+            className="kx-settings-select"
+            type="password"
+            aria-label="OpenAlex API key"
+            defaultValue={settings.openalexApiKey}
+            onBlur={(e) => e.target.value.trim() !== settings.openalexApiKey && onSettings({ openalexApiKey: e.target.value.trim() })}
+          />
+        </Row>
+        <PossibleDuplicates invoke={invoke} workspaceId={workspaceId} />
+      </Group>
+    </>
+  );
+}
+
+/** People whose names might be one person: reviewed side by side, merged only when the user says so. */
+function PossibleDuplicates({ invoke, workspaceId }: { invoke: Invoke; workspaceId?: string }) {
+  const [count, setCount] = useState<number>();
+  const [open, setOpen] = useState(false);
+  const load = useCallback(() => {
+    if (workspaceId) void invoke<MergeSuggestion[]>("store_merge_suggestions", {}, workspaceId).then((list) => setCount(list.length)).catch(() => setCount(0));
+  }, [invoke, workspaceId]);
+  useEffect(load, [load]);
+  return (
+    <>
+      <Row label="Possible duplicate people" detail={count ? `${count} to review, side by side` : "None to review."}>
+        <button className="kx-settings-button" disabled={!count} onClick={() => setOpen(true)}>
+          Review…
+        </button>
+      </Row>
+      {open && workspaceId && (
+        <MergeReview
+          invoke={invoke}
+          workspaceId={workspaceId}
+          onClose={() => {
+            setOpen(false);
+            load();
+          }}
+        />
+      )}
     </>
   );
 }
@@ -497,7 +673,7 @@ function About({ info }: { info: AppInfo }) {
           ["Libraries", info.workspaceParent],
           ["Search model", info.modelDir],
         ].map(([label, path]) => (
-          <Row key={label} label={label} detail={home(path)}>
+          <Row key={label} label={label} path detail={home(path)}>
             <button className="kx-settings-button" onClick={() => void bridge().revealPath(path)}>
               Show in Finder
             </button>

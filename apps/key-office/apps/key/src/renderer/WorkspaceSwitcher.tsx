@@ -35,15 +35,28 @@ const colors = [
 export default function WorkspaceSwitcher({
   workspaces,
   selectedId,
+  openElsewhere = [],
+  openRequest = 0,
   onSelect,
   onAdd,
   onSave,
+  onHome,
+  onSettings,
 }: {
   workspaces: WorkspaceAppearance[];
   selectedId?: string;
-  onSelect: (id?: string) => void;
-  onAdd: () => Promise<void>;
+  /** Workspaces another window shows; choosing one brings that window forward. */
+  openElsewhere?: string[];
+  /** Opens the menu when it changes (File › Switch Workspace…). */
+  openRequest?: number;
+  /** `newWindow`: chosen when asked, Cmd- or Option-click, or the row's new-window button. */
+  onSelect: (id: string, newWindow: boolean) => void;
+  /** Adds a workspace (a folder picked by the user); answers it, or null when cancelled. */
+  onAdd: () => Promise<WorkspaceAppearance | null>;
   onSave: (id: string, icon: string, color: string) => Promise<void>;
+  /** The workspace's name: back to Home. */
+  onHome: () => void;
+  onSettings: () => void;
 }) {
   const [open, setOpen] = useState(false),
     [query, setQuery] = useState(""),
@@ -51,7 +64,9 @@ export default function WorkspaceSwitcher({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [icon, setIcon] = useState("📚"),
-    [color, setColor] = useState(colors[0]);
+    [color, setColor] = useState(colors[0]),
+    // A workspace picked (or just added): open it here or in a new window?
+    [choosing, setChoosing] = useState<WorkspaceAppearance>();
   const container = useRef<HTMLDivElement>(null);
   const selected = workspaces.find((w) => w.id === selectedId);
   useEffect(() => {
@@ -60,6 +75,23 @@ export default function WorkspaceSwitcher({
     setIcon(selected?.icon || "📚");
     setColor(selected?.color || colors[0]);
   }, [selectedId, selected?.icon, selected?.color]);
+  useEffect(() => {
+    if (!openRequest) return;
+    setQuery("");
+    setEditing(false);
+    setChoosing(undefined);
+    setOpen(true);
+  }, [openRequest]);
+  useEffect(() => {
+    if (!open) setChoosing(undefined);
+  }, [open]);
+  /** A plain pick asks where to open, unless there's nothing to replace or another window shows it. */
+  const pick = (w: WorkspaceAppearance, newWindow: boolean) => {
+    if (newWindow || !selected || w.id === selectedId || openElsewhere.includes(w.id)) {
+      onSelect(w.id, newWindow);
+      setOpen(false);
+    } else setChoosing(w);
+  };
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => {
@@ -84,6 +116,18 @@ export default function WorkspaceSwitcher({
       document.removeEventListener("keydown", key);
     };
   }, [open]);
+  async function add() {
+    setBusy(true);
+    setError("");
+    try {
+      const added = await onAdd();
+      if (added) pick(added, false);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -99,15 +143,12 @@ export default function WorkspaceSwitcher({
   }
   return (
     <div className="key-workspace-switcher" ref={container}>
-      <Button
-        className="key-workspace-trigger"
-        aria-label="Workspace"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => {
-          setQuery("");
-          setOpen((v) => !v);
-        }}
+      <button
+        type="button"
+        className="key-workspace-home"
+        aria-label={selected ? `${selected.name} · Home` : "Home"}
+        title="Home"
+        onClick={onHome}
       >
         <span
           className="key-workspace-icon"
@@ -116,11 +157,24 @@ export default function WorkspaceSwitcher({
             background: `color-mix(in srgb, ${selected?.color || colors[0]} 12%, transparent)`,
           }}
         >
-          {selected?.icon || (selected ? "📚" : <Icon name="layers" size={15} />)}
+          {selected?.icon || (selected ? "📚" : <Icon name="layers" size={13} />)}
         </span>
-        <strong>{selected?.name || "All workspaces"}</strong>
-        <span aria-hidden="true"><Icon name="chevronUpDown" size={14} /></span>
-      </Button>
+        <strong>{selected?.name || "Key"}</strong>
+      </button>
+      <button
+        type="button"
+        className="key-workspace-trigger"
+        aria-label="Workspace"
+        title="Switch, add or customise workspaces"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          setQuery("");
+          setOpen((v) => !v);
+        }}
+      >
+        <Icon name="chevronUpDown" size={13} />
+      </button>
       {open && (
         <div
           className="key-workspace-dropdown"
@@ -159,7 +213,28 @@ export default function WorkspaceSwitcher({
             options[next].focus();
           }}
         >
-          {!editing ? (
+          {choosing ? (
+            <div className="key-workspace-choice" role="menu" aria-label={`Open ${choosing.name}`}>
+              <p>
+                Open <strong>{choosing.name}</strong>
+              </p>
+              <Button role="menuitem" autoFocus onClick={() => {
+                  onSelect(choosing.id, false);
+                  setOpen(false);
+                }}>
+                <Icon name="swap" size={14} />
+                <span>Replace {selected?.name ?? "this workspace"} in this window</span>
+              </Button>
+              <Button role="menuitem" onClick={() => pick(choosing, true)}>
+                <Icon name="windows" size={14} />
+                <span>Open in a new window</span>
+              </Button>
+              <hr />
+              <Button role="menuitem" onClick={() => setChoosing(undefined)}>
+                <span>Cancel</span>
+              </Button>
+            </div>
+          ) : !editing ? (
             <div className="key-workspace-options">
               <Input
                 autoFocus
@@ -169,32 +244,22 @@ export default function WorkspaceSwitcher({
                 onChange={(e) => setQuery(e.target.value)}
               />
               <div role="menu" aria-label="Workspaces">
-                <Button
-                  role="menuitemradio"
-                  aria-checked={!selectedId}
-                  onClick={() => {
-                    onSelect();
-                    setOpen(false);
-                  }}
-                >
-                  <span className="key-workspace-icon"><Icon name="layers" size={13} /></span>
-                  <span>All workspaces</span>
-                  {!selectedId && <Icon name="check" size={14} />}
-                </Button>
                 {workspaces
                   .filter((w) =>
                     w.name.toLowerCase().includes(query.toLowerCase()),
                   )
                   .map((w) => (
+                    <div className="key-workspace-row" key={w.id}>
                     <Button
-                      key={w.id}
                       data-workspace-id={w.id}
                       role="menuitemradio"
                       aria-checked={w.id === selectedId}
-                      onClick={() => {
-                        onSelect(w.id);
-                        setOpen(false);
-                      }}
+                      title={
+                        openElsewhere.includes(w.id)
+                          ? `${w.name} is open in another window`
+                          : `Open ${w.name} · ⌘-click to open it in a new window`
+                      }
+                      onClick={(e) => pick(w, e.metaKey || e.altKey)}
                     >
                       <span
                         className="key-workspace-icon"
@@ -206,8 +271,24 @@ export default function WorkspaceSwitcher({
                         {w.icon || "📚"}
                       </span>
                       <span>{w.name}</span>
+                      {openElsewhere.includes(w.id) && w.id !== selectedId && (
+                        <span className="key-workspace-open-dot" aria-label="Open in another window" />
+                      )}
                       {w.id === selectedId && <Icon name="check" size={14} />}
                     </Button>
+                    <button
+                      type="button"
+                      className="key-workspace-new-window"
+                      aria-label={`Open ${w.name} in a new window`}
+                      title="Open in new window"
+                      onClick={() => {
+                        onSelect(w.id, true);
+                        setOpen(false);
+                      }}
+                    >
+                      <Icon name="windows" size={13} />
+                    </button>
+                    </div>
                   ))}
                 {query &&
                   !workspaces.some((w) =>
@@ -220,13 +301,24 @@ export default function WorkspaceSwitcher({
                 <hr />
                 {selected && (
                   <Button role="menuitem" onClick={() => setEditing(true)}>
-                    Customize workspace…
+                    <Icon name="image" size={14} />
+                    <span>Customize workspace…</span>
                   </Button>
                 )}
                 <Button
                   role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    onSettings();
+                  }}
+                >
+                  <Icon name="gear" size={14} />
+                  <span>Workspace settings…</span>
+                </Button>
+                <Button
+                  role="menuitem"
                   disabled={busy}
-                  onClick={() => void run(onAdd)}
+                  onClick={() => void add()}
                 >
                   <Icon name="plus" size={14} />
                   <span>Add workspace…</span>

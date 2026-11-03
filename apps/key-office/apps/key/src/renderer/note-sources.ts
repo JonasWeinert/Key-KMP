@@ -1,7 +1,8 @@
 // How notes reach the library: find sources for @-links and embeds, describe them for
 // cards and quotes, and open them (at a page when a quote has one).
 import { bridge, shortCreators, type Invoke, type Source, type SourcePage } from "./library-api";
-import type { SourceRef } from "./note-editor";
+import type { ItemLink, NoteMediaHost, SourceRef } from "./note-editor";
+import type { Found } from "./unified-search";
 
 type OpenSource = (source: unknown, hit?: unknown) => Promise<unknown>;
 
@@ -14,13 +15,56 @@ export function sourceRef(source: Source): SourceRef {
   };
 }
 
+/** A search entry as the note pickers show and insert it. */
+function foundRef(found: Found): SourceRef {
+  return {
+    id: found.id,
+    title: found.title,
+    detail: found.where,
+    kind: found.sourceKind,
+    itemKind: found.kind,
+    anchor: found.anchor,
+    color: found.color,
+    page: found.anchor?.startsWith("page:") ? Number(found.anchor.slice(5)) : undefined,
+    group: found.group,
+    where: found.group === "titles" && !found.snippet ? undefined : found.where,
+    snippet: found.snippet,
+  };
+}
+
 export function noteSources(invoke: Invoke, workspaceId: string) {
   const cache = new Map<string, Promise<Source | undefined>>();
   const load = (id: string) => {
     if (!cache.has(id)) cache.set(id, invoke<Source | null>("store_source", { id }, workspaceId).then((s) => s ?? undefined).catch(() => undefined));
     return cache.get(id)!;
   };
+  // Notes keep images as `media/<sha256>.<ext>` in the workspace; the shell serves them.
+  const media: NoteMediaHost = {
+    save: async (file) => {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const saved = await invoke<{ src: string }>("store_media_save", { name: file.name || null, mime: file.type || null, __binary: bytes }, workspaceId);
+      return saved.src;
+    },
+    url: (src) => (/^media\/[0-9a-f]+\.[a-z0-9]+$/.test(src) ? `key-media://${workspaceId.toLowerCase()}/${src.slice("media/".length)}` : src),
+  };
   return {
+    media,
+    // The pickers search everything: titles and details at once, the text and meaning after.
+    searchItems: async (query: string): Promise<SourceRef[]> => {
+      const { searchTitles } = await import("./unified-search");
+      return (await searchTitles(invoke, workspaceId, query, { limit: 6 })).map(foundRef);
+    },
+    searchItemsMore: async (query: string): Promise<SourceRef[]> => {
+      const { searchText, mergeFound } = await import("./unified-search");
+      const merged = mergeFound([], await searchText(invoke, workspaceId, query, { limit: 8 }));
+      return [...merged.titles, ...merged.text, ...merged.meaning].map(foundRef);
+    },
+    citeLabel: async (ref: SourceRef, page?: number) => {
+      const { describeItem, inTextCitation } = await import("./item-actions");
+      const info = await describeItem(invoke, workspaceId, { kind: "source", id: ref.id, anchor: ref.anchor });
+      return info.source ? inTextCitation(info.source, page ?? info.highlight?.page) : undefined;
+    },
+    onOpenItem: (item: ItemLink) => void import("./item-links").then(({ openItem }) => openItem(invoke, workspaceId, item)),
     searchSources: async (query: string): Promise<SourceRef[]> => {
       const page = await invoke<SourcePage>("store_sources", { text: query.trim() || null, limit: 8, offset: 0, sort: query.trim() ? "title" : "added", descending: !query.trim() }, workspaceId);
       return page.items.map(sourceRef);

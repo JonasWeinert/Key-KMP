@@ -8,29 +8,50 @@ import { TableKit } from "@tiptap/extension-table";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { CodeBlock } from "@tiptap/extension-code-block";
 import { Image } from "@tiptap/extension-image";
+import { parseVideoUrl } from "./media";
 import { fenceFor, fenceStart, matchFence, renderFence } from "./fences";
 import type { FenceKind } from "./fences";
 import { peekSource, sourceLine } from "./sourceCache";
 import { CALLOUT_TONES } from "./types";
 import type { CalloutTone } from "./types";
 
+const TOKEN_NAME: Record<FenceKind, string> = {
+  callout: "callout",
+  toggle: "toggle",
+  source: "sourceEmbed",
+  quote: "sourceQuote",
+  video: "videoEmbed",
+  // the editor's image node also takes marked's `![alt](src)` tokens, which share this type
+  image: "image",
+  embed: "itemEmbed",
+};
+
+/** Fences whose body is a plain line (a label, title or caption), not Markdown blocks. */
+const LINE_BODY: readonly FenceKind[] = ["source", "video", "image", "embed"];
+
 function fenceTokenizer(kind: FenceKind, accept?: (attrs: Record<string, string>) => boolean, inline = false) {
   return {
-    name: kind === "source" ? "sourceEmbed" : kind === "quote" ? "sourceQuote" : kind,
+    name: kind === "image" ? "noteImageFence" : TOKEN_NAME[kind],
     level: "block" as const,
     start: (src: string) => fenceStart(src),
     tokenize(src: string, _tokens: MarkdownToken[], lexer: { blockTokens(s: string): MarkdownToken[]; inlineTokens(s: string): MarkdownToken[] }) {
       const fence = matchFence(src, kind);
       if (!fence || (accept && !accept(fence.attrs))) return undefined;
       return {
-        type: kind === "source" ? "sourceEmbed" : kind === "quote" ? "sourceQuote" : kind,
+        type: TOKEN_NAME[kind],
         raw: fence.raw,
+        fence: true,
         attrs: fence.attrs,
         body: fence.body,
-        tokens: inline ? lexer.inlineTokens(fence.body) : kind === "source" ? [] : lexer.blockTokens(fence.body),
+        tokens: inline ? lexer.inlineTokens(fence.body) : LINE_BODY.includes(kind) ? [] : lexer.blockTokens(fence.body),
       };
     },
   };
+}
+
+/** First non-empty line of a fence body, on one line. */
+function bodyLine(token: MarkdownToken): string {
+  return String(token.body ?? "").split("\n").find((line) => line.trim())?.trim() ?? "";
 }
 
 /**
@@ -155,8 +176,7 @@ export const SourceEmbed = Node.create({
   markdownTokenizer: fenceTokenizer("source", (attrs) => Boolean(attrs.id)),
 
   parseMarkdown(token, helpers) {
-    const label = String(token.body ?? "").split("\n").find((line) => line.trim())?.trim() ?? "";
-    return helpers.createNode("sourceEmbed", { id: token.attrs?.id ?? "", label });
+    return helpers.createNode("sourceEmbed", { id: token.attrs?.id ?? "", label: bodyLine(token) });
   },
 
   renderMarkdown(node) {
@@ -164,6 +184,51 @@ export const SourceEmbed = Node.create({
     const ref = peekSource(id);
     const line = ref ? sourceLine(ref) : String(node.attrs?.label || "") || id;
     return renderFence("source", [["id", id]], line.replace(/\n+/g, " "));
+  },
+});
+
+/**
+ * Another item shown in the note and kept current: a note, page, highlight, canvas or
+ * source. Markdown: a fence with the item's key:// address and its title as a fallback.
+ */
+export const ItemEmbed = Node.create({
+  name: "itemEmbed",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      href: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-href") ?? "",
+        renderHTML: (attrs) => ({ "data-href": attrs.href }),
+      },
+      label: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-label") ?? "",
+        renderHTML: (attrs) => (attrs.label ? { "data-label": attrs.label } : {}),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: "div[data-item-embed]" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-item-embed": "", class: "ne-item-embed" })];
+  },
+
+  markdownTokenizer: fenceTokenizer("embed", (attrs) => Boolean(attrs.href)),
+
+  parseMarkdown(token, helpers) {
+    return helpers.createNode("itemEmbed", { href: token.attrs?.href ?? "", label: bodyLine(token) });
+  },
+
+  renderMarkdown(node) {
+    return renderFence("embed", [["href", String(node.attrs?.href ?? "")]], String(node.attrs?.label || "Embedded item").replace(/\n+/g, " "));
   },
 });
 
@@ -227,6 +292,108 @@ export const SourceQuote = Node.create({
   },
 });
 
+export const VideoEmbed = Node.create({
+  name: "videoEmbed",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      url: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-url") ?? "",
+        renderHTML: (attrs) => ({ "data-url": attrs.url }),
+      },
+      // the provider's title, kept so the note stays searchable and readable offline
+      title: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-title") ?? "",
+        renderHTML: (attrs) => (attrs.title ? { "data-title": attrs.title } : {}),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: "div[data-video-embed]" }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-video-embed": "", class: "ne-video" })];
+  },
+
+  markdownTokenizer: fenceTokenizer("video", (attrs) => Boolean(attrs.url && parseVideoUrl(attrs.url))),
+
+  parseMarkdown(token, helpers) {
+    const url = String(token.attrs?.url ?? "");
+    const line = bodyLine(token);
+    return helpers.createNode("videoEmbed", { url, title: line === url ? "" : line });
+  },
+
+  renderMarkdown(node) {
+    const url = String(node.attrs?.url ?? "");
+    // without a title the link itself is the searchable line
+    const line = String(node.attrs?.title || "") || url;
+    return renderFence("video", [["url", url]], line.replace(/\n+/g, " "));
+  },
+});
+
+function parseWidth(value: unknown): number | null {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(n) && n >= 24 ? n : null;
+}
+
+/**
+ * Block image. A plain one is written as `![alt](src)`; once it has a caption or a width
+ * it becomes an `image` fence whose body is the caption. Pasted and dropped files are
+ * stored in the workspace and referenced as `media/<sha256>.<ext>`, never inlined.
+ */
+export const NoteImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el) => parseWidth(el.getAttribute("width")),
+        renderHTML: (attrs) => (attrs.width ? { width: String(attrs.width) } : {}),
+      },
+    };
+  },
+
+  markdownTokenizer: fenceTokenizer("image", (attrs) => Boolean(attrs.src)),
+
+  parseMarkdown(token, helpers) {
+    if (token.fence) {
+      const caption = bodyLine(token);
+      return helpers.createNode("image", {
+        src: token.attrs?.src ?? "",
+        alt: token.attrs?.alt || null,
+        title: caption || null,
+        width: parseWidth(token.attrs?.width),
+      });
+    }
+    return helpers.createNode("image", { src: token.href, title: token.title || null, alt: token.text || null });
+  },
+
+  renderMarkdown(node) {
+    const src = String(node.attrs?.src ?? "");
+    const alt = String(node.attrs?.alt ?? "");
+    const caption = String(node.attrs?.title ?? "").replace(/\n+/g, " ").trim();
+    const width = parseWidth(node.attrs?.width);
+    if (!caption && !width) return `![${alt.replace(/[[\]]/g, "\\$&")}](${src.replace(/[ ()]/g, encodeURIComponent)})`;
+    return renderFence(
+      "image",
+      [
+        ["src", src],
+        ["alt", alt || null],
+        ["width", width ? String(width) : null],
+      ],
+      caption,
+    );
+  },
+});
+
 function parsePage(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = Number.parseInt(String(value), 10);
@@ -248,6 +415,9 @@ export interface NoteSchemaParts {
   toggle?: AnyExtension;
   sourceEmbed?: AnyExtension;
   sourceQuote?: AnyExtension;
+  videoEmbed?: AnyExtension;
+  itemEmbed?: AnyExtension;
+  image?: AnyExtension;
   codeBlock?: AnyExtension;
 }
 
@@ -272,11 +442,13 @@ export function buildSchemaExtensions(parts: NoteSchemaParts = {}): AnyExtension
     TableKit.configure({ table: { resizable: false, renderWrapper: true } }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    Image.configure({ inline: false }),
+    parts.image ?? NoteImage.configure({ inline: false }),
     parts.callout ?? Callout,
     parts.toggle ?? Toggle,
     parts.sourceEmbed ?? SourceEmbed,
     parts.sourceQuote ?? SourceQuote,
+    parts.videoEmbed ?? VideoEmbed,
+    parts.itemEmbed ?? ItemEmbed,
   ];
 }
 
@@ -304,7 +476,7 @@ export function collapseBlankLines(md: string): string {
       out.push(line);
       continue;
     }
-    if (fence && !/^(?:callout|toggle|source|quote)\b/.test(fence[2].trim())) code = fence[1];
+    if (fence && !/^(?:callout|toggle|source|quote|video|image)\b/.test(fence[2].trim())) code = fence[1];
     if (!line.trim()) {
       blank += 1;
       if (blank > 1) continue;

@@ -7,9 +7,9 @@
 // The closing fence must be at least as long as the opening one, so a block
 // whose body contains ``` is written with a longer fence (````callout …).
 
-export type FenceKind = "callout" | "toggle" | "source" | "quote";
+export type FenceKind = "callout" | "toggle" | "source" | "quote" | "video" | "image" | "embed";
 
-export const FENCE_KINDS: readonly FenceKind[] = ["callout", "toggle", "source", "quote"];
+export const FENCE_KINDS: readonly FenceKind[] = ["callout", "toggle", "source", "quote", "video", "image", "embed"];
 
 export interface ParsedFence {
   kind: FenceKind;
@@ -18,8 +18,8 @@ export interface ParsedFence {
   raw: string;
 }
 
-const OPEN_RE = /^ {0,3}(`{3,})(callout|toggle|source|quote)(?=[ \t]|\n|$)([^\n]*)(?:\n|$)/;
-const START_RE = /^ {0,3}`{3,}(?:callout|toggle|source|quote)(?=[ \t]|\n|$)/m;
+const OPEN_RE = /^ {0,3}(`{3,})(callout|toggle|source|quote|video|image|embed)(?=[ \t]|\n|$)([^\n]*)(?:\n|$)/;
+const START_RE = /^ {0,3}`{3,}(?:callout|toggle|source|quote|video|image|embed)(?=[ \t]|\n|$)/m;
 const ATTR_RE = /([A-Za-z_][\w-]*)=(?:"((?:[^"\\]|\\.)*)"|([^\s"]+))/g;
 
 /** Index of the first line that could open a custom fence (for paragraph interruption). */

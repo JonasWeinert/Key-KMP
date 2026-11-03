@@ -288,13 +288,17 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   transform: translateX(-16px);
   pointer-events: none;
 }
+/* The traffic lights, then the workspace's name and menu, then the sidebar toggle. */
 .kx-sidebar-titlebar {
+  position: relative;
   height: 40px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 2px;
   margin-right: -2px;
+  padding-left: 62px;
   -webkit-app-region: drag;
 }
 .key-sidebar-toggle {
@@ -366,9 +370,18 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The scroller's room is kept, so rows never shift when it appears (a sheet opening). */
+  scrollbar-gutter: stable;
   margin: 0 -10px;
   padding: 0 10px 12px;
+  background: transparent;
+  overscroll-behavior: contain;
+  /* Overlay-style scroller: no track behind the translucent sidebar, thumb only while hovered. */
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.kx-sidebar-scroll:hover {
+  scrollbar-color: var(--kx-fill-2) transparent;
 }
 .key-sidebar-section {
   display: flex;
@@ -488,43 +501,84 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   text-overflow: ellipsis;
 }
 
-/* Workspace switcher */
+/* Workspace switcher, in the sidebar's title bar */
 .key-workspace-switcher {
-  position: relative;
-  margin: 2px 0 10px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
 }
-.key-shell .key-workspace-trigger.kui-button {
-  justify-content: flex-start;
-  gap: 9px;
-  width: 100%;
-  height: 40px;
-  min-height: 40px;
-  padding: 0 8px 0 6px;
+.key-workspace-home,
+.key-workspace-trigger {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  height: 26px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
-  box-shadow: none;
-  font-weight: 400;
+  color: var(--kx-text);
+  font: inherit;
   cursor: default;
 }
-.key-shell .key-workspace-trigger.kui-button:hover,
-.key-shell .key-workspace-trigger.kui-button[aria-expanded="true"] {
-  background: var(--kx-fill);
+.key-workspace-home {
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 6px;
+  padding: 0 6px 0 3px;
 }
-.key-workspace-trigger strong {
-  flex: 1;
+.key-workspace-home strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
-  text-align: left;
 }
-.key-workspace-trigger > span:last-child {
+.key-workspace-home .key-workspace-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.key-workspace-trigger {
   flex: none;
+  justify-content: center;
+  width: 20px;
+  padding: 0;
   color: var(--kx-text-3);
-  display: grid;
+}
+.key-workspace-home:hover,
+.key-workspace-trigger:hover,
+.key-workspace-trigger[aria-expanded="true"] {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.key-workspace-home:focus-visible,
+.key-workspace-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--kx-accent-soft);
+}
+/* Asked after picking a workspace: replace this window's, or open a new window. */
+.key-workspace-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.key-workspace-choice > p {
+  margin: 2px 8px 6px;
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.key-workspace-choice > p strong {
+  color: var(--kx-text);
+}
+.key-workspace-choice hr {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--kx-line);
 }
 .key-workspace-icon {
   display: inline-grid;
@@ -538,10 +592,11 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 }
 .key-workspace-dropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% - 2px);
   left: 0;
   z-index: 20;
   width: 100%;
+  -webkit-app-region: no-drag;
   padding: 6px;
   border-radius: 10px;
   background: var(--kx-bg-raised);
@@ -588,6 +643,54 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   height: 20px;
   border-radius: 5px;
   font-size: 12px;
+}
+/* A workspace row: switch this window in place, or the trailing button opens a new window. */
+.key-workspace-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.key-shell .key-workspace-row > .kui-button {
+  padding-right: 32px;
+}
+.key-workspace-new-window {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  cursor: default;
+}
+.key-workspace-row:hover .key-workspace-new-window,
+.key-workspace-new-window:focus-visible {
+  opacity: 0.85;
+}
+/* Over the highlighted row the button takes the row's ink. */
+.key-shell .key-workspace-row:hover > .kui-button {
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+}
+.key-workspace-row:hover .key-workspace-new-window {
+  color: var(--kx-accent-ink);
+}
+.key-workspace-new-window:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--kx-accent-ink) 22%, transparent);
+}
+.key-workspace-open-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
 }
 .key-workspace-dropdown hr {
   width: 100%;
@@ -830,6 +933,114 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 .key-split-divider:focus-visible {
   background: linear-gradient(to right, transparent 1.5px, var(--kx-accent) 1.5px, var(--kx-accent) 4.5px, transparent 4.5px);
   outline: none;
+}
+.key-split-divider-column {
+  cursor: row-resize;
+  background: linear-gradient(
+    to bottom,
+    transparent 2.5px,
+    var(--kx-line-strong) 2.5px,
+    var(--kx-line-strong) 3.5px,
+    transparent 3.5px
+  );
+}
+.key-split-divider-column:hover,
+.key-split-divider-column:focus-visible {
+  background: linear-gradient(to bottom, transparent 1.5px, var(--kx-accent) 1.5px, var(--kx-accent) 4.5px, transparent 4.5px);
+}
+/* The slim header above each pane of a split: what it shows, a handle to drag it, and its close button. */
+.key-pane-header {
+  position: fixed;
+  z-index: 45;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--kx-line);
+  background: var(--kx-bg-sunken);
+  color: var(--kx-text-2);
+  font: 500 11.5px/1 var(--kx-font);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.key-pane-header[data-pane-focused] {
+  background: var(--kx-bg);
+  color: var(--kx-text);
+  box-shadow: inset 0 2px 0 var(--kx-accent);
+}
+.key-pane-header[data-dragging] {
+  cursor: grabbing;
+  opacity: 0.6;
+}
+.key-pane-header-icon {
+  display: flex;
+  flex: none;
+}
+.key-pane-header-icon svg {
+  width: 13px;
+  height: 13px;
+}
+.key-pane-header-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-pane-header button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+}
+.key-pane-header:hover button,
+.key-pane-header:focus-within button,
+.key-pane-header[data-pane-focused] .key-pane-close {
+  opacity: 1;
+}
+.key-pane-header button:hover,
+.key-pane-header button:focus-visible {
+  background: var(--kx-fill);
+  outline: none;
+}
+/* Where a pane dragged up into the tab bar becomes a tab. */
+.key-tab-insert-marker {
+  position: fixed;
+  z-index: 2000;
+  top: 8px;
+  width: 2px;
+  height: 26px;
+  border-radius: 1px;
+  background: var(--kx-accent);
+  pointer-events: none;
+}
+/* Where a dragged tab or pane will land: drawn over still frames of native views. */
+.key-pane-drop-preview {
+  position: fixed;
+  z-index: 1500;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 2px solid var(--kx-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--kx-accent) 14%, transparent);
+  transition:
+    left 120ms ease-out,
+    top 120ms ease-out,
+    width 120ms ease-out,
+    height 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-pane-drop-preview { transition: none; }
 }
 
 .key-shell-error {
@@ -1118,11 +1329,9 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 }
 .kx-activity-panel h3 {
   margin: 0;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .kx-activity-panel ul {
   display: grid;
@@ -1450,7 +1659,7 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 }
 .kx-cover-kind {
   font: 600 9px/1 var(--kx-font);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.01em;
   opacity: 0.55;
 }
 .kx-cover-title {
@@ -1458,7 +1667,7 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   margin-top: 14px;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
+  -webkit-line-clamp: 4;
   font: 500 14px/1.25 var(--kx-font-serif);
   letter-spacing: -0.005em;
   overflow-wrap: anywhere;
@@ -2273,11 +2482,9 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .key-shell .key-library-detail > header .kui-button {
   width: 24px;
@@ -2303,11 +2510,9 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 }
 .key-library .key-library-detail h3 {
   margin: 20px 0 8px;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
 }
 .key-library .key-detail-actions {
   display: flex;
@@ -3426,9 +3631,77 @@ html.kx-modal-open :is(.tab-bar, .tab-strip, .kx-sidebar-titlebar) {
 .kx-tree-row[data-current="true"] {
   background: var(--kx-sidebar-selected);
 }
-.kx-tree-row[data-drop="true"] {
+.kx-tree-row[data-drop="inside"] {
   background: var(--kx-accent-soft);
   box-shadow: inset 0 0 0 2px var(--kx-accent);
+}
+.kx-tree-row[data-drop="before"]::before,
+.kx-tree-row[data-drop="after"]::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  left: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--kx-accent);
+  pointer-events: none;
+}
+.kx-tree-row[data-drop="before"]::before {
+  top: -1px;
+}
+.kx-tree-row[data-drop="after"]::after {
+  bottom: -1px;
+}
+.kx-tree-row[draggable="true"]:active {
+  cursor: default;
+}
+.kx-tree-root .kx-tree-label.kx-nav-item {
+  height: 100%;
+  padding: 0 4px;
+  background: transparent;
+}
+.kx-tree-root .kx-tree-label > svg {
+  color: var(--kx-accent);
+}
+.kx-tree > [role="treeitem"] > .kx-nav-item {
+  padding-left: 24px;
+}
+.kx-tree-hint {
+  margin-left: 32px;
+}
+.kx-library-section {
+  padding-left: 2px;
+}
+.key-sidebar-section > .kx-section-toggle {
+  display: inline-flex;
+  width: auto;
+  opacity: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.key-sidebar-section > .kx-section-toggle:hover {
+  background: transparent;
+  color: var(--kx-text-2);
+}
+.kx-section-toggle > svg {
+  opacity: 0;
+  transition:
+    opacity 120ms var(--kx-ease),
+    transform 140ms var(--kx-ease);
+}
+.kx-library-section:hover .kx-section-toggle > svg,
+.kx-section-toggle:focus-visible > svg,
+.kx-section-toggle[aria-expanded="false"] > svg {
+  opacity: 1;
 }
 .kx-tree-row > svg {
   flex: none;
@@ -3547,11 +3820,9 @@ html.kx-modal-open :is(.tab-bar, .tab-strip, .kx-sidebar-titlebar) {
 }
 .kx-settings-nav h2 {
   margin: 0 8px 12px;
-  color: var(--kx-text-3);
+  color: var(--kx-text-2);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 .kx-settings-nav button {
   display: flex;
@@ -4246,4 +4517,581 @@ button.kx-note-source:hover {
   .kx-note-page .kx-note-title {
     font-size: 26px;
   }
+}
+
+/* ── Sidebar sections: Search, Library (Collections, References), Workspace ── */
+.kx-search-row {
+  color: var(--kx-text-2);
+}
+.kx-search-row > svg {
+  color: var(--kx-text-2);
+}
+.kx-search-row > span {
+  flex: 1;
+}
+.kx-search-row > kbd {
+  flex: none;
+  color: var(--kx-text-3);
+  font: 11px var(--kx-font);
+}
+.kx-library-section {
+  justify-content: flex-start;
+  gap: 0;
+  padding-left: 0;
+}
+.kx-library-section > .kx-library-toggle {
+  flex: none;
+  opacity: 1;
+  width: 16px;
+  padding: 0;
+  justify-content: center;
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item {
+  display: flex;
+  place-items: initial;
+  flex: 1;
+  width: auto;
+  height: 26px;
+  padding: 0 6px;
+  opacity: 1;
+  color: var(--kx-text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item > svg {
+  color: var(--kx-text-3);
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item:hover:not(:disabled) {
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item[aria-current="page"] {
+  background: var(--kx-sidebar-selected);
+  color: var(--kx-text);
+}
+.kx-library-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+}
+/* A group's header inside a section: disclosure, small caps label and count, trailing actions. */
+.kx-sidebar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  margin-top: 6px;
+  padding: 0 2px 0 0;
+  border-radius: 6px;
+  color: var(--kx-text-3);
+}
+.kx-sidebar-group[data-drop="inside"] {
+  background: var(--kx-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--kx-accent);
+}
+.kx-sidebar-group > .kx-section-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: 600 10.5px var(--kx-font);
+  text-align: left;
+}
+.kx-sidebar-group > .kx-section-toggle:hover {
+  color: var(--kx-text-2);
+}
+.kx-sidebar-group > .kx-section-toggle > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-sidebar-group > .kx-section-toggle > small {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--kx-fill);
+  font-size: 10px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.kx-sidebar-group > button:not(.kx-section-toggle, .kx-group-text-button) {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-2);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.key-sidebar:hover .kx-sidebar-group > button,
+.kx-sidebar-group > button:focus-visible {
+  opacity: 1;
+}
+.kx-sidebar-group > button:hover:not(:disabled),
+.kx-group-text-button:hover:not(:disabled) {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-sidebar-group > .kx-group-text-button,
+.kx-group-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: auto;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 12px var(--kx-font);
+  opacity: 1;
+}
+.kx-group-text-button:disabled {
+  opacity: 0.4;
+}
+
+/* References: a compact reference manager list. */
+.kx-ref-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -2px;
+}
+.kx-ref-row {
+  position: relative;
+  border-radius: 6px;
+}
+.kx-ref-row:hover,
+.kx-ref-row:focus-within {
+  background: var(--kx-fill);
+}
+.kx-ref-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.kx-ref-title,
+.kx-ref-byline {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-ref-title {
+  font-size: 13px;
+}
+.kx-ref-byline {
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+}
+.kx-ref-action {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+  font: 600 11px var(--kx-font);
+  box-shadow: var(--kx-shadow-lift);
+}
+.kx-ref-row:hover .kx-ref-action,
+.kx-ref-row:focus-within .kx-ref-action {
+  display: inline-flex;
+}
+.kx-ref-row:hover .kx-ref-byline {
+  padding-right: 92px;
+}
+.kx-ref-more {
+  margin: 2px 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-accent);
+  font: 12px var(--kx-font);
+  text-align: left;
+}
+.kx-ref-more:hover {
+  background: var(--kx-fill);
+}
+
+/* Workspace: notes, canvases, pages and documents in the user's own order and folders. */
+.kx-workspace-heading {
+  position: relative;
+  margin-top: 16px;
+}
+.kx-workspace-heading > span {
+  flex: 1;
+}
+.kx-workspace-heading .key-create-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 10;
+}
+.kx-workspace-toolbar {
+  margin: 0 0 2px 4px;
+}
+.kx-workspace-tree .kx-nav-item {
+  position: relative;
+}
+.kx-workspace-item[data-drop="before"],
+.kx-workspace-tree .kx-folder-row[data-drop="before"] {
+  box-shadow: inset 0 2px 0 var(--kx-accent);
+}
+.kx-workspace-item[data-drop="after"],
+.kx-workspace-tree .kx-folder-row[data-drop="after"] {
+  box-shadow: inset 0 -2px 0 var(--kx-accent);
+}
+.kx-workspace-tree .kx-folder-row[data-drop="before"]::before,
+.kx-workspace-tree .kx-folder-row[data-drop="after"]::after {
+  content: none;
+}
+.kx-folder-row .kx-tree-label > svg {
+  color: var(--kx-text-2);
+}
+.kx-folder-empty {
+  margin: 0;
+  font-size: 11.5px;
+}
+.kx-workspace-end {
+  min-height: 28px;
+  border-radius: 4px;
+}
+.kx-workspace-end[data-drop="after"] {
+  box-shadow: inset 0 2px 0 var(--kx-accent);
+}
+
+/* ── The sidebar as a macOS source list ──
+   One grid for every row: section headers sit at the left edge; each row keeps a 12px
+   gutter for its disclosure chevron, then a 16px icon, so icons line up in columns that
+   step 12px per level (level 0 at 14px, level 1 at 26px …). Rows are 28px with 13px text;
+   controls appear on hover in place of counts. The indent functions in CollectionTree and
+   WorkspaceSection follow the same steps. */
+.key-sidebar {
+  --sb-gutter: 12px;
+  --sb-level: 12px;
+  --sb-icon-x: 14px;
+}
+
+/* Search reads as a search field, not a row. */
+.key-sidebar .kx-nav-item.kx-search-row {
+  height: 28px;
+  margin: 2px 0 4px;
+  padding: 0 8px;
+  gap: 6px;
+  border-radius: 7px;
+  background: var(--kx-fill);
+  color: var(--kx-text-3);
+}
+.key-sidebar .kx-nav-item.kx-search-row:hover:not(:disabled) {
+  background: var(--kx-fill-2);
+}
+.key-sidebar .kx-search-row > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--kx-text-3);
+}
+
+/* Section headers: a quiet label that does not change as you point at it. */
+.key-sidebar .key-sidebar-section,
+.key-sidebar .key-sidebar-section.kx-top-section {
+  gap: 2px;
+  height: 26px;
+  margin-top: 16px;
+  padding: 0 4px 0 6px;
+  color: var(--kx-text-3);
+  font: 600 11px var(--kx-font);
+  letter-spacing: 0.01em;
+}
+.key-sidebar .key-sidebar-section.kx-top-section > .kx-top-title {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.key-sidebar .key-sidebar-section.kx-top-section > button.kx-top-title:hover:not(:disabled),
+.key-sidebar .key-sidebar-section.kx-top-section > .kx-top-title[aria-current="page"] {
+  background: transparent;
+  color: var(--kx-text-2);
+}
+.key-sidebar .key-sidebar-section.kx-top-section > .kx-top-chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--kx-text-3);
+  opacity: 0;
+}
+.key-sidebar .key-sidebar-section.kx-top-section:hover > .kx-top-chevron,
+.key-sidebar .key-sidebar-section.kx-top-section > .kx-top-chevron:focus-visible,
+.key-sidebar .key-sidebar-section.kx-top-section > .kx-top-chevron[aria-expanded="false"] {
+  opacity: 1;
+}
+.kx-top-chevron > svg {
+  transition: transform 140ms var(--kx-ease);
+}
+.kx-top-chevron[aria-expanded="true"] > svg {
+  transform: rotate(90deg);
+}
+.key-sidebar-section.kx-top-section > :is(.kx-top-title, .kx-top-chevron) + button:not(.kx-top-chevron) {
+  margin-left: auto;
+}
+.key-sidebar .key-sidebar-section.kx-top-section > button:not(.kx-top-title, .kx-top-chevron) {
+  opacity: 0;
+}
+.key-sidebar .key-sidebar-section.kx-top-section:hover > button:not(.kx-top-title, .kx-top-chevron),
+.key-sidebar .key-sidebar-section.kx-top-section > button:not(.kx-top-title, .kx-top-chevron):focus-visible,
+.key-sidebar .key-sidebar-section.kx-top-section > button[aria-expanded="true"]:not(.kx-top-title, .kx-top-chevron) {
+  opacity: 1;
+}
+
+/* Rows. Plain rows (workspace items, Settings) reserve the gutter as padding; tree rows
+   carry a 16px disclosure button there. */
+.key-sidebar .kx-nav-item {
+  gap: 8px;
+  padding-left: var(--sb-icon-x);
+}
+.key-sidebar .kx-nav-item > svg {
+  width: 16px;
+  height: 16px;
+}
+.key-sidebar .kx-tree-row {
+  gap: 0;
+  padding-right: 4px;
+}
+.key-sidebar .kx-tree-row > svg {
+  margin: 0 8px 0 0;
+}
+.key-sidebar .kx-tree-disclosure {
+  width: var(--sb-gutter);
+}
+.key-sidebar .kx-tree-label {
+  gap: 8px;
+  padding: 0;
+}
+.key-sidebar .kx-tree-label > svg {
+  width: 16px;
+  height: 16px;
+}
+.key-sidebar .kx-tree-label > small,
+.key-sidebar .kx-library-groups .kx-sidebar-group > .kx-section-toggle > small {
+  margin-left: auto;
+  padding: 0 2px 0 0;
+  background: none;
+  color: var(--kx-text-3);
+  font: 11.5px var(--kx-font);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Collections and References: level-0 rows under Library that fold their lists. */
+.kx-library-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 0;
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group {
+  height: 28px;
+  margin-top: 0;
+  padding: 0 4px 0 2px;
+  border-radius: 6px;
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group:hover {
+  background: var(--kx-fill);
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group > .kx-section-toggle {
+  gap: 8px;
+  height: 28px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--kx-text);
+  font: 13px var(--kx-font);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group > .kx-section-toggle:hover {
+  background: transparent;
+  color: var(--kx-text);
+}
+/* The chevron fills the gutter; seen on hover, or while folded. */
+.key-sidebar .kx-library-groups .kx-sidebar-group > .kx-section-toggle > svg:first-child {
+  flex: none;
+  box-sizing: content-box;
+  width: 9px;
+  margin: 0 -8px 0 0;
+  padding: 0 1.5px;
+  color: var(--kx-text-3);
+  opacity: 0;
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group:hover > .kx-section-toggle > svg:first-child,
+.key-sidebar .kx-library-groups .kx-sidebar-group > .kx-section-toggle:focus-visible > svg:first-child,
+.key-sidebar .kx-library-groups .kx-sidebar-group > .kx-section-toggle[aria-expanded="false"] > svg:first-child {
+  opacity: 1;
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group > .kx-section-toggle > svg.kx-group-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--kx-accent);
+  opacity: 1;
+}
+/* Its controls take the count's place while the row is pointed at. */
+.key-sidebar .kx-library-groups .kx-sidebar-group > button:not(.kx-section-toggle) {
+  display: none;
+  opacity: 1;
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group:is(:hover, :focus-within) > button:not(.kx-section-toggle) {
+  display: grid;
+}
+.key-sidebar .kx-library-groups .kx-sidebar-group:is(:hover, :focus-within) > .kx-section-toggle > small {
+  display: none;
+}
+
+/* Hints sit in the text column of the level they describe, small and quiet. */
+.key-sidebar .key-sidebar-hint {
+  margin: 2px 0 6px;
+  padding: 0 8px 0 calc(var(--sb-icon-x) + var(--sb-level));
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.key-sidebar .kx-tree-hint {
+  margin-left: 0;
+}
+.key-sidebar .kx-workspace-section .key-sidebar-hint,
+.key-sidebar .kx-workspace-section .kx-tree-hint {
+  margin-left: 0;
+  padding-left: var(--sb-icon-x);
+}
+.kx-menu-heading {
+  padding: 6px 10px 2px;
+  color: var(--kx-text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* References: compact rows at level 1, the title over a quiet byline. */
+.kx-ref-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--kx-fill);
+  color: var(--kx-text-3);
+}
+.kx-ref-search:focus-within {
+  box-shadow: 0 0 0 2px var(--kx-accent-soft);
+}
+.kx-ref-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--kx-text);
+  font: 12px var(--kx-font);
+}
+.kx-ref-search input::placeholder {
+  color: var(--kx-text-3);
+}
+/* The search spans the sidebar, like the main Search field above. */
+.key-sidebar .kx-ref-search {
+  height: 26px;
+  margin: 2px 0 4px;
+  padding: 0 8px;
+  border-radius: 7px;
+}
+.key-sidebar .kx-references .kx-ref-list {
+  margin: 0 0 4px calc(var(--sb-icon-x) + var(--sb-level) - 8px);
+}
+.key-sidebar .kx-ref-main {
+  gap: 0;
+  padding: 4px 8px;
+}
+.key-sidebar .kx-ref-title {
+  font-size: 12.5px;
+  line-height: 17px;
+}
+.key-sidebar .kx-ref-byline {
+  font-size: 11px;
+  line-height: 15px;
+}
+.key-sidebar .kx-ref-more {
+  margin-left: calc(var(--sb-icon-x) + var(--sb-level) - 8px);
+}
+.kx-workspace-end {
+  min-height: 12px;
+  flex: none;
+}
+
+/* The foot: Settings, and where the workspace lives as a quiet icon beside it. */
+.key-sidebar .key-sidebar-footer {
+  gap: 0;
+  padding-top: 6px;
+  border-top: 0;
+}
+.kx-sidebar-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.kx-sidebar-foot-row > .kx-nav-item {
+  flex: 1;
+  min-width: 0;
+}
+.key-sidebar .key-sidebar-footer .kx-nav-item > svg {
+  color: var(--kx-text-2);
+}
+.kx-sidebar-storage {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--kx-text-3);
+}
+/* Paths in Settings stay on one line; the whole path shows on hover. */
+.kx-settings-row small.kx-settings-path {
+  display: block;
+  white-space: nowrap;
 }

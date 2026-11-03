@@ -5,6 +5,7 @@ import PdfJsBenchmarkApp, {
   type PdfReaderChromeState,
   type PdfReaderHandle,
   type PdfReaderPanel,
+  type PdfReaderRail,
 } from "@key-reader/pdfjs/PdfJsBenchmarkApp";
 import {
   registerManagedSource,
@@ -14,6 +15,8 @@ import "@key-reader/styles.css";
 import "./pdf-reader.css";
 import "./pdf-ui-adapter.css";
 import { Icon } from "./icons";
+import { PdfRail } from "./PdfRail";
+
 
 type Target = {
   id: string;
@@ -40,6 +43,7 @@ interface ReaderBridge {
   readerDismiss?(): Promise<void>;
   readerNotes?(): Promise<boolean>;
   readerAddToNote?(passage: { text: string; page: number; color?: string }): Promise<void>;
+  readerSendTo?(highlight: { annotationId: string; text: string; page: number; color?: string }): Promise<void>;
   readerAnalysis?(): Promise<AnalysisReport | null>;
   readerReanalyze?(): Promise<void>;
   readerOpenSource?(sourceId: string): Promise<void>;
@@ -68,6 +72,8 @@ interface AnalysisReport {
   }[];
   layoutModel: boolean;
   indexStatus?: string | null;
+  /** Headings layout analysis found: the rail's chapters when the PDF has no outline. */
+  sections?: { title: string; page: number; top: number }[];
 }
 const ENGINES: Record<string, string> = {
   "layout-onnx": "Layout analysis with the layout model",
@@ -131,6 +137,10 @@ export default function PdfReader() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [report, setReport] = useState<AnalysisReport | null>();
+  // The outline lives on the rail (or, without one, the headings analysis found); its full
+  // list opens from the rail's footer.
+  const detected = report?.sections;
+  const renderRail = useCallback((rail: PdfReaderRail) => <PdfRail rail={rail} detected={detected} />, [detected]);
   // "Show in PDF": go to the place once the document is ready. Annotations load just after
   // the document, so a second try lights the highlight up if the first was too early.
   const [focus, setFocus] = useState<Focus>();
@@ -252,17 +262,6 @@ export default function PdfReader() {
     <main className="key-ui-root key-pdf-reader">
       <header className="key-pdf-toolbar" aria-label="PDF controls">
         <div className="key-pdf-toolbar-group">
-          <span className="key-pdf-seg">
-            <button
-              className="key-pdf-tool"
-              title="Document outline"
-              aria-label="Document outline"
-              aria-pressed={chrome?.activePanel === "outline"}
-              onClick={() => panel("outline")}
-            >
-              <Icon name="list" />
-            </button>
-          </span>
           <span className="key-pdf-page" aria-label={`Page ${page} of ${chrome?.pageCount || "…"}`}>
             {page}
             <span> of {chrome?.pageCount || "…"}</span>
@@ -436,6 +435,7 @@ export default function PdfReader() {
           searchTarget={target}
           onViewStateChange={viewChanged}
           onChromeStateChange={setChrome}
+          renderRail={renderRail}
           onRequestControlMode={(mode) => {
             setShowSearch(mode === "search");
           }}
@@ -473,6 +473,7 @@ export default function PdfReader() {
               </div>
             );
           }}
+          onSendTo={bridge().readerSendTo ? (highlight) => void bridge().readerSendTo?.(highlight).catch(() => {}) : undefined}
           onAddToNote={
             bridge().readerAddToNote
               ? (passage) =>

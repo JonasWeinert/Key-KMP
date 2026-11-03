@@ -357,3 +357,630 @@ fn analysis_keeps_references_with_their_place_and_links_cited_works() {
     assert_eq!(store.source(&citing.id).unwrap().unwrap().index_status, "pending");
     assert_eq!(store.outdated_analyses("layout-onnx").unwrap(), 1);
 }
+
+#[test]
+fn finds_imported_sources_and_notes_by_origin_and_moves_notes() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let ids = store
+        .insert_sources(vec![
+            input(json!({"kind": "reference", "title": "One", "origin": "zotero", "originKey": "AAAA1111"})),
+            input(json!({"kind": "reference", "title": "Two", "origin": "zotero", "originKey": "BBBB2222"})),
+            input(json!({"kind": "reference", "title": "Mine"})),
+        ])
+        .unwrap();
+    let index = store.origin_index("zotero").unwrap();
+    assert_eq!(index.len(), 2);
+    assert_eq!(index["AAAA1111"].0, ids[0]);
+
+    let note = store.save_note(None, Some(&ids[0]), "", "Walked **far**", Some("zotero:NOTE0001")).unwrap();
+    assert_eq!(store.note_by_origin("zotero:NOTE0001").unwrap().unwrap().id, note.id);
+    assert!(store.note_by_origin("zotero:NOPE").unwrap().is_none());
+    store.set_note_source(&note.id, Some(&ids[1])).unwrap();
+    assert!(store.notes(&ids[0]).unwrap().is_empty());
+    assert_eq!(store.notes(&ids[1]).unwrap()[0].body, "Walked **far**");
+    // Note text is searchable under the source it moved to.
+    let page = store.list_sources(&ListQuery { text: Some("walked".into()), ..Default::default() }).unwrap();
+    assert_eq!(page.items.iter().map(|s| s.id.clone()).collect::<Vec<_>>(), vec![ids[1].clone()]);
+    store.set_note_source(&note.id, None).unwrap();
+    assert_eq!(store.standalone_notes().unwrap().len(), 1);
+}
+
+#[test]
+fn sorts_by_several_levels_and_reorders_nested_collections() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    for (title, year) in [("Beta", 2020), ("Alpha", 2020), ("Gamma", 2019)] {
+        store.insert_source(input(json!({"kind": "reference", "title": title, "year": year}))).unwrap();
+    }
+    let page = store
+        .list_sources(&ListQuery {
+            sorts: vec![SortKey { field: "year".into(), descending: true }, SortKey { field: "title".into(), descending: false }],
+            ..Default::default()
+        })
+        .unwrap();
+    let titles: Vec<_> = page.items.iter().map(|s| s.title().to_string()).collect();
+    assert_eq!(titles, ["Alpha", "Beta", "Gamma"]);
+    for (title, rank) in [("Alpha", 2), ("Gamma", 1)] {
+        let id = page.items.iter().find(|s| s.title() == title).unwrap().id.clone();
+        store.update_source(&id, json!({"properties": {"Rank": rank}}).as_object().unwrap()).unwrap();
+    }
+    let page = store
+        .list_sources(&ListQuery { sorts: vec![SortKey { field: "property:Rank".into(), descending: false }], ..Default::default() })
+        .unwrap();
+    let titles: Vec<_> = page.items.iter().map(|s| s.title().to_string()).collect();
+    assert_eq!(titles, ["Gamma", "Alpha", "Beta"]);
+
+    let a = store.create_collection("A", None, None).unwrap();
+    let b = store.create_collection("B", None, None).unwrap();
+    let c = store.create_collection("C", Some(&a.id), None).unwrap();
+    // A collection cannot move into its own descendant.
+    assert!(store.update_collection(&a.id, None, Some(Some(&c.id))).is_err());
+    store.reorder_collections(None, &[b.id.clone(), c.id.clone()]).unwrap();
+    let all = store.collections().unwrap();
+    let top: Vec<_> = all.iter().filter(|x| x.parent_id.is_none()).map(|x| x.name.as_str()).collect();
+    assert_eq!(top, ["B", "C", "A"]);
+}
+
+fn link(from: ItemRef, to: ItemRef, label: &str) -> LinkInput {
+    LinkInput { from, to, label: Some(label.into()), context: Some(format!("about {label}")) }
+}
+
+#[test]
+fn backlinks_follow_renames_and_survive_deletes_as_broken() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Health versus income"}))).unwrap();
+    let plan = store.save_note(None, None, "Plan", "", None).unwrap();
+    let draft = store.save_note(None, None, "", "Draft first line\n\nmore", None).unwrap();
+    store.apply_annotations(&paper.id, &[json!({"id": "h1", "text": "Income  and health", "color": "green", "anchor": {"pages": [{"page": 3}]}})], &[]).unwrap();
+    let from = ItemRef::new("note", &draft.id, None);
+    store
+        .replace_note_links(
+            &draft.id,
+            draft.updated_at,
+            &[
+                link(from.clone(), ItemRef::new("source", &paper.id, None), "Palma"),
+                link(from.clone(), ItemRef::new("source", &paper.id, Some("highlight:h1")), "quote"),
+                link(from.clone(), ItemRef::new("note", &plan.id, None), "the plan"),
+            ],
+        )
+        .unwrap();
+
+    let links = store.item_links("note", &plan.id).unwrap();
+    assert_eq!(links.backlinks.len(), 1);
+    assert_eq!(links.backlinks[0].from.title, "Draft first line");
+    assert_eq!(links.backlinks[0].context.as_deref(), Some("about the plan"));
+    let out = store.item_links("note", &draft.id).unwrap().outgoing;
+    assert_eq!(out.iter().map(|l| l.to.title.as_str()).collect::<Vec<_>>(), vec!["Health versus income", "Health versus income", "Plan"]);
+    assert_eq!(out[1].to.anchor_label.as_deref(), Some("Income and health"));
+    assert!(out.iter().all(|l| !l.broken));
+
+    // Renames show at once: titles are read by id.
+    store.save_note(Some(&plan.id), None, "Research plan", "", None).unwrap();
+    let mut patch = Map::new();
+    patch.insert("title".into(), json!("Health vs income"));
+    store.update_source(&paper.id, &patch).unwrap();
+    let out = store.item_links("note", &draft.id).unwrap().outgoing;
+    assert_eq!(out[0].to.title, "Health vs income");
+    assert_eq!(out[2].to.title, "Research plan");
+
+    // A deleted highlight breaks the link to it; bringing it back mends it.
+    store.apply_annotations(&paper.id, &[], &["h1".into()]).unwrap();
+    assert!(store.item_links("note", &draft.id).unwrap().outgoing[1].broken);
+    store.apply_annotations(&paper.id, &[json!({"id": "h1", "text": "Income and health"})], &[]).unwrap();
+    assert!(!store.item_links("note", &draft.id).unwrap().outgoing[1].broken);
+
+    // Deleting the target keeps the link, broken, under the label it was written with.
+    store.delete_note(&plan.id).unwrap();
+    let out = store.item_links("note", &draft.id).unwrap().outgoing;
+    assert!(out[2].broken && !out[2].to.exists);
+    assert_eq!(out[2].to.title, "the plan");
+
+    // Deleting the linking note removes what it wrote.
+    assert_eq!(store.item_links("source", &paper.id).unwrap().backlinks.len(), 2);
+    store.delete_note(&draft.id).unwrap();
+    assert!(store.item_links("source", &paper.id).unwrap().backlinks.is_empty());
+}
+
+#[test]
+fn a_newer_save_wins_and_a_sources_own_notes_are_not_backlinks() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Paper"}))).unwrap();
+    let own = store.save_note(None, Some(&paper.id), "", "quote", None).unwrap();
+    let to_paper = |note: &str| vec![link(ItemRef::new("note", note, None), ItemRef::new("source", &paper.id, Some("page:2")), "p")];
+    store.replace_note_links(&own.id, own.updated_at, &to_paper(&own.id)).unwrap();
+    assert!(store.item_links("source", &paper.id).unwrap().backlinks.is_empty());
+    assert_eq!(store.item_links("note", &own.id).unwrap().outgoing[0].to.anchor_label.as_deref(), Some("p. 3"));
+    // A stale version (saved before the current one) writes nothing.
+    store.replace_note_links(&own.id, own.updated_at - 1, &[]).unwrap();
+    assert_eq!(store.item_links("note", &own.id).unwrap().outgoing.len(), 1);
+
+    // Deleting the source takes its notes and their links with it; links to it break.
+    let other = store.save_note(None, None, "Other", "", None).unwrap();
+    store.replace_note_links(&other.id, other.updated_at, &to_paper(&other.id)).unwrap();
+    store.delete(&[paper.id.clone()]).unwrap();
+    let out = store.item_links("note", &other.id).unwrap().outgoing;
+    assert!(out[0].broken);
+    assert!(store.item_links("note", &own.id).unwrap().outgoing.is_empty());
+}
+
+#[test]
+fn canvases_link_their_cards_and_connectors() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Paper"}))).unwrap();
+    let note = store.save_note(None, None, "Idea", "", None).unwrap();
+    let doc = json!({
+        "nodes": [
+            {"id": "a", "type": "item", "ref": {"kind": "source", "id": paper.id}, "title": "Paper"},
+            {"id": "b", "type": "item", "ref": {"kind": "note", "id": note.id}},
+            {"id": "t", "type": "text", "text": "free text"}
+        ],
+        "edges": [
+            {"id": "e1", "from": {"node": "a"}, "to": {"node": "b"}, "label": "supports"},
+            {"id": "e2", "from": {"node": "t"}, "to": {"node": "b"}}
+        ]
+    });
+    let canvas = store.save_canvas(None, Some("Board"), Some(&doc)).unwrap();
+    assert_eq!(store.canvases().unwrap()[0].title, "Board");
+    assert_eq!(store.canvas(&canvas.id).unwrap().unwrap().doc["nodes"][2]["text"], json!("free text"));
+
+    let back = store.item_links("note", &note.id).unwrap().backlinks;
+    let mut seen: Vec<(String, Option<String>)> = back.iter().map(|l| (l.from.title.clone(), l.via.as_ref().map(|v| v.title.clone()))).collect();
+    seen.sort();
+    assert_eq!(seen, vec![("Board".into(), None), ("Paper".into(), Some("Board".into()))]);
+    assert_eq!(back.iter().find(|l| l.via.is_some()).unwrap().context.as_deref(), Some("supports"));
+    assert_eq!(back.iter().find(|l| l.via.is_none()).unwrap().from.anchor.as_deref(), Some("node:b"));
+
+    // Renaming keeps the doc; removing the connector removes its link.
+    store.save_canvas(Some(&canvas.id), Some("Board 2"), None).unwrap();
+    assert_eq!(store.item_links("note", &note.id).unwrap().backlinks.len(), 2);
+    let mut doc = doc;
+    doc["edges"] = json!([]);
+    store.save_canvas(Some(&canvas.id), None, Some(&doc)).unwrap();
+    let back = store.item_links("note", &note.id).unwrap().backlinks;
+    assert_eq!(back.len(), 1);
+    assert_eq!(back[0].from.title, "Board 2");
+
+    // A note linking to the canvas sees it broken once the canvas is deleted, mended if it returns.
+    store.replace_note_links(&note.id, note.updated_at, &[link(ItemRef::new("note", &note.id, None), ItemRef::new("canvas", &canvas.id, None), "board")]).unwrap();
+    store.delete_canvas(&canvas.id).unwrap();
+    assert!(store.item_links("note", &note.id).unwrap().backlinks.is_empty());
+    assert!(store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+    store.save_canvas(Some(&canvas.id), Some("Board 2"), Some(&doc)).unwrap();
+    assert!(!store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+}
+
+#[test]
+fn the_link_picker_finds_every_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let paper = store.insert_source(input(json!({"kind": "pdf", "title": "Growth paper"}))).unwrap();
+    store.save_note(None, None, "Growth ideas", "", None).unwrap();
+    store.save_canvas(None, Some("Growth board"), None).unwrap();
+    store.apply_annotations(&paper.id, &[json!({"id": "h9", "text": "growth slows", "color": "blue", "anchor": {"pages": [{"page": 1}]}})], &[]).unwrap();
+    let found = store.link_targets("growth", &[], 10).unwrap();
+    let kinds: Vec<(&str, Option<&str>)> = found.iter().map(|t| (t.item.kind.as_str(), t.item.anchor.as_deref())).collect();
+    assert_eq!(kinds, vec![("note", None), ("source", None), ("canvas", None), ("source", Some("highlight:h9"))]);
+    assert_eq!(found[3].context.as_deref(), Some("Growth paper"));
+    assert_eq!(found[3].page, Some(1));
+    assert_eq!(store.link_targets("growth", &["canvas".into()], 10).unwrap().len(), 1);
+    // With no text, recent highlights come only when asked for.
+    assert!(store.link_targets("", &[], 10).unwrap().iter().all(|t| t.item.anchor.is_none()));
+    assert_eq!(store.link_targets("", &["highlight".into()], 10).unwrap().len(), 1);
+}
+
+#[test]
+fn notes_and_sources_keep_page_fields_properties_and_appearance() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let note = store.save_note(None, None, "Plan", "Body", None).unwrap();
+    assert!(note.fields.is_empty() && note.properties.is_empty() && note.appearance.is_empty());
+    let patch = |value: Json| value.as_object().unwrap().clone();
+    store
+        .update_note_meta(&note.id, &patch(json!({
+            "fields": {"creators": [{"family": "Ada"}], "year": 2024},
+            "properties": {"Status": "Draft"},
+            "appearance": {"icon": "🌿", "cover": {"kind": "gradient", "value": "sunset"}}
+        })))
+        .unwrap();
+    // A text save leaves the page metadata alone, and a later patch merges into it.
+    store.save_note(Some(&note.id), None, "Plan 2", "Body 2", None).unwrap();
+    let updated = store.update_note_meta(&note.id, &patch(json!({"fields": {"year": null}, "properties": {"Score": 3}}))).unwrap();
+    assert_eq!(updated.title, "Plan 2");
+    assert_eq!(updated.fields, patch(json!({"creators": [{"family": "Ada"}]})));
+    assert_eq!(updated.properties, patch(json!({"Status": "Draft", "Score": 3})));
+    assert_eq!(store.note(&note.id).unwrap().unwrap().appearance["icon"], json!("🌿"));
+
+    let source = store.insert_source(input(json!({"kind": "reference", "title": "Nets"}))).unwrap();
+    let source = store.update_source(&source.id, &patch(json!({"appearance": {"icon": "📘"}}))).unwrap();
+    assert_eq!(source.appearance["icon"], json!("📘"));
+    let source = store.update_source(&source.id, &patch(json!({"appearance": {"cover": {"kind": "color", "value": "#f4d9b0"}}}))).unwrap();
+    assert_eq!(source.appearance.len(), 2);
+}
+
+fn linked_workspace() -> (tempfile::TempDir, tempfile::TempDir, Store) {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let store = Store::open(workspace.path().join(".key")).unwrap();
+    (workspace, outside, store)
+}
+
+fn file_by_name(store: &Store, folder: &str, dir: &str, name: &str) -> LinkedFile {
+    store.linked_entries(folder, dir).unwrap().files.into_iter().find(|f| f.name == name).unwrap()
+}
+
+#[test]
+fn linked_folders_list_files_and_skip_hidden_ones() {
+    let (workspace, outside, store) = linked_workspace();
+    let root = outside.path();
+    std::fs::create_dir_all(root.join("notes/deep")).unwrap();
+    std::fs::create_dir_all(root.join(".git")).unwrap();
+    std::fs::create_dir_all(root.join("node_modules/x")).unwrap();
+    std::fs::write(root.join("readme.md"), "# Hello").unwrap();
+    std::fs::write(root.join("notes/a.txt"), "alpha").unwrap();
+    std::fs::write(root.join("notes/deep/b.pdf"), "%PDF").unwrap();
+    std::fs::write(root.join(".DS_Store"), "x").unwrap();
+    std::fs::write(root.join(".git/HEAD"), "x").unwrap();
+    std::fs::write(root.join("node_modules/x/i.js"), "x").unwrap();
+
+    assert!(store.link_folder(workspace.path()).is_err(), "the workspace itself cannot be linked");
+    let folder = store.link_folder(root).unwrap();
+    assert!(folder.tracked && !folder.indexed);
+    let report = store.sync_linked_folder(&folder.id, &[]).unwrap();
+    assert_eq!(report.added, 3);
+    let top = store.linked_entries(&folder.id, "").unwrap();
+    assert_eq!(top.dirs.iter().map(|d| d.name.as_str()).collect::<Vec<_>>(), ["notes"]);
+    assert_eq!(top.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["readme.md"]);
+    assert_eq!(top.files[0].kind, "markdown");
+    let notes = store.linked_entries(&folder.id, "notes").unwrap();
+    assert_eq!(notes.dirs[0].path, "notes/deep");
+    assert_eq!(store.linked_folders().unwrap()[0].files, 3);
+    // Linking it again answers the same folder.
+    assert_eq!(store.link_folder(root).unwrap().id, folder.id);
+}
+
+#[test]
+fn linked_files_keep_their_id_and_links_across_renames_moves_and_absence() {
+    let (_workspace, outside, store) = linked_workspace();
+    let root = outside.path();
+    std::fs::create_dir_all(root.join("sub")).unwrap();
+    std::fs::write(root.join("plan.md"), "# Plan").unwrap();
+    let folder = store.link_folder(root).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    let plan = file_by_name(&store, &folder.id, "", "plan.md");
+
+    let note = store.save_note(None, None, "Index", "", None).unwrap();
+    let file_ref = ItemRef::new("file", &plan.id, None);
+    store.replace_links(&ItemRef::new("note", &note.id, None), &[link(ItemRef::new("note", &note.id, None), file_ref.clone(), "plan.md")]).unwrap();
+    assert_eq!(store.item_links("file", &plan.id).unwrap().backlinks.len(), 1);
+
+    // A rename, seen only as two changed paths, keeps the id (same inode).
+    std::fs::rename(root.join("plan.md"), root.join("sub/plan v2.md")).unwrap();
+    let report = store.sync_linked_folder(&folder.id, &["plan.md".into(), "sub/plan v2.md".into()]).unwrap();
+    assert_eq!((report.moved, report.added, report.removed), (1, 0, 0));
+    let moved = store.linked_file(&plan.id).unwrap().unwrap();
+    assert_eq!(moved.path, "sub/plan v2.md");
+    let outgoing = store.item_links("note", &note.id).unwrap().outgoing;
+    assert_eq!(outgoing[0].to.title, "plan v2.md");
+    assert!(!outgoing[0].broken);
+
+    // Gone: the link breaks but the row stays; back: it mends.
+    let saved = std::fs::read(root.join("sub/plan v2.md")).unwrap();
+    std::fs::remove_file(root.join("sub/plan v2.md")).unwrap();
+    assert_eq!(store.sync_linked_folder(&folder.id, &["sub".into()]).unwrap().removed, 1);
+    assert!(store.linked_file(&plan.id).unwrap().unwrap().missing);
+    assert!(store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+    // Returns as a new file elsewhere: matched by content (its hash was read when opened).
+    store.read_linked_text(&plan.id).ok();
+    let _ = store.remember_linked_hash(&plan.id, moved.mtime, &linked_hash(&saved));
+    std::fs::write(root.join("restored.md"), &saved).unwrap();
+    let report = store.sync_linked_folder(&folder.id, &["restored.md".into()]).unwrap();
+    assert_eq!(report.moved, 1);
+    assert_eq!(store.linked_file(&plan.id).unwrap().unwrap().path, "restored.md");
+    assert!(!store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+
+    // A folder that cannot be read keeps its manifest.
+    let folder_path = root.to_path_buf();
+    let away = folder_path.with_file_name(format!("{}-away", folder_path.file_name().unwrap().to_string_lossy()));
+    std::fs::rename(&folder_path, &away).unwrap();
+    assert!(store.sync_linked_folder(&folder.id, &[]).unwrap().missing);
+    assert!(store.linked_folder(&folder.id).unwrap().unwrap().missing);
+    assert!(!store.linked_file(&plan.id).unwrap().unwrap().missing);
+    std::fs::rename(&away, &folder_path).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    assert!(!store.linked_folder(&folder.id).unwrap().unwrap().missing);
+
+    // Unlinking breaks links for good.
+    store.unlink_folder(&folder.id).unwrap();
+    assert!(store.linked_file(&plan.id).unwrap().is_none());
+    assert!(store.item_links("note", &note.id).unwrap().outgoing[0].broken);
+}
+
+fn linked_hash(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[test]
+fn markdown_in_linked_folders_is_editable_with_a_conflict_guard() {
+    let (_workspace, outside, store) = linked_workspace();
+    std::fs::write(outside.path().join("todo.md"), "one").unwrap();
+    std::fs::write(outside.path().join("data.csv"), "a,b").unwrap();
+    let folder = store.link_folder(outside.path()).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    let todo = file_by_name(&store, &folder.id, "", "todo.md");
+    let (read, text) = store.read_linked_text(&todo.id).unwrap();
+    assert_eq!(text, "one");
+    let written = store.write_linked_text(&todo.id, "two", Some(read.mtime)).unwrap();
+    assert_eq!(std::fs::read_to_string(outside.path().join("todo.md")).unwrap(), "two");
+    assert_eq!(written.size, 3);
+    // Saving over a version changed elsewhere is refused.
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(outside.path().join("todo.md"), "three!").unwrap();
+    assert!(store.write_linked_text(&todo.id, "four", Some(written.mtime)).is_err());
+    // Only Markdown is writable; the temporary file never stays behind or shows.
+    let csv = file_by_name(&store, &folder.id, "", "data.csv");
+    assert!(store.write_linked_text(&csv.id, "x", None).is_err());
+    assert_eq!(store.sync_linked_folder(&folder.id, &[]).unwrap().added, 0);
+}
+
+#[test]
+fn indexed_linked_files_are_searchable_and_untracked_folders_list_from_disk() {
+    let (_workspace, outside, store) = linked_workspace();
+    std::fs::write(outside.path().join("malaria.md"), "Bed nets reduce malaria.").unwrap();
+    std::fs::write(outside.path().join("photo.jpg"), [0u8, 1, 2]).unwrap();
+    let folder = store.link_folder(outside.path()).unwrap();
+    store.sync_linked_folder(&folder.id, &[]).unwrap();
+    // Tracked but not indexed: nothing to index, nothing found.
+    assert!(store.stale_linked_files(10, &[]).unwrap().is_empty());
+    store.set_linked_folder(&folder.id, None, Some(true)).unwrap();
+    let stale = store.stale_linked_files(10, &[]).unwrap();
+    assert_eq!(stale.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["malaria.md"]);
+    let file = &stale[0];
+    store.replace_file_chunks(&file.id, file.mtime, &[ChunkInput { text: "Bed nets reduce malaria.".into(), embedding: Some(unit(3)), ..Default::default() }], None).unwrap();
+    assert!(store.stale_linked_files(10, &[]).unwrap().is_empty());
+    assert_eq!(store.linked_folders().unwrap()[0].indexed_files, 1);
+
+    let found = store.search(&SearchQuery { text: "malaria".into(), ..Default::default() }, None).unwrap();
+    assert_eq!(found.files.len(), 1);
+    assert_eq!(found.files[0].file_id, file.id);
+    assert!(found.files[0].passages[0].snippet.contains("[[malaria]]"));
+    let by_meaning = store.search(&SearchQuery { text: "mosquito".into(), mode: Some("semantic".into()), ..Default::default() }, Some(&unit(3))).unwrap();
+    assert_eq!(by_meaning.files.len(), 1);
+    // The link picker finds it by name.
+    let targets = store.link_targets("mala", &["file".into()], 5).unwrap();
+    assert_eq!(targets[0].item.id, file.id);
+
+    // Indexing off drops the passages; tracking off lists from disk.
+    store.set_linked_folder(&folder.id, Some(false), None).unwrap();
+    assert!(store.search(&SearchQuery { text: "malaria".into(), ..Default::default() }, None).unwrap().files.is_empty());
+    let entries = store.linked_entries(&folder.id, "").unwrap();
+    assert_eq!(entries.files.len(), 2);
+    let photo = entries.files.iter().find(|f| f.name == "photo.jpg").unwrap();
+    assert!(!photo.id.is_empty() || store.linked_file_at(&folder.id, "photo.jpg").is_ok());
+}
+
+// ── Metadata graph and OpenAlex (migration 010) ──────────────
+
+fn fixture(name: &str) -> Json {
+    let path = format!("{}/../../tests/fixtures/openalex/{name}", env!("CARGO_MANIFEST_DIR"));
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+fn filtered(store: &Store, filters: Value) -> Vec<String> {
+    let filters: Vec<Filter> = serde_json::from_value(filters).unwrap();
+    let page = store.list_sources(&ListQuery { filters, sort: Some("title".into()), ..Default::default() }).unwrap();
+    page.items.into_iter().map(|s| s.title().to_string()).collect()
+}
+use serde_json::Value;
+
+#[test]
+fn migration_links_existing_creators_and_journals() {
+    register_vector_extension();
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let conn = Connection::open(dir.path().join("key.db")).unwrap();
+        for sql in &MIGRATIONS[..9] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute_batch("PRAGMA user_version = 9").unwrap();
+        for (id, creators, journal, doi) in [
+            ("a", r#"[{"family":"Priem","given":"Jason"},{"family":"Piwowar","given":"Heather"}]"#, "PeerJ", Some("10.7717/peerj.4375")),
+            ("b", r#"[{"family":"Priem","given":"Jason"}]"#, "peerj", None),
+            ("c", r#"[{"family":"Priem","given":"J."},{"literal":"World Health Organization"}]"#, "Scientometrics", None),
+        ] {
+            conn.execute(
+                "INSERT INTO sources(id, kind, title, creators, container_title, doi, added_at, updated_at) VALUES (?1, 'pdf', ?1, ?2, ?3, ?4, 0, 0)",
+                params![id, creators, journal, doi],
+            )
+            .unwrap();
+        }
+        conn.execute("INSERT INTO property_definitions(name, config, updated_at) VALUES ('Status', '{\"type\":\"select\",\"options\":[\"Read\",\"Later\"]}', 0)", [])
+            .unwrap();
+        conn.execute("UPDATE sources SET properties = '{\"Status\":\"Read\"}' WHERE id IN ('a', 'b')", []).unwrap();
+    }
+    let store = Store::open(dir.path()).unwrap();
+    let a = store.source("a").unwrap().unwrap();
+    let b = store.source("b").unwrap().unwrap();
+    let c = store.source("c").unwrap().unwrap();
+    // The same spelling is one person; "J. Priem" is suggested, not merged.
+    assert_eq!(a.creators[0].person_id, b.creators[0].person_id);
+    assert_ne!(a.creators[0].person_id, c.creators[0].person_id);
+    let suggestions = store.merge_suggestions().unwrap();
+    assert_eq!(suggestions.len(), 1);
+    assert_eq!(suggestions[0].person.id, a.creators[0].person_id.clone().unwrap(), "the one with more sources is kept");
+    // "PeerJ" and "peerj" are one venue; the person filter finds their sources.
+    assert_eq!(a.fields["venueId"], b.fields["venueId"]);
+    assert_eq!(filtered(&store, json!([{"field": "person", "value": a.creators[0].person_id}])), vec!["a", "b"]);
+    assert_eq!(filtered(&store, json!([{"field": "venue", "value": a.fields["venueId"]}])), vec!["a", "b"]);
+    // Sources with a DOI wait for a lookup; select values have rows.
+    assert_eq!(a.field("enrichStatus"), Some("pending"));
+    assert_eq!(b.field("enrichStatus"), None);
+    let options = store.property_options("Status").unwrap();
+    assert_eq!(options.iter().map(|o| (o.value.as_str(), o.count)).collect::<Vec<_>>(), vec![("Read", 2), ("Later", 0)]);
+}
+
+#[test]
+fn openalex_work_fills_blanks_and_links_people_venue_topics_and_citations() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let work = fixture("W2741809807.json");
+    let source = store
+        .insert_source(input(json!({
+            "kind": "pdf", "title": "The state of OA", "doi": "https://doi.org/10.7717/peerj.4375",
+            "creators": [{"family": "Piwowar", "given": "Heather"}, {"family": "Priem", "given": "J."}],
+        })))
+        .unwrap();
+    // A source the paper cites, already in the library, and an older one by "Jason Priem".
+    let cited = store.insert_source(input(json!({"kind": "reference", "title": "How open science helps researchers succeed", "doi": "10.7554/eLife.16800"}))).unwrap();
+    let older = store.insert_source(input(json!({"kind": "reference", "title": "Altmetrics", "creators": [{"family": "Priem", "given": "Jason"}]}))).unwrap();
+    assert_eq!(source.field("enrichStatus"), Some("pending"));
+    // Sources open in a view go first.
+    let job = store.next_enrichment(true, std::slice::from_ref(&source.id)).unwrap().unwrap();
+    assert_eq!(job.id, source.id);
+    assert!(store.next_enrichment(false, &[]).unwrap().is_none(), "automatic lookups wait while the setting is off");
+
+    store.apply_openalex_work(&source.id, &work).unwrap();
+    let source = store.source(&source.id).unwrap().unwrap();
+    assert_eq!(source.title(), "The state of OA", "what the user wrote is kept");
+    assert_eq!(source.field("openalexId"), Some("W2741809807"));
+    assert_eq!(source.field("containerTitle"), Some("PeerJ"));
+    assert_eq!(source.field("oaStatus"), Some("gold"));
+    assert_eq!(source.field("language"), Some("en"));
+    assert_eq!(source.field("pmid"), Some("29456894"));
+    assert_eq!(source.field("date"), Some("2018-02-13"));
+    assert_eq!(source.fields["retracted"], json!(0));
+    assert_eq!(source.fields["citedByCount"], json!(1238));
+    assert_eq!(source.field("enrichStatus"), Some("done"));
+    assert!(source.field("abstract").unwrap_or_default().starts_with("Despite growing interest in Open Access"));
+    assert_eq!(source.creators.len(), 2, "the user's creators are kept");
+
+    let graph = store.source_graph(&source.id).unwrap();
+    assert_eq!(graph.people[0].orcid.as_deref(), Some("0000-0003-1613-5981"));
+    assert!(graph.people[0].corresponding);
+    assert_eq!(graph.people[0].institutions[0].name, "OpenAlex");
+    assert_eq!(graph.people[1].openalex_id.as_deref(), Some("A5023888391"), "J. Priem is matched to Jason R Priem");
+    let venue = graph.venue.unwrap();
+    assert_eq!((venue.name.as_str(), venue.openalex_id.as_deref(), venue.issn_l.as_deref()), ("PeerJ", Some("S1983995261"), Some("2167-8359")));
+    assert_eq!(venue.publisher.unwrap().name, "PeerJ, Inc.");
+    assert_eq!(graph.topics[0].id, "T13607");
+    assert!(graph.topics[0].primary);
+    assert_eq!(graph.topics[0].path.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), vec!["D2", "F18", "S1802"]);
+    assert!(graph.keywords.iter().any(|k| k.name == "open access"));
+    assert_eq!(graph.references.len(), 47);
+
+    // Cited works get their details; the one in the library becomes a link both ways.
+    store.apply_openalex_cited(&source.id, fixture("works-batch.json")["results"].as_array().unwrap()).unwrap();
+    let graph = store.source_graph(&source.id).unwrap();
+    let matched: Vec<_> = graph.references.iter().filter(|r| r.matched_source_id.is_some()).collect();
+    assert_eq!(matched.len(), 1);
+    assert_eq!(matched[0].matched_source_id.as_deref(), Some(cited.id.as_str()));
+    assert!(graph.references.iter().filter(|r| r.title.is_some()).count() >= 40);
+    assert_eq!(store.source_graph(&cited.id).unwrap().cited_by[0].id, source.id);
+    let backlinks = store.item_links("source", &cited.id).unwrap().backlinks;
+    assert_eq!(backlinks[0].from.id, source.id);
+    // A cited work added later is linked when it arrives.
+    let later = store.insert_source(input(json!({"kind": "reference", "title": "Journal coverage", "doi": "10.1007/s11192-015-1765-5"}))).unwrap();
+    assert_eq!(store.source_graph(&later.id).unwrap().cited_by.len(), 1);
+
+    // Filters: topic at any level, citation counts, retracted, people by id.
+    assert_eq!(filtered(&store, json!([{"field": "topic", "value": "F18"}])), vec!["The state of OA"]);
+    assert_eq!(filtered(&store, json!([{"field": "topic", "value": "T13607"}])), vec!["The state of OA"]);
+    assert_eq!(filtered(&store, json!([{"field": "citations", "op": "gt", "value": "100"}])), vec!["The state of OA"]);
+    assert!(filtered(&store, json!([{"field": "citations", "op": "gt", "value": "5000"}])).is_empty());
+    assert!(filtered(&store, json!([{"field": "retracted", "value": "true"}])).is_empty());
+    let keyword = graph.keywords[0].id.clone();
+    assert_eq!(filtered(&store, json!([{"field": "keyword", "value": keyword}])), vec!["The state of OA"]);
+    let suggestions = store.suggest("cited >100", &ListQuery::default(), 5).unwrap();
+    assert!(suggestions.iter().any(|s| s.filter.field == "citations" && s.count == 1 && s.label == "Cited more than 100 times"));
+    let suggestions = store.suggest("academic", &ListQuery::default(), 5).unwrap();
+    assert!(suggestions.iter().any(|s| s.filter.field == "topic" && s.filter.value == "T13607"));
+
+    // The older "Jason Priem" is suggested as the identified Jason R Priem, not merged.
+    let priem = graph.people[1].person_id.clone();
+    let older_person = store.source(&older.id).unwrap().unwrap().creators[0].person_id.clone().unwrap();
+    assert_ne!(priem, older_person);
+    let page = store.person_page(&priem).unwrap().unwrap();
+    assert_eq!(page.suggestions.len(), 1);
+    assert_eq!(page.suggestions[0].person.id, priem, "the identified person is kept");
+    assert!(page.coauthors.iter().any(|c| c.name == "Heather Piwowar"));
+    let merged = store.merge_people(&priem, &older_person).unwrap();
+    assert_eq!(merged.source_count, 2);
+    assert!(store.person(&older_person).unwrap().is_none());
+    assert!(store.merge_suggestions().unwrap().is_empty());
+    // The confirmed spelling now joins the merged person on new sources.
+    let next = store.insert_source(input(json!({"kind": "reference", "title": "Next", "creators": [{"family": "Priem", "given": "Jason"}]}))).unwrap();
+    assert_eq!(next.creators[0].person_id.as_deref(), Some(priem.as_str()));
+
+    // The author record fills the cached counts and other spellings.
+    store.apply_openalex_author(&priem, &fixture("A5023888391.json")).unwrap();
+    let person = store.person(&priem).unwrap().unwrap();
+    assert_eq!((person.works_count, person.h_index), (Some(55), Some(18)));
+    assert!(person.metrics_at.is_some());
+    assert!(person.names.iter().any(|n| n == "J. Priem"));
+    assert_eq!(person.institution.unwrap().name, "OpenAlex");
+}
+
+#[test]
+fn people_merge_by_identifier_and_keep_their_place_when_creators_are_edited() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let work = fixture("W2741809807.json");
+    let one = store.insert_source(input(json!({"kind": "reference", "title": "One", "doi": "10.7717/peerj.4375"}))).unwrap();
+    store.apply_openalex_work(&one.id, &work).unwrap();
+    let one = store.source(&one.id).unwrap().unwrap();
+    assert_eq!(one.creators.len(), 9, "a source without creators takes OpenAlex's");
+    assert_eq!(one.creators[1].family.as_deref(), Some("Priem"));
+    // A second source of the same work: the people are the same rows, by identifier.
+    let two = store.insert_source(input(json!({"kind": "reference", "title": "Two", "doi": "10.7717/peerj.4375"}))).unwrap();
+    store.apply_openalex_work(&two.id, &work).unwrap();
+    let two = store.source(&two.id).unwrap().unwrap();
+    assert_eq!(one.creators[1].person_id, two.creators[1].person_id);
+    assert!(store.merge_suggestions().unwrap().is_empty());
+
+    // Editing a creator's role keeps the person; renaming one makes a new one.
+    let mut creators = serde_json::to_value(&two.creators).unwrap();
+    creators[0]["role"] = json!("editor");
+    creators[1]["given"] = json!("Someone");
+    let mut patch = Map::new();
+    patch.insert("creators".into(), creators);
+    let edited = store.update_source(&two.id, &patch).unwrap();
+    assert_eq!(edited.creators[0].person_id, two.creators[0].person_id);
+    assert_ne!(edited.creators[1].person_id, two.creators[1].person_id);
+    assert!(store.source(&two.id).unwrap().unwrap().creators.iter().all(|c| c.person_id.is_some()));
+    let stored: String = store.db().unwrap().query_row("SELECT creators FROM sources WHERE id = ?", [&two.id], |r| r.get(0)).unwrap();
+    assert!(!stored.contains("personId"), "person ids are not written into the JSON");
+
+    // Changing the DOI queues a new lookup; deleting the sources removes their people.
+    let mut patch = Map::new();
+    patch.insert("doi".into(), json!("10.1/other"));
+    assert_eq!(store.update_source(&one.id, &patch).unwrap().field("enrichStatus"), Some("pending"));
+    store.delete(&[one.id.clone(), two.id.clone()]).unwrap();
+    let left: i64 = store.db().unwrap().query_row("SELECT count(*) FROM people", [], |r| r.get(0)).unwrap();
+    assert_eq!(left, 0);
+}
+
+#[test]
+fn renaming_a_select_value_renames_it_on_every_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    store.save_property_definition("Status", &json!({"type": "select", "options": ["Read", "Later", "Done"]})).unwrap();
+    let a = store.insert_source(input(json!({"kind": "pdf", "title": "A", "properties": {"Status": "Read"}}))).unwrap();
+    let b = store.insert_source(input(json!({"kind": "pdf", "title": "B", "properties": {"Status": "Later"}}))).unwrap();
+    let mut patch = Map::new();
+    patch.insert("properties".into(), json!({"Status": "Read"}));
+    store.update_source(&b.id, &patch).unwrap();
+    assert_eq!(store.rename_property_option("Status", "Read", "Finished").unwrap(), 2);
+    assert_eq!(store.source(&a.id).unwrap().unwrap().properties["Status"], json!("Finished"));
+    assert_eq!(store.source(&b.id).unwrap().unwrap().properties["Status"], json!("Finished"));
+    let definition = store.property_definitions().unwrap().into_iter().find(|d| d["name"] == "Status").unwrap();
+    assert_eq!(definition["options"], json!(["Finished", "Later", "Done"]));
+    // Renaming onto another value merges them; renaming the property keeps the rows.
+    assert_eq!(store.rename_property_option("Status", "Finished", "Done").unwrap(), 2);
+    store.rename_property("Status", "State").unwrap();
+    let options = store.property_options("State").unwrap();
+    assert_eq!(options.iter().map(|o| (o.value.as_str(), o.count)).collect::<Vec<_>>(), vec![("Done", 2), ("Later", 0)]);
+}

@@ -77,22 +77,41 @@ pub struct NoteHit {
     pub passages: Vec<SearchPassage>,
 }
 
+/// A file in an indexed linked folder.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileHit {
+    pub file_id: String,
+    pub name: String,
+    /// Where it is: the folder's name and the path inside it.
+    pub path: String,
+    pub score: f64,
+    /// Its name matched.
+    pub name_match: bool,
+    pub passages: Vec<SearchPassage>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub hits: Vec<SearchHit>,
     /// Standalone notes, only when nothing narrows the search to part of the library.
     pub notes: Vec<NoteHit>,
+    /// Files of indexed linked folders, likewise only for the whole workspace.
+    #[serde(default)]
+    pub files: Vec<FileHit>,
     pub semantic: bool,
     pub keyword_passages: usize,
     pub semantic_passages: usize,
 }
 
-/// What a passage is ranked under: its source (also for a source's note), or a standalone note.
+/// What a passage is ranked under: its source (also for a source's note), a standalone note,
+/// or a linked file.
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum Owner {
     Source(String),
     Note(String),
+    File(String),
 }
 
 struct Candidate {
@@ -101,12 +120,17 @@ struct Candidate {
     snippet: Option<String>,
 }
 
-fn owner(source_id: Option<String>, note_id: Option<String>) -> Owner {
-    match source_id {
-        Some(id) => Owner::Source(id),
-        None => Owner::Note(note_id.unwrap_or_default()),
+fn owner(source_id: Option<String>, note_id: Option<String>, file_id: Option<String>) -> Owner {
+    match (source_id, file_id) {
+        (Some(id), _) => Owner::Source(id),
+        (None, Some(id)) => Owner::File(id),
+        (None, None) => Owner::Note(note_id.unwrap_or_default()),
     }
 }
+
+/// Files whose passages count: present, in an indexed folder.
+const INDEXED_FILES: &str =
+    "SELECT f.id FROM linked_files f JOIN linked_folders d ON d.id = f.folder_id WHERE f.missing_at IS NULL AND d.indexed = 1 AND d.tracked = 1";
 
 /// Standalone notes belong to no collection, kind or tag, so they only match when nothing
 /// narrows the search.
@@ -129,7 +153,8 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
     let (clause, values) = where_clause(&filter);
     let eligible = format!("SELECT s.id FROM sources s {clause}");
     // Passages of eligible sources and their notes, and of standalone notes when they count.
-    let standalone = if whole_library(&filter) { "OR (c.note_id IS NOT NULL AND n.source_id IS NULL)" } else { "" };
+    let whole = whole_library(&filter);
+    let standalone = if whole { format!("OR (c.note_id IS NOT NULL AND n.source_id IS NULL) OR c.file_id IN ({INDEXED_FILES})") } else { String::new() };
     let owned = format!("(coalesce(c.source_id, n.source_id) IN ({eligible}) {standalone})");
     let limit = filter.limit.unwrap_or(50).min(500);
     let mut chunks: HashMap<i64, Candidate> = HashMap::new();
@@ -142,14 +167,14 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
             args.extend(values.iter().cloned());
             let mut statement = db
                 .prepare(&format!(
-                    "SELECT c.id, coalesce(c.source_id, n.source_id), c.note_id, snippet(chunks_fts, 0, '[[', ']]', '…', 28)
+                    "SELECT c.id, coalesce(c.source_id, n.source_id), c.note_id, snippet(chunks_fts, 0, '[[', ']]', '…', 28), c.file_id
                      FROM chunks_fts JOIN chunks c ON c.id = chunks_fts.rowid LEFT JOIN notes n ON n.id = c.note_id
                      WHERE chunks_fts MATCH ?1 AND {owned}
                      ORDER BY bm25(chunks_fts) LIMIT {CANDIDATES}"
                 ))
                 .map_err(e)?;
             let rows = statement
-                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, owner(r.get(1)?, r.get(2)?), r.get::<_, String>(3)?)))
+                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, owner(r.get(1)?, r.get(2)?, r.get(4)?), r.get::<_, String>(3)?)))
                 .map_err(e)?;
             for (rank, row) in rows.enumerate() {
                 let (id, owner, snippet) = row.map_err(e)?;
@@ -163,7 +188,7 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
         if let Some(vector) = vector {
             let mut statement = db
                 .prepare(&format!(
-                    "SELECT knn.rowid, coalesce(c.source_id, n.source_id), c.note_id
+                    "SELECT knn.rowid, coalesce(c.source_id, n.source_id), c.note_id, c.file_id
                      FROM (SELECT rowid, distance FROM chunk_vectors WHERE embedding MATCH ?1 AND k = {CANDIDATES}) knn
                      JOIN chunks c ON c.id = knn.rowid LEFT JOIN notes n ON n.id = c.note_id
                      WHERE (knn.distance <= {MAX_SEMANTIC_DISTANCE} OR knn.rowid IN (SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ?2))
@@ -178,7 +203,7 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
             let mut args: Vec<Value> = vec![Value::Blob(vector_blob(vector)?), Value::Text(keyword)];
             args.extend(values.iter().cloned());
             let rows = statement
-                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, owner(r.get(1)?, r.get(2)?))))
+                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, i64>(0)?, owner(r.get(1)?, r.get(2)?, r.get(3)?))))
                 .map_err(e)?;
             for (rank, row) in rows.enumerate() {
                 let (id, owner) = row.map_err(e)?;
@@ -214,6 +239,21 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
         }
     }
 
+    // File names lift files the way titles lift sources.
+    let mut file_names: HashMap<String, f64> = HashMap::new();
+    let words: Vec<String> = query.text.split_whitespace().filter(|w| w.chars().count() >= 2).map(|w| w.to_lowercase()).collect();
+    if whole && !words.is_empty() {
+        let like = words.iter().map(|_| "lower(f.name) LIKE ? ESCAPE '\\'").collect::<Vec<_>>().join(" AND ");
+        let mut statement = db
+            .prepare(&format!("SELECT f.id FROM linked_files f WHERE f.id IN ({INDEXED_FILES}) AND {like} ORDER BY length(f.name) LIMIT 50"))
+            .map_err(e)?;
+        let args: Vec<Value> = words.iter().map(|w| Value::Text(format!("%{}%", w.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")))).collect();
+        let rows = statement.query_map(params_from_iter(args.iter()), |r| r.get::<_, String>(0)).map_err(e)?;
+        for (rank, row) in rows.enumerate() {
+            file_names.insert(row.map_err(e)?, 2.0 / (RRF_K + rank as f64 + 1.0));
+        }
+    }
+
     let mut by_owner: HashMap<Owner, Vec<(i64, Candidate)>> = HashMap::new();
     for (id, candidate) in chunks {
         by_owner.entry(candidate.owner.clone()).or_default().push((id, candidate));
@@ -226,6 +266,7 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
             let breadth = list.iter().map(|(_, c)| c.score).sum::<f64>() * 0.15;
             let lift = match owner {
                 Owner::Source(id) => metadata.get(id).copied().unwrap_or(0.0),
+                Owner::File(id) => file_names.get(id).copied().unwrap_or(0.0),
                 Owner::Note(_) => 0.0,
             };
             (owner.clone(), best + breadth + lift)
@@ -236,10 +277,17 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
             ranked.push((Owner::Source(id.clone()), *score));
         }
     }
+    for (id, score) in &file_names {
+        if !by_owner.contains_key(&Owner::File(id.clone())) {
+            ranked.push((Owner::File(id.clone()), *score));
+        }
+    }
     ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let (mut sources, mut notes): (Vec<_>, Vec<_>) = ranked.into_iter().partition(|(owner, _)| matches!(owner, Owner::Source(_)));
+    let (mut sources, rest): (Vec<_>, Vec<_>) = ranked.into_iter().partition(|(owner, _)| matches!(owner, Owner::Source(_)));
+    let (mut files, mut notes): (Vec<_>, Vec<_>) = rest.into_iter().partition(|(owner, _)| matches!(owner, Owner::File(_)));
     sources.truncate(limit);
     notes.truncate(limit.min(10));
+    files.truncate(limit.min(10));
 
     let per_source = query.passages_per_source.unwrap_or(3).min(20);
     let mut text_of = db
@@ -334,7 +382,18 @@ pub(crate) fn run(db: &Connection, query: &SearchQuery, vector: Option<&[f32]>) 
         let title = if title.trim().is_empty() { excerpt(first.as_deref().unwrap_or("").lines().next().unwrap_or(""), 80) } else { title };
         note_hits.push(NoteHit { note_id: note_id.clone(), title, score, passages: passages_of(&owner, false)? });
     }
-    Ok(SearchResult { hits, notes: note_hits, semantic: vector.is_some() && mode != "keyword", keyword_passages, semantic_passages })
+    let mut file_of = db
+        .prepare("SELECT f.name, d.name || '/' || f.path FROM linked_files f JOIN linked_folders d ON d.id = f.folder_id WHERE f.id = ?")
+        .map_err(e)?;
+    let mut file_hits = Vec::with_capacity(files.len());
+    for (owner, score) in files {
+        let Owner::File(file_id) = &owner else { continue };
+        let Some((name, path)) = file_of.query_row([file_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))).optional().map_err(e)? else {
+            continue;
+        };
+        file_hits.push(FileHit { file_id: file_id.clone(), name, path, score, name_match: file_names.contains_key(file_id), passages: passages_of(&owner, false)? });
+    }
+    Ok(SearchResult { hits, notes: note_hits, files: file_hits, semantic: vector.is_some() && mode != "keyword", keyword_passages, semantic_passages })
 }
 
 fn excerpt(text: &str, limit: usize) -> String {

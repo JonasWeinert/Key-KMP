@@ -1,4 +1,7 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { apa } from "./citation";
+import { itemAttrs, selectItems } from "./item-ui";
+import { SectionHeader, useCollapsedGroups } from "./search-sections";
+import { GROUPS, type SearchGroup } from "./unified-search";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBanner, ActivityPill, ProgressRing, jobProgress, useLibraryStatus } from "./index-activity";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
@@ -21,11 +24,14 @@ import {
   type Source,
   type SourcePage,
 } from "./library-api";
+import { hasExternalDrop, importDrop, setItemDrag, sourceItem } from "./item-links";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 import type { Creator } from "./citation";
 import { Highlight, Snippet, hasMatch, queryPattern } from "./search-highlight";
 import SearchField, { storeFilters, type SearchFilter } from "./search-suggest";
-import SourceInspector, { indexLabel } from "./SourceInspector";
+import SourceItemPage from "./SourcePage";
+import { indexLabel } from "./SourceInspector";
+import { FilterLink, FilterLinks, sourceFilter, withFilter } from "./filter-links";
 import {
   AgentFillSheet,
   IdentifierSheet,
@@ -36,7 +42,10 @@ import {
   type PropertyDefinition,
   type PropertySheetState,
 } from "./PropertySheets";
+import { DatabaseToolbar, DatabaseView, useDatabaseViewState, type DatabaseViewHandle } from "./DatabaseView";
+import { DEFAULT_SORTS, SOURCE_SORTS, SourceCard, legacyColumnSettings, useSourceColumns } from "./library-columns";
 import "./reference-library.css";
+import { ZoteroImportSheet } from "./ZoteroImport";
 
 const PAGE = 300;
 const ROW = 58;
@@ -46,14 +55,6 @@ const SCOPES: [string, string][] = [
   ["unfiled", "Unfiled"],
   ["attention", "Needs attention"],
   ["trashed", "Trash"],
-];
-const SORTS: [string, string][] = [
-  ["added", "Date added"],
-  ["title", "Title"],
-  ["creator", "First author"],
-  ["year", "Year"],
-  ["container", "Journal / container"],
-  ["updated", "Last modified"],
 ];
 
 export interface OpenHit {
@@ -87,11 +88,9 @@ export default function ReferenceLibrary({
   const [scope, setScope] = useState(initial?.scope ?? "all");
   const [kind, setKind] = useState<string>();
   const [tag, setTag] = useState<string>();
-  const [sort, setSort] = useState("added");
-  const [descending, setDescending] = useState(true);
   const [text, setText] = useState("");
   // Filter tokens picked from search suggestions; they narrow the list and any search.
-  const [filters, setFilters] = useState<SearchFilter[]>([]);
+  const [filters, setFilters] = useState<SearchFilter[]>(initial?.filters ?? []);
   const [items, setItems] = useState<Source[]>([]);
   const [total, setTotal] = useState(0);
   const [counts, setCounts] = useState<SourcePage["counts"]>();
@@ -112,28 +111,21 @@ export default function ReferenceLibrary({
   const [agent, setAgent] = useState<{ targets: Source[]; name?: string }>();
   const [tagManager, setTagManager] = useState(false);
   const [identifier, setIdentifier] = useState(false);
-  const [view, setView] = useState<"list" | "table">(() => {
-    try {
-      return localStorage.getItem("key.library.view") === "table" ? "table" : "list";
-    } catch {
-      return "list";
-    }
+  const [zotero, setZotero] = useState(false);
+  // Layout, columns and sorting are remembered per workspace library.
+  const [viewState, setViewState] = useDatabaseViewState(`library:${workspaceId}`, {
+    layout: (() => {
+      try {
+        return localStorage.getItem("key.library.view") === "table" ? "table" : "list";
+      } catch {
+        return "list";
+      }
+    })(),
+    columns: legacyColumnSettings(workspaceId),
+    sorts: DEFAULT_SORTS,
   });
-  const [visibleProperties, setVisibleProperties] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(`key.library.columns:${workspaceId}`) || "[]");
-    } catch {
-      return [];
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("key.library.view", view);
-      localStorage.setItem(`key.library.columns:${workspaceId}`, JSON.stringify(visibleProperties));
-    } catch {}
-  }, [view, visibleProperties, workspaceId]);
-  const tableColumns = definitions.filter((d) => visibleProperties.includes(d.name));
-  const listRef = useRef<HTMLDivElement>(null);
+  const sorts = viewState.sorts.length ? viewState.sorts : DEFAULT_SORTS;
+  const listRef = useRef<DatabaseViewHandle>(null);
   // Details panel width: dragged live through a CSS variable, saved when released.
   const libraryRef = useRef<HTMLElement>(null);
   const [inspectorWidth, setInspectorWidth] = useState(() => {
@@ -195,7 +187,6 @@ export default function ReferenceLibrary({
   const searchInput = useRef<HTMLInputElement>(null);
   const request = useRef(0);
   const loadingMore = useRef(false);
-  const virtualizerRef = useRef<{ measure: () => void } | null>(null);
 
   // Sidebar selection drives the collection and scope.
   useEffect(
@@ -205,6 +196,7 @@ export default function ReferenceLibrary({
         setCollectionId(s.collectionId);
         setScope(s.scope ?? "all");
         setText("");
+        if (s.filters) setFilters(s.filters);
       }),
     [workspaceId],
   );
@@ -216,8 +208,8 @@ export default function ReferenceLibrary({
   }, [active, workspaceId]);
 
   const query = useMemo(
-    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, filters: storeFilters(filters), text: null, sort, descending }),
-    [collectionId, scope, kind, tag, filters, sort, descending],
+    () => ({ collectionId: collectionId ?? null, scope, kind: kind ?? null, tag: tag ?? null, filters: storeFilters(filters), text: null, sort: sorts[0].field, descending: sorts[0].descending, sorts }),
+    [collectionId, scope, kind, tag, filters, sorts],
   );
 
   const load = useCallback(
@@ -297,10 +289,15 @@ export default function ReferenceLibrary({
   );
   const pauseIndexing = (paused: boolean) => void invoke("store_index_control", { action: paused ? "pause" : "resume" }, workspaceId);
 
-  // While searching, selection, arrow keys and bulk actions work on the results.
+  // While searching, selection, arrow keys and bulk actions work on the results, in the
+  // order of their sections (collapsed sections left out).
+  const { collapsed: collapsedGroups } = useCollapsedGroups();
   const rows = useMemo(
-    () => (search?.result ? search.result.hits.flatMap((h) => (h.source ? [h.source] : [])) : items),
-    [search?.result, items],
+    () =>
+      search?.result
+        ? GROUPS.filter((g) => !collapsedGroups.includes(g)).flatMap((g) => search.result!.hits.filter((h) => hitGroup(h) === g).flatMap((h) => (h.source ? [h.source] : [])))
+        : items,
+    [search?.result, items, collapsedGroups],
   );
   useEffect(() => {
     const source = rows.find((s) => s.id === focusId);
@@ -314,18 +311,9 @@ export default function ReferenceLibrary({
     if (row) setInspector(row);
   }, [focusId, rows]);
 
-  useEffect(() => {
-    virtualizerRef.current?.measure();
-  }, [view]);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => listRef.current,
-    estimateSize: () => (view === "table" ? 36 : ROW),
-    overscan: 12,
-  });
-  virtualizerRef.current = virtualizer;
-  const virtualItems = virtualizer.getVirtualItems();
-  const onScreen = (search ? rows.slice(0, 20) : virtualItems.map((v) => items[v.index]))
+  // Rows on screen are indexed first; nearing the end loads the next page.
+  const [range, setRange] = useState<[number, number]>([0, -1]);
+  const onScreen = (search ? rows.slice(0, 20) : items.slice(range[0], range[1] + 1))
     .filter((s): s is Source => !!s && waitingToIndex(s))
     .map((s) => s.id)
     .join(",");
@@ -335,12 +323,18 @@ export default function ReferenceLibrary({
     return () => clearTimeout(t);
   }, [onScreen, prioritize]);
   useEffect(() => {
-    const last = virtualItems.at(-1);
-    if (last && last.index > items.length - 40 && items.length < total && !loadingMore.current) {
+    if (range[1] > items.length - 40 && items.length < total && !loadingMore.current) {
       loadingMore.current = true;
       void load(items.length);
     }
-  }, [virtualItems, items.length, total, load]);
+  }, [range, items.length, total, load]);
+  const columns = useSourceColumns({
+    definitions,
+    collections,
+    onCommit: (source, name, value) =>
+      void invoke<Source>("store_update", { id: source.id, patch: { properties: { [name]: value } } }, workspaceId).then(updateSource),
+    onEditProperty: (definition) => setSheet({ mode: "edit", definition, targets: [] }),
+  });
 
   // Search follows typing: metadata and full text together, newest request wins.
   const searchRequest = useRef(0);
@@ -384,6 +378,14 @@ export default function ReferenceLibrary({
     setInspector(source);
   };
   const selection = selected.size ? [...selected] : focusId ? [focusId] : [];
+  // The inspector and ⌘K act on the selected sources.
+  const selectionKey = selection.join(",");
+  useEffect(() => {
+    if (!active) return;
+    const known = new Map<string, Source>([...items, ...(search?.result?.hits.map((h) => h.source).filter((x): x is Source => !!x) ?? [])].map((x) => [x.id, x]));
+    const chosen = selection.map((id) => known.get(id)).filter((x): x is Source => !!x);
+    if (chosen.length) selectItems(chosen.map(sourceItem));
+  }, [selectionKey, active]);
   const select = (id: string, event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
     if (event.shiftKey && anchor) {
       const a = rows.findIndex((s) => s.id === anchor);
@@ -416,7 +418,7 @@ export default function ReferenceLibrary({
     }
     setFocusId(next.id);
     if (search) document.querySelector(`[data-hit="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: "nearest" });
-    else virtualizer.scrollToIndex(index, { align: "auto" });
+    else listRef.current?.scrollToIndex(index);
   };
 
   const trash = async (ids: string[], trashed = true) => {
@@ -484,17 +486,34 @@ export default function ReferenceLibrary({
     return () => document.removeEventListener("keydown", focusSearch);
   }, [active]);
 
-  const importDropped = async (files: FileList) => {
-    const paths = [...files].map((f) => bridge().pathForFile(f)).filter(Boolean);
-    if (!paths.length) return;
+  const importDropped = async (data: DataTransfer) => {
     try {
-      await bridge().importPaths(workspaceId, paths, collectionId);
+      const added = await importDrop(invoke, workspaceId, data, collectionId);
+      if (!added.length) return;
       await load(0);
       libraryChanged();
-      setToast({ text: `Added ${paths.length} ${paths.length === 1 ? "source" : "sources"}` });
+      setToast({ text: `Added ${added.length} ${added.length === 1 ? "source" : "sources"}` });
     } catch (e) {
       setError(String(e));
     }
+  };
+  // Dragged sources go to collections (by id) and anywhere items go: canvases, notes.
+  const dragSources = (source: Source, e: React.DragEvent) => {
+    const ids = selected.has(source.id) ? [...selected] : [source.id];
+    const byId = new Map(items.map((s) => [s.id, s]));
+    const files = ids.map((id) => byId.get(id)?.filePath).filter((path): path is string => !!path);
+    // ⌥-drag takes the files themselves out of the app (to Finder, Mail …).
+    if (e.altKey && files.length) {
+      e.preventDefault();
+      bridge().startFileDrag(files);
+      return;
+    }
+    e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(ids));
+    setItemDrag(e.dataTransfer, ids.map((id) => sourceItem(byId.get(id) ?? { id, title: "", kind: "" })));
+    // Dropped into another app's text, a source is its reference.
+    const cited = ids.map((id) => byId.get(id)).filter((x): x is Source => !!x);
+    if (cited.length) e.dataTransfer.setData("text/plain", cited.map((x) => apa(x)).join("\n\n"));
+    e.dataTransfer.effectAllowed = "copyMove";
   };
 
   // Results only re-render when they change, not on every keystroke; handlers stay stable.
@@ -525,10 +544,13 @@ export default function ReferenceLibrary({
     [],
   );
 
+  // A clicked tag, author, year … joins the search's filter tokens.
+  const addFilter = useCallback((filter: SearchFilter) => setFilters((current) => withFilter(current, filter)), []);
   const collectionName = collections.find((c) => c.id === collectionId)?.name;
   const title = scope === "trashed" ? "Trash" : collectionName ?? (scope === "starred" ? "Starred" : scope === "unfiled" ? "Unfiled" : scope === "attention" ? "Needs attention" : "All sources");
 
   return (
+    <FilterLinks.Provider value={addFilter}>
     <section
       ref={libraryRef}
       className={`kx-library ${dropping ? "dropping" : ""}`}
@@ -537,7 +559,7 @@ export default function ReferenceLibrary({
       aria-label="Library"
       onKeyDown={onKeyDown}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (hasExternalDrop(e.dataTransfer)) {
           e.preventDefault();
           setDropping(true);
         }
@@ -547,9 +569,9 @@ export default function ReferenceLibrary({
       }}
       onDrop={(e) => {
         setDropping(false);
-        if (e.dataTransfer.files.length) {
+        if (hasExternalDrop(e.dataTransfer)) {
           e.preventDefault();
-          void importDropped(e.dataTransfer.files);
+          void importDropped(e.dataTransfer);
         }
       }}
     >
@@ -604,17 +626,7 @@ export default function ReferenceLibrary({
                 setInspector(source);
               }}
               onIdentifier={() => setIdentifier(true)}
-              onZotero={async () => {
-                setToast({ text: "Importing your Zotero library…" });
-                try {
-                  const { workspace, report } = await bridge().importZotero();
-                  setToast({ text: `Imported ${report.items.toLocaleString()} items from Zotero into “${workspace.name}”` });
-                  selectLibrary({ workspaceId: workspace.id });
-                  libraryChanged();
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
+              onZotero={() => setZotero(true)}
             />
           </div>
         </header>
@@ -633,63 +645,21 @@ export default function ReferenceLibrary({
               );
             })}
           </div>
-          {!search && <div className="kx-controls-end">
-            <label className="kx-control kx-control-select" title="Sort">
-              <Icon name="sort" size={14} />
-              <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)}>
-                {SORTS.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button className="kx-control" title={descending ? "Descending" : "Ascending"} aria-label="Toggle sort direction" onClick={() => setDescending(!descending)}>
-              <Icon name="chevronDown" size={13} style={{ transform: descending ? undefined : "rotate(180deg)" }} />
-            </button>
-            {view === "table" && (
-              <details className="kx-menu">
-                <summary className="kx-control" title="Columns">
-                  <Icon name="columns" size={14} />
-                  Columns
-                </summary>
-                <div className="kx-menu-popover kx-columns-popover">
-                  {definitions.map((d) => (
-                    <label key={d.name}>
-                      <input
-                        type="checkbox"
-                        checked={visibleProperties.includes(d.name)}
-                        onChange={(e) =>
-                          setVisibleProperties((list) => (e.target.checked ? [...list, d.name] : list.filter((n) => n !== d.name)))
-                        }
-                      />
-                      <span>{d.name}</span>
-                      <button
-                        title="Edit property"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSheet({ mode: "edit", definition: d, targets: [] });
-                        }}
-                      >
-                        <Icon name="chevronRight" size={11} />
-                      </button>
-                    </label>
-                  ))}
-                  {!!definitions.length && <hr />}
+          {!search && (
+            <div className="kx-controls-end">
+              <DatabaseToolbar
+                state={{ ...viewState, sorts }}
+                onChange={setViewState}
+                columns={columns}
+                sortFields={[...SOURCE_SORTS, ...definitions.filter((d) => d.type !== "formula").map<[string, string]>((d) => [`property:${d.name}`, d.name])]}
+                columnFooter={
                   <button onClick={() => setSheet({ mode: "new", targets: [] })}>
                     <Icon name="plus" size={13} /> New property…
                   </button>
-                </div>
-              </details>
-            )}
-            <div className="kx-segmented" role="group" aria-label="Layout">
-              {(["list", "table"] as const).map((v) => (
-                <button key={v} aria-pressed={view === v} aria-label={v === "table" ? "Table" : "List"} title={v === "table" ? "Table" : "List"} onClick={() => setView(v)}>
-                  <Icon name={v === "table" ? "table" : "list"} size={15} />
-                </button>
-              ))}
+                }
+              />
             </div>
-          </div>}
+          )}
         </div>
         )}
         {(facets.kinds.length > 1 || facets.tags.length > 0) && (
@@ -718,69 +688,40 @@ export default function ReferenceLibrary({
           <SearchResults search={search} focusId={focusId} selected={selected} handlers={resultHandlers}
           />
         ) : (
-          <div className="kx-list" ref={listRef} tabIndex={0} role="listbox" aria-label={`${title}, ${total} items`} aria-multiselectable>
-            {!loading && !items.length ? (
-              <EmptyState scope={scope} filtered={!!(kind || tag || filters.length)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />
-            ) : (
-              <>
-              {view === "table" && (
-                <div className="kx-table-head" style={{ gridTemplateColumns: tableGrid(tableColumns.length) }}>
-                  {[["title", "Title"], ["creator", "Authors"], ["year", "Year"], ["container", "Journal / container"], ["added", "Added"]].map(([key, label]) => (
-                    <button key={key} data-sorted={sort === key} onClick={() => (sort === key ? setDescending(!descending) : setSort(key))}>
-                      {label}
-                      {sort === key && <Icon name="chevronDown" size={10} style={{ transform: descending ? undefined : "rotate(180deg)" }} />}
-                    </button>
-                  ))}
-                  {tableColumns.map((d) => (
-                    <button key={d.name} onClick={() => setSheet({ mode: "edit", definition: d, targets: [] })} title="Edit property">
-                      {d.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-                {virtualItems.map((row) => {
-                  const source = items[row.index];
-                  if (!source) return null;
-                  const isSelected = selected.has(source.id) || (!selected.size && focusId === source.id);
-                  if (view === "table")
-                    return (
-                      <TableRow
-                        key={source.id}
-                        source={source}
-                        top={row.start}
-                        selected={isSelected}
-                        columns={tableColumns}
-                        grid={tableGrid(tableColumns.length)}
-                        onPointer={(e) => select(source.id, e)}
-                        onOpen={() => open(source)}
-                        onCommit={(name, value) =>
-                          void invoke<Source>("store_update", { id: source.id, patch: { properties: { [name]: value } } }, workspaceId).then(updateSource)
-                        }
-                        dragIds={() => (selected.has(source.id) ? [...selected] : [source.id])}
-                      />
-                    );
-                  return (
-                    <SourceRow
-                      key={source.id}
-                      source={source}
-                      progress={jobProgress(activity, source.id)}
-                      top={row.start}
-                      selected={isSelected}
-                      focused={focusId === source.id}
-                      onPointer={(e) => select(source.id, e)}
-                      onOpen={() => open(source)}
-                      onStar={() =>
-                        void invoke<Source>("store_update", { id: source.id, patch: { starred: !source.starred } }, workspaceId).then(updateSource)
-                      }
-                      dragIds={() => (selected.has(source.id) ? [...selected] : [source.id])}
-                    />
-                  );
-                })}
-              </div>
-              </>
+          <DatabaseView
+            rowAttrs={(source: Source) => itemAttrs({ kind: "source", id: source.id, title: source.title || "Untitled" })}
+            ref={listRef}
+            rows={items}
+            rowId={(source) => source.id}
+            state={{ ...viewState, sorts }}
+            onChange={setViewState}
+            columns={columns}
+            label={`${title}, ${total} items`}
+            empty={!loading && <EmptyState scope={scope} filtered={!!(kind || tag || filters.length)} onAdd={() => void bridge().addFiles(workspaceId, collectionId).then(() => void load(0))} />}
+            isSelected={(source) => selected.has(source.id) || (!selected.size && focusId === source.id)}
+            isFocused={(source) => focusId === source.id}
+            onPointer={(source, e) => select(source.id, e)}
+            onOpen={open}
+            onDragStart={dragSources}
+            onRange={(first, last) => setRange((r) => (r[0] === first && r[1] === last ? r : [first, last]))}
+            renderCard={(source) => <SourceCard source={source} />}
+            renderListRow={(source, top, row) => (
+              <SourceRow
+                key={source.id}
+                source={source}
+                progress={jobProgress(activity, source.id)}
+                top={top}
+                selected={row.selected}
+                focused={row.focused}
+                onPointer={(e) => select(source.id, e)}
+                onOpen={() => open(source)}
+                onStar={() =>
+                  void invoke<Source>("store_update", { id: source.id, patch: { starred: !source.starred } }, workspaceId).then(updateSource)
+                }
+                onDragStart={(e) => dragSources(source, e)}
+              />
             )}
-          </div>
+          />
         )}
         <footer className="kx-status-bar">
           <span>
@@ -815,6 +756,10 @@ export default function ReferenceLibrary({
               setSheet(definition ? { mode: "edit", definition, targets, applyValue: true } : { mode: "new", targets });
             }}
             onFill={() => setAgent({ targets: items.filter((s) => selected.has(s.id)) })}
+            onEnrich={async () => {
+              const count = await invoke<number>("store_enrich", { ids: [...selected] }, workspaceId);
+              setToast({ text: `Looking up ${count} ${count === 1 ? "source" : "sources"} in OpenAlex` });
+            }}
             onTrash={() => void trash([...selected], scope !== "trashed")}
             onDelete={async () => {
               if (!window.confirm(`Delete ${selected.size} items permanently? Linked files stay on disk.`)) return;
@@ -859,32 +804,25 @@ export default function ReferenceLibrary({
         />
       )}
       {inspector && (
-        <SourceInspector
-          key={inspector.id}
-          source={inspector}
-          invoke={invoke}
-          workspaceId={workspaceId}
-          collections={collections}
-          tagSuggestions={facets.tags}
-          onChanged={(source) => {
-            updateSource(source);
-            if (source.collections.length !== inspector.collections.length || source.tags.join("\n") !== inspector.tags.join("\n")) libraryChanged();
-          }}
-          onOpen={openExternal}
-          onOpenPage={(source) =>
-            void bridge().tabAction("open-source-page", { workspaceId, sourceId: source.id, title: source.title || "Untitled", read: false })
-          }
-          onClose={() => setFocusId(undefined)}
-          definitions={definitions}
-          progress={jobProgress(activity, inspector.id)}
-          onPropertySheet={setSheet}
-          onAgentFill={(name) => setAgent({ targets: [inspector], name })}
-          onDownload={async () => {
-            const lookup = await invoke<{ fullTextUrl?: string | null }>("scholarly_lookup_resource", { resource: inspector.doi || inspector.url }, workspaceId);
-            if (!lookup.fullTextUrl) throw Error("No open-access PDF was found for this reference.");
-            updateSource(await invoke<Source>("library_download_pdf", { url: lookup.fullTextUrl, sourceId: inspector.id }, workspaceId));
-          }}
-        />
+        // The details panel is the source's page, the same component as its own tab.
+        <aside className="kx-inspector kx-inspector-page" aria-label="Source details">
+          <SourceItemPage
+            key={inspector.id}
+            invoke={invoke}
+            workspaceId={workspaceId}
+            sourceId={inspector.id}
+            side={{
+              onChanged: (source) => {
+                updateSource(source);
+                if (source.collections.length !== inspector.collections.length || source.tags.join("\n") !== inspector.tags.join("\n")) libraryChanged();
+              },
+              onOpenPage: (source) => void bridge().tabAction("open-source-page", { workspaceId, sourceId: source.id, title: source.title || "Untitled", read: false }),
+              onClose: () => setFocusId(undefined),
+              progress: jobProgress(activity, inspector.id),
+              onAgentFill: (name) => setAgent({ targets: [inspector], name }),
+            }}
+          />
+        </aside>
       )}
       {sheet && (
         <PropertySheet
@@ -920,6 +858,18 @@ export default function ReferenceLibrary({
           onSaved={() => void load(0)}
         />
       )}
+      {zotero && (
+        <ZoteroImportSheet
+          invoke={invoke}
+          workspaceId={workspaceId}
+          onClose={() => setZotero(false)}
+          onDone={(workspace, report) => {
+            setToast({ text: `Imported ${report.items.toLocaleString()} items from Zotero into “${workspace.name}”` });
+            selectLibrary({ workspaceId: workspace.id });
+            libraryChanged();
+          }}
+        />
+      )}
       {identifier && (
         <IdentifierSheet
           invoke={invoke}
@@ -935,6 +885,7 @@ export default function ReferenceLibrary({
         />
       )}
     </section>
+    </FilterLinks.Provider>
   );
 }
 
@@ -947,7 +898,7 @@ function SourceRow({
   onPointer,
   onOpen,
   onStar,
-  dragIds,
+  onDragStart,
 }: {
   source: Source;
   progress?: { fraction: number; label: string };
@@ -957,10 +908,29 @@ function SourceRow({
   onPointer: (e: React.MouseEvent) => void;
   onOpen: () => void;
   onStar: () => void;
-  dragIds: () => string[];
+  onDragStart: (e: React.DragEvent) => void;
 }) {
   const status = indexLabel(source);
-  const meta = [shortCreators(source.creators), source.year, source.containerShort || source.containerTitle].filter(Boolean).join(" · ");
+  const container = source.containerShort || source.containerTitle;
+  const meta = [
+    source.creators.length > 0 && (
+      <FilterLink key="a" filter={sourceFilter.creator(source.creators[0])}>
+        {shortCreators(source.creators)}
+      </FilterLink>
+    ),
+    source.year && (
+      <FilterLink key="y" filter={sourceFilter.year(source.year)}>
+        {source.year}
+      </FilterLink>
+    ),
+    container && (
+      <FilterLink key="c" filter={source.containerTitle ? sourceFilter.container(source.containerTitle) : undefined}>
+        {container}
+      </FilterLink>
+    ),
+  ]
+    .filter(Boolean)
+    .flatMap((part, i) => (i ? [" · ", part] : [part]));
   return (
     <div
       className="kx-row"
@@ -972,10 +942,8 @@ function SourceRow({
       onMouseDown={onPointer}
       onDoubleClick={onOpen}
       draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(dragIds()));
-        e.dataTransfer.effectAllowed = "copy";
-      }}
+      onDragStart={onDragStart}
+      {...itemAttrs({ kind: "source", id: source.id, title: source.title || "Untitled" })}
     >
       <span className="kx-row-kind" data-kind={source.kind}>
         <Icon name={KIND_ICON[source.kind] ?? "doc"} size={15} />
@@ -984,7 +952,7 @@ function SourceRow({
         <strong>{source.title || "Untitled"}</strong>
         <span>
           {progress && <b className="kx-row-stage">{progress.label}</b>}
-          {meta || (!progress && <em>No details yet</em>)}
+          {meta.length ? meta : !progress && <em>No details yet</em>}
         </span>
       </span>
       <span className="kx-row-end">
@@ -1017,117 +985,6 @@ function SourceRow({
           <Icon name="star" size={13} fill={source.starred ? "currentColor" : "none"} />
         </button>
       </span>
-    </div>
-  );
-}
-
-const tableGrid = (properties: number) =>
-  `minmax(220px, 3fr) minmax(120px, 1.3fr) 56px minmax(120px, 1.2fr) 92px${" minmax(110px, 1fr)".repeat(properties)}`;
-
-function TableRow({
-  source,
-  top,
-  selected,
-  columns,
-  grid,
-  onPointer,
-  onOpen,
-  onCommit,
-  dragIds,
-}: {
-  source: Source;
-  top: number;
-  selected: boolean;
-  columns: PropertyDefinition[];
-  grid: string;
-  onPointer: (e: React.MouseEvent) => void;
-  onOpen: () => void;
-  onCommit: (name: string, value: unknown) => void;
-  dragIds: () => string[];
-}) {
-  const [editing, setEditing] = useState<string>();
-  return (
-    <div
-      className="kx-table-row"
-      role="option"
-      aria-selected={selected}
-      style={{ transform: `translateY(${top}px)`, gridTemplateColumns: grid }}
-      onMouseDown={onPointer}
-      onDoubleClick={onOpen}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(dragIds()));
-        e.dataTransfer.effectAllowed = "copy";
-      }}
-    >
-      <span className="kx-cell-title">
-        <span className="kx-row-kind kx-row-kind-small" data-kind={source.kind}>
-          <Icon name={KIND_ICON[source.kind] ?? "doc"} size={12} />
-        </span>
-        <span>{source.title || "Untitled"}</span>
-      </span>
-      <span>{shortCreators(source.creators)}</span>
-      <span className="kx-cell-number">{source.year ?? ""}</span>
-      <span>{source.containerShort || source.containerTitle || ""}</span>
-      <span className="kx-cell-muted">{relativeDate(source.addedAt)}</span>
-      {columns.map((d) => {
-        const raw = source.properties[d.name];
-        const text = d.type === "formula" ? formulaValue(d, source) : raw === undefined || raw === null ? "" : d.type === "boolean" ? (raw ? "✓" : "") : String(raw);
-        if (editing === d.name && d.type !== "formula") {
-          const done = (value: unknown) => {
-            setEditing(undefined);
-            if (value !== raw) onCommit(d.name, value);
-          };
-          return d.type === "select" || d.type === "boolean" ? (
-            <select
-              key={d.name}
-              autoFocus
-              className="kx-cell-editor"
-              defaultValue={String(raw ?? "")}
-              onMouseDown={(e) => e.stopPropagation()}
-              onChange={(e) => done(d.type === "boolean" ? e.target.value === "true" : e.target.value || null)}
-              onBlur={() => setEditing(undefined)}
-            >
-              <option value="">—</option>
-              {(d.type === "boolean" ? ["true", "false"] : d.options ?? []).map((o) => (
-                <option key={o} value={o}>
-                  {d.type === "boolean" ? (o === "true" ? "Yes" : "No") : o}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              key={d.name}
-              autoFocus
-              className="kx-cell-editor"
-              defaultValue={String(raw ?? "")}
-              inputMode={d.type === "number" ? "decimal" : undefined}
-              onMouseDown={(e) => e.stopPropagation()}
-              onBlur={(e) => {
-                const next = e.target.value.trim();
-                done(next === "" ? null : d.type === "number" && Number.isFinite(Number(next)) ? Number(next) : next);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-                if (e.key === "Escape") setEditing(undefined);
-              }}
-            />
-          );
-        }
-        return (
-          <span
-            key={d.name}
-            className={`kx-cell-property ${d.type === "formula" ? "computed" : ""}`}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              if (d.type !== "formula") setEditing(d.name);
-            }}
-            title={d.type === "formula" ? "Calculated" : "Double-click to edit"}
-          >
-            {text}
-          </span>
-        );
-      })}
     </div>
   );
 }
@@ -1174,6 +1031,10 @@ interface ResultHandlers {
   onMore: () => void;
 }
 
+/** A result's section: matched in its details, in its text, or only by meaning. */
+const hitGroup = (hit: SearchHit): SearchGroup => (hit.metadataMatch ? "titles" : hit.passages.some((p) => !p.related) ? "text" : "meaning");
+const noteGroup = (note: NoteHit): SearchGroup => (note.passages.some((p) => !p.related) ? "text" : "meaning");
+
 const SearchResults = memo(function SearchResults({
   search,
   focusId,
@@ -1186,6 +1047,7 @@ const SearchResults = memo(function SearchResults({
   handlers: ResultHandlers;
 }) {
   const result = search.result;
+  const { collapsed, toggle } = useCollapsedGroups();
   const pattern = useMemo(() => queryPattern(search.query), [search.query]);
   const hits = result?.hits ?? [];
   const notes = result?.notes ?? [];
@@ -1199,7 +1061,8 @@ const SearchResults = memo(function SearchResults({
           Search failed: {search.error}
         </p>
       ) : result ? (
-        <div className="kx-results-head">
+        // With nothing found, the single message below says so.
+        (hits.length > 0 || notes.length > 0) && <div className="kx-results-head">
           <strong>
             {hits.length || notes.length
               ? [
@@ -1224,20 +1087,35 @@ const SearchResults = memo(function SearchResults({
           ))}
         </div>
       )}
-      {notes.map((note) => (
-        <NoteHitRow key={note.noteId} note={note} pattern={pattern} handlers={handlers} />
-      ))}
       {result && !hits.length && !notes.length && <p className="kx-results-empty">Nothing matched “{search.query}”. Try other words or a broader collection.</p>}
-      {hits.map((hit) => (
-        <SearchHitRow
-          key={hit.sourceId}
-          hit={hit}
-          pattern={pattern}
-          selected={selected.has(hit.sourceId) || (!selected.size && focusId === hit.sourceId)}
-          focused={focusId === hit.sourceId}
-          handlers={handlers}
-        />
-      ))}
+      {GROUPS.map((group) => {
+        const inGroup = hits.filter((h) => hitGroup(h) === group);
+        const notesInGroup = notes.filter((n) => noteGroup(n) === group);
+        if (!inGroup.length && !notesInGroup.length) return null;
+        const shut = collapsed.includes(group);
+        return (
+          <section key={group} className="kx-results-section" data-group={group}>
+            <SectionHeader group={group} count={inGroup.length + notesInGroup.length} collapsed={shut} onToggle={() => toggle(group)} />
+            {!shut && (
+              <>
+                {notesInGroup.map((note) => (
+                  <NoteHitRow key={note.noteId} note={note} pattern={pattern} handlers={handlers} />
+                ))}
+                {inGroup.map((hit) => (
+                  <SearchHitRow
+                    key={hit.sourceId}
+                    hit={hit}
+                    pattern={pattern}
+                    selected={selected.has(hit.sourceId) || (!selected.size && focusId === hit.sourceId)}
+                    focused={focusId === hit.sourceId}
+                    handlers={handlers}
+                  />
+                ))}
+              </>
+            )}
+          </section>
+        );
+      })}
       {hits.length === search.limit && search.limit < 300 && (
         <button className="kx-results-more" onClick={handlers.onMore}>
           Show more results
@@ -1276,6 +1154,7 @@ const SearchHitRow = memo(function SearchHitRow({
             aria-selected={selected}
             data-focused={focused}
             data-hit={source.id}
+            {...itemAttrs({ kind: "source", id: source.id, title: source.title || "Untitled" })}
             onMouseDown={(e) => {
               if (!(e.target as HTMLElement).closest(".kx-passage")) handlers.onPointer(source.id, e);
             }}
@@ -1296,7 +1175,11 @@ const SearchHitRow = memo(function SearchHitRow({
                     <Highlight text={authors} pattern={pattern} />
                   </span>
                 )}
-                {source.year && <span>{source.year}</span>}
+                {source.year && (
+                  <span>
+                    <FilterLink filter={sourceFilter.year(source.year)}>{source.year}</FilterLink>
+                  </span>
+                )}
                 {container && (
                   <span>
                     <Highlight text={container} pattern={pattern} />
@@ -1307,7 +1190,9 @@ const SearchHitRow = memo(function SearchHitRow({
                 <span className="kx-hit-tags">
                   {tags.map((t) => (
                     <span key={t} className="kx-hit-tag">
-                      <Highlight text={t} pattern={pattern} />
+                      <FilterLink filter={sourceFilter.tag(t)}>
+                        <Highlight text={t} pattern={pattern} />
+                      </FilterLink>
                     </span>
                   ))}
                 </span>
@@ -1406,7 +1291,7 @@ function AddMenu({ onFiles, onBlank, onIdentifier, onZotero }: { onFiles: () => 
           </button>
           <hr />
           <button onClick={onZotero}>
-            <Icon name="books" size={13} /> Import Zotero library
+            <Icon name="books" size={13} /> Import from Zotero…
           </button>
         </div>
       </details>
@@ -1474,6 +1359,7 @@ function BulkBar({
   definitions,
   onSetProperty,
   onFill,
+  onEnrich,
   onTag,
   onCollect,
   onStar,
@@ -1487,6 +1373,7 @@ function BulkBar({
   definitions: PropertyDefinition[];
   onSetProperty: (definition?: PropertyDefinition) => void;
   onFill: () => void;
+  onEnrich: () => Promise<void>;
   onTag: (tag: string) => Promise<void>;
   onCollect: (id: string) => Promise<void>;
   onStar: () => Promise<void>;
@@ -1545,6 +1432,9 @@ function BulkBar({
           </select>
           <button onClick={onFill} title={count > 25 ? "Agent fill works on 25 sources at a time" : "Fill a property with AI"}>
             <Icon name="sparkle" size={13} /> Fill with AI
+          </button>
+          <button onClick={() => void onEnrich()} title="Look the selection up in OpenAlex: authors, journal, topics, funding and citations">
+            <Icon name="globe" size={13} /> Look up
           </button>
           <span className="kx-bulk-sep" />
         </>

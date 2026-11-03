@@ -55,6 +55,7 @@ export function sourceLine(ref: SourceRef): string {
 
 /** Short label for a mention chip. */
 export function mentionLabel(ref: SourceRef): string {
-  const pick = ref.detail && ref.detail.length <= 48 ? ref.detail : ref.title;
+  // A source's "Palma et al. 2022"; anything the item picker found goes by its title.
+  const pick = !ref.itemKind && ref.detail && ref.detail.length <= 48 ? ref.detail : ref.title;
   return pick.length > 60 ? `${pick.slice(0, 57).trimEnd()}…` : pick;
 }

@@ -33,8 +33,8 @@ const assert = require("node:assert/strict");
         .map((w) => w.id)
         .sort(),
     );
-    await page.getByRole("button", { name: "Workspace", exact: true }).click();
-    await page.locator(`[data-workspace-id="${ws.id}"]`).click();
+    // The sidebar's Library opens the workspace's library again.
+    await page.locator(".key-sidebar .kx-top-title", { hasText: "Library" }).click();
     await page.getByRole("heading", { name: /^(All sources|Sources)$/ }).waitFor();
     const sourceState = await page.evaluate(() => window.key.tabs());
     const library = sourceState.activeViewId;
@@ -50,10 +50,7 @@ const assert = require("node:assert/strict");
       .getByRole("textbox", { name: "Page content", exact: true })
       .fill("Keep this unsaved text through splits and switches.");
     const note = (await page.evaluate(() => window.key.tabs())).activeViewId;
-    await page
-      .locator(".key-sidebar .kx-nav-item")
-      .filter({ hasText: "Sources" })
-      .click();
+    await page.locator(".key-sidebar .kx-top-title", { hasText: "Library" }).click();
     assert.equal(
       (await page.evaluate(() => window.key.tabs())).activeViewId,
       library,
@@ -79,8 +76,12 @@ const assert = require("node:assert/strict");
       (await page.evaluate(() => window.key.tabs())).activeViewId,
       note,
     );
-    await page.keyboard.press(
-      process.platform === "darwin" ? "Meta+s" : "Control+s",
+    // ⌘S is a menu accelerator, which synthetic keys don't reach: use the menu item.
+    await app.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu()
+        .items.find((i) => i.label === "File")
+        .submenu.items.find((i) => i.label === "Save")
+        .click(),
     );
     await page.getByText("Saved", { exact: true }).waitFor();
     const saved = (
@@ -159,7 +160,8 @@ const assert = require("node:assert/strict");
     let geometry = await getGeometry();
     assert(geometry.native.length >= 1, JSON.stringify(geometry));
     assert(geometry.dom.width > 300);
-    assert.equal(Math.round(geometry.dom.y), 40);
+    // A pane in a split sits under its 26px header (the tab bar is 40px).
+    assert.equal(Math.round(geometry.dom.y), 40 + 26);
     await page.getByRole("button", { name: "Swap panes", exact: true }).click();
     await page.evaluate(() =>
       window.key.tabAction("resize-split", { ratio: 0.4 }),

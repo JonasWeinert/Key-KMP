@@ -1,10 +1,16 @@
 import HomeView from "./HomeView";
 import { Button, Input, Textarea, Select } from "@key/design-system";
 import NotePage from "./NotePage";
+import CanvasPage from "./canvas/CanvasPage";
 import SourcePage from "./SourcePage";
+import SearchPage from "./SearchPage";
+import HighlightsPage from "./HighlightsPage";
+import LinkedFileView from "./LinkedFileView";
 import type { SearchPreviewState } from "./search-preview";
 import { EntryDetails } from "./EntryTools";
 import { RecordProperties } from "./RecordProperties";
+import { ItemPage } from "./ItemPage";
+import { readAppearance } from "./page-appearance";
 import { useCallback, useEffect, useRef, useState } from "react";
 import LibraryHome, {
   type LibrarySource,
@@ -12,6 +18,7 @@ import LibraryHome, {
 } from "./LibraryHome";
 import "./shell.css";
 import ReferenceLibrary from "./ReferenceLibrary";
+import EntityPage from "./EntityPage";
 
 interface Workspace {
   id: string;
@@ -208,12 +215,16 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "home" | "sources" | "records" | "record" | "note" | "source";
+  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas" | "highlights" | "search" | "file" | "person" | "venue" | "topic";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
   noteId?: string;
   sourceId?: string;
+  canvasId?: string;
+  fileId?: string;
+  /** The person, venue or topic of an entity page. */
+  entityId?: string;
 }
 export default function WorkspaceContent({
   viewId,
@@ -486,7 +497,24 @@ export default function WorkspaceContent({
         />
       )}
       {section === "record" && record && !record.properties.sourceType && (
-        <section className="key-record-editor">
+        // A workspace page is an item page too: its header is saved with its properties.
+        <ItemPage
+          kind="record"
+          className="key-record-editor key-record-page"
+          innerClassName="key-record-page-inner"
+          appearance={readAppearance(JSON.parse(propertiesText).appearance)}
+          onAppearance={(patch) => {
+            const properties = JSON.parse(propertiesText);
+            const appearance: Record<string, unknown> = { ...readAppearance(properties.appearance) };
+            for (const [key, value] of Object.entries(patch)) {
+              if (value === null) delete appearance[key];
+              else appearance[key] = value;
+            }
+            setPropertiesText(JSON.stringify({ ...properties, appearance }));
+            setDirty(true);
+          }}
+          defaultIcon={record.kind === "database" ? "database" : "doc"}
+          bar={
           <div className="key-record-top">
             <span>
               {selectedWorkspace?.name} / {selectedProject?.name || "Pages"} /{" "}
@@ -501,6 +529,8 @@ export default function WorkspaceContent({
               {busy ? "Saving…" : dirty ? "Save changes" : "Save"}
             </Button>
           </div>
+          }
+          title={
           <Input
             className="key-record-title"
             aria-label="Page title"
@@ -508,6 +538,19 @@ export default function WorkspaceContent({
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
+              setDirty(true);
+            }}
+          />
+          }
+        >
+          <RecordProperties
+            value={JSON.parse(propertiesText)}
+            workspaceId={workspaceId}
+            invoke={invoke}
+            disabled={busy}
+            onRename={renameProperty}
+            onChange={(next) => {
+              setPropertiesText(JSON.stringify(next));
               setDirty(true);
             }}
           />
@@ -607,17 +650,6 @@ export default function WorkspaceContent({
               }}
             />
           )}
-          <RecordProperties
-            value={JSON.parse(propertiesText)}
-            workspaceId={workspaceId}
-            invoke={invoke}
-            disabled={busy}
-            onRename={renameProperty}
-            onChange={(next) => {
-              setPropertiesText(JSON.stringify(next));
-              setDirty(true);
-            }}
-          />
           <div className="key-record-status" role="status">
             {dirty
               ? "Unsaved changes"
@@ -672,7 +704,7 @@ export default function WorkspaceContent({
               ))}
             </details>
           )}
-        </section>
+        </ItemPage>
       )}
       {section === "records" && workspaceId && (
         <section className="key-record-editor">
@@ -695,6 +727,15 @@ export default function WorkspaceContent({
       )}
       {section === "source" && workspaceId && spec.sourceId && (
         <SourcePage invoke={invoke} workspaceId={workspaceId} sourceId={spec.sourceId} viewId={viewId} />
+      )}
+      {section === "canvas" && workspaceId && spec.canvasId && (
+        <CanvasPage invoke={invoke} workspaceId={workspaceId} canvasId={spec.canvasId} viewId={viewId} />
+      )}
+      {section === "highlights" && workspaceId && <HighlightsPage invoke={invoke} workspaceId={workspaceId} />}
+      {section === "search" && workspaceId && <SearchPage invoke={invoke} workspaceId={workspaceId} active={visible && tabs.activeViewId === viewId} viewId={viewId} />}
+      {section === "file" && workspaceId && spec.fileId && <LinkedFileView invoke={invoke} workspaceId={workspaceId} fileId={spec.fileId} />}
+      {(section === "person" || section === "venue" || section === "topic") && workspaceId && spec.entityId && (
+        <EntityPage invoke={invoke} workspaceId={workspaceId} kind={section} id={spec.entityId} viewId={viewId} />
       )}
       {section === "note" && workspaceId && spec.noteId && (
         <NotePage invoke={invoke} workspaceId={workspaceId} noteId={spec.noteId} viewId={viewId} />

@@ -10,11 +10,34 @@ import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
 import type { SearchPreviewState } from "./search-preview";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ROW_PX, share } from "./sidebar-budget";
 import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import CollectionTree from "./CollectionTree";
+import { sidebarClick } from "./sidebar-intent";
+import ReferencesPanel from "./ReferencesPanel";
+import WorkspaceSection, { type WorkspaceEntry } from "./WorkspaceSection";
+import { hasExternalDrop, hasItemDrag, importDrop, inboxCollection, readItemDrag, setItemDrag } from "./item-links";
+import { describeCount, sendToCanvas, sendToNote, setShellContext, toast } from "./item-actions";
+import { ItemLayer, onShowInInspector, selectItems, useSelectedItems } from "./item-ui";
+import { selectLibrary } from "./library-nav";
+import Inspector from "./Inspector";
+import CommandCenter from "./CommandCenter";
+import type { DraggedItem } from "./note-editor";
 import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
+import {
+  MAX_PANES,
+  PANE_HEADER,
+  layoutPanes,
+  paneBody,
+  setWorkspaceSplitRatio,
+  tabWithLayout,
+  type PaneLayout,
+  type SplitEdge,
+  type WorkspaceViewDrop,
+} from "../shared/tab-model";
+import { TabKindIcon, type ContentDropTarget } from "./TabBar";
 interface Workspace {
   id: string;
   name: string;
@@ -39,8 +62,14 @@ interface RecordItem {
 }
 interface TabState {
   searchPreview?: SearchPreviewState;
+  /** The workspace this window shows; other windows' workspaces for the switcher. */
+  workspaceId?: string;
+  windowId?: string;
+  windows?: { windowId: string; workspaceId: string }[];
   tabs: {
     id: string;
+    layout?: PaneLayout;
+    pinned?: boolean;
     title: string;
     views: {
       id: string;
@@ -48,6 +77,11 @@ interface TabState {
       kind: string;
       workspaceId?: string;
       content?: ContentSpec;
+      /** Titles of what this pane showed before (oldest first), and the next one forward. */
+      back?: string[];
+      forward?: string;
+      /** Bumped each time a link is followed in this pane (or Back/Forward). */
+      nav?: number;
     }[];
   }[];
   activeTabId: string;
@@ -90,6 +124,28 @@ const SIDEBAR_MIN = 180,
 const clampSidebar = (width: number) => Math.round(Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, width)));
 
 const emptyTabs: TabState = { tabs: [], activeTabId: "", activeViewId: "" };
+// Native views start below the 40px tab bar; DOM panes use the same geometry.
+const CHROME_TOP = 40;
+/** A quarter of the pane, at most this many pixels, from an edge splits there. */
+const EDGE_BAND = 80;
+const DIVIDER_STEP = 0.025;
+const INSPECTOR_WIDTH = 300;
+
+/** The item a content pane shows, for the inspector when nothing is selected. */
+function paneItem(content?: ContentSpec, title?: string): DraggedItem | undefined {
+  if (!content) return undefined;
+  const name = title ?? "Untitled";
+  if (content.section === "note" && content.noteId) return { kind: "note", id: content.noteId, title: name };
+  if (content.section === "canvas" && content.canvasId) return { kind: "canvas", id: content.canvasId, title: name };
+  if (content.section === "source" && content.sourceId) return { kind: "source", id: content.sourceId, title: name };
+  if (content.section === "record" && content.record?.id) return { kind: "record", id: content.record.id, title: name };
+  if (content.section === "file" && content.fileId) return { kind: "file", id: content.fileId, title: name };
+  if ((content.section === "person" || content.section === "venue" || content.section === "topic") && content.entityId) return { kind: content.section, id: content.entityId, title: name };
+  return undefined;
+}
+/** What a pane shows, so the selection follows it when that changes. */
+const contentIdentity = (content?: ContentSpec) =>
+  content ? [content.section, content.noteId ?? content.canvasId ?? content.sourceId ?? content.entityId ?? content.record?.id ?? content.workspaceId ?? ""].join(":") : "";
 
 const tabSummary = (state: TabState): TabSummary[] =>
   state.tabs.map((tab) => ({
@@ -97,7 +153,8 @@ const tabSummary = (state: TabState): TabSummary[] =>
     title: tab.title,
     kind: (tab.views[0]?.kind as TabSummary["kind"]) || "home",
     active: tab.id === state.activeTabId,
-    closable: true,
+    closable: !tab.pinned,
+    pinned: Boolean(tab.pinned),
     views: tab.views.map((view) => ({
       ...view,
       active: view.id === state.activeViewId,
@@ -114,11 +171,13 @@ const officeTabs: TabsApi = {
   },
   activate: (tabId) => api().tabAction("activate", { tabId }),
   close: (tabId) => api().tabAction("close", { tabId }),
+  closeView: (viewId) => api().tabAction("close-pane", { viewId }),
   reorder: (tabId, index) => api().tabAction("reorder", { tabId, index }),
   showNewMenu: () => api().tabAction("new"),
   showMenu: (x, y) => api().tabAction("tab-menu", { x, y }),
   showTabMenu: (tabId, x, y) => api().tabAction("tab-context-menu", { tabId, x, y }),
   dropView: (drop) => api().tabAction("drop-view", drop),
+  tearOff: (target) => api().tabAction("tear-off", target),
   notifyChromePressed: () => {
     void api().tabAction("chrome-pressed");
   },
@@ -135,7 +194,7 @@ export default function App() {
   const [error, setError] = useState(""),
     [refreshKey, setRefreshKey] = useState(0);
   const splitFrame = useRef<number | null>(null);
-  const splitPending = useRef(0.5);
+  const splitPending = useRef<{ path: string; ratio: number }>({ path: "", ratio: 0.5 });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("key.sidebar.collapsed") === "true",
   );
@@ -170,21 +229,23 @@ export default function App() {
       cancelAnimationFrame(frame);
     };
   }, []);
-  const [dragRatio, setDragRatio] = useState<number>();
-  const resizeSplit = (x: number) => {
-    const ratio = Math.max(
-      0.2,
-      Math.min(
-        0.8,
-        (x - sidebarWidth) / Math.max(1, window.innerWidth - sidebarWidth),
-      ),
-    );
-    setDragRatio(ratio);
-    splitPending.current = ratio;
+  // The content area's size, which native views and DOM panes share.
+  const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
+  useEffect(() => {
+    const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  // A divider being dragged: its split and the ratio shown until main confirms it.
+  const [dragSplit, setDragSplit] = useState<{ path: string; ratio: number }>();
+  const resizeSplit = (path: string, ratio: number) => {
+    const next = { path, ratio: Math.max(0.1, Math.min(0.9, ratio)) };
+    setDragSplit(next);
+    splitPending.current = next;
     if (splitFrame.current === null)
       splitFrame.current = requestAnimationFrame(() => {
         splitFrame.current = null;
-        action("resize-split", { ratio: splitPending.current });
+        action("resize-split", splitPending.current);
       });
   };
   const [createMenu, setCreateMenu] = useState(false),
@@ -340,16 +401,37 @@ export default function App() {
   }, [invoke, workspaceId, refreshKey]);
   const openNote = (note: Pick<Note, "id" | "title">) =>
     action("open-content", { section: "note", workspaceId, noteId: note.id, title: note.title });
-  const createNote = () =>
+  const newNote = async () => {
+    setCreateMenu(false);
+    if (!workspaceId) throw Error("Choose a workspace to create a note.");
+    const note = await invoke<Note>("store_note_save", { id: null, sourceId: null, title: "", body: "" }, workspaceId);
+    notesChanged();
+    openNote(note);
+    return note;
+  };
+  const createNote = () => void task(async () => void (await newNote()));
+  // Canvases (key-store), listed under the notes and opened as tabs.
+  const [canvases, setCanvases] = useState<{ id: string; title: string; updatedAt?: number }[]>([]);
+  useEffect(() => {
+    if (!workspaceId) return setCanvases([]);
+    const load = () => void invoke<{ id: string; title: string }[]>("store_canvases", {}, workspaceId).then(setCanvases).catch(() => setCanvases([]));
+    load();
+    window.addEventListener("key:canvases-changed", load);
+    return () => window.removeEventListener("key:canvases-changed", load);
+  }, [invoke, workspaceId, refreshKey]);
+  const openCanvas = (canvas: { id: string; title: string }) =>
+    action("open-content", { section: "canvas", workspaceId, canvasId: canvas.id, title: canvas.title });
+  const createCanvas = () =>
     void task(async () => {
       setCreateMenu(false);
-      if (!workspaceId) throw Error("Choose a workspace to create a note.");
-      const note = await invoke<Note>("store_note_save", { id: null, sourceId: null, title: "", body: "" }, workspaceId);
-      notesChanged();
-      openNote(note);
+      if (!workspaceId) throw Error("Choose a workspace to create a canvas.");
+      const canvas = await invoke<{ id: string; title: string }>("store_canvas_save", { id: null, title: "", doc: { version: 1, nodes: [], edges: [] } }, workspaceId);
+      window.dispatchEvent(new Event("key:canvases-changed"));
+      openCanvas(canvas);
     });
   const createRecord = (kind: string) => {
     if (kind === "note") return createNote();
+    if (kind === "canvas") return createCanvas();
     setCreateMenu(false);
     if (!workspaceId) {
       setError("Choose a workspace to create an item.");
@@ -375,21 +457,257 @@ export default function App() {
     selectedProject = projects.find((p) => p.id === projectId);
   const activeTab = tabs.tabs.find((t) => t.id === tabs.activeTabId),
     activeView = activeTab?.views.find((v) => v.id === tabs.activeViewId);
+  // The sidebar shows the window's workspace; the focused view only picks the project
+  // and highlights its row (a view from another workspace changes neither).
   useEffect(() => {
+    if (tabs.workspaceId) setWorkspaceId(tabs.workspaceId);
+  }, [tabs.workspaceId]);
+  useEffect(() => {
+    const own = (activeView?.content?.workspaceId ?? activeView?.workspaceId) === tabs.workspaceId;
     if (activeView?.content) {
-      setWorkspaceId(activeView.content.workspaceId);
-      setProjectId(activeView.content.projectId);
+      setProjectId(own ? activeView.content.projectId : undefined);
       setSection(activeView.content.section);
       setRecord(activeView.content.record);
     } else if (activeView) {
-      setWorkspaceId(activeView.workspaceId);
       setProjectId(undefined);
       setRecord(undefined);
       setSection("");
     }
-  }, [activeView?.id, activeView?.content?.record?.id]);
+  }, [activeView?.id, activeView?.content?.record?.id, tabs.workspaceId]);
+  // A sidebar canvas or note takes dropped items without being opened.
+  const [dropOver, setDropOver] = useState<string>();
+  const [inboxDrop, setInboxDrop] = useState(false);
+  const dropTarget = (target: { kind: "canvas" | "note"; id: string; title: string }) => ({
+    "data-drop-over": dropOver === `${target.kind}:${target.id}` || undefined,
+    "data-drop-label": target.kind === "canvas" ? `Add to ${target.title}` : `Link in ${target.title} · ⌥ embed · ⌘ cite`,
+    onDragOver: (e: React.DragEvent) => {
+      if (!hasItemDrag(e.dataTransfer)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      setDropOver(`${target.kind}:${target.id}`);
+    },
+    onDragLeave: (e: React.DragEvent) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropOver(undefined),
+    onDrop: (e: React.DragEvent) => {
+      setDropOver(undefined);
+      const items = readItemDrag(e.dataTransfer).filter((item) => !(item.kind === target.kind && item.id === target.id));
+      if (!items.length || !workspaceId) return;
+      e.preventDefault();
+      const mode = e.altKey ? "embed" : e.metaKey || items.every((i) => i.anchor?.startsWith("highlight:")) ? "cite" : "link";
+      void (target.kind === "canvas" ? sendToCanvas(invoke, workspaceId, target.id, items) : sendToNote(invoke, workspaceId, target.id, items, mode))
+        .then((undo) => toast(`${target.kind === "canvas" ? "Added" : mode === "embed" ? "Embedded" : mode === "cite" ? "Cited" : "Linked"} ${describeCount(items)} ${target.kind === "canvas" ? "to" : "in"} ${target.title}`, undo))
+        .catch((error) => toast(String(error)));
+    },
+  });
+  // The shared item layer acts in this window's workspace and focused pane.
+  useEffect(() => setShellContext({ invoke, workspaceId, viewId: tabs.activeViewId }), [invoke, workspaceId, tabs.activeViewId]);
+  // A pane that gains focus is what's selected until something inside it is.
+  useEffect(() => {
+    const own = paneItem(activeView?.content, activeView?.title?.replace(/ •$/, ""));
+    selectItems(own ? [own] : []);
+  }, [activeView?.id, contentIdentity(activeView?.content)]);
+  const selected = useSelectedItems();
+  const [inspectorOpen, setInspectorOpen] = useState(() => localStorage.getItem("key.inspector.open") === "true");
+  const inspectorWidth = inspectorOpen ? INSPECTOR_WIDTH : 0;
+  useEffect(() => {
+    localStorage.setItem("key.inspector.open", String(inspectorOpen));
+    void api().tabAction("inspector-width", { width: inspectorWidth });
+  }, [inspectorOpen, inspectorWidth]);
+  useEffect(() => onShowInInspector(() => setInspectorOpen(true)), []);
+  useEffect(() => api().on("toggle-inspector", () => setInspectorOpen((open) => !open)), []);
+  const switchWorkspace = (id: string, newWindow = false) =>
+    task(() => api().tabAction("switch-workspace", { workspaceId: id, newWindow }));
+  const [switcherRequest, setSwitcherRequest] = useState(0);
+  useEffect(() => api().on("open-workspace-switcher", () => setSwitcherRequest((n) => n + 1)), []);
+  // Cmd-Option-arrows into a DOM pane: focus lands inside it.
+  useEffect(
+    () =>
+      api().on("focus-pane", (id) => {
+        const pane = document.querySelector<HTMLElement>(`[data-content-view="${id}"]`);
+        const target =
+          pane?.querySelector<HTMLElement>("input, textarea, [contenteditable='true'], button, [tabindex]:not([tabindex='-1'])") ?? pane;
+        target?.focus({ preventScroll: true });
+      }),
+    [],
+  );
+  // The active tab's panes and dividers, in content-area pixels (right of the sidebar, below the tab bar).
+  const shownLayout = (() => {
+    const layout = activeTab?.layout;
+    if (!layout || !dragSplit) return layout;
+    const tab = tabWithLayout({ id: "drag" }, layout);
+    return setWorkspaceSplitRatio({ tabs: [tab], activeTabId: tab.id }, tab.id, dragSplit.ratio, dragSplit.path).tabs[0].layout;
+  })();
+  const laidOut = shownLayout
+    ? layoutPanes(shownLayout, {
+        x: 0,
+        y: 0,
+        width: Math.max(0, viewport.width - sidebarWidth - inspectorWidth),
+        height: Math.max(0, viewport.height - CHROME_TOP),
+      })
+    : { panes: [], dividers: [] };
+  /** What releasing a dragged tab or pane at (x, y) over the content would do. */
+  const contentDrop = (x: number, y: number, drag: { viewId: string; pane: boolean; header?: boolean }): ContentDropTarget | undefined => {
+    const cx = x - sidebarWidth,
+      cy = y - CHROME_TOP;
+    const target = laidOut.panes.find((p) => cx >= p.x && cx < p.x + p.width && cy >= p.y && cy < p.y + p.height);
+    if (!activeTab || !target || target.viewId === drag.viewId) return undefined;
+    const distances: [SplitEdge, number, number][] = [
+      ["left", cx - target.x, target.width],
+      ["right", target.x + target.width - cx, target.width],
+      ["top", cy - target.y, target.height],
+      ["bottom", target.y + target.height - cy, target.height],
+    ];
+    const near = distances
+      .map(([edge, distance, size]) => [edge, distance / Math.min(EDGE_BAND, size / 4)] as const)
+      .filter(([, scaled]) => scaled <= 1)
+      .sort((a, b) => a[1] - b[1])[0];
+    const title = activeTab.views.find((v) => v.id === target.viewId)?.title ?? "this pane";
+    const onScreen = { x: target.x + sidebarWidth, y: target.y + CHROME_TOP, width: target.width, height: target.height };
+    if (near) {
+      const edge = near[0];
+      const half =
+        edge === "left" ? { ...onScreen, width: onScreen.width / 2 }
+        : edge === "right" ? { ...onScreen, x: onScreen.x + onScreen.width / 2, width: onScreen.width / 2 }
+        : edge === "top" ? { ...onScreen, height: onScreen.height / 2 }
+        : { ...onScreen, y: onScreen.y + onScreen.height / 2, height: onScreen.height / 2 };
+      const drop: WorkspaceViewDrop = { kind: "split", viewId: drag.viewId, targetTabId: activeTab.id, targetViewId: target.viewId, edge };
+      const where = { left: "left of", right: "right of", top: "above", bottom: "below" }[edge];
+      return { drop, preview: half, label: `◫ Release to split ${where} ${title}` };
+    }
+    // The centre of a pane in a split swaps with it; a pane's own group falls back to separating,
+    // except when the pane is dragged by its header, which stays in the content.
+    if ((drag.pane && !drag.header) || activeTab.views.length < 2) return undefined;
+    return { drop: { kind: "swap", viewId: drag.viewId, targetViewId: target.viewId }, preview: onScreen, label: `⇄ Release to swap with ${title}` };
+  };
+  // While a drag is over the content, native views are swapped for still frames so the
+  // drop preview can be drawn over them.
+  type Frame = { id: string; x: number; y: number; width: number; height: number; image: string };
+  const [dragFrames, setDragFrames] = useState<Frame[]>([]);
+  const dragOverlay = useRef<string | undefined>(undefined);
+  // Main recaptures when what is shown changes mid-drag (the dragged-from tab comes back).
+  useEffect(
+    () =>
+      api().on("global-overlay-frames", (result) => {
+        const { id, frames } = result as { id: string; frames: Frame[] };
+        if (id === dragOverlay.current) setDragFrames(frames);
+      }),
+    [],
+  );
+  const contentDragging = (dragging: boolean) => {
+    if (dragging && !dragOverlay.current) {
+      const id = `tab-drag-${crypto.randomUUID()}`;
+      dragOverlay.current = id;
+      void (api().tabAction("global-overlay-open", { id }) as unknown as Promise<{ frames?: Frame[] }>)
+        .then((result) => {
+          if (dragOverlay.current === id) setDragFrames(result?.frames ?? []);
+        })
+        .catch(() => {});
+    } else if (!dragging && dragOverlay.current) {
+      const id = dragOverlay.current;
+      dragOverlay.current = undefined;
+      setDragFrames([]);
+      void api().tabAction("global-overlay-close", { id });
+    }
+  };
+  // A pane of a split dragged by its header: onto another pane to split or swap, up into the
+  // tab bar to become a tab of its own, or out of the window into a new one.
+  const paneDragRef = useRef<{ pointerId: number; viewId: string; startX: number; startY: number; started: boolean; drop?: WorkspaceViewDrop; tearOff?: boolean }>(undefined);
+  const [paneDrag, setPaneDrag] = useState<{ viewId: string; x: number; label: string; preview?: ContentDropTarget["preview"]; insertAt?: number }>();
+  const movePaneDrag = (e: React.PointerEvent) => {
+    const drag = paneDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (!drag.started) {
+      if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 5) return;
+      drag.started = true;
+      contentDragging(true);
+    }
+    const outside = e.clientX < 0 || e.clientY < 0 || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
+    drag.drop = undefined;
+    drag.tearOff = outside;
+    if (outside) return setPaneDrag({ viewId: drag.viewId, x: e.clientX, label: "↗ Release to open in a new window" });
+    if (e.clientY < CHROME_TOP) {
+      const rects = Array.from(document.querySelectorAll<HTMLElement>(".tab-strip .tab-item"), (el) => el.getBoundingClientRect());
+      const index = rects.findIndex((r) => e.clientX < r.left + r.width / 2);
+      const at = index < 0 ? rects.length : index;
+      drag.drop = { kind: "detach", viewId: drag.viewId, index: at };
+      const marker = at < rects.length ? rects[at].left : (rects.at(-1)?.right ?? 0);
+      return setPaneDrag({ viewId: drag.viewId, x: e.clientX, label: "↑ Release to move into a tab of its own", insertAt: marker });
+    }
+    const target = contentDrop(e.clientX, e.clientY, { viewId: drag.viewId, pane: true, header: true });
+    drag.drop = target?.drop;
+    setPaneDrag({
+      viewId: drag.viewId,
+      x: e.clientX,
+      label: target?.label ?? "Drag onto another pane, or up to the tab bar",
+      preview: target?.preview,
+    });
+  };
+  const endPaneDrag = (pointerId: number, commit: boolean) => {
+    const drag = paneDragRef.current;
+    if (!drag || pointerId !== drag.pointerId) return;
+    paneDragRef.current = undefined;
+    setPaneDrag(undefined);
+    if (!drag.started) return;
+    contentDragging(false);
+    if (!commit) return;
+    if (drag.tearOff) action("tear-off", { tabId: tabs.activeTabId, viewId: drag.viewId });
+    else if (drag.drop) action("drop-view", drag.drop as unknown as Record<string, unknown>);
+  };
+  useEffect(() => {
+    if (!paneDrag) return;
+    const cancel = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && paneDragRef.current) endPaneDrag(paneDragRef.current.pointerId, false);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  });
   const recordIcon = (r: RecordItem): IconName =>
     r.kind === "note" ? "note" : r.kind === "database" ? "database" : "doc";
+  // The Workspace section lists notes, canvases, pages and documents together.
+  const noteTitle = (n: Note) => n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note";
+  const workspaceEntries: WorkspaceEntry[] = [
+    ...notes.map((n): WorkspaceEntry => ({
+      key: `note:${n.id}`,
+      kind: "note",
+      id: n.id,
+      title: noteTitle(n),
+      icon: "note",
+      type: "note",
+      updatedAt: n.updatedAt,
+      // Dropped into another app, a note is its text.
+      text: [n.title && `# ${n.title}`, n.body].filter(Boolean).join("\n\n"),
+    })),
+    ...canvases.map((c): WorkspaceEntry => ({ key: `canvas:${c.id}`, kind: "canvas", id: c.id, title: c.title || "Untitled canvas", icon: "canvas", type: "canvas", updatedAt: c.updatedAt })),
+    ...records
+      .filter((r) => r.kind !== "source")
+      .map((r): WorkspaceEntry => ({
+        key: `record:${r.id}`,
+        kind: "record",
+        id: r.id,
+        title: r.title || "Untitled",
+        icon: recordIcon(r),
+        type: r.properties?.editor ? "document" : "page",
+      })),
+  ];
+  const currentEntry = activeView?.content?.noteId
+    ? `note:${activeView.content.noteId}`
+    : activeView?.content?.canvasId
+      ? `canvas:${activeView.content.canvasId}`
+      : record?.id
+        ? `record:${record.id}`
+        : undefined;
+  const [libraryOpen, setLibraryOpen] = useState(() => localStorage.getItem("key.sidebar.library") !== "closed");
+  // Collections and References share at most half the sidebar's height (sidebar-budget.ts).
+  const [sidebarHeight, setSidebarHeight] = useState(0);
+  const sidebarScroll = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    new ResizeObserver(([entry]) => setSidebarHeight(entry.contentRect.height)).observe(el);
+  }, []);
+  const [collectionsNeed, setCollectionsNeed] = useState(0);
+  const [referencesNeed, setReferencesNeed] = useState(0);
+  const [collectionsBudget, referencesBudget] = share(Math.max(0, sidebarHeight / 2 - 2 * ROW_PX), collectionsNeed, referencesNeed);
+  useEffect(() => {
+    localStorage.setItem("key.sidebar.library", libraryOpen ? "open" : "closed");
+  }, [libraryOpen]);
   const sidebarToggle = (
     <button
       className="key-sidebar-toggle"
@@ -422,8 +740,43 @@ export default function App() {
     <div
       className="key-shell"
       data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
+      data-inbox-drop={inboxDrop || undefined}
+      // Files and links dropped where nothing else takes them go to the library's Inbox.
+      onDragOver={(e) => {
+        if (e.defaultPrevented || !workspaceId || !hasExternalDrop(e.dataTransfer)) return setInboxDrop(false);
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setInboxDrop(true);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setInboxDrop(false)}
+      onDrop={(e) => {
+        setInboxDrop(false);
+        if (e.defaultPrevented || !workspaceId || !hasExternalDrop(e.dataTransfer)) return;
+        e.preventDefault();
+        void importDrop(invoke, workspaceId, e.dataTransfer, () => inboxCollection(invoke, workspaceId))
+          .then((items) => items.length && toast(`Added ${describeCount(items)} to the Inbox`))
+          .catch((error) => setError(String(error)));
+      }}
     >
       <GlobalDrawerHost />
+      <ItemLayer />
+      <CommandCenter
+        invoke={invoke}
+        workspaceId={workspaceId}
+        section={section}
+        commands={[
+          { id: "new-note", label: "New note", icon: "note", run: createNote },
+          { id: "new-canvas", label: "New canvas", icon: "canvas", run: createCanvas },
+          { id: "library", label: "Show library", icon: "books", run: () => action("open-content", { section: "sources", workspaceId }) },
+          { id: "highlights", label: "All highlights", icon: "quote", shortcut: "⌘⇧H", run: () => action("open-content", { section: "highlights", workspaceId }) },
+          { id: "inspector", label: inspectorOpen ? "Hide inspector" : "Show inspector", icon: "panelRight", shortcut: "⌘⇧I", run: () => setInspectorOpen((o) => !o) },
+          { id: "sidebar", label: sidebarCollapsed ? "Show sidebar" : "Hide sidebar", icon: "sidebar", run: () => setSidebarCollapsed((v) => !v) },
+          { id: "split", label: "Split with another tab", icon: "split", run: () => action("split-menu") },
+          { id: "capture", label: "Quick capture", icon: "plus", shortcut: "⌃⌥Space", run: () => action("quick-capture") },
+          { id: "settings", label: "Settings", icon: "gear", shortcut: "⌘,", run: () => setSettingsSection("general") },
+          { id: "shortcuts", label: "Keyboard shortcuts", icon: "info", shortcut: "⌘/", run: () => window.dispatchEvent(new CustomEvent("key:shortcuts")) },
+        ]}
+      />
       {prefs && settingsSection && !welcome && (
         <Settings
           section={settingsSection}
@@ -439,7 +792,8 @@ export default function App() {
           }}
           onOpenLibrary={(id) => {
             setSettingsSection(undefined);
-            action("open-content", { section: "sources", workspaceId: id });
+            if (id === tabs.workspaceId) action("open-content", { section: "sources", workspaceId: id });
+            else void switchWorkspace(id);
           }}
           onWorkspacesChanged={refreshWorkspaces}
         />
@@ -455,7 +809,8 @@ export default function App() {
             setWelcome(false);
             updatePrefs({ onboarded: true });
             refreshWorkspaces();
-            if (id) action("open-content", { section: "sources", workspaceId: id });
+            if (id && id !== tabs.workspaceId) void switchWorkspace(id);
+            else if (id) action("open-content", { section: "sources", workspaceId: id });
           }}
         />
       )}
@@ -475,150 +830,171 @@ export default function App() {
           inert={sidebarCollapsed}
           aria-hidden={sidebarCollapsed}
         >
-          <div className="kx-sidebar-titlebar">{sidebarToggle}</div>
-          <WorkspaceSwitcher
-            workspaces={workspaces}
-            selectedId={workspaceId}
-            onSelect={chooseScope}
-            onAdd={async () => {
-              const added = await api().addWorkspace();
-              setWorkspaces(await api().workspaces());
-              if (added) chooseScope(added.id);
-            }}
-            onSave={async (id, icon, color) => {
-              await api().invoke(
-                "workspace_set_appearance",
-                { icon, color },
-                id,
-              );
-              setWorkspaces(await api().workspaces());
-            }}
-          />
-          <nav className="kx-nav" aria-label="Library">
-            {navItem("Home", "home", section === "home", () =>
-              action("open-home"),
-            )}
-            {navItem("Sources", "books", section === "sources", () =>
-              action("open-content", {
-                section: "sources",
-                workspaceId,
-                projectId,
-              }),
-            )}
-            {navItem(
-              "All items",
-              "layers",
-              section === "records",
-              () =>
-                action("open-content", {
-                  section: "records",
-                  workspaceId,
-                  projectId,
-                }),
-              !workspaceId,
-            )}
-          </nav>
-          <div className="kx-sidebar-scroll">
-            {workspaceId ? (
-              <CollectionTree
-                invoke={invoke}
-                workspaceId={workspaceId}
-                onShowSources={() =>
-                  action("open-content", { section: "sources", workspaceId })
-                }
-              />
-            ) : (
+          {/* The workspace sits in the title bar, between the traffic lights and the toggle. */}
+          <div className="kx-sidebar-titlebar">
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              selectedId={workspaceId}
+              openElsewhere={(tabs.windows ?? []).filter((w) => w.windowId !== tabs.windowId).map((w) => w.workspaceId)}
+              openRequest={switcherRequest}
+              onHome={() => action("open-home")}
+              onSettings={() => setSettingsSection("libraries")}
+              onSelect={(id, newWindow) =>
+                // Choosing the workspace this window already shows goes Home.
+                id === tabs.workspaceId && !newWindow ? action("open-home") : void switchWorkspace(id, newWindow)
+              }
+              onAdd={async () => {
+                const added = await api().addWorkspace();
+                setWorkspaces(await api().workspaces());
+                return added;
+              }}
+              onSave={async (id, icon, color) => {
+                await api().invoke(
+                  "workspace_set_appearance",
+                  { icon, color },
+                  id,
+                );
+                setWorkspaces(await api().workspaces());
+              }}
+            />
+            {sidebarToggle}
+          </div>
+          <div className="kx-sidebar-scroll" ref={sidebarScroll}>
+            <nav className="kx-nav" aria-label="Main">
+              <button className="kx-nav-item kx-search-row" disabled={!workspaceId} onClick={() => window.dispatchEvent(new Event("key:search"))}>
+                <Icon name="search" />
+                <span>Search</span>
+                <kbd>⌘⇧F</kbd>
+              </button>
+            </nav>
+            {!workspaceId && (
               <p className="key-sidebar-hint">
-                Choose a workspace to see its collections and pages.
+                Choose a workspace to see its library and pages.
               </p>
             )}
-            <div className="key-sidebar-section">
-              <span>Notes</span>
-              <button disabled={!workspaceId} aria-label="New note" title="New note" onClick={createNote}>
-                <Icon name="plus" size={14} />
-              </button>
-            </div>
-            <nav className="kx-nav" aria-label="Notes">
-              {notes.map((n) => (
-                <button
-                  key={n.id}
-                  className="kx-nav-item"
-                  aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
-                  onClick={() => openNote(n)}
-                  title={n.title || markdownToPlainText(n.body).slice(0, 120) || "Untitled note"}
-                >
-                  <Icon name="note" />
-                  <span>{n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note"}</span>
-                </button>
-              ))}
-              {workspaceId && !notes.length && <p className="key-sidebar-hint">No notes yet.</p>}
-            </nav>
-            <div className="key-sidebar-section">
-              <span>Pages</span>
+            {/* Library: opens the library; the chevron folds its collections and references. */}
+            <div className="key-sidebar-section kx-top-section">
               <button
+                className="kx-top-title"
+                aria-current={section === "sources" ? "page" : undefined}
                 disabled={!workspaceId}
-                aria-label="Create item"
-                title="New page, note or document"
-                aria-expanded={createMenu}
-                onClick={() => setCreateMenu(!createMenu)}
+                title="Open the library"
+                onClick={() =>
+                  sidebarClick({ kind: "sources" }, () => {
+                    if (workspaceId) selectLibrary({ workspaceId });
+                    action("open-content", { section: "sources", workspaceId, projectId });
+                  })
+                }
               >
-                <Icon name="plus" size={14} />
+                Library
+              </button>
+              <button className="kx-top-chevron" aria-expanded={libraryOpen} aria-label={libraryOpen ? "Collapse library" : "Expand library"} onClick={() => setLibraryOpen(!libraryOpen)}>
+                <Icon name="chevronRight" size={10} />
               </button>
             </div>
-            {createMenu && (
-              <div className="key-create-menu">
-                {(
-                  [
-                    ["note", "Note", "note"],
-                    ["page", "Page", "doc"],
-                    ["database", "Database", "database"],
-                  ] as const
-                ).map(([kind, label, icon]) => (
-                  <button
-                    key={kind}
-                    onClick={() => createRecord(kind)}
-                  >
-                    <Icon name={icon} />
-                    New {label.toLowerCase()}
-                  </button>
-                ))}
-                <hr />
-                {["docs", "sheets", "slides", "markdown", "html"].map(
-                  (kind) => (
-                    <button
-                      key={kind}
-                      onClick={() => {
-                        setCreateMenu(false);
-                        action("create-office", { kind, workspaceId });
-                      }}
-                    >
-                      <Icon name="doc" />
-                      New {kind === "docs" ? "document" : kind}
-                    </button>
-                  ),
-                )}
+            {libraryOpen && workspaceId && (
+              <div className="kx-library-groups">
+                <CollectionTree
+                  invoke={invoke}
+                  workspaceId={workspaceId}
+                  sourcesCurrent={section === "sources"}
+                  budget={sidebarHeight ? collectionsBudget : undefined}
+                  onNeed={setCollectionsNeed}
+                  onShowSources={() =>
+                    action("open-content", { section: "sources", workspaceId, projectId })
+                  }
+                />
+                <ReferencesPanel
+                  invoke={invoke}
+                  workspaceId={workspaceId}
+                  context={{
+                    viewId: tabs.activeViewId,
+                    note: activeView?.content?.section === "note" && activeView.content.noteId ? { id: activeView.content.noteId, title: activeView.title.replace(/ •$/, "") } : undefined,
+                    canvas: activeView?.content?.section === "canvas" && activeView.content.canvasId ? { id: activeView.content.canvasId, title: activeView.title.replace(/ •$/, "") } : undefined,
+                  }}
+                  refreshKey={refreshKey}
+                  budget={sidebarHeight ? referencesBudget : undefined}
+                  onNeed={setReferencesNeed}
+                  onOpenLibrary={() => action("open-content", { section: "sources", workspaceId })}
+                />
               </div>
             )}
-            <nav className="kx-nav" aria-label="Pages">
-              {records
-                .filter((r) => r.kind !== "source")
-                .map((r) => (
+            <WorkspaceSection
+              invoke={invoke}
+              workspaceId={workspaceId}
+              name={selectedWorkspace?.name ?? "Workspace"}
+              entries={workspaceEntries}
+              currentKey={currentEntry}
+              onOpen={(entry) =>
+                sidebarClick({ kind: entry.kind, id: entry.id, title: entry.title }, () => {
+                  if (entry.kind === "note") openNote(entry);
+                  else if (entry.kind === "canvas") openCanvas(entry);
+                  else {
+                    const r = records.find((r) => r.id === entry.id);
+                    if (r) selectRecord(r);
+                  }
+                })
+              }
+              itemDrop={(entry) => dropTarget({ kind: entry.kind as "note" | "canvas", id: entry.id, title: entry.title })}
+              onNewNote={() => newNote().catch((e) => void setError(String(e)))}
+              createMenu={
+                <>
                   <button
-                    key={r.id}
-                    className="kx-nav-item"
-                    aria-current={record?.id === r.id ? "page" : undefined}
-                    onClick={() => selectRecord(r)}
+                    disabled={!workspaceId}
+                    aria-label="Create item"
+                    title="New note, canvas, page or document"
+                    aria-expanded={createMenu}
+                    onClick={() => setCreateMenu(!createMenu)}
                   >
-                    <Icon name={recordIcon(r)} />
-                    <span>{r.title || "Untitled"}</span>
+                    <Icon name="plus" size={14} />
                   </button>
-                ))}
-              {workspaceId &&
-                !records.some((r) => r.kind !== "source") &&
-                !createMenu && (
-                  <p className="key-sidebar-hint">No pages yet.</p>
-                )}
-            </nav>
+                  {createMenu && (
+                    <div className="key-create-menu">
+                      {(
+                        [
+                          ["note", "Note", "note"],
+                          ["canvas", "Canvas", "canvas"],
+                          ["page", "Page", "doc"],
+                          ["database", "Database", "database"],
+                        ] as const
+                      ).map(([kind, label, icon]) => (
+                        <button
+                          key={kind}
+                          onClick={() => createRecord(kind)}
+                        >
+                          <Icon name={icon} />
+                          New {label.toLowerCase()}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          setCreateMenu(false);
+                          window.dispatchEvent(new Event("key:link-folder"));
+                        }}
+                      >
+                        <Icon name="link" />
+                        Link a folder…
+                      </button>
+                      <hr />
+                      {["docs", "sheets", "slides", "markdown", "html"].map(
+                        (kind) => (
+                          <button
+                            key={kind}
+                            onClick={() => {
+                              setCreateMenu(false);
+                              action("create-office", { kind, workspaceId });
+                            }}
+                          >
+                            <Icon name="doc" />
+                            New {kind === "docs" ? "document" : kind}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </>
+              }
+            />
           </div>
           <div className="key-sidebar-footer">
             <ModelProgressPill progress={model} />
@@ -633,18 +1009,20 @@ export default function App() {
                 <span>Link folder…</span>
               </button>
             )}
-            <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
-              <Icon name="gear" />
-              <span>Settings</span>
-            </button>
-            <small>
-              <Icon name="disk" size={13} />
-              <span>
-                {selectedWorkspace
-                  ? "Stored on this Mac"
-                  : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`}
-              </span>
-            </small>
+            <div className="kx-sidebar-foot-row">
+              <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
+                <Icon name="gear" />
+                <span>Settings</span>
+              </button>
+              {(() => {
+                const where = selectedWorkspace ? "Stored on this Mac" : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`;
+                return (
+                  <span className="kx-sidebar-storage" title={where} aria-label={where} role="img">
+                    <Icon name="disk" size={13} />
+                  </span>
+                );
+              })()}
+            </div>
           </div>
         </aside>
         {!sidebarCollapsed && (
@@ -674,6 +1052,8 @@ export default function App() {
       <div className="kx-main">
       <TabBar
         api={officeTabs}
+        contentDrop={contentDrop}
+        onContentDrag={contentDragging}
         trailingControls={
           <div className="key-chrome-layout-controls">
             {activeTab && activeTab.views.length > 1 && (
@@ -709,7 +1089,7 @@ export default function App() {
               title="Split with another tab"
               aria-label="Split with another tab"
               disabled={
-                activeTab?.views.length === 2 ||
+                (activeTab?.views.length ?? 0) >= MAX_PANES ||
                 !tabs.tabs.some(
                   (t) => t.id !== tabs.activeTabId && t.views.length === 1,
                 )
@@ -728,16 +1108,16 @@ export default function App() {
             .flatMap((t) => t.views)
             .filter((v) => v.content)
             .map((v) => {
-              const index =
-                activeTab?.views.findIndex((p) => p.id === v.id) ?? -1;
-              const split = activeTab?.views.length === 2;
-              const ratio = dragRatio ?? tabs.splitRatio ?? 0.5;
+              const pane = laidOut.panes.find((p) => p.viewId === v.id);
+              const placed = pane && paneBody(pane, laidOut.panes.length > 1);
               return (
                 <div
                   key={v.id}
                   data-content-view={v.id}
                   className="key-content-pane"
-                  hidden={index < 0}
+                  data-pane-focused={laidOut.panes.length > 1 && v.id === tabs.activeViewId ? "" : undefined}
+                  tabIndex={-1}
+                  hidden={!placed}
                   onPointerDownCapture={() => {
                     if (tabs.activeViewId !== v.id)
                       action("focus", { viewId: v.id });
@@ -746,21 +1126,38 @@ export default function App() {
                     if (tabs.activeViewId !== v.id)
                       action("focus", { viewId: v.id });
                   }}
-                  style={{
-                    top: tabs.searchPreview ? 40 : 0,
-                    left:
-                      split && index === 1 ? `calc(${ratio * 100}% + 3px)` : 0,
-                    width: split
-                      ? index === 0
-                        ? `calc(${ratio * 100}% - 3px)`
-                        : `calc(${(1 - ratio) * 100}% - 3px)`
-                      : "100%",
-                  }}
+                  style={
+                    placed && {
+                      left: placed.x,
+                      top: placed.y,
+                      width: placed.width,
+                      height: placed.height,
+                    }
+                  }
                 >
+                  {!!(v.back?.length || v.forward) && (
+                    <nav className="key-pane-history" aria-label="Pane history">
+                      <button disabled={!v.back?.length} title={v.back?.length ? `Back to ${v.back.at(-1)} (⌘[)` : undefined} aria-label="Back" onClick={() => action("history", { viewId: v.id, step: -1 })}>
+                        <Icon name="chevronRight" size={13} style={{ transform: "scaleX(-1)" }} />
+                      </button>
+                      <button disabled={!v.forward} title={v.forward ? `Forward to ${v.forward} (⌘])` : undefined} aria-label="Forward" onClick={() => action("history", { viewId: v.id, step: 1 })}>
+                        <Icon name="chevronRight" size={13} />
+                      </button>
+                      <ol className="key-pane-crumbs">
+                        {(v.back ?? []).map((title, i, all) => (
+                          <li key={i}>
+                            <button onClick={() => { for (let n = 0; n < all.length - i; n++) action("history", { viewId: v.id, step: -1 }); }}>{title}</button>
+                          </li>
+                        ))}
+                        <li aria-current="page">{v.title.replace(/ •$/, "")}</li>
+                      </ol>
+                    </nav>
+                  )}
                   <WorkspaceContent
+                    key={v.nav ?? 0}
                     viewId={v.id}
                     spec={v.content || { section: "sources" }}
-                    visible={index >= 0}
+                    visible={!!placed}
                     tabs={tabs}
                   />
                 </div>
@@ -775,51 +1172,149 @@ export default function App() {
         </div>
       </div>
       </div>
-      {activeTab?.views.length === 2 && (
+      {inspectorOpen && (
+        <div style={{ "--kx-inspector-width": `${INSPECTOR_WIDTH}px` } as React.CSSProperties}>
+          <Inspector invoke={invoke} workspaceId={workspaceId} items={selected} onClose={() => setInspectorOpen(false)} />
+        </div>
+      )}
+      {laidOut.dividers.map((d) => {
+        const row = d.split === "row";
+        const fromPointer = (e: React.PointerEvent) =>
+          row
+            ? (e.clientX - sidebarWidth - d.parent.x) / Math.max(1, d.parent.width)
+            : (e.clientY - CHROME_TOP - d.parent.y) / Math.max(1, d.parent.height);
+        return (
+          <div
+            key={d.path || "root"}
+            className={`key-split-divider ${row ? "" : "key-split-divider-column"}`}
+            role="separator"
+            aria-label="Resize split panes"
+            aria-orientation={row ? "vertical" : "horizontal"}
+            aria-valuemin={10}
+            aria-valuemax={90}
+            aria-valuenow={Math.round(d.ratio * 100)}
+            data-split-path={d.path}
+            tabIndex={0}
+            style={{
+              left: sidebarWidth + d.x,
+              top: CHROME_TOP + d.y,
+              width: d.width,
+              height: d.height,
+            }}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              resizeSplit(d.path, fromPointer(e));
+            }}
+            onPointerMove={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId))
+                resizeSplit(d.path, fromPointer(e));
+            }}
+            onPointerUp={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+                action("resize-split", splitPending.current);
+                setDragSplit(undefined);
+              }
+            }}
+            onPointerCancel={() => setDragSplit(undefined)}
+            onDoubleClick={() => action("resize-split", { path: d.path, ratio: 0.5 })}
+            onKeyDown={(e) => {
+              const back = row ? "ArrowLeft" : "ArrowUp",
+                forward = row ? "ArrowRight" : "ArrowDown";
+              if (e.key === back || e.key === forward) {
+                e.preventDefault();
+                action("resize-split", {
+                  path: d.path,
+                  ratio: d.ratio + (e.key === back ? -DIVIDER_STEP : DIVIDER_STEP),
+                });
+              }
+            }}
+          />
+        );
+      })}
+      {laidOut.panes.length > 1 &&
+        laidOut.panes.map((p) => {
+          const view = activeTab?.views.find((v) => v.id === p.viewId);
+          if (!view) return null;
+          const title = view.title.replace(/ •$/, "");
+          return (
+            <div
+              key={p.viewId}
+              className="key-pane-header"
+              data-pane-header={p.viewId}
+              data-pane-focused={p.viewId === tabs.activeViewId ? "" : undefined}
+              data-dragging={paneDrag?.viewId === p.viewId ? "" : undefined}
+              title={`${title}\nDrag to move this pane · middle-click to close`}
+              style={{ left: sidebarWidth + p.x, top: CHROME_TOP + p.y, width: p.width, height: Math.min(PANE_HEADER, p.height) }}
+              onPointerDown={(e) => {
+                if (e.button === 1) e.preventDefault();
+                if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+                if (tabs.activeViewId !== p.viewId) action("focus", { viewId: p.viewId });
+                paneDragRef.current = { pointerId: e.pointerId, viewId: p.viewId, startX: e.clientX, startY: e.clientY, started: false };
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={movePaneDrag}
+              onPointerUp={(e) => endPaneDrag(e.pointerId, true)}
+              onPointerCancel={(e) => endPaneDrag(e.pointerId, false)}
+              onLostPointerCapture={(e) => endPaneDrag(e.pointerId, false)}
+              onAuxClick={(e) => {
+                if (e.button === 1) action("close-pane", { viewId: p.viewId });
+              }}
+            >
+              <span className="key-pane-header-icon">
+                <TabKindIcon kind={view.kind} />
+              </span>
+              <span className="key-pane-header-title">{view.title}</span>
+              <button
+                title="Move to a tab of its own"
+                aria-label={`Move ${title} to a tab of its own`}
+                onClick={() => {
+                  const index = tabs.tabs.findIndex((t) => t.id === tabs.activeTabId);
+                  action("drop-view", { kind: "detach", viewId: p.viewId, index: index + 1 });
+                }}
+              >
+                <Icon name="detach" size={13} />
+              </button>
+              <button
+                className="key-pane-close"
+                title={`Close ${title} (⌘W when focused)`}
+                aria-label={`Close pane ${title}`}
+                onClick={() => action("close-pane", { viewId: p.viewId })}
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </div>
+          );
+        })}
+      {paneDrag && (
+        <div className="tab-drop-feedback" role="status" aria-live="polite" style={{ left: Math.max(12, Math.min(window.innerWidth - 280, paneDrag.x - 110)) }}>
+          {paneDrag.label}
+          <small>Esc to cancel</small>
+        </div>
+      )}
+      {paneDrag?.preview && (
         <div
-          className="key-split-divider"
-          role="separator"
-          aria-label="Resize split panes"
-          aria-orientation="vertical"
-          aria-valuemin={20}
-          aria-valuemax={80}
-          aria-valuenow={Math.round(
-            (dragRatio ?? tabs.splitRatio ?? 0.5) * 100,
-          )}
-          tabIndex={0}
+          className="key-pane-drop-preview"
+          aria-hidden="true"
           style={{
-            top: tabs.searchPreview ? 80 : 40,
-            left: `calc(${sidebarWidth}px + (100vw - ${sidebarWidth}px) * ${dragRatio ?? tabs.splitRatio ?? 0.5} - 3px)`,
-          }}
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            resizeSplit(e.clientX);
-          }}
-          onPointerMove={(e) => {
-            if (e.currentTarget.hasPointerCapture(e.pointerId))
-              resizeSplit(e.clientX);
-          }}
-          onPointerUp={(e) => {
-            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-              e.currentTarget.releasePointerCapture(e.pointerId);
-              action("resize-split", { ratio: splitPending.current });
-              setDragRatio(undefined);
-            }
-          }}
-          onPointerCancel={() => setDragRatio(undefined)}
-          onDoubleClick={() => action("resize-split", { ratio: 0.5 })}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-              e.preventDefault();
-              action("resize-split", {
-                ratio:
-                  (tabs.splitRatio ?? 0.5) +
-                  (e.key === "ArrowLeft" ? -0.025 : 0.025),
-              });
-            }
+            left: paneDrag.preview.x + 4,
+            top: paneDrag.preview.y + 4,
+            width: Math.max(0, paneDrag.preview.width - 8),
+            height: Math.max(0, paneDrag.preview.height - 8),
           }}
         />
-      )}{" "}
+      )}
+      {paneDrag?.insertAt !== undefined && <div className="key-tab-insert-marker" aria-hidden="true" style={{ left: paneDrag.insertAt - 1 }} />}
+      {dragFrames.map((frame) => (
+        <img
+          key={frame.id}
+          className="key-native-overlay-frame"
+          alt=""
+          draggable={false}
+          src={frame.image}
+          style={{ left: frame.x, top: frame.y, width: frame.width, height: frame.height }}
+        />
+      ))}{" "}
       {dialog && (
         <GlobalDialog label={dialog === "project" ? "New project" : "Link a folder"} onClose={()=>setDialog(null)}>
           <form

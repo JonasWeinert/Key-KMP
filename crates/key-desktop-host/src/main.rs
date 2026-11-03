@@ -1,4 +1,5 @@
 mod backend;
+const ADMISSION: usize = 16;
 mod ipc;
 mod layout_helper;
 use std::{
@@ -29,16 +30,17 @@ fn run() -> Result<(), String> {
     }
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
-        .max_blocking_threads(8)
+        .max_blocking_threads(16)
         .build()
         .map_err(|e| e.to_string())?;
     let host = Arc::new(backend::Host::new(root)?);
     let out = Arc::new(Mutex::new(std::io::stdout()));
-    let admission = Arc::new(tokio::sync::Semaphore::new(8));
+    // Room for everything the app keeps in flight (six requests and eight urgent ones).
+    let admission = Arc::new(tokio::sync::Semaphore::new(ADMISSION));
     let mut input = std::io::stdin().lock();
     while let Some((envelope, binary)) = ipc::read_request(&mut input)? {
         if envelope.command == "host_can_suspend" {
-            let idle = admission.available_permits() == 8 && host.can_suspend();
+            let idle = admission.available_permits() == ADMISSION && host.can_suspend();
             ipc::write_response(
                 &mut *out.lock().unwrap(),
                 envelope.id,

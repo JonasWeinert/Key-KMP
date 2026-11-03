@@ -1,15 +1,27 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Icon } from "../icons";
+import type { IconName } from "../icons";
 import { SLASH_GROUPS } from "./menus";
 import type { MenuState, SlashItem } from "./menus";
 import type { SourceRef } from "./types";
+import { SectionHeader, Snippet, useCollapsedGroups } from "../search-sections";
 
 export interface SuggestionMenuHandle {
   handleKey(event: KeyboardEvent): boolean;
 }
 
-const MODE_TITLE = { link: "Link a source", embed: "Embed a source", quote: "Quote from a source" } as const;
+const MODE_TITLE = { link: "Link to", embed: "Embed", quote: "Quote from a source", cite: "Cite or mention" } as const;
+const GROUP_ORDER = ["titles", "text", "meaning"] as const;
+const refGroup = (ref: SourceRef) => ref.group ?? "titles";
+const ITEM_ICON = { note: "note", canvas: "canvas", record: "doc", file: "doc", person: "user", venue: "book", topic: "tag" } as const;
+
+function refIcon(ref: SourceRef, mode: MenuState["mode"]): IconName {
+  if (mode === "quote") return "quote";
+  if (ref.itemKind && ref.itemKind !== "source") return ITEM_ICON[ref.itemKind];
+  if (ref.anchor?.startsWith("highlight:")) return "quote";
+  return ref.kind === "book" ? "book" : ref.kind === "image" ? "image" : ref.kind === "web" ? "globe" : "doc";
+}
 
 /** Places a popover under (or above) an anchor rect, kept inside the viewport. */
 export function usePopoverPosition(rect: DOMRect | null, deps: unknown[]) {
@@ -38,7 +50,10 @@ function SlashIcon({ icon }: { icon: SlashItem["icon"] }): ReactNode {
 
 export const SuggestionMenu = forwardRef<SuggestionMenuHandle, { state: MenuState | null }>(function SuggestionMenu({ state }, ref) {
   const [index, setIndex] = useState(0);
-  const items = state?.items ?? [];
+  const { collapsed, toggle } = useCollapsedGroups();
+  // Source pickers group their entries in sections; collapsed sections can't be chosen.
+  const all = state?.items ?? [];
+  const items = state?.kind === "source" ? GROUP_ORDER.flatMap((g) => (collapsed.includes(g) ? [] : (all as SourceRef[]).filter((r) => refGroup(r) === g))) : all;
   const count = items.length;
   const listRef = useRef<HTMLDivElement>(null);
   const { ref: boxRef, style } = usePopoverPosition(state?.rect ?? null, [count, state?.kind, state?.loading]);
@@ -62,6 +77,12 @@ export const SuggestionMenu = forwardRef<SuggestionMenuHandle, { state: MenuStat
           setIndex((i) => (count === 0 ? 0 : (i - 1 + count) % count));
           return true;
         }
+        if (state.kind === "source" && event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          const group = refGroup((items[index] as SourceRef | undefined) ?? (all[0] as SourceRef));
+          if (event.key === "ArrowLeft") toggle(group, false);
+          else GROUP_ORDER.forEach((g) => collapsed.includes(g) && toggle(g, true));
+          return true;
+        }
         if (event.key === "Enter" || event.key === "Tab") {
           const item = items[index];
           if (item) {
@@ -74,7 +95,7 @@ export const SuggestionMenu = forwardRef<SuggestionMenuHandle, { state: MenuStat
         return false;
       },
     }),
-    [state, index, count, items],
+    [state, index, count, items, collapsed],
   );
 
   if (!state || !state.rect) return null;
@@ -122,34 +143,54 @@ export const SuggestionMenu = forwardRef<SuggestionMenuHandle, { state: MenuStat
         })
       );
   } else {
-    const sources = items as SourceRef[];
+    const sources = all as SourceRef[];
+    const row = (ref: SourceRef) => {
+      const i = items.indexOf(ref);
+      return (
+        <button
+          key={`${ref.itemKind ?? "source"}:${ref.id}:${ref.anchor ?? ""}`}
+          type="button"
+          role="option"
+          aria-selected={i === index}
+          data-index={i}
+          className={`ne-menu-item${i === index ? " is-active" : ""}`}
+          onMouseMove={() => i !== index && setIndex(i)}
+          onClick={() => state.command(ref)}
+        >
+          <span className="ne-menu-icon">
+            <Icon name={refIcon(ref, state.mode)} size={16} data-color={ref.color} />
+          </span>
+          <span className="ne-menu-text">
+            <span className="ne-menu-label">{ref.title}</span>
+            {(ref.where || ref.snippet) ? (
+              <span className="ne-menu-hint ne-menu-snippet">
+                {ref.where && <strong>{ref.where} </strong>}
+                {ref.snippet && <Snippet text={ref.snippet} />}
+              </span>
+            ) : ref.detail ? (
+              <span className="ne-menu-hint">{ref.detail}</span>
+            ) : null}
+          </span>
+        </button>
+      );
+    };
+    const groups = GROUP_ORDER.map((g) => [g, sources.filter((r) => refGroup(r) === g)] as const).filter(([g, list]) => list.length || (g !== "titles" && state.more));
     body = (
       <div className="ne-menu-group">
         <div className="ne-menu-heading">{MODE_TITLE[state.mode]}</div>
-        {count === 0 ? (
-          <div className="ne-menu-empty">{state.loading ? "Searching…" : state.query ? "No matching sources" : "Type to search the library"}</div>
+        {sources.length === 0 && !state.more ? (
+          <div className="ne-menu-empty">
+            {state.loading ? "Searching…" : state.query ? "Nothing matches" : "Type to search notes, sources, highlights, canvases and pages"}
+          </div>
         ) : (
-          sources.map((ref, i) => (
-            <button
-              key={ref.id}
-              type="button"
-              role="option"
-              aria-selected={i === index}
-              data-index={i}
-              className={`ne-menu-item${i === index ? " is-active" : ""}`}
-              onMouseMove={() => i !== index && setIndex(i)}
-              onClick={() => state.command(ref)}
-            >
-              <span className="ne-menu-icon">
-                <Icon name={state.mode === "quote" ? "quote" : ref.kind === "book" ? "book" : "doc"} size={16} />
-              </span>
-              <span className="ne-menu-text">
-                <span className="ne-menu-label">{ref.title}</span>
-                {ref.detail && <span className="ne-menu-hint">{ref.detail}</span>}
-              </span>
-            </button>
+          groups.map(([group, list]) => (
+            <div key={group} className="ne-menu-section" data-group={group}>
+              {(groups.length > 1 || group !== "titles") && <SectionHeader group={group} count={list.length} collapsed={collapsed.includes(group)} pending={!list.length && state.more} onToggle={() => toggle(group)} />}
+              {!collapsed.includes(group) && list.map(row)}
+            </div>
           ))
         )}
+        {state.mode === "cite" && <div className="ne-menu-foot">Add “p. 12” to cite a page · ⌥← collapse a section</div>}
       </div>
     );
   }

@@ -106,6 +106,7 @@ if (readableStreamPrototype && !readableStreamPrototype[Symbol.asyncIterator]) {
 
 const TILE_PHYSICAL_PX = 512;
 const MAX_RENDER_BYTES = 96 * 1024 * 1024;
+const THUMBNAIL_WIDTH = 168;
 const MAX_FALLBACK_BYTES = 8 * 1024 * 1024;
 const MAX_CONCURRENT_RENDERS = 2;
 const PAGE_GAP_CSS_PX = 16;
@@ -259,6 +260,7 @@ export class PdfJsTileController {
   private readonly cache = new Map<string, TileRecord>();
   private readonly pending = new Map<string, PendingTile>();
   private readonly fallbackTasks = new Map<number, RenderTask>();
+  private readonly thumbnails = new Map<number, Promise<string | null>>();
   private readonly fallbackKeys = new Set<string>();
   private desiredVisible = new Set<string>();
   private desiredAll = new Set<string>();
@@ -377,6 +379,35 @@ export class PdfJsTileController {
   }
 
   preparePage(index: number) { return this.loadPage(index); }
+
+  /** A small JPEG of a page for previews, rendered once and kept for the document's life. */
+  thumbnail(index: number): Promise<string | null> {
+    let pending = this.thumbnails.get(index);
+    if (!pending) {
+      pending = this.loadPage(index)
+        .then(async page => {
+          if (this.destroyed) return null;
+          const base = page.getViewport({ scale: 1 });
+          const viewport = page.getViewport({ scale: (THUMBNAIL_WIDTH * this.dpr) / base.width });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.ceil(viewport.width);
+          canvas.height = Math.ceil(viewport.height);
+          await page.render({
+            canvas: null,
+            canvasContext: canvas.getContext('2d', { alpha: false })!,
+            viewport,
+            background: '#ffffff',
+          }).promise;
+          return canvas.toDataURL('image/jpeg', 0.82);
+        })
+        .catch(() => {
+          this.thumbnails.delete(index);
+          return null;
+        });
+      this.thumbnails.set(index, pending);
+    }
+    return pending;
+  }
 
   pageCount() {
     return this.pages.length;
@@ -1436,12 +1467,54 @@ interface PdfJsBenchmarkAppProps {
   onRequestControlMode?: (mode: 'search' | 'comments' | null) => void;
   /** When set, the selection toolbar sends the passage to the source's note instead of a comment. */
   onAddToNote?: (passage: { text: string; page: number; color?: string }) => void;
+  /** When set, the selection toolbar offers Send to…: the passage is highlighted (if it isn't
+   * yet) and the highlight handed to the host to place on a canvas or in a note. */
+  onSendTo?: (highlight: { annotationId: string; text: string; page: number; color?: string }) => void;
   /** References kept by the host's library; when given they replace the reader's own analysis. */
   references?: Array<{ number: number; page: number; xFraction?: number; yFraction?: number; text: string }>;
   /** Shown at the top of the References panel (e.g. the library's analysis status). */
   referencesHeader?: ReactNode;
   /** Extra details under a reference (e.g. what it resolved to, a link into the library). */
   referenceAside?: (reference: { number: number; page: number; text: string }) => ReactNode;
+  /** Draws the structure rail along the viewer's edge from the document's outline, pages and marks. */
+  renderRail?: (rail: PdfReaderRail) => ReactNode;
+}
+
+/** A heading of the document outline; `top` is the fraction down its page where it starts. */
+export interface PdfReaderRailSection {
+  title: string;
+  page: number;
+  depth: number;
+  top: number;
+}
+
+/** A page carrying a highlight or a search hit; `rgb` is the highlight's document colour. */
+export interface PdfReaderRailMark {
+  page: number;
+  kind: 'highlight' | 'search';
+  rgb?: string;
+  active?: boolean;
+}
+
+/** Where the reading line sits: a page index and the fraction down that page. */
+export interface PdfReaderRailPosition {
+  page: number;
+  offset: number;
+  /** Scrolled to the bottom, where the last headings can never reach the reading line. */
+  end: boolean;
+}
+
+export interface PdfReaderRail {
+  pageCount: number;
+  sections: PdfReaderRailSection[];
+  marks: PdfReaderRailMark[];
+  /** The current position; changes on scroll without re-rendering the reader. */
+  position(): PdfReaderRailPosition;
+  subscribe(listener: () => void): () => void;
+  goTo(page: number, top?: number): void;
+  /** A small rendering of the page as a data URL, cached per document. */
+  preview(page: number): Promise<string | null>;
+  openOutline(): void;
 }
 
 export type PdfReaderPanel = ReaderPanel;
@@ -1508,9 +1581,11 @@ function PdfJsBenchmarkApp({
   initialControlState,
   onRequestControlMode,
   onAddToNote,
+  onSendTo,
   referencesHeader,
   referenceAside,
   references: libraryReferences,
+  renderRail,
 }: PdfJsBenchmarkAppProps = {}, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1570,6 +1645,8 @@ function PdfJsBenchmarkApp({
   const [searching, setSearching] = useState(false);
   const sourceBytesRef = useRef(0);
   const onViewStateChangeRef = useRef(onViewStateChange);
+  const railPositionRef = useRef<PdfReaderRailPosition>({ page: 0, offset: 0, end: false });
+  const railListenersRef = useRef(new Set<() => void>());
   const onReadyRef = useRef(onReady);
   const onPreviewChangeRef = useRef(onPreviewChange);
   const onChromeStateChangeRef = useRef(onChromeStateChange);
@@ -1718,6 +1795,16 @@ function PdfJsBenchmarkApp({
         initialViewStateRef.current = state;
         lastViewStateRef.current = state;
         onViewStateChangeRef.current?.(state);
+        const position = railPositionRef.current;
+        const end = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 2;
+        if (
+          position.page !== state.pageIndex ||
+          position.offset !== state.pageOffsetFraction ||
+          position.end !== end
+        ) {
+          railPositionRef.current = { page: state.pageIndex, offset: state.pageOffsetFraction, end };
+          railListenersRef.current.forEach(listener => listener());
+        }
       });
       controller.onPreviewChange(preview => {
         onPreviewChangeRef.current?.(preview);
@@ -2144,6 +2231,7 @@ function PdfJsBenchmarkApp({
         );
       });
       setStatus(`Added ${color} highlight`);
+      return updated;
     },
     [activeAnnotation, annotations, selection, updateAnnotations],
   );
@@ -2518,6 +2606,52 @@ function PdfJsBenchmarkApp({
     [annotations],
   );
 
+  const toc = analysis?.document.toc;
+  const activeSearchPage = searchMatches[activeSearchIndex]?.page;
+  const rail = useMemo<PdfReaderRail | null>(() => {
+    if (!ready || !renderRail) return null;
+    const marks = new Map<string, PdfReaderRailMark>();
+    for (const annotation of annotations) {
+      const page = annotation.range.start.page;
+      marks.set(`h${page}`, marks.get(`h${page}`) ?? {
+        page,
+        kind: 'highlight',
+        rgb: HIGHLIGHT_COLOR_RGB[annotation.color],
+      });
+    }
+    for (const match of searchMatches) {
+      marks.set(`s${match.page}`, {
+        page: match.page,
+        kind: 'search',
+        active: match.page === activeSearchPage,
+      });
+    }
+    return {
+      pageCount: controllerRef.current?.pageCount() ?? 0,
+      sections: (toc ?? []).map(entry => ({
+        title: entry.title,
+        page: entry.page,
+        depth: entry.depth,
+        top: entry.destinationY ?? 0,
+      })),
+      marks: [...marks.values()],
+      position: () => railPositionRef.current,
+      subscribe: listener => {
+        railListenersRef.current.add(listener);
+        return () => railListenersRef.current.delete(listener);
+      },
+      goTo: (page, top = 0) =>
+        controllerRef.current?.scrollToBounds(page, {
+          left: 0.5,
+          right: 0.5,
+          top,
+          bottom: top,
+        }),
+      preview: page => controllerRef.current?.thumbnail(page) ?? Promise.resolve(null),
+      openOutline: () => setActivePanel('outline'),
+    };
+  }, [activeSearchPage, annotations, ready, renderRail, searchMatches, toc]);
+
   useEffect(() => {
     if (!ready || !searchTarget || readerIdentity !== searchTarget.documentHash) return;
     const controller = controllerRef.current;
@@ -2814,6 +2948,7 @@ function PdfJsBenchmarkApp({
       <div ref={scrollRef} className="pdfjs-scroll">
         <div ref={contentRef} className="pdfjs-content" />
       </div>
+      {rail && renderRail?.(rail)}
       <div
         className={`pdfjs-loading-veil ${ready ? 'ready' : ''}`}
         aria-hidden={ready}
@@ -2897,6 +3032,23 @@ function PdfJsBenchmarkApp({
               onClick={openCommentEditor}
             >
               <Icon name="note" />
+            </button>
+          )}
+          {onSendTo && (
+            <button
+              type="button"
+              className="pdfjs-selection-action pdfjs-selection-to-note"
+              aria-label="Send to a canvas or note"
+              title="Highlight this passage and send it to a canvas or note"
+              onClick={() => {
+                const annotation = activeAnnotation ?? addHighlight(HIGHLIGHT_COLORS[0]);
+                if (!annotation) return;
+                onSendTo({ annotationId: annotation.id, text: annotation.text, page: annotation.range.start.page, color: annotation.color });
+                window.getSelection()?.removeAllRanges();
+              }}
+            >
+              <Icon name="next" />
+              <span>Send to…</span>
             </button>
           )}
           {activeAnnotation && (

@@ -38,3 +38,12 @@ export function preparePropertyDraft(draft: PropertyDraft) {
     },
   };
 }
+
+/** Choices whose text changed in place: same position, the old text gone, the new one new. */
+export function renamedOptions(before: string[], after: string[]): [string, string][] {
+  if (before.length !== after.length) return [];
+  return before.flatMap((from, i): [string, string][] => {
+    const to = after[i];
+    return from !== to && !after.includes(from) && !before.includes(to) ? [[from, to]] : [];
+  });
+}

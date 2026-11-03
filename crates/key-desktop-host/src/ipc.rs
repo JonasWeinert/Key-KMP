@@ -117,8 +117,20 @@ pub fn write_response(
         ),
     };
     let mut header = serde_json::to_vec(&header).map_err(|e| e.to_string())?;
+    let mut binary = binary;
     if header.len() > MAX_JSON {
-        header=serde_json::to_vec(&serde_json::json!({"id":id,"ok":false,"error":"Response exceeds control budget","binaryLength":0})).unwrap();
+        // A large answer (a long source list, a big bibliography) travels as the frame's
+        // body instead, marked as JSON; only beyond the binary budget is it refused.
+        let value = serde_json::from_slice::<serde_json::Value>(&header).ok().and_then(|mut h| h.get_mut("result").map(serde_json::Value::take));
+        let body = value.map(|v| serde_json::to_vec(&v)).transpose().map_err(|e| e.to_string())?.unwrap_or_default();
+        header = if body.is_empty() || body.len() > MAX_BINARY {
+            binary = Vec::new();
+            serde_json::to_vec(&serde_json::json!({"id":id,"ok":false,"error":"Response exceeds the size budget; ask for less","binaryLength":0})).unwrap()
+        } else {
+            let header = serde_json::to_vec(&serde_json::json!({"id":id,"ok":true,"json":true,"binaryLength":body.len()})).unwrap();
+            binary = body;
+            header
+        };
     }
     output
         .write_all(&(header.len() as u32).to_le_bytes())
@@ -129,6 +141,18 @@ pub fn write_response(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn large_json_answers_travel_as_the_frame_body() {
+        let big = "x".repeat(super::MAX_JSON + 10);
+        let mut out = Vec::new();
+        super::write_response(&mut out, 7, Ok(super::Output::Json(serde_json::json!({ "text": big })))).unwrap();
+        let header_len = u32::from_le_bytes(out[..4].try_into().unwrap()) as usize;
+        let header: serde_json::Value = serde_json::from_slice(&out[4..4 + header_len]).unwrap();
+        assert_eq!((header["ok"].as_bool(), header["json"].as_bool()), (Some(true), Some(true)));
+        let body: serde_json::Value = serde_json::from_slice(&out[4 + header_len..]).unwrap();
+        assert_eq!(body["text"].as_str().map(str::len), Some(super::MAX_JSON + 10));
+    }
+
     use super::*;
     #[test]
     fn binary_roundtrip_and_truncation() {

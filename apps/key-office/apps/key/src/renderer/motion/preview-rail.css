@@ -1,0 +1,126 @@
+.key-preview-rail {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  width: 20px;
+  pointer-events: none;
+  isolation: isolate;
+}
+.key-preview-rail-ticks {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  width: 20px;
+  padding: 4px 0;
+  border-radius: 6px;
+  pointer-events: auto;
+  opacity: 0.62;
+  transition:
+    opacity 160ms var(--key-ui-ease, ease),
+    background-color 160ms var(--key-ui-ease, ease);
+}
+/* No plate behind the ticks: they only brighten while pointed at. */
+.key-preview-rail-ticks:hover,
+.key-preview-rail-ticks:focus-within,
+.key-preview-rail.is-open .key-preview-rail-ticks {
+  opacity: 1;
+}
+.key-preview-rail-ticks > button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 0 4px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--key-ui-muted);
+  cursor: pointer;
+}
+.key-preview-rail-ticks > button[data-highlighted] {
+  color: var(--key-ui-text);
+}
+.key-preview-rail-ticks > button[aria-current] {
+  color: var(--key-ui-primary);
+}
+.key-preview-rail-ticks > button[aria-current] .key-preview-rail-tick {
+  height: 3px;
+  border-radius: 1.5px;
+}
+.key-preview-rail-ticks > button:focus-visible {
+  outline: 2px solid var(--key-ui-focus);
+  outline-offset: -1px;
+}
+.key-preview-rail-tick {
+  display: block;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: left center;
+}
+.key-preview-rail-mark {
+  position: absolute;
+  left: 16px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--key-rail-mark);
+}
+.key-preview-rail-footer {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 20px;
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms var(--key-ui-ease, ease);
+}
+.key-preview-rail-ticks:hover .key-preview-rail-footer,
+.key-preview-rail-ticks:focus-within .key-preview-rail-footer {
+  opacity: 1;
+  pointer-events: auto;
+}
+.key-preview-rail-previews {
+  position: absolute;
+  inset: 0 auto 0 26px;
+  z-index: 2;
+  display: grid;
+  align-content: center;
+  /* Rows carry the same top padding as the ticks so each card sits on its tick. */
+  padding: 4px 0;
+  pointer-events: none;
+}
+.key-preview-rail-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.key-preview-rail-slot[data-lean="down"] {
+  align-items: flex-start;
+}
+.key-preview-rail-slot[data-lean="up"] {
+  align-items: flex-end;
+}
+.key-preview-rail-card {
+  flex-shrink: 0;
+  width: 172px;
+  padding: 7px;
+  border: 1px solid var(--key-ui-border);
+  border-radius: var(--key-ui-radius-lg, 12px);
+  background: var(--key-ui-surface);
+  box-shadow: var(--key-ui-shadow);
+  color: var(--key-ui-text);
+  font-family: var(--key-ui-font);
+}
+@media (prefers-reduced-motion: reduce) {
+  .key-preview-rail-ticks,
+  .key-preview-rail-footer {
+    transition: none;
+  }
+}

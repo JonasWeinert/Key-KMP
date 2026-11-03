@@ -33,6 +33,8 @@ const reserved = new Set([
   "contentMode",
   "contentHash",
   "pdfHash",
+  // The page header (icon, cover), edited above the title.
+  "appearance",
 ]);
 const own = (value: object, name: string) =>
   Object.prototype.hasOwnProperty.call(value, name);

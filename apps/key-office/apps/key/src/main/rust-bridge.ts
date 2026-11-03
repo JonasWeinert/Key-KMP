@@ -16,6 +16,8 @@ type Response = {
   result?: unknown;
   error?: string;
   binaryLength: number;
+  /** The body is the JSON result (too large for the control frame). */
+  json?: boolean;
 };
 type Pending = {
   id: number;
@@ -26,12 +28,25 @@ type Pending = {
   reject: (error: Error) => void;
   timer?: ReturnType<typeof setTimeout>;
   urgent: boolean;
+  /** Work nobody is waiting on (polls, cache refreshes): never ahead of a user action. */
+  background: boolean;
+  /** Identical background requests waiting together share one answer. */
+  key?: string;
+  followers?: { resolve: (value: any) => void; reject: (error: Error) => void }[];
   bytes: number;
 };
 const MAX_JSON = 1024 * 1024;
 const MAX_BINARY = 32 * 1024 * 1024;
 const MAX_QUEUED_BYTES = 64 * 1024 * 1024;
 const URGENT = new Set(["native_cancel_render", "processing_interaction"]);
+/** Commands that are always background work. Any other call can mark itself with
+ *  `$background: true` in its arguments (taken out before it is sent). */
+const BACKGROUND = new Set(["store_status", "store_refresh", "store_zotero_sync", "store_zotero_progress", "store_zotero_status", "store_linked_sync", "store_index_priority", "store_enrich_options"]);
+/** In flight at once: regular requests, and how many of those may be background work, so a
+ *  user action always finds a free slot. */
+const IN_FLIGHT = 6;
+const BACKGROUND_IN_FLIGHT = 2;
+const BACKGROUND_QUEUED = 64;
 
 /** One supervised host per workspace. Failed operations are never replayed implicitly. */
 export class RustHost {
@@ -70,11 +85,22 @@ export class RustHost {
     if (bytes - (binary?.length ?? 0) > MAX_JSON - 1024)
       return Promise.reject(new Error("Control request exceeds 1 MiB"));
     const urgent = URGENT.has(command);
-    const outstanding = [...this.queue, ...this.pending.values()];
+    const background = !urgent && (BACKGROUND.has(command) || args.$background === true);
+    if ("$background" in args) {
+      args = { ...args };
+      delete args.$background;
+    }
+    // The same background request already waiting: share its answer.
+    const key = background ? `${command}\u0000${JSON.stringify(args)}` : undefined;
+    const twin = key && this.queue.find((p) => p.key === key);
+    if (twin)
+      return new Promise<T>((resolve, reject) => (twin.followers ??= []).push({ resolve, reject }));
+    // User actions are never turned away for being many; background work is, and makes room.
+    if (background && this.queue.filter((p) => p.background).length >= BACKGROUND_QUEUED)
+      return Promise.reject(new Error("Background work is queued; skipped this round"));
+    while (this.queuedBytes + bytes > MAX_QUEUED_BYTES && this.dropBackground()) {}
     if (
-      (urgent
-        ? outstanding.filter((p) => p.urgent).length >= 8
-        : outstanding.filter((p) => !p.urgent).length >= 64) ||
+      (urgent && [...this.queue, ...this.pending.values()].filter((p) => p.urgent).length >= 8) ||
       this.queuedBytes + bytes > MAX_QUEUED_BYTES + (urgent ? 64 * 1024 : 0)
     )
       return Promise.reject(
@@ -89,6 +115,8 @@ export class RustHost {
         resolve,
         reject,
         urgent,
+        background,
+        key,
         bytes,
       };
       this.queuedBytes += bytes;
@@ -99,7 +127,7 @@ export class RustHost {
           if (index >= 0) {
             this.queue.splice(index, 1);
             this.queuedBytes -= request.bytes;
-            reject(new Error(`${command} timed out while queued`));
+            this.settle(request, undefined, new Error(`${command} timed out while queued`));
             return;
           }
           if (this.pending.has(request.id))
@@ -110,8 +138,13 @@ export class RustHost {
         options.timeoutMs ??
           (command === "workspace_scan_linked_folder" ? 300_000 : 60_000),
       );
+      // Urgent first, then user actions in order, then background work.
       if (request.urgent) this.queue.unshift(request);
-      else this.queue.push(request);
+      else if (request.background) this.queue.push(request);
+      else {
+        const firstBackground = this.queue.findIndex((p) => p.background);
+        this.queue.splice(firstBackground < 0 ? this.queue.length : firstBackground, 0, request);
+      }
       try {
         this.start();
         this.drain();
@@ -172,17 +205,18 @@ export class RustHost {
   private drain(): void {
     if (!this.child) return;
     while (this.queue.length) {
-      const request = this.queue[0];
-      const regular = [...this.pending.values()].filter(
-        (p) => !p.urgent,
-      ).length;
-      if (!request.urgent && regular >= 6) break;
-      if (
-        request.urgent &&
-        [...this.pending.values()].filter((p) => p.urgent).length >= 8
-      )
-        break;
-      this.queue.shift();
+      const sent = [...this.pending.values()];
+      const regular = sent.filter((p) => !p.urgent).length;
+      const background = sent.filter((p) => p.background).length;
+      const urgent = sent.length - regular;
+      // The first request that may go now, in queue order (urgent, user, background).
+      const index = this.queue.findIndex((p) =>
+        p.urgent ? urgent < 8 : p.background ? regular < IN_FLIGHT && background < BACKGROUND_IN_FLIGHT : regular < IN_FLIGHT,
+      );
+      if (index < 0) break;
+      const [request] = this.queue.splice(index, 1);
+      // Once sent it is no longer a twin later requests can join.
+      request.key = undefined;
       this.pending.set(request.id, request);
       const header = Buffer.from(
         JSON.stringify({
@@ -261,19 +295,21 @@ export class RustHost {
       this.queuedBytes -= request.bytes;
       clearTimeout(request.timer);
       if (response.ok)
-        request.resolve(
-          binary
-            ? new Uint8Array(
-                binary.buffer,
-                binary.byteOffset,
-                binary.byteLength,
-              )
-            : response.result,
+        this.settle(
+          request,
+          // A large JSON answer arrives as the body (see the host's ipc.rs).
+          response.json && binary
+            ? JSON.parse(binary.toString())
+            : binary
+              ? new Uint8Array(
+                  binary.buffer,
+                  binary.byteOffset,
+                  binary.byteLength,
+                )
+              : response.result,
         );
       else
-        request.reject(
-          new Error(response.error ?? "Workspace operation failed"),
-        );
+        this.settle(request, undefined, new Error(response.error ?? "Workspace operation failed"));
       this.drain();
     }
   }
@@ -284,7 +320,7 @@ export class RustHost {
     child?.kill();
     for (const request of [...this.queue, ...this.pending.values()]) {
       clearTimeout(request.timer);
-      request.reject(error);
+      this.settle(request, undefined, error);
     }
     this.queue = [];
     this.pending.clear();
@@ -294,6 +330,26 @@ export class RustHost {
     this.available = 0;
     this.headerLength = undefined;
     this.response = undefined;
+  }
+  /** Answers a request and everyone who joined it. */
+  private settle(request: Pending, value: unknown, error?: Error): void {
+    for (const waiter of [request, ...(request.followers ?? [])]) {
+      if (error) waiter.reject(error);
+      else waiter.resolve(value);
+    }
+  }
+  /** Makes room by giving up the newest queued background request. */
+  private dropBackground(): boolean {
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      const request = this.queue[i];
+      if (!request.background) continue;
+      this.queue.splice(i, 1);
+      this.queuedBytes -= request.bytes;
+      clearTimeout(request.timer);
+      this.settle(request, undefined, new Error(`${request.command} skipped to make room`));
+      return true;
+    }
+    return false;
   }
   isIdle(): boolean {
     return this.queue.length === 0 && this.pending.size === 0;

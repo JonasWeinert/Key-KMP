@@ -2,7 +2,7 @@
 
 Library scopes, all-item lists, notes, pages, saved database views and reference/media entries participate in the same main-process view ownership model as PDFs and Office documents. Sidebar navigation opens or focuses an owned view; it no longer replaces a global editor. A record has one owner per workspace regardless of the project used to reach it. Workspace/project library scopes have distinct owners. New, unsaved records have independent identities; saving transfers their identity to the canonical record ID.
 
-The split picker lists other singleton tabs. Either pane can contain any supported view type. Focus, swap, separate, reorder, close and ratio changes operate on view IDs. Split groups remain limited to two panes. PDF back navigation remembers the originating content view.
+The split picker lists other singleton tabs. Either pane can contain any supported view type. Focus, swap, separate, reorder, close and ratio changes operate on view IDs. A split group holds a nested layout of up to eight panes (see `windows-workspaces-and-panes.md`). PDF back navigation remembers the originating content view.
 
 ## Rendering and lifetime
 
@@ -10,7 +10,7 @@ The split picker lists other singleton tabs. Either pane can contain any support
 
 DOM panes and native views occupy the same content rectangle below the 40px chrome, beside the current sidebar width, with a 6px divider. DOM panes contain their dialogs so a modal does not extend under an adjacent native editor. The sidebar follows the focused view's workspace/project context.
 
-The main process's `home` renderer category means shell-rendered content; snapshots expose the actual content type for tab icons. Content descriptors carry initial canonical record data; local drafts stay in the retained component. Saves update SQLite and the descriptor for a subsequent renderer reload. Tab/draft restoration across application restarts is not introduced by this change.
+The main process's `home` renderer category means shell-rendered content; snapshots expose the actual content type for tab icons. Content descriptors carry initial canonical record data; local drafts stay in the retained component. Saves update SQLite and the descriptor for a subsequent renderer reload. Windows and their tab layouts are restored after a restart (`windows-workspaces-and-panes.md`); unsaved drafts are not.
 
 ## Saving and closing
 

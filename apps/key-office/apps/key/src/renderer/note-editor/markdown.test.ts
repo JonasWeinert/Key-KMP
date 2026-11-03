@@ -95,6 +95,55 @@ describe("note markdown round-trip", () => {
     expect(stable).toBe(true);
   });
 
+  it("video embed fence keeps its link and title", () => {
+    const md = '```video url="https://www.youtube.com/watch?v=6GR75W2dRmU"\nA lecture on health economics\n```';
+    const { out, doc, stable } = roundTrip(md);
+    expect(types(doc)).toEqual(["videoEmbed"]);
+    expect(doc.content?.[0].attrs).toEqual({ url: "https://www.youtube.com/watch?v=6GR75W2dRmU", title: "A lecture on health economics" });
+    expect(out).toBe(md);
+    expect(stable).toBe(true);
+  });
+
+  it("video without a title writes its link as the body", () => {
+    editor.commands.setContent({ type: "doc", content: [{ type: "videoEmbed", attrs: { url: "https://vimeo.com/76979871" } }] });
+    const out = serializeNote(editor);
+    expect(out).toBe('```video url="https://vimeo.com/76979871"\nhttps://vimeo.com/76979871\n```');
+    const { doc, stable } = roundTrip(out);
+    expect(doc.content?.[0].attrs?.title).toBe("");
+    expect(stable).toBe(true);
+  });
+
+  it("a video fence with a link that is not a video stays code", () => {
+    const { doc } = roundTrip('```video url="https://example.org/page"\nx\n```');
+    expect(types(doc)).toEqual(["codeBlock"]);
+  });
+
+  it("image with a caption and width becomes a fence and back", () => {
+    const md = '```image src="media/0123456789abcdef0123456789abcdef.png" alt="Bar chart" width="480"\nResponse rates by region\n```';
+    const { out, doc, stable } = roundTrip(md);
+    expect(types(doc)).toEqual(["image"]);
+    expect(doc.content?.[0].attrs).toMatchObject({
+      src: "media/0123456789abcdef0123456789abcdef.png",
+      alt: "Bar chart",
+      title: "Response rates by region",
+      width: 480,
+    });
+    expect(out).toBe(md);
+    expect(stable).toBe(true);
+  });
+
+  it("a plain image stays plain Markdown until it is resized", () => {
+    editor.commands.setContent("![](media/0123456789abcdef.webp)", { contentType: "markdown" });
+    expect(serializeNote(editor)).toBe("![](media/0123456789abcdef.webp)");
+    editor.commands.setNodeSelection(0);
+    editor.commands.updateAttributes("image", { width: 320 });
+    const out = serializeNote(editor);
+    expect(out).toBe('```image src="media/0123456789abcdef.webp" width="320"\n\n```');
+    const again = roundTrip(out);
+    expect(again.doc.content?.[0].attrs).toMatchObject({ src: "media/0123456789abcdef.webp", width: 320, title: null });
+    expect(again.stable).toBe(true);
+  });
+
   it("callout containing a list", () => {
     const md = '```callout tone="warning"\nCheck **these**:\n\n- one\n- two\n```';
     const { out, doc, stable } = roundTrip(md);
@@ -237,5 +286,18 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText(md)).toBe(
       "Title Some bold and Palma 2022 text. Callout body Quoted words Palma et al. 2022 — Health task one blockquote a b 1 2",
     );
+  });
+
+  it("keeps a video's title and an image's caption", () => {
+    const md = [
+      '```video url="https://youtu.be/6GR75W2dRmU"',
+      "A lecture on health economics",
+      "```",
+      "",
+      '```image src="media/0123456789abcdef.png" width="300"',
+      "Response rates",
+      "```",
+    ].join("\n");
+    expect(markdownToPlainText(md)).toBe("A lecture on health economics Response rates");
   });
 });

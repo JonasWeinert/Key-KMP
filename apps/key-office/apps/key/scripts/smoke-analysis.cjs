@@ -81,7 +81,7 @@ const assert = require("node:assert/strict");
     assert.equal(companion.analysis.processingMs, 0, "built from the store");
     assert.equal(companion.analysis.citations.length, done.citations.length);
     await reader.locator(".pdfjs-link-overlay.citation").first().waitFor();
-    await reader.getByRole("button", { name: "References" }).click();
+    await reader.locator(".key-pdf-toolbar").getByRole("button", { name: "References" }).click();
     const status = reader.locator(".key-pdf-analysis");
     await status.waitFor();
     assert.match(await status.innerText(), /Layout analysis with the layout model/);
@@ -92,8 +92,8 @@ const assert = require("node:assert/strict");
     await until("re-run to finish", async () => (await call("store_analysis", { id: created.id })).analysis?.engine === "layout-onnx");
 
     // "Show in PDF" on a highlight: scrolls there and lights it up, without a search bar.
-    await page.locator(".kx-page-highlights li").first().hover();
-    await page.locator(".kx-page-highlights li").first().getByRole("button", { name: "Show in PDF" }).click();
+    await page.locator(".key-content-pane:not([hidden]) .kx-source-page:not(.kx-inspector-page) .kx-page-highlights li").first().hover();
+    await page.locator(".key-content-pane:not([hidden]) .kx-source-page:not(.kx-inspector-page) .kx-page-highlights li").first().getByRole("button", { name: "Show in PDF" }).click();
     await reader.locator(".pdfjs-highlight.flash").first().waitFor();
     assert.equal(await reader.locator(".key-pdf-result").count(), 0, "no search result bar");
     const onScreen = await reader.locator(".pdfjs-highlight.flash").first().evaluate((el) => {

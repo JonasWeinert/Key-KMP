@@ -51,7 +51,7 @@ export function markdownToPlainText(md: string): string {
       }
       if (!top?.code) {
         const info = open[2].trim();
-        fences.push({ marker, code: !/^(?:callout|toggle|source|quote)\b/.test(info) });
+        fences.push({ marker, code: !/^(?:callout|toggle|source|quote|video|image)\b/.test(info) });
         const toggle = /^toggle\b.*?title="((?:[^"\\]|\\.)*)"/.exec(info);
         if (toggle) out.push(toggle[1].replace(/\\(.)/g, "$1"));
         continue;

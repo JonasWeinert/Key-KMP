@@ -31,7 +31,7 @@ export function useColumnReorder<T>({
     cancelReorder();
     event.preventDefault();
     event.stopPropagation();
-    const element = event.currentTarget,
+    const element = event.currentTarget as HTMLElement,
       pointerId = event.pointerId;
     const indexFor = (x: number) => {
       for (let i = 0; i < columns.length; i++) {
@@ -43,7 +43,10 @@ export function useColumnReorder<T>({
     // Native listeners and release coordinates avoid stale React state on quick
     // drags and retain ownership if rendering changes the original hit target.
     const move = (e: PointerEvent) => {
-      if (e.pointerId === pointerId) setDropIndex(indexFor(e.clientX));
+      if (e.pointerId !== pointerId) return;
+      // Released outside the window: the up event never came, so end the drag here.
+      if (!(e.buttons & 1)) return end(e);
+      setDropIndex(indexFor(e.clientX));
     };
     const end = (e: PointerEvent) => {
       if (e.pointerId !== pointerId) return;
@@ -58,8 +61,12 @@ export function useColumnReorder<T>({
       onColumnOrderChange?.(keys);
     };
     const cancel = () => cancelReorder();
+    const lost = (e: PointerEvent) => {
+      if (e.pointerId === pointerId) cancelReorder();
+    };
     cleanup.current = () => {
       cleanup.current = null;
+      element.removeEventListener("lostpointercapture", lost);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", end, true);
       window.removeEventListener("pointercancel", cancel, true);
@@ -71,6 +78,7 @@ export function useColumnReorder<T>({
     window.addEventListener("pointercancel", cancel, true);
     window.addEventListener("blur", cancel);
     capturePointer(element, pointerId);
+    element.addEventListener("lostpointercapture", lost);
     setDragKey(key);
   };
   return { dragKey, dropIndex, startReorder, cancelReorder };

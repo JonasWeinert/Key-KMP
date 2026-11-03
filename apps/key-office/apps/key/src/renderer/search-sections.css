@@ -1,0 +1,107 @@
+/* Search results in sections: titles and details, in the text, related by meaning. */
+
+.kx-search-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: default;
+}
+.kx-search-head:hover {
+  color: var(--kx-text-2);
+}
+.kx-section-chevron {
+  transition: transform 140ms var(--kx-ease);
+}
+.kx-search-head[aria-expanded="true"] .kx-section-chevron {
+  transform: rotate(90deg);
+}
+.kx-search-head .kx-count {
+  text-transform: none;
+}
+.kx-section-tag {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent);
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.kx-found-group + .kx-found-group {
+  margin-top: 2px;
+  border-top: 0.5px solid var(--kx-line);
+}
+.kx-found-empty {
+  padding: 14px 12px;
+  color: var(--kx-text-3);
+}
+.kx-found-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--kx-text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.kx-found-row[aria-selected="true"] {
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+}
+.kx-found-row[aria-selected="true"] :is(.kx-found-detail, .kx-found-where, .kx-found-icon) {
+  color: inherit;
+}
+.kx-found-group[data-group="meaning"] .kx-found-row:not([aria-selected="true"]) .kx-found-title {
+  color: var(--kx-text-2);
+}
+.kx-found-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--kx-text-3);
+}
+.kx-found-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.kx-found-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.kx-found-detail {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.kx-found-where {
+  margin-right: 6px;
+  color: var(--kx-text-3);
+  font-weight: 600;
+}
+.kx-found-detail mark {
+  background: var(--search-hit-bg);
+  color: inherit;
+  border-radius: 2px;
+}

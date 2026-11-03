@@ -9,8 +9,10 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct Filter {
     /// creator | container | title | abstract | notes | fulltext | tag | collection | year | kind | itemType | property
+    /// and, by id from the metadata graph: person | venue | publisher | institution | topic | keyword | funder;
+    /// from OpenAlex: citations (with op gt | gte | lt | lte | is) | retracted | oaStatus | workType | language
     pub field: String,
-    /// is | contains (default)
+    /// is | contains (default), or a comparison for `citations`
     #[serde(default)]
     pub op: Option<String>,
     pub value: String,
@@ -68,6 +70,28 @@ pub(crate) fn condition(filter: &Filter) -> Option<(String, Vec<Value>)> {
         ("year", _) => ("s.year = ?".into(), vec![Value::Integer(value.parse().ok()?)]),
         ("kind", _) => ("s.kind = ?".into(), vec![text()]),
         ("itemType", _) => ("s.item_type = ?".into(), vec![text()]),
+        ("person", _) => ("EXISTS (SELECT 1 FROM source_people sp WHERE sp.source_id = s.id AND sp.person_id = ?)".into(), vec![text()]),
+        ("venue", _) => ("s.venue_id = ?".into(), vec![text()]),
+        ("publisher", _) => ("(s.publisher_id = ? OR s.venue_id IN (SELECT id FROM venues WHERE publisher_id = ?))".into(), vec![text(), text()]),
+        ("institution", _) => ("EXISTS (SELECT 1 FROM source_person_institutions x WHERE x.source_id = s.id AND x.institution_id = ?)".into(), vec![text()]),
+        // A domain, field or subfield includes the topics under it.
+        ("topic", _) => (format!("s.id IN ({})", crate::graph::TOPIC_SOURCES.replace("?1", "?")), vec![text()]),
+        ("keyword", _) => ("EXISTS (SELECT 1 FROM source_keywords k WHERE k.source_id = s.id AND k.keyword_id = ?)".into(), vec![text()]),
+        ("funder", _) => ("EXISTS (SELECT 1 FROM source_grants g WHERE g.source_id = s.id AND g.funder_id = ?)".into(), vec![text()]),
+        ("citations", _) => {
+            let operator = match filter.op.as_deref() {
+                Some("gt") => ">",
+                Some("gte") => ">=",
+                Some("lt") => "<",
+                Some("lte") => "<=",
+                _ => "=",
+            };
+            (format!("s.cited_by_count {operator} ?"), vec![Value::Integer(value.parse().ok()?)])
+        }
+        ("retracted", _) => (if value == "false" { "coalesce(s.retracted, 0) = 0" } else { "s.retracted = 1" }.into(), vec![]),
+        ("oaStatus", _) => ("s.oa_status = ?".into(), vec![text()]),
+        ("workType", _) => ("s.work_type = ?".into(), vec![text()]),
+        ("language", _) => ("s.language = ? COLLATE NOCASE".into(), vec![text()]),
         ("property", is) => {
             let path = Value::Text(format!("$.\"{}\"", filter.key.as_deref()?.replace('"', "\\\"")));
             if is {
@@ -180,6 +204,58 @@ impl Store {
         for row in rows {
             let (id, name, count) = row.map_err(e)?;
             out.push(Suggestion { label: name, count, filter: Filter { field: "collection".into(), op: Some("is".into()), value: id, key: None } });
+        }
+        // People, journals, topics, keywords and funders of the view, by id.
+        for (field, sql) in [
+            (
+                "topic",
+                "SELECT t.id, t.name, count(DISTINCT s.id) n FROM sources s JOIN source_topics st ON st.source_id = s.id JOIN topics t ON t.id = st.topic_id",
+            ),
+            ("keyword", "SELECT k.id, k.name, count(DISTINCT s.id) n FROM sources s JOIN source_keywords sk ON sk.source_id = s.id JOIN keywords k ON k.id = sk.keyword_id"),
+            ("funder", "SELECT f.id, f.name, count(DISTINCT s.id) n FROM sources s JOIN source_grants g ON g.source_id = s.id JOIN funders f ON f.id = g.funder_id"),
+        ] {
+            let name = sql.split(", ").nth(1).unwrap_or("").trim();
+            let mut statement = db
+                .prepare(&format!(
+                    "{sql} {numbered} AND ({name} LIKE ?1 ESCAPE '\\' OR {name} LIKE ?2 ESCAPE '\\') GROUP BY 1 ORDER BY n DESC, 2 LIMIT {limit}"
+                ))
+                .map_err(e)?;
+            let mut args = vec![starts.clone(), inner.clone()];
+            args.extend(values.iter().cloned());
+            let rows = statement
+                .query_map(params_from_iter(args.iter()), |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?)))
+                .map_err(e)?;
+            for row in rows {
+                let (id, name, count) = row.map_err(e)?;
+                out.push(Suggestion { label: name, count, filter: Filter { field: field.into(), op: Some("is".into()), value: id, key: None } });
+            }
+        }
+        // "> 100", "cited 100" or "citations >= 50": a citation count.
+        let lower = typed.to_ascii_lowercase();
+        let rest = lower.trim_start_matches(|c: char| c.is_ascii_alphabetic()).trim_start();
+        let op = rest.chars().take_while(|c| matches!(c, '<' | '>' | '=')).collect::<String>();
+        let number = rest[op.len()..].trim();
+        let cites = lower.starts_with("cit") || (!op.is_empty() && rest.len() == lower.len());
+        let op = op.as_str();
+        if let (true, Ok(number)) = (cites, number.parse::<i64>()) {
+            let op = match op {
+                "<" => "lt",
+                "<=" => "lte",
+                ">=" => "gte",
+                _ => "gt",
+            };
+            let filter = Filter { field: "citations".into(), op: Some(op.into()), value: number.to_string(), key: None };
+            let mut cited_view = view.clone();
+            cited_view.filters.push(filter.clone());
+            let (clause, values) = where_clause(&cited_view);
+            let count: i64 = db.query_row(&format!("SELECT count(*) FROM sources s {clause}"), params_from_iter(values.iter()), |r| r.get(0)).map_err(e)?;
+            let words = match op {
+                "lt" => "fewer than",
+                "lte" => "at most",
+                "gte" => "at least",
+                _ => "more than",
+            };
+            out.push(Suggestion { label: format!("Cited {words} {number} times"), count, filter });
         }
         if let Ok(year) = typed.parse::<i64>() {
             if (1400..=2200).contains(&year) {

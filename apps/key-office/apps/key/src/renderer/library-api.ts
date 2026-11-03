@@ -20,6 +20,8 @@ export interface Source extends CitableSource {
   trashedAt?: number | null;
   noteCount: number;
   annotationCount: number;
+  /** The page header: icon and cover. */
+  appearance?: Record<string, unknown>;
   shortTitle?: string;
   containerShort?: string;
   series?: string;
@@ -38,7 +40,142 @@ export interface Source extends CitableSource {
   mime?: string;
   pageCount?: number;
   durationSeconds?: number;
+  // From OpenAlex (stored: filterable; cached: `metricsAt` says when they were fetched).
+  openalexId?: string;
+  workType?: string;
+  oaStatus?: string;
+  oaUrl?: string;
+  retracted?: number;
+  citedByCount?: number;
+  fwci?: number;
+  metricsAt?: number;
+  /** pending | requested | done | not_found | failed */
+  enrichStatus?: string;
+  enrichError?: string;
+  enrichedAt?: number;
+  venueId?: string;
+  publisherId?: string;
 }
+
+// ── The metadata graph around sources (people, venues, topics …) ─────────────
+
+export interface Institution {
+  id: string;
+  name: string;
+  ror?: string | null;
+  openalexId?: string | null;
+  country?: string | null;
+  type?: string | null;
+}
+export interface Person {
+  id: string;
+  name: string;
+  family?: string | null;
+  given?: string | null;
+  orcid?: string | null;
+  openalexId?: string | null;
+  institution?: Institution | null;
+  worksCount?: number | null;
+  citedByCount?: number | null;
+  hIndex?: number | null;
+  i10Index?: number | null;
+  metricsAt?: number | null;
+  names: string[];
+  sourceCount: number;
+}
+export interface Venue {
+  id: string;
+  name: string;
+  issnL?: string | null;
+  issns: string[];
+  type?: string | null;
+  openalexId?: string | null;
+  publisher?: { id: string; name: string; openalexId?: string | null } | null;
+  homepage?: string | null;
+  isOa?: boolean | null;
+  inDoaj?: boolean | null;
+  worksCount?: number | null;
+  citedByCount?: number | null;
+  hIndex?: number | null;
+  metricsAt?: number | null;
+  sourceCount: number;
+}
+export interface TopicRef {
+  id: string;
+  name: string;
+  level: string;
+}
+export interface Topic extends TopicRef {
+  path: TopicRef[];
+  sourceCount: number;
+}
+export interface NamedCount {
+  id: string;
+  name: string;
+  count: number;
+}
+export interface MergeSuggestion {
+  person: Person;
+  other: Person;
+  reason: string;
+}
+export interface PersonPageData {
+  person: Person;
+  coauthors: NamedCount[];
+  venues: NamedCount[];
+  topics: NamedCount[];
+  firstYear?: number | null;
+  lastYear?: number | null;
+  suggestions: MergeSuggestion[];
+}
+export interface VenuePageData {
+  venue: Venue;
+  people: NamedCount[];
+  topics: NamedCount[];
+  firstYear?: number | null;
+  lastYear?: number | null;
+}
+export interface TopicPageData {
+  topic: Topic;
+  children: NamedCount[];
+  people: NamedCount[];
+  venues: NamedCount[];
+}
+export interface WorkReference {
+  origin: "pdf" | "openalex";
+  seq: number;
+  number?: number | null;
+  title?: string | null;
+  byline?: string | null;
+  year?: number | null;
+  container?: string | null;
+  doi?: string | null;
+  openalexId?: string | null;
+  text?: string | null;
+  matchedSourceId?: string | null;
+}
+export interface SourceGraph {
+  people: { position: number; personId: string; name: string; role: string; corresponding: boolean; orcid?: string | null; openalexId?: string | null; institutions: Institution[] }[];
+  venue?: Venue | null;
+  publisher?: { id: string; name: string } | null;
+  topics: (TopicRef & { score?: number | null; primary: boolean; path: TopicRef[] })[];
+  keywords: { id: string; name: string; score?: number | null }[];
+  grants: { funderId: string; funder: string; awardId?: string | null; title?: string | null }[];
+  references: WorkReference[];
+  citedBy: { id: string; title: string; year?: number | null }[];
+}
+/** Not stored: fetched from OpenAlex when shown. */
+export interface OpenAlexExtra {
+  countsByYear: { year: number; cited_by_count?: number; works_count?: number }[];
+  related: { openalexId: string; title: string; byline: string; year?: number | null; doi?: string | null; container?: string | null; matchedSourceId?: string | null }[];
+}
+/** "2 days ago": when a cached count was fetched. */
+export function fetchedAgo(at?: number | null) {
+  if (!at) return "not fetched yet";
+  const days = Math.floor((Date.now() - at) / 86_400_000);
+  return days < 1 ? "today" : days === 1 ? "yesterday" : days < 60 ? `${days} days ago` : new Date(at).toLocaleDateString();
+}
+export const OA_LABEL: Record<string, string> = { gold: "Gold open access", green: "Green open access", hybrid: "Hybrid open access", bronze: "Bronze open access", diamond: "Diamond open access", closed: "Closed access" };
 
 export interface Counts {
   all: number;
@@ -79,6 +216,12 @@ export interface Note {
   body: string;
   createdAt: number;
   updatedAt: number;
+  /** Standard fields under a source's keys (`creators`, `year` ...). */
+  fields?: Record<string, unknown>;
+  /** The user's own properties. */
+  properties?: Record<string, unknown>;
+  /** The page header: icon and cover. */
+  appearance?: Record<string, unknown>;
 }
 export interface Passage {
   id: string;
@@ -114,10 +257,21 @@ export interface NoteHit {
   score: number;
   passages: Passage[];
 }
+export interface FileHit {
+  fileId: string;
+  name: string;
+  /** The folder's name and the path inside it. */
+  path: string;
+  score: number;
+  nameMatch: boolean;
+  passages: SearchHit["passages"];
+}
 export interface SearchResult {
   hits: SearchHit[];
   /** Standalone notes, only when nothing narrows the search. */
   notes: NoteHit[];
+  /** Files of indexed linked folders, likewise. */
+  files?: FileHit[];
   semantic: boolean;
   keywordPassages: number;
   semanticPassages: number;
@@ -148,6 +302,8 @@ export interface LibraryStatus {
   vectors: number;
   counts: Counts;
   activity?: IndexActivity;
+  /** Sources waiting for an OpenAlex lookup. */
+  enrichment?: number;
 }
 
 export type Theme = "system" | "light" | "dark";
@@ -155,6 +311,12 @@ export interface AppSettings {
   theme: Theme;
   onboarded: boolean;
   layoutModel: boolean;
+  zoteroSync: boolean;
+  /** Look sources up in OpenAlex when they are imported with a DOI (and refresh counts when viewed). */
+  openalex: boolean;
+  /** Sent with OpenAlex requests (their polite pool); empty uses the app's own address. */
+  openalexMailto: string;
+  openalexApiKey: string;
 }
 export interface AppInfo {
   version: string;
@@ -182,11 +344,79 @@ export interface Bridge {
   tabAction(action: string, payload?: unknown): Promise<unknown>;
   addFiles(workspaceId: string, collectionId?: string): Promise<unknown[]>;
   importPaths(workspaceId: string, paths: string[], collectionId?: string): Promise<unknown[]>;
-  importZotero(options?: unknown): Promise<{ workspace: { id: string; name: string }; report: Record<string, number> }>;
+  importZotero(options?: ZoteroOptions): Promise<{ workspace: WorkspaceSummary; report: ZoteroReport }>;
+  /** The workspace Zotero imports into, created on first use. */
+  zoteroWorkspace(): Promise<WorkspaceSummary>;
+  /** Syncs the Zotero workspace now, when sync is on. */
+  syncZotero(): Promise<void>;
   openPath(path: string): Promise<void>;
   revealPath(path: string): Promise<void>;
+  /** A Quick Look thumbnail as a data URL, or null when the file has none. */
+  thumbnail(path: string, size?: number): Promise<string | null>;
   pathForFile(file: File): string;
+  /** Starts a drag of files out to other apps (in place of the page's own drag). */
+  startFileDrag(paths: string[]): void;
+  on(event: string, callback: (value: unknown) => void): () => void;
 }
+/** What a Zotero import brings across (key-zotero's ImportOptions). */
+export interface ZoteroOptions {
+  dataDir?: string;
+  /** Zotero collection keys; absent for the whole library. */
+  collectionKeys?: string[];
+  attachments: boolean;
+  notes: boolean;
+  annotations: boolean;
+  mirrorCollections: boolean;
+}
+export interface ZoteroCounts {
+  items: number;
+  files: number;
+  notes: number;
+  annotations: number;
+}
+export interface ZoteroPreview {
+  dataDir: string;
+  collections: { key: string; name: string; parentKey?: string | null; items: number; total: number }[];
+  library: ZoteroCounts;
+  selected: ZoteroCounts;
+  unfiled: number;
+}
+export interface ZoteroConflict {
+  title: string;
+  what: string;
+  detail: string;
+}
+export interface ZoteroReport {
+  items: number;
+  added: number;
+  updated: number;
+  unchanged: number;
+  trashed: number;
+  restored: number;
+  keptDeleted: number;
+  collections: number;
+  collectionsDeleted: number;
+  notes: number;
+  notesUpdated: number;
+  notesDeleted: number;
+  annotations: number;
+  linkedFiles: number;
+  missingFiles: number;
+  skipped: number;
+  conflictCount: number;
+  conflicts: ZoteroConflict[];
+}
+export interface ZoteroProgress {
+  stage: "reading" | "items" | "notes" | "saving" | string;
+  done: number;
+  total: number;
+}
+export interface ZoteroStatus {
+  options?: ZoteroOptions | null;
+  at?: number | null;
+  report?: ZoteroReport | null;
+}
+
 export const bridge = () => (window as unknown as { key: Bridge }).key;
 
 export const KIND_ICON: Record<string, IconName> = {

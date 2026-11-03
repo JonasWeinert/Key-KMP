@@ -1,0 +1,353 @@
+/* ── Item pages: the bar, an optional cover and icon, the title, properties, the body ── */
+/* The bar and the body share the page's own inner class (and so its width and padding);
+   the cover between them runs the full width of the pane. */
+/* Stronger than any page's own padding (a narrow source page sets all four sides), so the
+   bar never carries the page's bottom padding into the space above the title. */
+.kx-item-page[data-kind] > div.kx-item-page-toprow {
+  padding-bottom: 0;
+}
+.kx-item-page[data-kind] > div.kx-item-page-body {
+  padding-top: 0;
+}
+.kx-item-page[data-cover="true"] > .kx-item-page-toprow > * {
+  margin-bottom: 10px;
+}
+
+.kx-page-cover {
+  position: relative;
+  height: 190px;
+  flex: none;
+}
+.kx-item-page[data-side="true"] .kx-page-cover,
+.kx-item-page[data-narrow="true"] .kx-page-cover {
+  height: 110px;
+}
+.kx-page-cover-actions {
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
+  display: flex;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-card);
+  opacity: 0;
+  transition: opacity 140ms var(--kx-ease);
+}
+.kx-page-cover:hover .kx-page-cover-actions,
+.kx-page-cover:focus-within .kx-page-cover-actions {
+  opacity: 1;
+}
+.kx-page-cover-actions button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 500 12px var(--kx-font);
+}
+.kx-page-cover-actions button:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-page-cover > .kx-page-popover {
+  right: 16px;
+  bottom: auto;
+  top: calc(100% - 6px);
+}
+
+.kx-page-heading {
+  position: relative;
+  min-height: 30px;
+}
+.kx-page-icon {
+  display: block;
+  margin: 0 0 6px -4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 58px;
+  line-height: 1;
+}
+.kx-page-icon:not(:disabled):hover {
+  background: var(--kx-fill);
+}
+.kx-item-page[data-cover="true"] .kx-page-icon {
+  margin-top: -44px;
+}
+.kx-item-page[data-side="true"] .kx-page-icon,
+.kx-item-page[data-narrow="true"] .kx-page-icon {
+  font-size: 42px;
+}
+.kx-page-heading-actions {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 4px -8px;
+  opacity: 0;
+  transition: opacity 140ms var(--kx-ease);
+}
+.kx-item-page-body:hover .kx-page-heading-actions,
+.kx-page-heading:focus-within .kx-page-heading-actions {
+  opacity: 1;
+}
+.kx-page-heading-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-3);
+  font: 12.5px var(--kx-font);
+}
+.kx-page-heading-actions button:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+}
+/* The note page indents its title by the editor's gutter; the header follows it. */
+.kx-note-page .kx-page-heading {
+  padding-left: var(--ne-gutter, 52px);
+}
+
+.kx-page-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  width: 316px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+  animation: kx-pop 140ms var(--kx-ease);
+}
+.kx-page-popover h4 {
+  margin: 8px 0 6px;
+  color: var(--kx-text-2);
+  font: 600 11px var(--kx-font);
+}
+.kx-page-popover h4:first-child {
+  margin-top: 0;
+}
+.kx-cover-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+  gap: 6px;
+}
+.kx-cover-swatches button {
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--kx-line);
+}
+.kx-cover-swatches button:hover {
+  box-shadow: inset 0 0 0 2px var(--kx-accent);
+}
+.kx-cover-image-row {
+  display: flex;
+  gap: 6px;
+}
+.kx-cover-image-row > input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--kx-fill);
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+}
+.kx-icon-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.kx-icon-picker-head button {
+  border: 0;
+  background: transparent;
+  color: var(--kx-text-3);
+  font: 12px var(--kx-font);
+}
+.kx-icon-picker-head button:hover {
+  color: var(--kx-text);
+}
+.kx-icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 2px;
+}
+.kx-icon-picker-grid button {
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 20px;
+}
+.kx-icon-picker-grid button:hover {
+  background: var(--kx-fill);
+}
+
+/* A note's properties: rows that can be removed, and the "Add a property" menu. */
+.kx-item-properties {
+  margin-top: 6px;
+  margin-bottom: 14px;
+}
+.kx-note-page .kx-item-properties {
+  margin-left: calc(var(--ne-gutter, 52px) - 6px);
+}
+.kx-page-field {
+  display: grid;
+  grid-template-columns: 1fr 22px;
+  align-items: center;
+}
+.kx-page-field .kx-row-remove,
+.kx-item-properties .kx-typed-row .kx-row-remove {
+  opacity: 0;
+}
+.kx-page-field:hover .kx-row-remove,
+.kx-item-properties .kx-typed-row:hover .kx-row-remove {
+  opacity: 1;
+}
+.kx-page-author .kx-creators {
+  margin: 0;
+}
+.kx-add-property {
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 6px;
+}
+.kx-add-property > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+  text-align: left;
+}
+.kx-add-property > button:hover {
+  background: var(--kx-fill);
+}
+.kx-add-property > h4 {
+  margin: 6px 8px 4px;
+}
+.kx-add-property-new {
+  margin-top: 4px;
+  box-shadow: inset 0 1px 0 var(--kx-line);
+  color: var(--kx-text-2) !important;
+}
+
+/* The source page's own note: open it in a tab or add another note. */
+.kx-page-note {
+  position: relative;
+}
+.kx-page-note-bar {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 140ms var(--kx-ease);
+}
+.kx-page-note:hover .kx-page-note-bar,
+.kx-page-note-bar:focus-within {
+  opacity: 1;
+}
+.kx-page-note-bar button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-3);
+}
+.kx-page-note-bar button:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-page-file {
+  margin: 14px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--kx-line);
+}
+
+/* The library's details panel is the source page, narrow. */
+.kx-inspector-page > .kx-source-page {
+  flex: 1;
+  min-height: 0;
+  background: var(--kx-bg-sunken);
+}
+.kx-inspector-page .kx-source-page-inner {
+  padding-right: 18px;
+  padding-left: 18px;
+}
+
+/* A workspace page: the shell pads the page itself, so the inner rows need none. */
+.key-record-page > .key-record-page-inner {
+  max-width: 860px;
+}
+.key-record-page > .kx-page-cover {
+  margin: 0 calc(-1 * clamp(24px, 6vw, 72px)) 12px;
+}
+
+/* The title: sized by ItemPage for the pane and its length (--kx-title-size). */
+.kx-item-page .kx-page-title > :is(.kx-source-page-title, .kx-note-title, .kx-entity-title) {
+  font-size: var(--kx-title-size, 30px);
+  line-height: 1.18;
+}
+/* Pinned once the title has scrolled away: a compact copy at the top of the page, which
+   goes back up when clicked. Takes no room of its own. */
+.kx-page-pinned {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 0;
+}
+.kx-page-pinned > button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: block;
+  height: 38px;
+  padding: 0 56px;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--kx-line);
+  background: color-mix(in srgb, var(--kx-bg) 86%, transparent);
+  backdrop-filter: saturate(1.6) blur(14px);
+  color: var(--kx-text);
+  font: 600 13px/38px var(--kx-font);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--kx-ease),
+    transform 160ms var(--kx-ease);
+}
+.kx-page-pinned[data-visible="true"] > button {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}

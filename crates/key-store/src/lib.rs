@@ -3,11 +3,23 @@
 // chunked text of documents and notes that full-text and vector search run over.
 mod analysis;
 mod filters;
+mod graph;
+mod linked;
+mod links;
+mod openalex;
 mod properties;
 mod search;
-pub use analysis::{CitationInput, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
+pub use analysis::{CitationInput, DetectedSection, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
 pub use filters::{Filter, Suggestion};
-pub use search::{NoteHit, SearchHit, SearchPassage, SearchQuery, SearchResult};
+pub use graph::{
+    CitingSource, Grant, Institution, Keyword, MergeSuggestion, NamedCount, Person, PersonPage, Publisher, SourceGraph, SourcePerson, SourceTopic, Topic,
+    TopicPage, TopicRef, Venue, VenuePage, WorkReference, name_key,
+};
+pub use openalex::{EnrichJob, abstract_text};
+pub use properties::PropertyOption;
+pub use linked::{LinkedDir, LinkedEntries, LinkedFile, LinkedFolder, MAX_PDF_BYTES, MAX_TEXT_BYTES, SyncReport, file_kind};
+pub use links::{Canvas, CanvasSummary, ItemLinks, ItemRef, Link, LinkEnd, LinkInput, LinkTarget, canvas_links, note_title};
+pub use search::{FileHit, NoteHit, SearchHit, SearchPassage, SearchQuery, SearchResult};
 
 use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter, types::Value};
 use serde::{Deserialize, Serialize};
@@ -30,7 +42,8 @@ const AWAITING_VECTOR: &str = "FROM chunks c
      LEFT JOIN sources s ON s.id = c.source_id
      LEFT JOIN notes n ON n.id = c.note_id
      LEFT JOIN sources ns ON ns.id = n.source_id
-     WHERE c.embedded = 0 AND (s.index_status IN ('ready', 'no_text', 'missing') OR n.updated_at <= ?1)";
+     LEFT JOIN linked_files lf ON lf.id = c.file_id
+     WHERE c.embedded = 0 AND (s.index_status IN ('ready', 'no_text', 'missing') OR n.updated_at <= ?1 OR c.file_id IS NOT NULL)";
 const MIGRATIONS: &[&str] = &[
     include_str!("migrations/001_initial.sql"),
     include_str!("migrations/002_properties.sql"),
@@ -38,7 +51,13 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/004_analysis.sql"),
     include_str!("migrations/005_citations.sql"),
     include_str!("migrations/006_note_passages.sql"),
+    include_str!("migrations/007_links_canvases.sql"),
+    include_str!("migrations/008_pages.sql"),
+    include_str!("migrations/009_linked_folders.sql"),
+    include_str!("migrations/010_metadata_graph.sql"),
 ];
+/// The migration after which existing sources are linked to the new people and venue tables.
+const GRAPH_MIGRATION: usize = 10;
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
 /// order of the table. Kept in one list so inserts, patches and reads cannot drift.
@@ -75,13 +94,31 @@ const TEXT_FIELDS: &[(&str, &str)] = &[
     ("filePath", "file_path"),
     ("fileHash", "file_hash"),
     ("mime", "mime"),
+    // From OpenAlex (see openalex.rs); `venueId` and `publisherId` link to their tables.
+    ("openalexId", "openalex_id"),
+    ("workType", "work_type"),
+    ("oaStatus", "oa_status"),
+    ("oaUrl", "oa_url"),
+    ("enrichStatus", "enrich_status"),
+    ("enrichError", "enrich_error"),
+    ("venueId", "venue_id"),
+    ("publisherId", "publisher_id"),
 ];
 const NUMBER_FIELDS: &[(&str, &str)] = &[
     ("year", "year"),
     ("durationSeconds", "duration_seconds"),
     ("fileSize", "file_size"),
     ("pageCount", "page_count"),
+    ("retracted", "retracted"),
+    ("citedByCount", "cited_by_count"),
+    ("fwci", "fwci"),
+    ("metricsAt", "metrics_at"),
+    ("enrichedAt", "enriched_at"),
 ];
+/// Fields only the store writes: a patch naming them is ignored.
+const DERIVED_FIELDS: &[&str] = &["venueId", "publisherId", "enrichStatus", "enrichError", "enrichedAt", "metricsAt"];
+/// Identifiers a source can be looked up by; a new one queues the lookup.
+const LOOKUP_FIELDS: &[&str] = &["doi", "pmid", "openalexId"];
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -94,6 +131,9 @@ pub struct Creator {
     pub literal: Option<String>,
     #[serde(default = "author_role")]
     pub role: String,
+    /// The person this creator is (see graph.rs); filled when read, never stored in the JSON.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub person_id: Option<String>,
 }
 fn author_role() -> String {
     "author".into()
@@ -133,6 +173,9 @@ pub struct Source {
     pub trashed_at: Option<i64>,
     pub note_count: i64,
     pub annotation_count: i64,
+    /// The page header: `icon`, `cover`.
+    #[serde(default)]
+    pub appearance: Map<String, Json>,
     #[serde(flatten)]
     pub fields: Map<String, Json>,
 }
@@ -206,10 +249,42 @@ pub struct ListQuery {
     pub sort: Option<String>,
     #[serde(default)]
     pub descending: bool,
+    /// Sort levels, first one wins; replaces `sort`/`descending` when given.
+    #[serde(default)]
+    pub sorts: Vec<SortKey>,
     #[serde(default)]
     pub offset: usize,
     #[serde(default)]
     pub limit: Option<usize>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SortKey {
+    pub field: String,
+    #[serde(default)]
+    pub descending: bool,
+}
+
+fn sort_expression(field: &str) -> String {
+    // `property:<name>` sorts by a typed property; the name is quoted into a JSON path.
+    if let Some(name) = field.strip_prefix("property:") {
+        let name: String = name.chars().filter(|c| !matches!(c, '"' | '\\' | '\0')).collect::<String>().replace('\'', "''");
+        return format!("json_extract(s.properties, '$.\"{name}\"')");
+    }
+    match field {
+        "title" => "s.title COLLATE NOCASE",
+        "year" => "s.year",
+        "updated" => "s.updated_at",
+        "creator" => "json_extract(s.creators, '$[0].family') COLLATE NOCASE",
+        "container" => "s.container_title COLLATE NOCASE",
+        "type" => "s.item_type",
+        "citations" => "s.cited_by_count",
+        "kind" => "s.kind",
+        "pages" => "s.page_count",
+        _ => "s.added_at",
+    }
+    .into()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -254,6 +329,15 @@ pub struct Note {
     pub origin_key: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Standard fields under a source's camelCase keys (`creators`, `year`, `url` ...).
+    #[serde(default)]
+    pub fields: Map<String, Json>,
+    /// The user's own properties, as on a source.
+    #[serde(default)]
+    pub properties: Map<String, Json>,
+    /// The page header: `icon`, `cover` (`{ kind: color|gradient|image, value }`).
+    #[serde(default)]
+    pub appearance: Map<String, Json>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -357,6 +441,11 @@ impl Store {
         for (index, sql) in MIGRATIONS.iter().enumerate().skip(version) {
             let tx = conn.unchecked_transaction().map_err(e)?;
             tx.execute_batch(sql).map_err(|error| format!("migration {}: {error}", index + 1))?;
+            if index + 1 == GRAPH_MIGRATION {
+                graph::backfill(&tx)
+                    .and_then(|()| properties::backfill_choices(&tx))
+                    .map_err(|error| format!("migration {}: {error}", index + 1))?;
+            }
             tx.execute_batch(&format!("PRAGMA user_version = {}", index + 1)).map_err(e)?;
             tx.commit().map_err(e)?;
         }
@@ -409,6 +498,7 @@ impl Store {
                 )
                 .map_err(e)?;
             }
+            sync_graph(&tx, &id, None)?;
             refresh_fts(&tx, &id)?;
             tx.commit().map_err(e)?;
         }
@@ -435,12 +525,15 @@ impl Store {
             };
             let id = match existing {
                 Some(id) => {
-                    patch_source_row(&tx, &id, &input_patch(input), now)?;
+                    let patch = input_patch(input);
+                    patch_source_row(&tx, &id, &patch, now)?;
+                    sync_graph(&tx, &id, Some(&patch))?;
                     id
                 }
                 None => {
                     let id = new_id();
                     insert_source_row(&tx, &id, input, now)?;
+                    sync_graph(&tx, &id, None)?;
                     id
                 }
             };
@@ -465,6 +558,7 @@ impl Store {
             let db = self.db()?;
             let tx = db.unchecked_transaction().map_err(e)?;
             patch_source_row(&tx, id, patch, now_ms())?;
+            sync_graph(&tx, id, Some(patch))?;
             refresh_fts(&tx, id)?;
             tx.commit().map_err(e)?;
         }
@@ -492,15 +586,17 @@ impl Store {
     pub fn list_sources(&self, query: &ListQuery) -> Result<SourcePage> {
         let db = self.read()?;
         let (clause, values) = where_clause(query);
-        let order = match query.sort.as_deref().unwrap_or("added") {
-            "title" => "s.title COLLATE NOCASE",
-            "year" => "s.year",
-            "updated" => "s.updated_at",
-            "creator" => "json_extract(s.creators, '$[0].family') COLLATE NOCASE",
-            "container" => "s.container_title COLLATE NOCASE",
-            _ => "s.added_at",
+        let levels = if query.sorts.is_empty() {
+            vec![SortKey { field: query.sort.clone().unwrap_or_else(|| "added".into()), descending: query.descending }]
+        } else {
+            query.sorts.clone()
         };
-        let direction = if query.descending { "DESC" } else { "ASC" };
+        let order = levels
+            .iter()
+            .map(|k| format!("{} {} NULLS LAST", sort_expression(&k.field), if k.descending { "DESC" } else { "ASC" }))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let direction = if levels[0].descending { "DESC" } else { "ASC" };
         let limit = query.limit.unwrap_or(200).min(2000);
         let total = db
             .query_row(
@@ -510,7 +606,7 @@ impl Store {
             )
             .map_err(e)? as usize;
         let sql = format!(
-            "{} {clause} ORDER BY {order} {direction} NULLS LAST, s.rowid {direction} LIMIT {limit} OFFSET {}",
+            "{} {clause} ORDER BY {order}, s.rowid {direction} LIMIT {limit} OFFSET {}",
             select_sources(),
             query.offset
         );
@@ -556,8 +652,19 @@ impl Store {
                 [id],
             )
             .map_err(e)?;
+            // Its notes go with it (cascade); so do the links they wrote.
+            let notes: Vec<String> = {
+                let mut statement = tx.prepare("SELECT id FROM notes WHERE source_id = ?").map_err(e)?;
+                let rows = statement.query_map([id], |r| r.get(0)).map_err(e)?;
+                rows.collect::<std::result::Result<_, _>>().map_err(e)?
+            };
+            for note in notes {
+                links::forget_item(&tx, links::NOTE, &note)?;
+            }
+            links::forget_item(&tx, links::SOURCE, id)?;
             removed += tx.execute("DELETE FROM sources WHERE id = ?", [id]).map_err(e)?;
         }
+        graph::prune_orphans(&tx)?;
         tx.commit().map_err(e)?;
         Ok(removed)
     }
@@ -698,12 +805,43 @@ impl Store {
             db.execute("UPDATE collections SET name = ?2 WHERE id = ?1", params![id, name.trim()]).map_err(e)?;
         }
         if let Some(parent) = parent_id {
-            if parent == Some(id) {
-                return Err("A collection cannot contain itself".into());
+            if let Some(parent) = parent {
+                let inside: bool = db
+                    .query_row(
+                        "WITH RECURSIVE up(id) AS (SELECT ?1 UNION SELECT c.parent_id FROM collections c JOIN up ON c.id = up.id WHERE c.parent_id IS NOT NULL)
+                         SELECT EXISTS(SELECT 1 FROM up WHERE id = ?2)",
+                        params![parent, id],
+                        |r| r.get(0),
+                    )
+                    .map_err(e)?;
+                if inside {
+                    return Err("A collection cannot contain itself".into());
+                }
             }
             db.execute("UPDATE collections SET parent_id = ?2 WHERE id = ?1", params![id, parent]).map_err(e)?;
         }
         Ok(())
+    }
+
+    /// Puts `ids` under `parent_id` in this order; other siblings keep their relative order after them.
+    pub fn reorder_collections(&self, parent_id: Option<&str>, ids: &[String]) -> Result<()> {
+        for id in ids {
+            self.update_collection(id, None, Some(parent_id))?;
+        }
+        let mut db = self.db()?;
+        let tx = db.transaction().map_err(e)?;
+        let siblings: Vec<String> = {
+            let mut statement = tx
+                .prepare("SELECT id FROM collections WHERE parent_id IS ?1 ORDER BY position, name COLLATE NOCASE")
+                .map_err(e)?;
+            let rows = statement.query_map([parent_id], |r| r.get::<_, String>(0)).map_err(e)?;
+            rows.collect::<std::result::Result<_, _>>().map_err(e)?
+        };
+        let order = ids.iter().cloned().chain(siblings.into_iter().filter(|s| !ids.contains(s)));
+        for (position, id) in order.enumerate() {
+            tx.execute("UPDATE collections SET position = ?2 WHERE id = ?1", params![id, position as i64]).map_err(e)?;
+        }
+        tx.commit().map_err(e)
     }
 
     pub fn delete_collection(&self, id: &str) -> Result<()> {
@@ -735,7 +873,7 @@ impl Store {
     pub fn notes(&self, source_id: &str) -> Result<Vec<Note>> {
         let db = self.db()?;
         let mut statement = db
-            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE source_id = ? ORDER BY created_at")
+            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE source_id = ? ORDER BY created_at")
             .map_err(e)?;
         statement
             .query_map([source_id], read_note)
@@ -748,7 +886,7 @@ impl Store {
     pub fn standalone_notes(&self) -> Result<Vec<Note>> {
         let db = self.read()?;
         let mut statement = db
-            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE source_id IS NULL ORDER BY updated_at DESC")
+            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE source_id IS NULL ORDER BY updated_at DESC")
             .map_err(e)?;
         statement
             .query_map([], read_note)
@@ -767,7 +905,7 @@ impl Store {
 
     pub fn note(&self, id: &str) -> Result<Option<Note>> {
         self.read()?
-            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE id = ?", [id], read_note)
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE id = ?", [id], read_note)
             .optional()
             .map_err(e)
     }
@@ -792,7 +930,7 @@ impl Store {
         .map_err(e)?;
         let note = db
             .query_row(
-                "SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE id = ?",
+                "SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE id = ?",
                 [&id],
                 read_note,
             )
@@ -848,7 +986,7 @@ impl Store {
         let db = self.read()?;
         let mut statement = db
             .prepare(
-                "SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes
+                "SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes
                  WHERE indexed_at IS NULL OR indexed_at < updated_at ORDER BY updated_at DESC LIMIT ?",
             )
             .map_err(e)?;
@@ -867,10 +1005,77 @@ impl Store {
             .map_err(e)?
             .flatten();
         db.execute("DELETE FROM notes WHERE id = ?", [id]).map_err(e)?;
+        links::forget_item(&db, links::NOTE, id)?;
         if let Some(source) = source {
             refresh_fts(&db, &source)?;
         }
         Ok(())
+    }
+
+    /// Merges a note's page metadata: `fields`, `properties` and `appearance`, each a
+    /// patch where null removes a key. The body and title are left alone, so this never
+    /// races a save of the text.
+    pub fn update_note_meta(&self, id: &str, patch: &Map<String, Json>) -> Result<Note> {
+        let db = self.db()?;
+        let tx = db.unchecked_transaction().map_err(e)?;
+        let (fields, properties, appearance): (String, String, String) = tx
+            .query_row("SELECT fields, properties, appearance FROM notes WHERE id = ?", [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .optional()
+            .map_err(e)?
+            .ok_or("Note not found")?;
+        let merged = |current: &str, key: &str| -> String {
+            let base: Map<String, Json> = serde_json::from_str(current).unwrap_or_default();
+            match patch.get(key) {
+                Some(Json::Object(p)) => Json::Object(merge_json(base, p)).to_string(),
+                _ => Json::Object(base).to_string(),
+            }
+        };
+        tx.execute(
+            "UPDATE notes SET fields = ?2, properties = ?3, appearance = ?4, updated_at = ?5 WHERE id = ?1",
+            params![id, merged(&fields, "fields"), merged(&properties, "properties"), merged(&appearance, "appearance"), now_ms()],
+        )
+        .map_err(e)?;
+        let note = tx
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE id = ?", [id], read_note)
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(note)
+    }
+
+    /// The note an importer created under `origin_key`.
+    pub fn note_by_origin(&self, origin_key: &str) -> Result<Option<Note>> {
+        self.read()?
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE origin_key = ?", [origin_key], read_note)
+            .optional()
+            .map_err(e)
+    }
+
+    /// Moves a note to another source (or makes it standalone), keeping its id and text.
+    pub fn set_note_source(&self, id: &str, source_id: Option<&str>) -> Result<()> {
+        let db = self.db()?;
+        let before: Option<String> = db
+            .query_row("SELECT source_id FROM notes WHERE id = ?", [id], |r| r.get(0))
+            .optional()
+            .map_err(e)?
+            .ok_or("Note not found")?;
+        db.execute("UPDATE notes SET source_id = ?2 WHERE id = ?1", params![id, source_id]).map_err(e)?;
+        for source in before.iter().map(String::as_str).chain(source_id) {
+            refresh_fts(&db, source)?;
+        }
+        Ok(())
+    }
+
+    /// Every source an importer brought in from `origin`: its origin key, id and last change.
+    pub fn origin_index(&self, origin: &str) -> Result<HashMap<String, (String, i64)>> {
+        let db = self.read()?;
+        let mut statement = db
+            .prepare("SELECT origin_key, id, updated_at FROM sources WHERE origin = ? AND origin_key IS NOT NULL")
+            .map_err(e)?;
+        statement
+            .query_map([origin], |r| Ok((r.get::<_, String>(0)?, (r.get::<_, String>(1)?, r.get::<_, i64>(2)?))))
+            .map_err(e)?
+            .collect::<std::result::Result<HashMap<_, _>, _>>()
+            .map_err(e)
     }
 
     pub fn annotations(&self, source_id: &str) -> Result<Vec<Json>> {
@@ -902,6 +1107,7 @@ impl Store {
             tx.execute("DELETE FROM annotations WHERE id = ?1 AND source_id = ?2", params![id, source_id])
                 .map_err(e)?;
         }
+        links::sync_highlight_links(&tx, source_id)?;
         tx.commit().map_err(e)
     }
 
@@ -995,7 +1201,7 @@ impl Store {
         let db = self.db()?;
         let mut statement = db
             .prepare(&format!(
-                "SELECT c.id, coalesce(s.title, nullif(n.title, ''), ns.title, ''), c.text {AWAITING_VECTOR} ORDER BY c.id LIMIT ?2"
+                "SELECT c.id, coalesce(s.title, nullif(n.title, ''), ns.title, lf.name, ''), c.text {AWAITING_VECTOR} ORDER BY c.id LIMIT ?2"
             ))
             .map_err(e)?;
         statement
@@ -1066,6 +1272,8 @@ fn select_sources() -> String {
             "(SELECT group_concat(collection_id, char(31)) FROM source_collections WHERE source_id = s.id)",
             "(SELECT count(*) FROM notes WHERE source_id = s.id)",
             "(SELECT count(*) FROM annotations WHERE source_id = s.id)",
+            "s.appearance",
+            "(SELECT json_group_object(position, person_id) FROM source_people WHERE source_id = s.id)",
         ]
         .map(String::from),
     );
@@ -1090,10 +1298,15 @@ fn read_source(row: &Row) -> rusqlite::Result<Source> {
     }
     let text = |i: usize| row.get::<_, String>(i);
     let collections: Option<String> = row.get(index + 15)?;
+    let mut creators: Vec<Creator> = serde_json::from_str(&text(index + 2)?).unwrap_or_default();
+    let people: Map<String, Json> = row.get::<_, Option<String>>(index + 19)?.and_then(|p| serde_json::from_str(&p).ok()).unwrap_or_default();
+    for (position, creator) in creators.iter_mut().enumerate() {
+        creator.person_id = people.get(&position.to_string()).and_then(Json::as_str).map(String::from);
+    }
     Ok(Source {
         id: text(index)?,
         kind: text(index + 1)?,
-        creators: serde_json::from_str(&text(index + 2)?).unwrap_or_default(),
+        creators,
         tags: serde_json::from_str(&text(index + 3)?).unwrap_or_default(),
         properties: serde_json::from_str(&text(index + 4)?).unwrap_or_default(),
         starred: row.get::<_, i64>(index + 5)? != 0,
@@ -1111,6 +1324,7 @@ fn read_source(row: &Row) -> rusqlite::Result<Source> {
             .unwrap_or_default(),
         note_count: row.get(index + 16)?,
         annotation_count: row.get(index + 17)?,
+        appearance: serde_json::from_str(&text(index + 18)?).unwrap_or_default(),
         fields,
     })
 }
@@ -1124,7 +1338,22 @@ fn read_note(r: &Row) -> rusqlite::Result<Note> {
         origin_key: r.get(4)?,
         created_at: r.get(5)?,
         updated_at: r.get(6)?,
+        fields: serde_json::from_str(&r.get::<_, String>(7)?).unwrap_or_default(),
+        properties: serde_json::from_str(&r.get::<_, String>(8)?).unwrap_or_default(),
+        appearance: serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default(),
     })
+}
+
+/// Shallow merge: each key of `patch` replaces the one in `base`; null removes it.
+fn merge_json(mut base: Map<String, Json>, patch: &Map<String, Json>) -> Map<String, Json> {
+    for (key, value) in patch {
+        if value.is_null() {
+            base.remove(key);
+        } else {
+            base.insert(key.clone(), value.clone());
+        }
+    }
+    base
 }
 
 fn json_to_sql(value: &Json) -> Value {
@@ -1163,7 +1392,7 @@ fn insert_source_row(db: &Connection, id: &str, input: &SourceInput, now: i64) -
     let mut values: Vec<Value> = vec![
         Value::Text(id.into()),
         Value::Text(input.kind.clone()),
-        Value::Text(serde_json::to_string(&input.creators).map_err(e)?),
+        Value::Text(creators_json(&input.creators)?),
         Value::Text(serde_json::to_string(&normalize_tags(&input.tags)).map_err(e)?),
         Value::Text(Json::Object(input.properties.clone()).to_string()),
         input.origin.clone().map(Value::Text).unwrap_or(Value::Null),
@@ -1173,6 +1402,9 @@ fn insert_source_row(db: &Connection, id: &str, input: &SourceInput, now: i64) -
         Value::Text(input.index_status.clone().unwrap_or_else(|| "pending".into())),
     ];
     for (name, column) in TEXT_FIELDS.iter().chain(NUMBER_FIELDS) {
+        if DERIVED_FIELDS.contains(name) {
+            continue;
+        }
         if let Some(value) = input.fields.get(*name) {
             columns.push(column);
             values.push(json_to_sql(value));
@@ -1194,7 +1426,11 @@ fn insert_source_row(db: &Connection, id: &str, input: &SourceInput, now: i64) -
 fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i64) -> Result<()> {
     let mut sets = vec!["updated_at = ?".to_string()];
     let mut values: Vec<Value> = vec![Value::Integer(now)];
+    let lookup_before = lookup_ids(db, id, patch)?;
     for (name, column) in TEXT_FIELDS.iter().chain(NUMBER_FIELDS) {
+        if DERIVED_FIELDS.contains(name) {
+            continue;
+        }
         if let Some(value) = patch.get(*name) {
             sets.push(format!("{column} = ?"));
             values.push(if *column == "title" && value.is_null() { Value::Text(String::new()) } else { json_to_sql(value) });
@@ -1207,7 +1443,7 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
     if let Some(creators) = patch.get("creators") {
         let creators: Vec<Creator> = serde_json::from_value(creators.clone()).map_err(e)?;
         sets.push("creators = ?".into());
-        values.push(Value::Text(serde_json::to_string(&creators).map_err(e)?));
+        values.push(Value::Text(creators_json(&creators)?));
     }
     if let Some(tags) = patch.get("tags") {
         let tags: Vec<String> = serde_json::from_value(tags.clone()).map_err(e)?;
@@ -1218,6 +1454,15 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
         sets.push("starred = ?".into());
         values.push(Value::Integer(starred as i64));
     }
+    if let Some(Json::Object(appearance)) = patch.get("appearance") {
+        let current: String = db
+            .query_row("SELECT appearance FROM sources WHERE id = ?", [id], |r| r.get(0))
+            .optional()
+            .map_err(e)?
+            .ok_or("Source not found")?;
+        sets.push("appearance = ?".into());
+        values.push(Value::Text(Json::Object(merge_json(serde_json::from_str(&current).unwrap_or_default(), appearance)).to_string()));
+    }
     if let Some(Json::Object(replace)) = patch.get("replaceProperties") {
         sets.push("properties = ?".into());
         values.push(Value::Text(Json::Object(replace.clone()).to_string()));
@@ -1227,14 +1472,7 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
             .optional()
             .map_err(e)?
             .ok_or("Source not found")?;
-        let mut merged: Map<String, Json> = serde_json::from_str(&current).unwrap_or_default();
-        for (key, value) in properties {
-            if value.is_null() {
-                merged.remove(key);
-            } else {
-                merged.insert(key.clone(), value.clone());
-            }
-        }
+        let merged = merge_json(serde_json::from_str(&current).unwrap_or_default(), properties);
         sets.push("properties = ?".into());
         values.push(Value::Text(Json::Object(merged).to_string()));
     }
@@ -1250,11 +1488,62 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
     if changed == 0 {
         return Err("Source not found".into());
     }
+    // A new identifier means a new lookup.
+    if lookup_before.is_some() && lookup_ids(db, id, patch)? != lookup_before {
+        db.execute(
+            "UPDATE sources SET enrich_status = CASE WHEN coalesce(nullif(doi, ''), nullif(pmid, ''), nullif(openalex_id, '')) IS NULL THEN NULL ELSE 'pending' END,
+               enrich_error = NULL, enrich_attempts = 0, enrich_after = NULL WHERE id = ?",
+            [id],
+        )
+        .map_err(e)?;
+    }
+    Ok(())
+}
+
+/// The identifiers a source is looked up by, when `patch` touches any of them.
+fn lookup_ids(db: &Connection, id: &str, patch: &Map<String, Json>) -> Result<Option<(Option<String>, Option<String>, Option<String>)>> {
+    if !LOOKUP_FIELDS.iter().any(|f| patch.contains_key(*f)) {
+        return Ok(None);
+    }
+    db.query_row("SELECT nullif(doi, ''), nullif(pmid, ''), nullif(openalex_id, '') FROM sources WHERE id = ?", [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .optional()
+        .map_err(e)
+}
+
+/// Creators as stored: without the person ids that are only added when reading.
+fn creators_json(creators: &[Creator]) -> Result<String> {
+    let bare: Vec<Creator> = creators.iter().cloned().map(|c| Creator { person_id: None, ..c }).collect();
+    serde_json::to_string(&bare).map_err(e)
+}
+
+/// Keeps the tables around a source in step with what a write changed (`None`: a new source).
+fn sync_graph(db: &Connection, id: &str, patch: Option<&Map<String, Json>>) -> Result<()> {
+    let has = |key: &str| patch.is_none_or(|p| p.contains_key(key));
+    if has("creators") {
+        graph::sync_people(db, id, true)?;
+    }
+    if has("containerTitle") || has("issn") || has("publisher") {
+        graph::sync_venue(db, id)?;
+    }
+    if patch.is_none() {
+        db.execute(
+            "UPDATE sources SET enrich_status = 'pending' WHERE id = ? AND enrich_status IS NULL
+               AND coalesce(nullif(doi, ''), nullif(pmid, ''), nullif(openalex_id, '')) IS NOT NULL",
+            [id],
+        )
+        .map_err(e)?;
+    }
+    if LOOKUP_FIELDS.iter().any(|f| has(f)) {
+        graph::relink_citations(db, id)?;
+    }
+    if has("properties") || has("replaceProperties") {
+        properties::sync_choices(db, id)?;
+    }
     Ok(())
 }
 
 /// Rewrites the metadata FTS row for one source (title, creators, notes, identifiers...).
-fn refresh_fts(db: &Connection, id: &str) -> Result<()> {
+pub(crate) fn refresh_fts(db: &Connection, id: &str) -> Result<()> {
     db.execute("DELETE FROM sources_fts WHERE rowid = (SELECT rowid FROM sources WHERE id = ?)", [id])
         .map_err(e)?;
     db.execute(
