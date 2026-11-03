@@ -268,6 +268,15 @@ impl Store {
                 });
             }
         }
+        // People, journals and topics by name; without text only when asked for by kind.
+        for kind in [super::graph::PERSON, super::graph::VENUE, super::graph::TOPIC] {
+            if !wants(kind) || (text.trim().is_empty() && !kinds.iter().any(|k| k == kind)) {
+                continue;
+            }
+            for (id, title, detail) in Store::graph_targets(&db, &pattern, kind, limit)? {
+                out.push(LinkTarget { item: ItemRef::new(kind, &id, None), title, detail: detail.or_else(|| Some(kind.into())), context: None, color: None, page: None, updated_at: 0 });
+            }
+        }
         // Without text, highlights come only when asked for by name (the most recent first).
         if wants("highlight") && (!text.trim().is_empty() || kinds.iter().any(|k| k == "highlight")) {
             let mut statement = db
@@ -428,7 +437,7 @@ pub(crate) fn sync_highlight_links(db: &Connection, source_id: &str) -> Result<(
     Ok(())
 }
 
-fn write_links(db: &Connection, owner: &ItemRef, links: &[LinkInput]) -> Result<()> {
+pub(crate) fn write_links(db: &Connection, owner: &ItemRef, links: &[LinkInput]) -> Result<()> {
     db.execute("DELETE FROM links WHERE owner_kind = ?1 AND owner_id = ?2", params![owner.kind, owner.id]).map_err(e)?;
     let now = now_ms();
     let mut insert = db
@@ -465,6 +474,9 @@ fn target_exists(db: &Connection, item: &ItemRef) -> Result<bool> {
         NOTE => "notes",
         SOURCE => "sources",
         CANVAS => "canvases",
+        super::graph::PERSON => "people",
+        super::graph::VENUE => "venues",
+        super::graph::TOPIC => "topics",
         super::linked::FILE => {
             return db
                 .query_row("SELECT EXISTS(SELECT 1 FROM linked_files WHERE id = ? AND missing_at IS NULL)", [&item.id], |r| r.get(0))
@@ -568,6 +580,18 @@ fn lookup(db: &Connection, kind: &str, id: &str) -> Result<Option<(String, Optio
             .map_err(e),
         CANVAS => db
             .query_row("SELECT title FROM canvases WHERE id = ?", [id], |r| Ok((or_untitled(&r.get::<_, String>(0)?, "Untitled canvas"), None)))
+            .optional()
+            .map_err(e),
+        super::graph::PERSON => db
+            .query_row("SELECT name FROM people WHERE id = ?", [id], |r| Ok((r.get::<_, String>(0)?, Some(super::graph::PERSON.to_string()))))
+            .optional()
+            .map_err(e),
+        super::graph::VENUE => db
+            .query_row("SELECT name, type FROM venues WHERE id = ?", [id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?)))
+            .optional()
+            .map_err(e),
+        super::graph::TOPIC => db
+            .query_row("SELECT name, level FROM topics WHERE id = ?", [id], |r| Ok((r.get::<_, String>(0)?, Some(r.get::<_, String>(1)?))))
             .optional()
             .map_err(e),
         // A file that disappeared reads as missing, under the link's own text.
