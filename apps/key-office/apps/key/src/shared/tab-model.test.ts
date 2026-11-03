@@ -15,6 +15,11 @@ import {
   resetWorkspaceSplits,
   replaceWorkspaceView,
   MAX_PANES,
+  PANE_HEADER,
+  paneBody,
+  pinWorkspaceTab,
+  tabsToClose,
+  moveWorkspacePane,
   type WorkspaceTabsState,
 } from "./tab-model";
 function initial(): WorkspaceTabsState {
@@ -246,5 +251,56 @@ describe("nested pane layouts", () => {
       many = applyWorkspaceViewDrop(many, { kind: "split", viewId: `v${i}`, targetTabId: many.tabs[0].id });
     }
     expect(many.tabs[0].viewIds.length).toBe(MAX_PANES);
+  });
+  it("closes one pane of a split and leaves the others, the last pane closing the tab", () => {
+    let state = three();
+    const tabId = state.tabs[0].id;
+    state = activateWorkspaceTab(state, tabId, "b");
+    state = closeWorkspaceView(state, "b");
+    expect(state.tabs[0].id).toBe(tabId);
+    expect(state.tabs[0].viewIds).toEqual(["a", "c"]);
+    expect(state.tabs[0].viewIds).toContain(state.tabs[0].activeViewId);
+    invariant(state, ["a", "c", "d"]);
+    state = closeWorkspaceView(closeWorkspaceView(state, "a"), "c");
+    expect(state.tabs.map((t) => t.viewIds)).toEqual([["d"]]);
+    invariant(state, ["d"]);
+  });
+  it("keeps pinned tabs first, through reorder, detach, separate and close others", () => {
+    let state = initial();
+    const [a, b, c, d] = state.tabs.map((t) => t.id);
+    state = pinWorkspaceTab(state, c, true);
+    expect(state.tabs.map((t) => t.id)).toEqual([c, a, b, d]);
+    state = pinWorkspaceTab(state, d, true);
+    expect(state.tabs.map((t) => t.id)).toEqual([c, d, a, b]);
+    // An unpinned tab cannot be dragged among the pinned ones, nor a pinned one past them.
+    expect(reorderWorkspaceTab(state, b, 0).tabs.map((t) => t.id)).toEqual([c, d, b, a]);
+    expect(reorderWorkspaceTab(state, c, 9).tabs.map((t) => t.id)).toEqual([d, c, a, b]);
+    expect(tabsToClose(state, a, "others")).toEqual([b]);
+    expect(tabsToClose(state, c, "right")).toEqual([a, b]);
+    // A pinned split keeps its pin while panes come and go.
+    state = splitWithTab(state, c, a);
+    expect(state.tabs[0]).toMatchObject({ id: c, pinned: true, viewIds: ["c", "a"] });
+    state = applyWorkspaceViewDrop(state, { kind: "detach", viewId: "a", index: 0 });
+    expect(state.tabs.map((t) => t.viewIds)).toEqual([["c"], ["d"], ["a"], ["b"]]);
+    expect(state.tabs[0].pinned).toBe(true);
+    state = splitWithTab(state, c, state.tabs[2].id);
+    state = separateWorkspaceTab(state, c);
+    expect(state.tabs.filter((t) => t.pinned).map((t) => t.viewIds[0])).toEqual(["c", "d"]);
+    expect(state.tabs.map((t) => t.viewIds[0])).toEqual(["c", "d", "a", "b"]);
+    state = pinWorkspaceTab(state, c, false);
+    expect(state.tabs.map((t) => t.viewIds[0])).toEqual(["d", "c", "a", "b"]);
+    expect("pinned" in state.tabs[1]).toBe(false);
+    invariant(state, ["a", "b", "c", "d"]);
+  });
+  it("moves the focused pane past its neighbour and leaves room for pane headers", () => {
+    let state = three();
+    state = moveWorkspacePane(state, "a", "right");
+    expect(state.tabs[0].viewIds).toEqual(["b", "a", "c"]);
+    expect(state.tabs[0].activeViewId).toBe("a");
+    expect(moveWorkspacePane(state, "b", "left")).toEqual(state);
+    invariant(state, ["a", "b", "c", "d"]);
+    const pane = { x: 0, y: 10, width: 100, height: 200 };
+    expect(paneBody(pane, false)).toEqual(pane);
+    expect(paneBody(pane, true)).toEqual({ x: 0, y: 10 + PANE_HEADER, width: 100, height: 200 - PANE_HEADER });
   });
 });

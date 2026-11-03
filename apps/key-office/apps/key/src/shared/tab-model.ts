@@ -12,6 +12,8 @@ export interface WorkspaceTab {
   /** The root split's ratio (0.5 for a single pane). */
   splitRatio: number;
   layout: PaneLayout;
+  /** Pinned tabs sit, compact, before every other tab and survive Close Others. */
+  pinned?: boolean;
 }
 
 export interface WorkspaceTabsState {
@@ -24,6 +26,8 @@ export type SplitEdge = "left" | "right" | "top" | "bottom";
 export const LIBRARY_VIEW_ID = "key:library";
 /** More panes than this stop being readable in one window. */
 export const MAX_PANES = 8;
+/** Height of the slim header (title, close) above each pane of a split. */
+export const PANE_HEADER = 26;
 const MIN_RATIO = 0.1,
   MAX_RATIO = 0.9;
 
@@ -40,7 +44,13 @@ export function tabWithLayout(tab: Pick<WorkspaceTab, "id"> & Partial<WorkspaceT
     activeViewId: tab.activeViewId && viewIds.includes(tab.activeViewId) ? tab.activeViewId : viewIds[0],
     splitRatio: "view" in layout ? 0.5 : layout.ratio,
     layout,
+    ...(tab.pinned ? { pinned: true } : {}),
   };
+}
+
+/** Pinned tabs first, each group in its own order. */
+function pinnedFirst(tabs: WorkspaceTab[]): WorkspaceTab[] {
+  return [...tabs.filter((tab) => tab.pinned), ...tabs.filter((tab) => !tab.pinned)];
 }
 
 export function singleWorkspaceTab(viewId: string): WorkspaceTab {
@@ -146,6 +156,13 @@ export function layoutPanes(layout: PaneLayout, rect: PaneRect, gap = 3) {
   return { panes, dividers };
 }
 
+/** Where a pane's content goes: below its header when the tab is split. */
+export function paneBody<R extends PaneRect>(pane: R, split: boolean): R {
+  if (!split) return pane;
+  const header = Math.min(PANE_HEADER, pane.height);
+  return { ...pane, y: pane.y + header, height: pane.height - header };
+}
+
 /** The pane next to `viewId` in `direction`, judged by where the panes are on screen. */
 export function neighbourPane(layout: PaneLayout, viewId: string, direction: SplitEdge): string | undefined {
   const { panes } = layoutPanes(layout, { x: 0, y: 0, width: 1000, height: 1000 });
@@ -228,11 +245,11 @@ export function separateWorkspaceTab(
   const target = state.tabs.find((tab) => tab.id === tabId);
   if (!target || target.viewIds.length < 2) return state;
   const [first, ...rest] = target.viewIds;
-  const firstTab = tabWithLayout({ id: target.id }, { view: first });
+  const firstTab = tabWithLayout({ id: target.id, pinned: target.pinned }, { view: first });
   const index = state.tabs.findIndex((tab) => tab.id === tabId);
   const tabs = [...state.tabs];
   tabs.splice(index, 1, firstTab, ...rest.map(singleWorkspaceTab));
-  return { tabs, activeTabId: firstTab.id };
+  return { tabs: pinnedFirst(tabs), activeTabId: firstTab.id };
 }
 
 /** Exchanges the two sides of the split holding the focused pane. */
@@ -305,7 +322,7 @@ export function closeWorkspaceView(
       ...state,
       tabs: state.tabs.map((tab) =>
         tab.id === owner.id
-          ? tabWithLayout({ id: tab.id, activeViewId: tab.activeViewId === viewId ? survivor : tab.activeViewId }, layout)
+          ? tabWithLayout({ id: tab.id, pinned: tab.pinned, activeViewId: tab.activeViewId === viewId ? survivor : tab.activeViewId }, layout)
           : tab,
       ),
     };
@@ -319,7 +336,8 @@ export function closeWorkspaceView(
   return { tabs, activeTabId };
 }
 
-/** Reorder groups as units; document identities and active pane are unchanged. */
+/** Reorder groups as units; document identities and active pane are unchanged.
+ * A tab stays among the pinned tabs, or among the others, whichever it belongs to. */
 export function reorderWorkspaceTab(
   state: WorkspaceTabsState,
   id: string,
@@ -329,8 +347,37 @@ export function reorderWorkspaceTab(
   if (from < 0 || !Number.isFinite(index)) return state;
   const tabs = [...state.tabs];
   const [moved] = tabs.splice(from, 1);
-  tabs.splice(Math.min(tabs.length, Math.max(0, Math.trunc(index))), 0, moved);
+  const pinned = tabs.filter((tab) => tab.pinned).length;
+  const [min, max] = moved.pinned ? [0, pinned] : [pinned, tabs.length];
+  tabs.splice(Math.min(max, Math.max(min, Math.trunc(index))), 0, moved);
   return { ...state, tabs };
+}
+
+/** Pins a tab after the pinned ones, or unpins it to the start of the others. */
+export function pinWorkspaceTab(state: WorkspaceTabsState, tabId: string, pinned: boolean): WorkspaceTabsState {
+  const target = state.tabs.find((tab) => tab.id === tabId);
+  if (!target || Boolean(target.pinned) === pinned) return state;
+  const rest = state.tabs.filter((tab) => tab.id !== tabId);
+  const at = rest.filter((tab) => tab.pinned).length;
+  const { pinned: _, ...unpinned } = target;
+  rest.splice(at, 0, pinned ? { ...target, pinned: true } : unpinned);
+  return { ...state, tabs: rest };
+}
+
+/** The tabs Close Other Tabs or Close Tabs to the Right would close: never pinned ones. */
+export function tabsToClose(state: WorkspaceTabsState, tabId: string, which: "others" | "right"): string[] {
+  const index = state.tabs.findIndex((tab) => tab.id === tabId);
+  if (index < 0) return [];
+  return state.tabs.filter((tab, i) => !tab.pinned && (which === "others" ? i !== index : i > index)).map((tab) => tab.id);
+}
+
+/** Trades the focused pane's place with its neighbour in `direction`; focus follows the pane. */
+export function moveWorkspacePane(state: WorkspaceTabsState, viewId: string, direction: SplitEdge): WorkspaceTabsState {
+  const owner = state.tabs.find((tab) => tab.viewIds.includes(viewId));
+  const neighbour = owner && neighbourPane(owner.layout, viewId, direction);
+  if (!owner || !neighbour) return state;
+  const moved = applyWorkspaceViewDrop(state, { kind: "swap", viewId, targetViewId: neighbour });
+  return activateWorkspaceTab(moved, owner.id, viewId);
 }
 
 export type WorkspaceViewDrop =
@@ -363,7 +410,8 @@ export function applyWorkspaceViewDrop(state: WorkspaceTabsState, drop: Workspac
     if (source.viewIds.length < 2 || !Number.isFinite(drop.index)) return state;
     const tabs = state.tabs.map(tab => tab.id === source.id ? tabWithLayout(tab, removeFromLayout(tab.layout, drop.viewId)!) : tab);
     const detached = singleWorkspaceTab(drop.viewId);
-    tabs.splice(Math.max(0, Math.min(tabs.length, Math.trunc(drop.index))), 0, detached);
+    const pinned = tabs.filter(tab => tab.pinned).length;
+    tabs.splice(Math.max(pinned, Math.min(tabs.length, Math.trunc(drop.index))), 0, detached);
     return {tabs, activeTabId: detached.id};
   }
   const target = state.tabs.find(tab => tab.id === drop.targetTabId);

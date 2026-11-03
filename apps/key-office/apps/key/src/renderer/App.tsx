@@ -23,14 +23,16 @@ import type { DraggedItem } from "./note-editor";
 import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
 import {
   MAX_PANES,
+  PANE_HEADER,
   layoutPanes,
+  paneBody,
   setWorkspaceSplitRatio,
   tabWithLayout,
   type PaneLayout,
   type SplitEdge,
   type WorkspaceViewDrop,
 } from "../shared/tab-model";
-import type { ContentDropTarget } from "./TabBar";
+import { TabKindIcon, type ContentDropTarget } from "./TabBar";
 interface Workspace {
   id: string;
   name: string;
@@ -62,6 +64,7 @@ interface TabState {
   tabs: {
     id: string;
     layout?: PaneLayout;
+    pinned?: boolean;
     title: string;
     views: {
       id: string;
@@ -141,7 +144,8 @@ const tabSummary = (state: TabState): TabSummary[] =>
     title: tab.title,
     kind: (tab.views[0]?.kind as TabSummary["kind"]) || "home",
     active: tab.id === state.activeTabId,
-    closable: true,
+    closable: !tab.pinned,
+    pinned: Boolean(tab.pinned),
     views: tab.views.map((view) => ({
       ...view,
       active: view.id === state.activeViewId,
@@ -158,6 +162,7 @@ const officeTabs: TabsApi = {
   },
   activate: (tabId) => api().tabAction("activate", { tabId }),
   close: (tabId) => api().tabAction("close", { tabId }),
+  closeView: (viewId) => api().tabAction("close-pane", { viewId }),
   reorder: (tabId, index) => api().tabAction("reorder", { tabId, index }),
   showNewMenu: () => api().tabAction("new"),
   showMenu: (x, y) => api().tabAction("tab-menu", { x, y }),
@@ -530,7 +535,7 @@ export default function App() {
       })
     : { panes: [], dividers: [] };
   /** What releasing a dragged tab or pane at (x, y) over the content would do. */
-  const contentDrop = (x: number, y: number, drag: { viewId: string; pane: boolean }): ContentDropTarget | undefined => {
+  const contentDrop = (x: number, y: number, drag: { viewId: string; pane: boolean; header?: boolean }): ContentDropTarget | undefined => {
     const cx = x - sidebarWidth,
       cy = y - CHROME_TOP;
     const target = laidOut.panes.find((p) => cx >= p.x && cx < p.x + p.width && cy >= p.y && cy < p.y + p.height);
@@ -558,8 +563,9 @@ export default function App() {
       const where = { left: "left of", right: "right of", top: "above", bottom: "below" }[edge];
       return { drop, preview: half, label: `◫ Release to split ${where} ${title}` };
     }
-    // The centre of a pane in a split swaps with it; a pane's own group falls back to separating.
-    if (drag.pane || activeTab.views.length < 2) return undefined;
+    // The centre of a pane in a split swaps with it; a pane's own group falls back to separating,
+    // except when the pane is dragged by its header, which stays in the content.
+    if ((drag.pane && !drag.header) || activeTab.views.length < 2) return undefined;
     return { drop: { kind: "swap", viewId: drag.viewId, targetViewId: target.viewId }, preview: onScreen, label: `⇄ Release to swap with ${title}` };
   };
   // While a drag is over the content, native views are swapped for still frames so the
@@ -592,6 +598,58 @@ export default function App() {
       void api().tabAction("global-overlay-close", { id });
     }
   };
+  // A pane of a split dragged by its header: onto another pane to split or swap, up into the
+  // tab bar to become a tab of its own, or out of the window into a new one.
+  const paneDragRef = useRef<{ pointerId: number; viewId: string; startX: number; startY: number; started: boolean; drop?: WorkspaceViewDrop; tearOff?: boolean }>(undefined);
+  const [paneDrag, setPaneDrag] = useState<{ viewId: string; x: number; label: string; preview?: ContentDropTarget["preview"]; insertAt?: number }>();
+  const movePaneDrag = (e: React.PointerEvent) => {
+    const drag = paneDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (!drag.started) {
+      if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 5) return;
+      drag.started = true;
+      contentDragging(true);
+    }
+    const outside = e.clientX < 0 || e.clientY < 0 || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
+    drag.drop = undefined;
+    drag.tearOff = outside;
+    if (outside) return setPaneDrag({ viewId: drag.viewId, x: e.clientX, label: "↗ Release to open in a new window" });
+    if (e.clientY < CHROME_TOP) {
+      const rects = Array.from(document.querySelectorAll<HTMLElement>(".tab-strip .tab-item"), (el) => el.getBoundingClientRect());
+      const index = rects.findIndex((r) => e.clientX < r.left + r.width / 2);
+      const at = index < 0 ? rects.length : index;
+      drag.drop = { kind: "detach", viewId: drag.viewId, index: at };
+      const marker = at < rects.length ? rects[at].left : (rects.at(-1)?.right ?? 0);
+      return setPaneDrag({ viewId: drag.viewId, x: e.clientX, label: "↑ Release to move into a tab of its own", insertAt: marker });
+    }
+    const target = contentDrop(e.clientX, e.clientY, { viewId: drag.viewId, pane: true, header: true });
+    drag.drop = target?.drop;
+    setPaneDrag({
+      viewId: drag.viewId,
+      x: e.clientX,
+      label: target?.label ?? "Drag onto another pane, or up to the tab bar",
+      preview: target?.preview,
+    });
+  };
+  const endPaneDrag = (pointerId: number, commit: boolean) => {
+    const drag = paneDragRef.current;
+    if (!drag || pointerId !== drag.pointerId) return;
+    paneDragRef.current = undefined;
+    setPaneDrag(undefined);
+    if (!drag.started) return;
+    contentDragging(false);
+    if (!commit) return;
+    if (drag.tearOff) action("tear-off", { tabId: tabs.activeTabId, viewId: drag.viewId });
+    else if (drag.drop) action("drop-view", drag.drop as unknown as Record<string, unknown>);
+  };
+  useEffect(() => {
+    if (!paneDrag) return;
+    const cancel = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && paneDragRef.current) endPaneDrag(paneDragRef.current.pointerId, false);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  });
   const recordIcon = (r: RecordItem): IconName =>
     r.kind === "note" ? "note" : r.kind === "database" ? "database" : "doc";
   const sidebarToggle = (
@@ -1002,7 +1060,8 @@ export default function App() {
             .flatMap((t) => t.views)
             .filter((v) => v.content)
             .map((v) => {
-              const placed = laidOut.panes.find((p) => p.viewId === v.id);
+              const pane = laidOut.panes.find((p) => p.viewId === v.id);
+              const placed = pane && paneBody(pane, laidOut.panes.length > 1);
               return (
                 <div
                   key={v.id}
@@ -1125,6 +1184,79 @@ export default function App() {
           />
         );
       })}
+      {laidOut.panes.length > 1 &&
+        laidOut.panes.map((p) => {
+          const view = activeTab?.views.find((v) => v.id === p.viewId);
+          if (!view) return null;
+          const title = view.title.replace(/ •$/, "");
+          return (
+            <div
+              key={p.viewId}
+              className="key-pane-header"
+              data-pane-header={p.viewId}
+              data-pane-focused={p.viewId === tabs.activeViewId ? "" : undefined}
+              data-dragging={paneDrag?.viewId === p.viewId ? "" : undefined}
+              title={`${title}\nDrag to move this pane · middle-click to close`}
+              style={{ left: sidebarWidth + p.x, top: CHROME_TOP + p.y, width: p.width, height: Math.min(PANE_HEADER, p.height) }}
+              onPointerDown={(e) => {
+                if (e.button === 1) e.preventDefault();
+                if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+                if (tabs.activeViewId !== p.viewId) action("focus", { viewId: p.viewId });
+                paneDragRef.current = { pointerId: e.pointerId, viewId: p.viewId, startX: e.clientX, startY: e.clientY, started: false };
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={movePaneDrag}
+              onPointerUp={(e) => endPaneDrag(e.pointerId, true)}
+              onPointerCancel={(e) => endPaneDrag(e.pointerId, false)}
+              onLostPointerCapture={(e) => endPaneDrag(e.pointerId, false)}
+              onAuxClick={(e) => {
+                if (e.button === 1) action("close-pane", { viewId: p.viewId });
+              }}
+            >
+              <span className="key-pane-header-icon">
+                <TabKindIcon kind={view.kind} />
+              </span>
+              <span className="key-pane-header-title">{view.title}</span>
+              <button
+                title="Move to a tab of its own"
+                aria-label={`Move ${title} to a tab of its own`}
+                onClick={() => {
+                  const index = tabs.tabs.findIndex((t) => t.id === tabs.activeTabId);
+                  action("drop-view", { kind: "detach", viewId: p.viewId, index: index + 1 });
+                }}
+              >
+                <Icon name="detach" size={13} />
+              </button>
+              <button
+                className="key-pane-close"
+                title={`Close ${title} (⌘W when focused)`}
+                aria-label={`Close pane ${title}`}
+                onClick={() => action("close-pane", { viewId: p.viewId })}
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </div>
+          );
+        })}
+      {paneDrag && (
+        <div className="tab-drop-feedback" role="status" aria-live="polite" style={{ left: Math.max(12, Math.min(window.innerWidth - 280, paneDrag.x - 110)) }}>
+          {paneDrag.label}
+          <small>Esc to cancel</small>
+        </div>
+      )}
+      {paneDrag?.preview && (
+        <div
+          className="key-pane-drop-preview"
+          aria-hidden="true"
+          style={{
+            left: paneDrag.preview.x + 4,
+            top: paneDrag.preview.y + 4,
+            width: Math.max(0, paneDrag.preview.width - 8),
+            height: Math.max(0, paneDrag.preview.height - 8),
+          }}
+        />
+      )}
+      {paneDrag?.insertAt !== undefined && <div className="key-tab-insert-marker" aria-hidden="true" style={{ left: paneDrag.insertAt - 1 }} />}
       {dragFrames.map((frame) => (
         <img
           key={frame.id}

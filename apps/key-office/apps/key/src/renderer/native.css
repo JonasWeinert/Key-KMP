@@ -900,6 +900,82 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 .key-split-divider-column:focus-visible {
   background: linear-gradient(to bottom, transparent 1.5px, var(--kx-accent) 1.5px, var(--kx-accent) 4.5px, transparent 4.5px);
 }
+/* The slim header above each pane of a split: what it shows, a handle to drag it, and its close button. */
+.key-pane-header {
+  position: fixed;
+  z-index: 45;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--kx-line);
+  background: var(--kx-bg-sunken);
+  color: var(--kx-text-2);
+  font: 500 11.5px/1 var(--kx-font);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.key-pane-header[data-pane-focused] {
+  background: var(--kx-bg);
+  color: var(--kx-text);
+  box-shadow: inset 0 2px 0 var(--kx-accent);
+}
+.key-pane-header[data-dragging] {
+  cursor: grabbing;
+  opacity: 0.6;
+}
+.key-pane-header-icon {
+  display: flex;
+  flex: none;
+}
+.key-pane-header-icon svg {
+  width: 13px;
+  height: 13px;
+}
+.key-pane-header-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-pane-header button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+}
+.key-pane-header:hover button,
+.key-pane-header:focus-within button,
+.key-pane-header[data-pane-focused] .key-pane-close {
+  opacity: 1;
+}
+.key-pane-header button:hover,
+.key-pane-header button:focus-visible {
+  background: var(--kx-fill);
+  outline: none;
+}
+/* Where a pane dragged up into the tab bar becomes a tab. */
+.key-tab-insert-marker {
+  position: fixed;
+  z-index: 2000;
+  top: 8px;
+  width: 2px;
+  height: 26px;
+  border-radius: 1px;
+  background: var(--kx-accent);
+  pointer-events: none;
+}
 /* Where a dragged tab or pane will land: drawn over still frames of native views. */
 .key-pane-drop-preview {
   position: fixed;

@@ -48,6 +48,10 @@ import {
   layoutPanes,
   layoutViews,
   neighbourPane,
+  moveWorkspacePane,
+  paneBody,
+  pinWorkspaceTab,
+  tabsToClose,
   MAX_PANES,
   tabWithLayout,
   type PaneLayout,
@@ -338,6 +342,7 @@ function snapshot(w: ShellWindow) {
     tabs: state.tabs.map((t) => ({
       id: t.id,
       layout: t.layout,
+      pinned: Boolean(t.pinned),
       title: t.viewIds
         .map(
           (id) =>
@@ -497,7 +502,8 @@ function placeViews(w: ShellWindow) {
     width: Math.max(0, width - w.sidebarWidth - (w.inspectorWidth ?? 0)),
     height: Math.max(0, height - 40),
   });
-  for (const { viewId, ...bounds } of panes) views.get(viewId)?.view?.setBounds(bounds);
+  // Each pane of a split keeps a slim header (title, close) above its content.
+  for (const { viewId, ...bounds } of panes) views.get(viewId)?.view?.setBounds(paneBody(bounds, panes.length > 1));
 }
 async function captureOverlayFrames(w: ShellWindow) {
   const ids = activeWorkspaceTab(w.state)?.viewIds || [];
@@ -672,6 +678,19 @@ async function closePane(w: ShellWindow, viewId: string): Promise<boolean> {
   if (!(await closeViews(w, [viewId]))) return false;
   afterClose(w);
   return true;
+}
+/** Closes several tabs in turn; stops at the first one the user keeps. */
+async function closeTabs(w: ShellWindow, ids: string[]) {
+  for (const id of ids) if (!(await closeTab(w, id))) return;
+}
+/** Moves the focused pane past its neighbour, keeping keyboard focus on it. */
+function movePane(w: ShellWindow, viewId: string, direction: SplitEdge) {
+  w.state = moveWorkspacePane(w.state, viewId, direction);
+  layout(w);
+}
+function pinTab(w: ShellWindow, tabId: string, pinned: boolean) {
+  w.state = pinWorkspaceTab(w.state, tabId, pinned);
+  tabsChanged(w);
 }
 // An emptied extra window closes; the last window keeps a Home tab.
 function afterClose(w: ShellWindow) {
@@ -1205,7 +1224,7 @@ function savedTabs(w: ShellWindow): SavedTabs {
     if (!layout) continue;
     if (tab.id === w.state.activeTabId) active = tabs.length;
     const kept = layoutViews(tab.layout).filter((id) => savedView(id));
-    tabs.push({ layout, active: Math.max(0, kept.indexOf(tab.activeViewId)) });
+    tabs.push({ layout, active: Math.max(0, kept.indexOf(tab.activeViewId)), ...(tab.pinned ? { pinned: true } : {}) });
   }
   return { tabs, active };
 }
@@ -1363,7 +1382,7 @@ async function restoreTabs(w: ShellWindow, saved: SavedTabs) {
   restored.forEach((layout, index) => {
     if (!layout || w.closed) return;
     const ids = layoutViews(layout);
-    const tab = tabWithLayout({ id: randomUUID(), activeViewId: ids[saved.tabs[index].active] }, layout);
+    const tab = tabWithLayout({ id: randomUUID(), activeViewId: ids[saved.tabs[index].active], pinned: saved.tabs[index].pinned === true }, layout);
     w.state.tabs.push(tab);
     if (index === saved.active || !active) active = tab.id;
   });
@@ -1555,6 +1574,7 @@ function baseMenu() {
           // Like a terminal's split panes: Cmd-W closes the focused pane, then the tab.
           pane("Close", "CmdOrCtrl+W", (w, _tab, viewId) => void closePane(w, viewId)),
           pane("Close Tab", "CmdOrCtrl+Alt+W", (w, tabId) => void closeTab(w, tabId)),
+          pane("Close Other Tabs", undefined, (w, tabId) => void closeTabs(w, tabsToClose(w.state, tabId, "others"))),
           { label: "Close Window", accelerator: "CmdOrCtrl+Shift+W", click: () => focusedShell()?.window.close() },
         ],
       },
@@ -1575,11 +1595,23 @@ function baseMenu() {
               ] as const
             ).map(([label, key, edge]) => pane(label, `CmdOrCtrl+Alt+${key}`, (w) => focusPane(w, edge))),
           },
+          {
+            label: "Move Pane",
+            submenu: (
+              [
+                ["Left", "Left", "left"],
+                ["Right", "Right", "right"],
+                ["Up", "Up", "top"],
+                ["Down", "Down", "bottom"],
+              ] as const
+            ).map(([label, key, edge]) => pane(label, `CmdOrCtrl+Alt+Shift+${key}`, (w, _tab, viewId) => movePane(w, viewId, edge))),
+          },
           pane("Move Pane to New Tab", undefined, (w, tabId, viewId) => {
             const index = w.state.tabs.findIndex((t) => t.id === tabId);
             w.state = applyWorkspaceViewDrop(w.state, { kind: "detach", viewId, index: index + 1 });
             layout(w);
           }),
+          pane("Close Pane", undefined, (w, _tab, viewId) => void closePane(w, viewId)),
           pane("Swap Panes", undefined, (w, tabId) => {
             w.state = swapWorkspaceSplit(w.state, tabId);
             layout(w);
@@ -1598,6 +1630,7 @@ function baseMenu() {
           { type: "separator" },
           { label: "Show Previous Tab", accelerator: "CmdOrCtrl+Shift+[", click: () => stepTab(-1) },
           { label: "Show Next Tab", accelerator: "CmdOrCtrl+Shift+]", click: () => stepTab(1) },
+          pane("Pin Tab", undefined, (w, tabId) => pinTab(w, tabId, !w.state.tabs.find((t) => t.id === tabId)?.pinned)),
           {
             label: "Go to Tab",
             submenu: [
@@ -2368,8 +2401,26 @@ else
           }
           case "tab-context-menu": {
             const tabId = String(p.tabId);
+            const tab = w.state.tabs.find((t) => t.id === tabId);
+            if (!tab) return snapshot(w);
             const others = liveShells().filter((s) => s !== w);
+            const title = (id: string) => views.get(id)?.title ?? "Key";
+            const index = w.state.tabs.indexOf(tab);
+            const split = tab.viewIds.length > 1;
             Menu.buildFromTemplate([
+              { label: "New Tab to the Right", click: () => { home(w); w.state = reorderWorkspaceTab(w.state, w.state.activeTabId!, index + 1); tabsChanged(w); } },
+              { type: "separator" as const },
+              { label: tab.pinned ? "Unpin Tab" : "Pin Tab", click: () => pinTab(w, tabId, !tab.pinned) },
+              ...(split
+                ? [
+                    { label: "Separate Panes", click: () => { w.state = separateWorkspaceTab(w.state, tabId); layout(w); } },
+                    {
+                      label: "Close Pane",
+                      submenu: tab.viewIds.map((id) => ({ label: title(id), click: () => void closePane(w, id) })),
+                    },
+                  ]
+                : []),
+              { type: "separator" as const },
               { label: "Move to New Window", enabled: w.state.tabs.length > 1 || others.length > 0, click: () => moveTab(w, tabId) },
               ...(others.length
                 ? [
@@ -2384,6 +2435,8 @@ else
                 : []),
               { type: "separator" as const },
               { label: "Close Tab", click: () => void closeTab(w, tabId) },
+              { label: "Close Other Tabs", enabled: tabsToClose(w.state, tabId, "others").length > 0, click: () => void closeTabs(w, tabsToClose(w.state, tabId, "others")) },
+              { label: "Close Tabs to the Right", enabled: tabsToClose(w.state, tabId, "right").length > 0, click: () => void closeTabs(w, tabsToClose(w.state, tabId, "right")) },
             ]).popup({ window: w.window, x: Math.round(p.x), y: Math.round(p.y) });
             return snapshot(w);
           }
@@ -2451,6 +2504,16 @@ else
             return snapshot(w);
           case "close-pane":
             await closePane(w, String(p.viewId ?? activeWorkspaceTab(w.state)?.activeViewId));
+            return snapshot(w);
+          case "move-pane":
+            if (["left", "right", "top", "bottom"].includes(p.direction))
+              movePane(w, String(p.viewId ?? activeWorkspaceTab(w.state)?.activeViewId), p.direction);
+            return snapshot(w);
+          case "pin":
+            pinTab(w, String(p.tabId), Boolean(p.pinned));
+            return snapshot(w);
+          case "close-tabs":
+            if (p.which === "others" || p.which === "right") await closeTabs(w, tabsToClose(w.state, String(p.tabId), p.which));
             return snapshot(w);
           // Workspaces: in place, or (newWindow) beside this window.
           case "switch-workspace":

@@ -26,6 +26,8 @@ export interface TabSummary {
     | "html";
   active: boolean;
   closable: boolean;
+  /** Pinned tabs sit first, show only their icon, and have no close button. */
+  pinned?: boolean;
   views: { id: string; title: string; kind: string; active?: boolean }[];
 }
 export interface TabsApi {
@@ -33,6 +35,8 @@ export interface TabsApi {
   onChanged(callback: (tabs: TabSummary[]) => void): () => void;
   activate(id: string): Promise<unknown>;
   close(id: string): Promise<unknown>;
+  /** Closes one pane of a split tab; the tab closes with its last pane. */
+  closeView?(viewId: string): Promise<unknown>;
   reorder(id: string, index: number): Promise<unknown>;
   dropView?(drop: WorkspaceViewDrop): Promise<unknown>;
   showNewMenu(x: number, y: number): Promise<unknown>;
@@ -216,6 +220,11 @@ const KIND_ICON: Record<TabSummary["kind"], ReactElement> = {
   html: <HtmlIcon />,
 };
 
+/** The icon a tab shows for a view of `kind`. */
+export function TabKindIcon({ kind }: { kind: string }) {
+  return KIND_ICON[kind as TabSummary["kind"]] || KIND_ICON.page;
+}
+
 export function TabBar({
   api,
   chromeControl,
@@ -232,7 +241,7 @@ export function TabBar({
   onContentDrag?: (dragging: boolean) => void;
 }) {
   const t = (key: string) =>
-    ({ closeTab: "Close tab", newTab: "New tab", tabList: "All tabs" })[key] ??
+    ({ closeTab: "Close tab", closePane: "Close pane", newTab: "New tab", tabList: "All tabs" })[key] ??
     key;
   const [tabs, setTabs] = useState<TabSummary[]>([]);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -448,7 +457,7 @@ export function TabBar({
           return (
             <div
               key={tab.id}
-              className={`tab-item ${tab.views.length > 1 ? "tab-split" : ""} ${tab.active ? "active" : ""} ${dragVisual?.id === tab.id && !dragVisual.pane ? "drag-source" : ""} ${dragVisual?.drop?.kind === "split" && dragVisual.drop.targetTabId === tab.id ? "tab-drop-split" : ""}`}
+              className={`tab-item ${tab.views.length > 1 ? "tab-split" : ""} ${tab.pinned ? "tab-pinned" : ""} ${tab.active ? "active" : ""} ${dragVisual?.id === tab.id && !dragVisual.pane ? "drag-source" : ""} ${dragVisual?.drop?.kind === "split" && dragVisual.drop.targetTabId === tab.id ? "tab-drop-split" : ""}`}
               // long file names ellipsize in the strip — hover reveals the
               // full title (the close button's own tooltip still wins there)
               role="tab"
@@ -472,7 +481,16 @@ export function TabBar({
                 }
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  void api.activate(tab.id);
+                  const viewId = (event.target as HTMLElement).closest<HTMLElement>("[data-view-id]")?.dataset.viewId;
+                  if (viewId) api.focusView?.(viewId);
+                  else void api.activate(tab.id);
+                }
+                // Delete closes the focused pane of a group, or the tab.
+                if ((event.key === "Delete" || event.key === "Backspace") && !event.metaKey) {
+                  event.preventDefault();
+                  const viewId = (event.target as HTMLElement).closest<HTMLElement>("[data-view-id]")?.dataset.viewId;
+                  if (viewId && api.closeView) void api.closeView(viewId);
+                  else if (tab.closable) void api.close(tab.id);
                 }
                 if (
                   event.altKey &&
@@ -485,14 +503,23 @@ export function TabBar({
                   );
                 }
               }}
-              title={tab.title}
-              style={dragStyle}
+              title={tab.pinned ? `${tab.title} (pinned)` : tab.title}
+              style={{ ...dragStyle, ...(tab.views.length > 1 && !tab.pinned ? ({ "--panes": tab.views.length } as CSSProperties) : {}) }}
               onContextMenu={(event) => {
                 if (!api.showTabMenu) return;
                 event.preventDefault();
                 void api.showTabMenu(tab.id, event.clientX, event.clientY);
               }}
+              // Middle-click closes the pane under the pointer, or the tab.
+              onAuxClick={(event) => {
+                if (event.button !== 1) return;
+                event.preventDefault();
+                const viewId = (event.target as HTMLElement).closest<HTMLElement>("[data-view-id]")?.dataset.viewId;
+                if (viewId && api.closeView) void api.closeView(viewId);
+                else if (tab.closable) void api.close(tab.id);
+              }}
               onPointerDown={(event) => {
+                if (event.button === 1) event.preventDefault();
                 if (event.button !== 0) return;
                 if ((event.target as HTMLElement).closest(".tab-close")) return;
                 // Chrome-style: pressing a tab activates it immediately, so
@@ -581,6 +608,9 @@ export function TabBar({
                     } else if (hit.id !== drag.id) drop = {kind:"split",viewId:drag.viewId,targetTabId:hit.id};
                   }
                 }
+                // Pinned tabs reorder among themselves, the others after them.
+                const pinnedCount = tabs.filter((tb) => tb.pinned).length;
+                target = tabs[drag.from]?.pinned ? Math.min(target, pinnedCount - 1) : Math.max(target, pinnedCount);
                 // Below the strip: the content's panes take the drop (split at an edge, swap
                 // in the centre). A tab being dragged shows the tab it was dragged from.
                 let content: ContentDropTarget | undefined;
@@ -640,24 +670,39 @@ export function TabBar({
                 <span className="tab-split-content">
                   <span
                     className="tab-split-badge"
-                    title="Split group — drag to move both documents"
+                    title={`Split group of ${tab.views.length} panes — drag here to move them together`}
                   >
                     <Icon name="split" size={14} />
+                    {tab.views.length > 2 && <span className="tab-split-count">{tab.views.length}</span>}
                   </span>
                   {tab.views.map((view, i) => (
                     <span
                       className={`tab-split-pane ${view.active ? "pane-active" : ""} ${dragVisual?.pane === view.id ? "pane-drag-source" : ""} ${dragVisual?.drop?.kind === "swap" && dragVisual.drop.targetViewId === view.id ? "pane-drop-swap" : ""}`}
                       tabIndex={0}
-                      aria-label={`${view.title}. Drag to move this pane; Alt Shift Down to separate.`}
+                      aria-label={`${view.title}. Enter to focus, Delete to close, drag to move; Alt Shift Down to separate.`}
                       data-view-id={view.id}
                       key={view.id}
-                      title={`${view.title} · Drag this pane to separate or swap`}
+                      title={`${view.title}\nClick to focus · drag out to separate · middle-click to close`}
                     >
                       <span className="tab-icon">
                         {KIND_ICON[view.kind as TabSummary["kind"]] ||
                           KIND_ICON.page}
                       </span>
-                      <span className="tab-title">{view.title}</span>
+                      {!tab.pinned && <span className="tab-title">{view.title}</span>}
+                      {api.closeView && !tab.pinned && (
+                        <button
+                          className="tab-close tab-pane-close"
+                          title={`${t("closePane")} ${view.title}`}
+                          aria-label={`${t("closePane")} ${view.title}`}
+                          tabIndex={-1}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void api.closeView?.(view.id);
+                          }}
+                        >
+                          <Icon name="close" size={10} />
+                        </button>
+                      )}
                       {i < tab.views.length - 1 && <span className="tab-split-divider" />}
                     </span>
                   ))}
@@ -667,7 +712,7 @@ export function TabBar({
                   <span className="tab-icon">
                     {KIND_ICON[tab.kind] || KIND_ICON.page}
                   </span>
-                  <span className="tab-title">{tab.title}</span>
+                  {!tab.pinned && <span className="tab-title">{tab.title}</span>}
                 </>
               )}
               {tab.closable && (
@@ -716,7 +761,7 @@ export function TabBar({
           style={{left: Math.max(12,Math.min(window.innerWidth-280,dragVisual.pointerX-110))}}>
           {dragVisual.tearOff ? "↗ Release to open in a new window"
             : dragVisual.label ? dragVisual.label
-            : dragVisual.drop?.kind === "split" ? "◫ Release to split side by side"
+            : dragVisual.drop?.kind === "split" ? `◫ Release to split, grouped with ${tabs.find((tb) => tb.id === (dragVisual.drop as { targetTabId: string }).targetTabId)?.title ?? "this tab"}`
             : dragVisual.drop?.kind === "swap" ? "⇄ Release to swap with this pane"
             : dragVisual.drop?.kind === "detach" ? "↗ Release to separate into a tab"
             : dragVisual.pane ? "Drag outside the group to separate"
