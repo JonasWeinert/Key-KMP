@@ -189,7 +189,7 @@ Interface colours come only from theme tokens; see [`apps/key-office/CLAUDE.md`]
 
 ## Feedback
 
-Reports are most useful with a reproducible PDF, what you expected and what happened. [Open an issue](https://github.com/JonasWeinert/GPUI-PDF-Reader/issues).
+Reports are most useful with a reproducible PDF, what you expected and what happened. [Open an issue](https://github.com/JonasWeinert/Key-KMP/issues).
 
 ## License
 
