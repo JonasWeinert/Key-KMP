@@ -25,6 +25,11 @@ const assert = require("node:assert/strict");
   const report = {};
   try {
     const page = await app.firstWindow();
+    // The Collections row's + shows on hover, in place of its count.
+    const newCollection = async () => {
+      await page.locator(".kx-library-groups .kx-sidebar-group", { hasText: "Collections" }).hover();
+      await page.getByRole("button", { name: "New collection", exact: true }).click();
+    };
     page.setDefaultTimeout(20000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
@@ -60,11 +65,11 @@ const assert = require("node:assert/strict");
     report.inspector = true;
 
     // Collections: create from the sidebar, then file both sources with the bulk bar.
-    await page.getByRole("button", { name: "New collection", exact: true }).click();
+    await newCollection();
     await page.getByPlaceholder("Collection name").fill("Thesis");
     await page.getByPlaceholder("Collection name").press("Enter");
     await page.locator(".kx-tree-label", { hasText: "Thesis" }).waitFor();
-    await page.locator(".kx-library-section .kx-section-title").click();
+    await page.locator(".key-sidebar .kx-top-title", { hasText: "Library" }).click();
     await page.locator(".kx-row").nth(0).click();
     await page.locator(".kx-row").nth(1).click({ modifiers: ["Shift"] });
     const bulk = page.getByRole("toolbar", { name: "Selected sources" });
@@ -87,7 +92,7 @@ const assert = require("node:assert/strict");
     await page.getByRole("textbox", { name: "Rename Chapter 1" }).fill("Chapter One");
     await page.getByRole("textbox", { name: "Rename Chapter 1" }).press("Enter");
     await treeRow("Chapter One").waitFor();
-    await page.getByRole("button", { name: "New collection", exact: true }).click();
+    await newCollection();
     await page.getByRole("textbox", { name: "New collection name" }).fill("Archive");
     await page.getByRole("textbox", { name: "New collection name" }).press("Enter");
     await treeRow("Archive").waitFor();
@@ -196,7 +201,7 @@ const assert = require("node:assert/strict");
 
     // Multi-level sort: Year, then Title, from header clicks (Shift adds a level) and the sort menu.
     for (const c of created) await call("store_update", { id: c.id, patch: { year: 2021 } });
-    await page.locator(".kx-library-section .kx-section-title").click();
+    await page.locator(".key-sidebar .kx-top-title", { hasText: "Library" }).click();
     const titles = () => page.locator(".kx-table-row .kx-cell-title > span:last-child").allInnerTexts();
     await header("Year").click();
     await header("Title").click({ modifiers: ["Shift"] });
@@ -314,7 +319,7 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator(".kx-results [role=alert]").count(), 0);
     await search.fill("");
     await search.press("Escape");
-    await page.locator(".kx-library-section .kx-section-title").click();
+    await page.locator(".key-sidebar .kx-top-title", { hasText: "Library" }).click();
     report.search = true;
 
     // Suggestions turn into filter tokens: an author, picked with the keyboard, narrows the list;
