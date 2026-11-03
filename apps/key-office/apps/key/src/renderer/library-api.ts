@@ -193,6 +193,8 @@ export interface Bridge {
   /** A Quick Look thumbnail as a data URL, or null when the file has none. */
   thumbnail(path: string, size?: number): Promise<string | null>;
   pathForFile(file: File): string;
+  /** Starts a drag of files out to other apps (in place of the page's own drag). */
+  startFileDrag(paths: string[]): void;
   on(event: string, callback: (value: unknown) => void): () => void;
 }
 /** What a Zotero import brings across (key-zotero's ImportOptions). */

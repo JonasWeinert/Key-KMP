@@ -105,8 +105,27 @@ export interface DraggedItem extends ItemLink {
   color?: string;
 }
 
+/** "3 sources", "a note and 2 highlights", for the badge a drag of several items shows. */
+function countLabel(items: DraggedItem[]) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const kind = item.anchor?.startsWith("highlight:") ? "highlight" : item.kind === "record" ? "page" : item.kind;
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  const parts = [...counts].map(([kind, n]) => `${n} ${kind}${n === 1 ? "" : "s"}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+}
+
 export function setItemDrag(data: DataTransfer, items: DraggedItem[]) {
   if (!items.length) return;
+  if (items.length > 1 && typeof document !== "undefined") {
+    const badge = document.createElement("div");
+    badge.className = "kx-drag-badge";
+    badge.textContent = countLabel(items);
+    document.body.append(badge);
+    data.setDragImage(badge, -10, -10);
+    setTimeout(() => badge.remove());
+  }
   data.setData(ITEM_DRAG_TYPE, JSON.stringify(items));
   data.setData("text/uri-list", items.map(itemHref).join("\r\n"));
   data.setData("text/plain", items.map((item) => item.title || "Untitled").join("\n"));

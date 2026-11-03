@@ -1,3 +1,5 @@
+import { hasItemDrag, readItemDrag } from "./item-links";
+import { openItemAt } from "./item-actions";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
@@ -259,6 +261,8 @@ export function TabBar({
     tearOff?: boolean;
   }
   const dragRef = useRef<DragInfo | null>(null);
+  const [itemOver, setItemOver] = useState(false);
+  const springTab = useRef<{ id: string; timer: ReturnType<typeof setTimeout> }>(undefined);
   const [dragVisual, setDragVisual] = useState<{
     id: string;
     dx: number;
@@ -398,6 +402,35 @@ export function TabBar({
         ref={stripRef}
         role="tablist"
         aria-label="Workspace tabs"
+        data-item-drop={itemOver || undefined}
+        // Items dragged from anywhere in the app: resting on a tab switches to it (so they can
+        // be dropped inside it); dropped on the bar, they open in new tabs.
+        onDragOver={(event) => {
+          if (!hasItemDrag(event.dataTransfer)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+          setItemOver(true);
+          const over = (event.target as HTMLElement).closest<HTMLElement>("[data-tab-id]")?.dataset.tabId;
+          if (over !== springTab.current?.id) {
+            clearTimeout(springTab.current?.timer);
+            springTab.current = over ? { id: over, timer: setTimeout(() => void api.activate(over), 650) } : undefined;
+          }
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+          setItemOver(false);
+          clearTimeout(springTab.current?.timer);
+          springTab.current = undefined;
+        }}
+        onDrop={(event) => {
+          setItemOver(false);
+          clearTimeout(springTab.current?.timer);
+          springTab.current = undefined;
+          const items = readItemDrag(event.dataTransfer);
+          if (!items.length) return;
+          event.preventDefault();
+          for (const item of items.slice(0, 8)) openItemAt(item, "tab", item.title);
+        }}
       >
         {tabs.map((tab, index) => {
           // live transforms: the grabbed tab tracks the pointer; tabs between

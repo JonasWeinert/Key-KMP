@@ -2006,6 +2006,15 @@ else
         });
         emit("note-append", { sourceId: source.id });
       });
+      // ⌥-dragging a source out of the library: the files themselves, as Finder drags them.
+      ipcMain.on("key:start-file-drag", (event, paths: unknown) => {
+        const files = (Array.isArray(paths) ? paths : []).map(String).filter((path) => existsSync(path));
+        if (!files.length) return;
+        void app
+          .getFileIcon(files[0], { size: "normal" })
+          .then((icon) => event.sender.startDrag({ file: files[0], files, icon }))
+          .catch(() => {});
+      });
       // "Send to…" on a PDF highlight: the window it is in asks where to put it.
       ipcMain.handle("key:reader-send-to", async (event, highlight: { annotationId: string; text: string; page: number; color?: string }) => {
         const v = bound(event.sender.id);

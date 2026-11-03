@@ -14,7 +14,7 @@ import NoteEditor, { itemHref, markdownToPlainText } from "../note-editor";
 import { noteSources } from "../note-sources";
 import Palette from "../Palette";
 import { CanvasMinimap, HighlightQuote, itemMenuEntries, quickLook, selectItems, showMenu, type MenuEntry } from "../item-ui";
-import { copyItemLink, describeItem, itemsFromHrefs, openItemAt, registerCanvasTarget, toast, type Highlight, type ItemInfo } from "../item-actions";
+import { copyItemLink, describeCount, describeItem, itemsFromHrefs, openItemAt, registerCanvasTarget, toast, type Highlight, type ItemInfo } from "../item-actions";
 import { CHROME, CONTENT_COLORS, contentColor, currentTheme, highlightColor, type Theme } from "./canvas-colors";
 import {
   EMPTY_DOC,
@@ -267,9 +267,9 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
 
   // ── adding things ────────────────────────────────────────────────────────
   /** Places items as cards in rows of four, the first centred on `at` (or the middle of the view). */
-  const addItems = (items: DraggedItem[], at?: Point) => {
+  const addItems = (items: DraggedItem[], at?: Point): ItemNode[] => {
     const placing = items.filter((item) => !(item.kind === "canvas" && item.id === canvasId));
-    if (!placing.length) return;
+    if (!placing.length) return [];
     const offset = at ? 0 : (docRef.current.nodes.length % 6) * 24;
     const [cx, cy] = at ?? viewportCentre();
     const nodes = layoutCards(placing, [cx + offset, cy + offset]);
@@ -279,6 +279,13 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
     setAdding(false);
     setTool("select");
     root.current?.focus({ preventScroll: true });
+    return nodes;
+  };
+  /** Cards dropped in, with an Undo in the toast as well as ⌘Z. */
+  const dropped = (nodes: ItemNode[]) => {
+    if (!nodes.length) return;
+    const ids = new Set(nodes.map((n) => n.id));
+    toast(`Added ${describeCount(nodes.map((n) => n.ref))} to the canvas`, () => commit(removeAll(docRef.current, ids)));
   };
   /** A new note, as a card being written in. */
   const newNoteCard = async () => {
@@ -302,11 +309,11 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
     const at = worldPoint(e);
     if (hasItemDrag(e.dataTransfer)) {
       e.preventDefault();
-      addItems(readItemDrag(e.dataTransfer), at);
+      dropped(addItems(readItemDrag(e.dataTransfer), at));
     } else if (hasExternalDrop(e.dataTransfer)) {
       e.preventDefault();
       void importDrop(invoke, workspaceId, e.dataTransfer)
-        .then((items) => addItems(items, at))
+        .then((items) => dropped(addItems(items, at)))
         .catch((error) => setError(String(error)));
     }
   };
@@ -636,9 +643,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
     () =>
       registerCanvasTarget(canvasId, (items) => {
         const box = bounds(docRef.current.nodes);
-        const before = docRef.current;
-        addItems(items, box ? [box.x + 160, box.y + box.h + 200] : undefined);
-        const added = new Set(docRef.current.nodes.filter((n) => !before.nodes.includes(n)).map((n) => n.id));
+        const added = new Set(addItems(items, box ? [box.x + 160, box.y + box.h + 200] : undefined).map((n) => n.id));
         return () => commit(removeAll(docRef.current, added));
       }),
     [canvasId],

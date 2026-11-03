@@ -14,8 +14,8 @@ import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import CollectionTree from "./CollectionTree";
-import { setItemDrag } from "./item-links";
-import { setShellContext } from "./item-actions";
+import { hasExternalDrop, hasItemDrag, importDrop, inboxCollection, readItemDrag, setItemDrag } from "./item-links";
+import { describeCount, sendToCanvas, sendToNote, setShellContext, toast } from "./item-actions";
 import { ItemLayer, itemAttrs, onShowInInspector, selectItems, useSelectedItems } from "./item-ui";
 import Inspector from "./Inspector";
 import CommandCenter from "./CommandCenter";
@@ -459,6 +459,30 @@ export default function App() {
       setSection("");
     }
   }, [activeView?.id, activeView?.content?.record?.id, tabs.workspaceId]);
+  // A sidebar canvas or note takes dropped items without being opened.
+  const [dropOver, setDropOver] = useState<string>();
+  const [inboxDrop, setInboxDrop] = useState(false);
+  const dropTarget = (target: { kind: "canvas" | "note"; id: string; title: string }) => ({
+    "data-drop-over": dropOver === `${target.kind}:${target.id}` || undefined,
+    "data-drop-label": target.kind === "canvas" ? `Add to ${target.title}` : `Link in ${target.title} · ⌥ embed · ⌘ cite`,
+    onDragOver: (e: React.DragEvent) => {
+      if (!hasItemDrag(e.dataTransfer)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      setDropOver(`${target.kind}:${target.id}`);
+    },
+    onDragLeave: (e: React.DragEvent) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropOver(undefined),
+    onDrop: (e: React.DragEvent) => {
+      setDropOver(undefined);
+      const items = readItemDrag(e.dataTransfer).filter((item) => !(item.kind === target.kind && item.id === target.id));
+      if (!items.length || !workspaceId) return;
+      e.preventDefault();
+      const mode = e.altKey ? "embed" : e.metaKey || items.every((i) => i.anchor?.startsWith("highlight:")) ? "cite" : "link";
+      void (target.kind === "canvas" ? sendToCanvas(invoke, workspaceId, target.id, items) : sendToNote(invoke, workspaceId, target.id, items, mode))
+        .then((undo) => toast(`${target.kind === "canvas" ? "Added" : mode === "embed" ? "Embedded" : mode === "cite" ? "Cited" : "Linked"} ${describeCount(items)} ${target.kind === "canvas" ? "to" : "in"} ${target.title}`, undo))
+        .catch((error) => toast(String(error)));
+    },
+  });
   // The shared item layer acts in this window's workspace and focused pane.
   useEffect(() => setShellContext({ invoke, workspaceId, viewId: tabs.activeViewId }), [invoke, workspaceId, tabs.activeViewId]);
   // A pane that gains focus is what's selected until something inside it is.
@@ -602,6 +626,23 @@ export default function App() {
     <div
       className="key-shell"
       data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
+      data-inbox-drop={inboxDrop || undefined}
+      // Files and links dropped where nothing else takes them go to the library's Inbox.
+      onDragOver={(e) => {
+        if (e.defaultPrevented || !workspaceId || !hasExternalDrop(e.dataTransfer)) return setInboxDrop(false);
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setInboxDrop(true);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setInboxDrop(false)}
+      onDrop={(e) => {
+        setInboxDrop(false);
+        if (e.defaultPrevented || !workspaceId || !hasExternalDrop(e.dataTransfer)) return;
+        e.preventDefault();
+        void importDrop(invoke, workspaceId, e.dataTransfer, () => inboxCollection(invoke, workspaceId))
+          .then((items) => items.length && toast(`Added ${describeCount(items)} to the Inbox`))
+          .catch((error) => setError(String(error)));
+      }}
     >
       <GlobalDrawerHost />
       <ItemLayer />
@@ -748,9 +789,14 @@ export default function App() {
                   className="kx-nav-item"
                   aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
                   onClick={() => openNote(n)}
+                  {...dropTarget({ kind: "note", id: n.id, title: n.title || "Untitled note" })}
                   {...itemAttrs({ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" })}
                   draggable
-                  onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" }])}
+                  onDragStart={(e) => {
+                    setItemDrag(e.dataTransfer, [{ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" }]);
+                    // Dropped into another app, a note is its text.
+                    e.dataTransfer.setData("text/plain", [n.title && `# ${n.title}`, n.body].filter(Boolean).join("\n\n"));
+                  }}
                   title={n.title || markdownToPlainText(n.body).slice(0, 120) || "Untitled note"}
                 >
                   <Icon name="note" />
@@ -764,6 +810,7 @@ export default function App() {
                   className="kx-nav-item"
                   aria-current={activeView?.content?.canvasId === c.id ? "page" : undefined}
                   onClick={() => openCanvas(c)}
+                  {...dropTarget({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" })}
                   {...itemAttrs({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" })}
                   draggable
                   onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" }])}

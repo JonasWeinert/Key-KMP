@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ContextMenu } from "./DatabaseView";
 import { Icon } from "./icons";
 import type { Collection, Invoke } from "./library-api";
-import { hasExternalDrop, importDrop } from "./item-links";
+import { hasExternalDrop, hasItemDrag, importDrop, readItemDrag } from "./item-links";
+import { toast } from "./item-actions";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 
 /** Nesting indent, capped so deep levels still leave room for the name in a narrow sidebar. */
@@ -143,8 +144,10 @@ export default function CollectionTree({
     onDragOver: (e: React.DragEvent<HTMLElement>) => {
       const types = e.dataTransfer.types;
       const id = target?.id ?? "@sources";
-      if ((types.includes(SOURCE_DRAG_TYPE) || hasExternalDrop(e.dataTransfer)) && workspaceId) {
-        if (!target && types.includes(SOURCE_DRAG_TYPE)) return;
+      // Sources (from the list, a canvas, the inspector …) join a collection; files are imported into it.
+      const sources = types.includes(SOURCE_DRAG_TYPE) || hasItemDrag(e.dataTransfer);
+      if ((sources || hasExternalDrop(e.dataTransfer)) && workspaceId) {
+        if (!target && sources) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
         setDrop({ id, place: "inside" });
@@ -182,8 +185,12 @@ export default function CollectionTree({
         void importDrop(invoke, workspaceId, e.dataTransfer, target?.id);
         return;
       }
-      const ids = JSON.parse(e.dataTransfer.getData(SOURCE_DRAG_TYPE) || "[]");
-      if (ids.length && target) void run("store_membership", { collectionId: target.id, ids, present: true });
+      const listed: string[] = JSON.parse(e.dataTransfer.getData(SOURCE_DRAG_TYPE) || "[]");
+      const ids = [...new Set(listed.length ? listed : readItemDrag(e.dataTransfer).filter((item) => item.kind === "source").map((item) => item.id))];
+      if (ids.length && target)
+        void run("store_membership", { collectionId: target.id, ids, present: true }).then(() =>
+          toast(`Added ${ids.length === 1 ? "1 source" : `${ids.length} sources`} to ${target.name}`, () => void run("store_membership", { collectionId: target.id, ids, present: false })),
+        );
     },
   });
 

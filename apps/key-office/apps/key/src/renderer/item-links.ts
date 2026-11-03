@@ -96,10 +96,12 @@ export const hasExternalDrop = (data: DataTransfer | null) =>
  * Adds dropped files (imported and indexed) or web links (as web sources) to the library,
  * in `collectionId` when given, and answers them as items to place or link.
  */
-export async function importDrop(invoke: Invoke, workspaceId: string, data: DataTransfer, collectionId?: string): Promise<DraggedItem[]> {
+export async function importDrop(invoke: Invoke, workspaceId: string, data: DataTransfer, collection?: string | (() => Promise<string | undefined>)): Promise<DraggedItem[]> {
   // Read everything now: the drop's data is gone once the event returns.
   const paths = [...data.files].map((file) => bridge().pathForFile(file)).filter(Boolean);
-  const sources = paths.length ? ((await bridge().importPaths(workspaceId, paths, collectionId)) as Source[]) : await createWebSources(invoke, workspaceId, droppedUrls(data), collectionId);
+  const urls = droppedUrls(data);
+  const collectionId = typeof collection === "function" ? await collection() : collection;
+  const sources = paths.length ? ((await bridge().importPaths(workspaceId, paths, collectionId)) as Source[]) : await createWebSources(invoke, workspaceId, urls, collectionId);
   if (sources.length) libraryChanged();
   return sources.map(sourceItem);
 }
@@ -112,4 +114,14 @@ function createWebSources(invoke: Invoke, workspaceId: string, urls: string[], c
         invoke<Source>("store_create", { source: { kind: "web", itemType: "webpage", title: url, url, collections: collectionId ? [collectionId] : [] } }, workspaceId),
       ),
   );
+}
+
+/** The workspace's Inbox collection, where things dropped on the window land; made when first needed. */
+export async function inboxCollection(invoke: Invoke, workspaceId: string): Promise<string> {
+  const collections = await invoke<{ id: string; name: string; parentId: string | null }[]>("store_collections", {}, workspaceId);
+  const inbox = collections.find((c) => !c.parentId && c.name === "Inbox");
+  if (inbox) return inbox.id;
+  const created = await invoke<{ id: string }>("store_collection_create", { name: "Inbox", parentId: null }, workspaceId);
+  libraryChanged();
+  return created.id;
 }

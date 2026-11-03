@@ -1,3 +1,4 @@
+import { apa } from "./citation";
 import { itemAttrs, selectItems } from "./item-ui";
 import { SectionHeader, useCollapsedGroups } from "./search-sections";
 import { GROUPS, type SearchGroup } from "./unified-search";
@@ -497,8 +498,18 @@ export default function ReferenceLibrary({
   const dragSources = (source: Source, e: React.DragEvent) => {
     const ids = selected.has(source.id) ? [...selected] : [source.id];
     const byId = new Map(items.map((s) => [s.id, s]));
+    const files = ids.map((id) => byId.get(id)?.filePath).filter((path): path is string => !!path);
+    // ⌥-drag takes the files themselves out of the app (to Finder, Mail …).
+    if (e.altKey && files.length) {
+      e.preventDefault();
+      bridge().startFileDrag(files);
+      return;
+    }
     e.dataTransfer.setData(SOURCE_DRAG_TYPE, JSON.stringify(ids));
     setItemDrag(e.dataTransfer, ids.map((id) => sourceItem(byId.get(id) ?? { id, title: "", kind: "" })));
+    // Dropped into another app's text, a source is its reference.
+    const cited = ids.map((id) => byId.get(id)).filter((x): x is Source => !!x);
+    if (cited.length) e.dataTransfer.setData("text/plain", cited.map((x) => apa(x)).join("\n\n"));
     e.dataTransfer.effectAllowed = "copyMove";
   };
 
