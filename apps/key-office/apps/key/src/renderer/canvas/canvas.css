@@ -470,3 +470,114 @@ textarea.kx-canvas-text[data-centered] {
   font-size: 13px;
   pointer-events: none;
 }
+
+/* Lines between cards whose notes link to each other */
+.kx-canvas-link {
+  fill: none;
+  stroke: var(--cv-guide);
+  stroke-width: 1.5px;
+  stroke-dasharray: 4 5;
+  opacity: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Frames: behind what they hold, titled at the top-left */
+.kx-canvas-node[data-shape="frame"] .kx-canvas-text {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: auto;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kx-text-2);
+}
+
+/* Cards: a grip to drag them out, faces for sources, notes written in place */
+.kx-canvas-card-grip {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  width: 20px;
+  height: 18px;
+  border-radius: 5px;
+  color: var(--kx-text-3);
+  opacity: 0;
+  cursor: grab;
+  pointer-events: auto;
+}
+.kx-canvas-node:hover .kx-canvas-card-grip,
+.kx-canvas-node[aria-selected="true"] .kx-canvas-card-grip {
+  opacity: 1;
+}
+.kx-canvas-card-grip:hover {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-canvas-card-faces {
+  display: flex;
+  gap: 2px;
+  margin: 6px 0 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--kx-fill);
+  pointer-events: auto;
+}
+.kx-canvas-card-faces button {
+  flex: 1;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: inherit;
+  font-size: 10.5px;
+}
+.kx-canvas-card-faces button[aria-selected="true"] {
+  background: var(--kx-bg-raised);
+  color: var(--kx-text);
+  box-shadow: var(--kx-shadow-sm);
+}
+.kx-canvas-card-subnote + .kx-canvas-card-subnote {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--kx-line);
+}
+.kx-canvas-card[data-editing] {
+  box-shadow: 0 0 0 2px var(--kx-accent), var(--kx-shadow-card);
+}
+.kx-canvas-card[data-editing] .kx-canvas-card-body {
+  overflow-y: auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+  user-select: text;
+  cursor: text;
+}
+.kx-canvas-card .kx-item-minimap {
+  height: 100%;
+  min-height: 80px;
+}
+
+/* Overview */
+.kx-canvas-minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 52px;
+  border-radius: 10px;
+  background: var(--kx-bg-raised);
+  box-shadow: var(--kx-shadow-pop);
+  cursor: pointer;
+}
+.kx-canvas-minimap rect {
+  fill: var(--kx-fill-2);
+}
+.kx-canvas-minimap rect[data-type="item"] {
+  fill: var(--kx-accent-soft);
+}
+.kx-canvas-minimap rect[data-type="frame"] {
+  fill: var(--kx-fill);
+}
+.kx-canvas-minimap .kx-canvas-minimap-view {
+  fill: none;
+  stroke: var(--kx-accent);
+  stroke-width: 1.5px;
+}

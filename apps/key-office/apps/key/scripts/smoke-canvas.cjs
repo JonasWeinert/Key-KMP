@@ -60,8 +60,9 @@ const assert = require("node:assert/strict");
     // Place the note and the source as cards.
     const add = async (query, title) => {
       await page.getByRole("button", { name: "Add item" }).click();
-      await page.getByLabel("Search items").fill(query);
-      await page.locator(".kx-canvas-add [role=option]", { hasText: title }).first().click();
+      await page.locator(".kx-palette input").fill(query);
+      await page.locator(".kx-palette .kx-found-row", { hasText: title }).first().click();
+      await page.locator(".key-global-drawer-scrim").waitFor({ state: "detached" });
     };
     await add("Canvas idea", "Canvas idea");
     await add("Interaction", "Interaction study");
@@ -122,8 +123,17 @@ const assert = require("node:assert/strict");
     await page.locator(".kx-canvas-edge").waitFor();
     assert.equal(await page.getByLabel("Canvas title").inputValue(), "Research board");
 
-    // Double-click the note card: the note opens, linked from the canvas and from the source on it.
+    // Double-click writes in the note card itself; what is typed saves to the note.
     await noteCard.dblclick();
+    await noteCard.locator(".ne-prose[contenteditable=true]").waitFor();
+    await page.keyboard.press("Meta+ArrowDown");
+    await page.keyboard.type(" Written on the canvas.");
+    await until(async () => (await call("store_note", { id: note.id }))?.body.includes("Written on the canvas."), "the card edit to save");
+    await page.keyboard.press("Escape");
+    await noteCard.locator(".ne-prose[contenteditable=false]").waitFor();
+
+    // ⌘-double-click opens the note, linked from the canvas and from the source on it.
+    await noteCard.dblclick({ modifiers: ["Meta"] });
     const linked = page.locator(".kx-linked-from");
     await linked.waitFor();
     await linked.locator(".kx-linked-from-row", { hasText: "Research board" }).first().waitFor();

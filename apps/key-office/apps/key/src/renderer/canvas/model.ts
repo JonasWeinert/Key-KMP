@@ -25,6 +25,8 @@ export interface ItemNode extends NodeBase {
   detail?: string;
   /** A highlight's colour (document data). */
   color?: string;
+  /** What a source card shows: its preview, abstract, notes or highlights. */
+  face?: "preview" | "abstract" | "notes" | "highlights";
 }
 export interface TextNode extends NodeBase {
   type: "text";
@@ -33,7 +35,8 @@ export interface TextNode extends NodeBase {
 }
 export interface ShapeNode extends NodeBase {
   type: "shape";
-  shape: "rect" | "ellipse" | "diamond";
+  /** A frame sits behind what it holds and carries it along when moved. */
+  shape: "rect" | "ellipse" | "diamond" | "frame";
   text: string;
   color: string;
 }
@@ -312,6 +315,85 @@ export function duplicate(doc: CanvasDoc, ids: Set<string>, offset = 24): { doc:
 }
 
 /** Ink points in world space become a node around them. */
+// ── Frames, alignment and layout ─────────────────────────────────────────────
+
+const isFrame = (n: CanvasNode) => n.type === "shape" && n.shape === "frame";
+const inside = (inner: Rect, outer: Rect) => inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h;
+
+/** The nodes a move takes along: the selection, plus everything inside a selected frame. */
+export function withFrameContents(doc: CanvasDoc, ids: Set<string>): Set<string> {
+  const out = new Set(ids);
+  for (const frame of doc.nodes.filter((n) => isFrame(n) && ids.has(n.id))) for (const n of doc.nodes) if (n.id !== frame.id && inside(n, frame)) out.add(n.id);
+  return out;
+}
+
+/** Frames first, so they draw behind the cards on them. */
+export const drawOrder = (nodes: CanvasNode[]) => [...nodes.filter(isFrame), ...nodes.filter((n) => !isFrame(n))];
+
+/** A frame around `ids`, titled `title`. */
+export function frameAround(doc: CanvasDoc, ids: Set<string>, title = "Frame", color = "gray"): { doc: CanvasDoc; id: string } | null {
+  const box = bounds(doc.nodes.filter((n) => ids.has(n.id)));
+  if (!box) return null;
+  const pad = 32;
+  const frame: ShapeNode = { id: newId(), type: "shape", shape: "frame", text: title, color, x: box.x - pad, y: box.y - pad - 28, w: box.w + 2 * pad, h: box.h + 2 * pad + 28 };
+  return { doc: { ...doc, nodes: [frame, ...doc.nodes] }, id: frame.id };
+}
+
+export type Alignment = "left" | "centre" | "right" | "top" | "middle" | "bottom";
+/** Lines the selected nodes up on one edge (or centre) of their bounds. */
+export function alignNodes(doc: CanvasDoc, ids: Set<string>, how: Alignment): CanvasDoc {
+  const box = bounds(doc.nodes.filter((n) => ids.has(n.id)));
+  if (!box) return doc;
+  return {
+    ...doc,
+    nodes: doc.nodes.map((n) => {
+      if (!ids.has(n.id)) return n;
+      switch (how) {
+        case "left":
+          return { ...n, x: box.x };
+        case "right":
+          return { ...n, x: box.x + box.w - n.w };
+        case "centre":
+          return { ...n, x: Math.round(box.x + box.w / 2 - n.w / 2) };
+        case "top":
+          return { ...n, y: box.y };
+        case "bottom":
+          return { ...n, y: box.y + box.h - n.h };
+        case "middle":
+          return { ...n, y: Math.round(box.y + box.h / 2 - n.h / 2) };
+      }
+    }),
+  };
+}
+
+/** Arranges the selected nodes in a tidy grid, in reading order, from their top-left corner. */
+export function tidyNodes(doc: CanvasDoc, ids: Set<string>, gap = CARD_GAP): CanvasDoc {
+  const chosen = doc.nodes.filter((n) => ids.has(n.id) && !isFrame(n)).sort((a, b) => a.y - b.y || a.x - b.x);
+  const box = bounds(chosen);
+  if (!box || chosen.length < 2) return doc;
+  const columns = Math.max(1, Math.round(Math.sqrt(chosen.length * 1.4)));
+  const width = Math.max(...chosen.map((n) => n.w));
+  const placed = new Map<string, Point>();
+  let y = box.y;
+  for (let row = 0; row * columns < chosen.length; row++) {
+    const cells = chosen.slice(row * columns, row * columns + columns);
+    cells.forEach((n, i) => placed.set(n.id, [box.x + i * (width + gap), y]));
+    y += Math.max(...cells.map((n) => n.h)) + gap;
+  }
+  return { ...doc, nodes: doc.nodes.map((n) => (placed.has(n.id) ? { ...n, x: placed.get(n.id)![0], y: placed.get(n.id)![1] } : n)) };
+}
+
+/** Where a source's highlights (right) and notes (left) go when it is unfolded. */
+export function unfoldPositions(source: Rect, sizes: { w: number; h: number }[], side: "left" | "right", gap = CARD_GAP): Point[] {
+  const total = sizes.reduce((sum, s) => sum + s.h, 0) + gap * Math.max(0, sizes.length - 1);
+  let y = source.y + source.h / 2 - total / 2;
+  return sizes.map((s) => {
+    const at: Point = [side === "right" ? source.x + source.w + gap * 4 : source.x - gap * 4 - s.w, Math.round(y)];
+    y += s.h + gap;
+    return at;
+  });
+}
+
 export function inkNode(points: Point[], color: string, width: number): InkNode | null {
   if (points.length < 2) return null;
   const box = bounds(points.map(([x, y]) => ({ x, y, w: 0, h: 0 })))!;

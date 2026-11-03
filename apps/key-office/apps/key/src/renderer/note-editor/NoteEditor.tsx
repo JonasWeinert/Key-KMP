@@ -273,7 +273,10 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
   useEffect(() => () => flush(), [flush]);
 
   useEffect(() => {
-    if (editor && !editor.isDestroyed && editor.isEditable === !!props.readOnly) editor.setEditable(!props.readOnly, false);
+    if (!editor || editor.isDestroyed || editor.isEditable !== !!props.readOnly) return;
+    editor.setEditable(!props.readOnly, false);
+    // A view that becomes editable to be written in (a canvas card) takes the cursor.
+    if (!props.readOnly && props.autoFocus) editor.commands.focus("end");
   }, [editor, props.readOnly]);
 
   const rootClass = ["ne-root", props.compact ? "ne-root--compact" : "", props.readOnly ? "ne-root--readonly" : "", props.className ?? ""].filter(Boolean).join(" ");
