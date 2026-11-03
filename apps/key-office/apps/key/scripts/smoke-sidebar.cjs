@@ -72,7 +72,7 @@ const assert = require("node:assert/strict");
     await page.locator(".kx-palette input").waitFor();
     await page.keyboard.press("Escape");
     await page.locator(".kx-palette").waitFor({ state: "detached" });
-    await sidebar.locator(".kx-section-title", { hasText: "Library" }).click();
+    await sidebar.locator(".kx-top-title", { hasText: "Library" }).click();
     await until(async () => {
       const state = await tabs();
       return state.tabs.find((t) => t.id === state.activeTabId)?.views[0].kind === "library";
@@ -112,12 +112,18 @@ const assert = require("node:assert/strict");
       throw Error(`${e.message}: ${JSON.stringify(saved)}`);
     });
     // The style selector changes what Cite writes.
-    await sidebar.getByLabel("Citation style").selectOption("chicago");
+    const pickOption = async (button, name) => {
+      // The group's actions show on hover, in place of its count.
+      await sidebar.locator(".kx-references .kx-sidebar-group").hover();
+      await sidebar.getByRole("button", { name: button }).click();
+      await page.getByRole("menuitemradio", { name }).click();
+    };
+    await pickOption("Reference options", "Chicago (author-date)");
     await ref("How many jobs").locator(".kx-ref-byline", { hasText: "Dingel and Neiman (2020)" }).waitFor();
     await ref("How many jobs").hover();
     await ref("How many jobs").locator(".kx-ref-action[data-action='Cite']").click();
     await prose.locator(`a[href="key://source/${second.id}"]`, { hasText: "(Dingel and Neiman 2020)" }).waitFor();
-    await sidebar.getByLabel("Citation style").selectOption("apa");
+    await pickOption("Reference options", "APA 7th Edition");
     report.cite = true;
 
     // On a canvas, the action adds a card.
@@ -154,12 +160,16 @@ const assert = require("node:assert/strict");
     assert.equal(stored.folders[folderKey].name, "Drafts");
     assert.deepEqual(stored.children[folderKey], [`note:${beta.id}`]);
     // Sorting by name shows folders first and names in order, without changing the stored order.
-    await sidebar.getByLabel("Sort workspace").selectOption("title");
+    const pickView = async (name) => {
+      await sidebar.getByRole("button", { name: "Show and sort" }).click({ force: true });
+      await page.getByRole("menuitemradio", { name, exact: true }).click();
+    };
+    await pickView("Name");
     assert.deepEqual(await order(), ["Drafts", "Alpha", "Board"]);
-    await sidebar.getByLabel("Show in workspace").selectOption("canvas");
+    await pickView("Canvases");
     assert.deepEqual(await order(), ["Board"]);
-    await sidebar.getByLabel("Show in workspace").selectOption("all");
-    await sidebar.getByLabel("Sort workspace").selectOption("manual");
+    await pickView("All items");
+    await pickView("Manual order");
     // The arrangement is the workspace's: it comes back after a reload.
     await page.reload();
     await page.locator(".kx-workspace-tree .kx-nav-item", { hasText: "Alpha" }).waitFor();

@@ -84,7 +84,7 @@ const assert = require("node:assert/strict");
     await row("Beta").click();
     await until(async () => (await tabs()).tabs.some((t) => t.title === "Beta"), "Beta to open");
     await row("Alpha").click({ button: "right" });
-    await page.locator(".kx-context-menu").getByRole("menuitem", { name: /Open beside/ }).click();
+    await page.locator(".kx-item-menu").getByRole("menuitem", { name: /Open beside/ }).click();
     await until(async () => {
       const t = await tabs();
       return t.tabs.find((x) => x.id === t.activeTabId)?.views.length === 2;

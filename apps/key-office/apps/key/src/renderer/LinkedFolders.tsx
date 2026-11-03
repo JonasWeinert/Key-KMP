@@ -1,5 +1,5 @@
-// The sidebar's Linked folders: folders elsewhere on the computer, each with its files as a
-// tree that loads one level at a time. A folder's menu turns tracking (listed and watched)
+// Linked folders, listed with the workspace's own items: folders elsewhere on the computer
+// (a folder icon with a link), each with its files as a tree that loads one level at a time. A folder's menu turns tracking (listed and watched)
 // and indexing (searchable) on and off, reveals it in Finder or unlinks it. Files act like
 // any other item: hover previews, right-click actions, dragging onto canvases and notes.
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
@@ -24,7 +24,6 @@ const readOpen = (key: string) => {
 
 export default function LinkedFolders({ invoke, workspaceId }: { invoke?: Invoke; workspaceId?: string }) {
   const [folders, setFolders] = useState<LinkedFolder[]>([]);
-  const [sectionOpen, setSectionOpen] = useState(() => localStorage.getItem("key:linked-section") !== "closed");
   const storageKey = `key:linked-open:${workspaceId ?? ""}`;
   const [open, setOpen] = useState(() => readOpen(storageKey));
   /** Bumped when a folder's files change, so open levels re-read. */
@@ -84,6 +83,13 @@ export default function LinkedFolders({ invoke, workspaceId }: { invoke?: Invoke
     }
   };
 
+  // "Link a folder…" from the sidebar's + menu.
+  useEffect(() => {
+    const onLink = () => void link();
+    window.addEventListener("key:link-folder", onLink);
+    return () => window.removeEventListener("key:link-folder", onLink);
+  });
+
   const folderMenu = (folder: LinkedFolder, e: MouseEvent) => {
     e.preventDefault();
     const entries: (MenuEntry | "-")[] = [
@@ -114,21 +120,6 @@ export default function LinkedFolders({ invoke, workspaceId }: { invoke?: Invoke
   if (!workspaceId) return null;
   return (
     <>
-      <div className="key-sidebar-section kx-library-section kx-linked-section">
-        <button className="kx-section-toggle" aria-expanded={sectionOpen} onClick={() => {
-          localStorage.setItem("key:linked-section", sectionOpen ? "closed" : "open");
-          setSectionOpen(!sectionOpen);
-        }}>
-          <span>Linked folders</span>
-          <Icon name="chevronRight" size={9} style={{ transform: sectionOpen ? "rotate(90deg)" : undefined }} />
-        </button>
-        <button aria-label="Link a folder" title="Link a folder from your computer" onClick={() => void link()}>
-          <Icon name="plus" size={14} />
-        </button>
-      </div>
-      {sectionOpen && (
-        <nav className="kx-tree kx-linked-tree" role="tree" aria-label="Linked folders">
-          {!folders.length && <p className="key-sidebar-hint kx-tree-hint">Link a folder to see its files here without copying them.</p>}
           {folders.map((folder) => {
             const expanded = open.has(folder.id);
             const status = folder.missing
@@ -155,7 +146,10 @@ export default function LinkedFolders({ invoke, workspaceId }: { invoke?: Invoke
                     }}
                     title={`${folder.path}${folder.missing ? " · not available (an unmounted drive?)" : ""}${folder.indexed ? " · searchable" : folder.tracked ? "" : " · not tracked"}`}
                   >
-                    <Icon name="folder" />
+                    <span className="kx-linked-icon">
+                      <Icon name="folder" />
+                      <Icon name="link" size={9} />
+                    </span>
                     <span>{folder.name}</span>
                     {folder.indexed && <Icon name="search" size={10} className="kx-linked-badge" aria-label="Searchable" />}
                     <small>{status}</small>
@@ -179,8 +173,6 @@ export default function LinkedFolders({ invoke, workspaceId }: { invoke?: Invoke
               </div>
             );
           })}
-        </nav>
-      )}
     </>
   );
 }

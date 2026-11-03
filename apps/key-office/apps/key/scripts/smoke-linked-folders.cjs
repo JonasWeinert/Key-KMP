@@ -51,8 +51,10 @@ async function until(what, check, timeout = 15000) {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [folder] });
     }, outside);
     const sidebar = page.locator(".key-sidebar");
-    await sidebar.getByRole("button", { name: "Link a folder" }).click();
-    const tree = sidebar.getByRole("tree", { name: "Linked folders" });
+    // Linked like anything else: from the workspace's + menu, listed among its items.
+    await sidebar.getByRole("button", { name: "Create item" }).click();
+    await sidebar.getByRole("button", { name: "Link a folder…" }).click();
+    const tree = sidebar.getByRole("tree", { name: "Workspace" });
     const folderRow = tree.locator(".kx-tree-label", { hasText: "Field notes" });
     await folderRow.waitFor();
     const [folder] = await call("store_linked_folders");
@@ -90,6 +92,7 @@ async function until(what, check, timeout = 15000) {
 
     // A note links the file with [[ ; the file shows the backlink.
     const plan = (await call("store_linked_entries", { folderId: folder.id, dir: "" })).files.find((f) => f.name === "plan.md");
+    await sidebar.getByRole("button", { name: "Create item" }).click();
     await sidebar.getByRole("button", { name: "New note", exact: true }).click();
     await page.locator(".kx-note-title:visible").fill("Trip");
     await page.locator(".kx-note-page .ProseMirror:visible").click();

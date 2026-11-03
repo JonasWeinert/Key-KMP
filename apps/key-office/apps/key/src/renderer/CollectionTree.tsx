@@ -296,6 +296,7 @@ export default function CollectionTree({
       <div className="kx-sidebar-group" data-drop={drop?.id === "@top" ? "inside" : undefined} {...dropProps(null)}>
         <button className="kx-section-toggle" aria-expanded={sectionOpen} onClick={() => setSectionOpen(!sectionOpen)} title="Drop a collection here to move it to the top level">
           <Icon name="chevronRight" size={9} style={{ transform: sectionOpen ? "rotate(90deg)" : undefined }} />
+          <Icon name="layers" size={15} className="kx-group-icon" />
           <span>Collections</span>
           {!!collections.length && <small>{collections.length}</small>}
         </button>

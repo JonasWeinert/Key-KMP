@@ -1,17 +1,28 @@
-/* Linked folders: the sidebar tree and a file's pane. */
-.kx-linked-section:hover .kx-section-toggle > svg {
-  opacity: 1;
+/* Linked folders: rows among the workspace's items, and a file's pane. */
+.kx-linked-icon {
+  position: relative;
+  flex: none;
+  display: inline-grid;
 }
-.kx-linked-tree .kx-tree-row[data-missing] .kx-tree-label {
+.kx-linked-icon > svg:last-child {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  padding: 1px;
+  border-radius: 4px;
+  background: var(--kx-sidebar-solid);
+  color: var(--kx-text-2);
+}
+.kx-workspace-tree .kx-tree-row[data-missing] .kx-tree-label {
   color: var(--kx-text-3);
 }
-.kx-linked-tree .kx-linked-file-row > svg {
+.kx-workspace-tree .kx-linked-file-row > svg {
   color: var(--kx-text-3);
 }
-.kx-linked-tree .kx-linked-file-row[data-kind="markdown"] > svg {
+.kx-workspace-tree .kx-linked-file-row[data-kind="markdown"] > svg {
   color: var(--kx-accent);
 }
-.kx-linked-tree .kx-linked-badge {
+.kx-workspace-tree .kx-linked-badge {
   flex: none;
   margin: 0 2px;
   color: var(--kx-text-3);

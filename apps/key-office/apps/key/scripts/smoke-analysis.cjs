@@ -81,7 +81,7 @@ const assert = require("node:assert/strict");
     assert.equal(companion.analysis.processingMs, 0, "built from the store");
     assert.equal(companion.analysis.citations.length, done.citations.length);
     await reader.locator(".pdfjs-link-overlay.citation").first().waitFor();
-    await reader.getByRole("button", { name: "References" }).click();
+    await reader.locator(".key-pdf-toolbar").getByRole("button", { name: "References" }).click();
     const status = reader.locator(".key-pdf-analysis");
     await status.waitFor();
     assert.match(await status.innerText(), /Layout analysis with the layout model/);

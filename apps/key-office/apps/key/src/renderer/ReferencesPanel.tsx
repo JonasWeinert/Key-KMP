@@ -62,7 +62,7 @@ export default function ReferencesPanel({
   const [prefs, setPrefs] = useState(() => read("key.references", { sort: { field: "creator", descending: false } as Sort, scope: "all", style: "apa" as CitationStyle }));
   const [query, setQuery] = useState("");
   const [page, setPage] = useState<SourcePage>();
-  const [menu, setMenu] = useState<{ kind: "sort" | "export" | "add"; x: number; y: number }>();
+  const [menu, setMenu] = useState<{ kind: "options" | "add"; x: number; y: number }>();
   // Editors register as they mount; the row action follows the one in the focused pane.
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => onEditorTargets(rerender), []);
@@ -160,7 +160,7 @@ export default function ReferencesPanel({
       sorted.map((s) => `<p>${referenceEntry(s, style, true)}</p>`).join(""),
     );
   };
-  const at = (e: React.MouseEvent<HTMLElement>, kind: "sort" | "export" | "add") => {
+  const at = (e: React.MouseEvent<HTMLElement>, kind: "options" | "add") => {
     const rect = e.currentTarget.getBoundingClientRect();
     setMenu({ kind, x: rect.left, y: rect.bottom + 4 });
   };
@@ -172,38 +172,25 @@ export default function ReferencesPanel({
       <div className="kx-sidebar-group">
         <button className="kx-section-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
           <Icon name="chevronRight" size={9} style={{ transform: open ? "rotate(90deg)" : undefined }} />
+          <Icon name="books" size={15} className="kx-group-icon" />
           <span>References</span>
           {!!total && <small>{total}</small>}
         </button>
-        <button className="kx-group-text-button" disabled={!workspaceId} title="Copy the reference list or BibTeX" onClick={(e) => at(e, "export")}>
-          <Icon name="upload" size={12} />
-          <span>Export</span>
+        <button disabled={!workspaceId} aria-label="Add references" title="Add references" onClick={(e) => at(e, "add")}>
+          <Icon name="plus" size={13} />
+        </button>
+        <button disabled={!workspaceId} aria-label="Reference options" title="Sort, show, citation style and export" onClick={(e) => at(e, "options")}>
+          <Icon name="more" size={13} />
         </button>
       </div>
       {open && workspaceId && (
         <>
-          <div className="kx-ref-search">
-            <label>
+          {(total > 0 || query) && (
+            <label className="kx-ref-search">
               <Icon name="search" size={12} />
               <input type="search" aria-label="Search references" placeholder="Search references…" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
-            <button className="kx-group-text-button" title="Add sources to the library" aria-label="Add references" onClick={(e) => at(e, "add")}>
-              <Icon name="plus" size={12} />
-              <span>Add</span>
-            </button>
-          </div>
-          <div className="kx-ref-toolbar">
-            <button
-              aria-label={`Sort by ${SORTS.find((s) => s.field === prefs.sort.field)?.label}, ${prefs.sort.descending ? "descending" : "ascending"}`}
-              title="Sort"
-              onClick={(e) => at(e, "sort")}
-            >
-              <Icon name="sort" size={13} />
-            </button>
-            <SidebarSelect label="Show" value={prefs.scope} onChange={(scope) => setPrefs({ ...prefs, scope })} options={SCOPES.map((s) => [s.scope, `${s.label} ${page?.counts[s.count] ?? ""}`])} />
-            <span />
-            <SidebarSelect label="Citation style" value={style} onChange={(id) => setPrefs({ ...prefs, style: id as CitationStyle })} options={CITATION_STYLES.map((s) => [s.id, s.label])} />
-          </div>
+          )}
           <div className="kx-ref-list" role="list" aria-label="Reference list">
             {items.map((source) => {
               const item = sourceItem(source);
@@ -243,7 +230,7 @@ export default function ReferencesPanel({
         </>
       )}
       {menu && workspaceId && (
-        <ContextMenu x={menu.x} y={menu.y} label={menu.kind === "sort" ? "Sort references" : menu.kind === "export" ? "Export references" : "Add references"} onClose={() => setMenu(undefined)}>
+        <ContextMenu x={menu.x} y={menu.y} label={menu.kind === "options" ? "Reference options" : "Add references"} onClose={() => setMenu(undefined)}>
           {(close) => {
             const entry = (text: string, icon: IconName, run: () => void, checked?: boolean) => (
               <button
@@ -259,16 +246,24 @@ export default function ReferencesPanel({
                 {text}
               </button>
             );
-            if (menu.kind === "sort")
+            const heading = (text: string) => (
+              <div key={text} className="kx-menu-heading">
+                {text}
+              </div>
+            );
+            if (menu.kind === "options")
               return [
+                heading("Sort by"),
                 ...SORTS.map((s) => entry(s.label, "sort", () => setPrefs({ ...prefs, sort: { ...prefs.sort, field: s.field } }), prefs.sort.field === s.field)),
-                <hr key="rule" />,
-                entry("Ascending", "sort", () => setPrefs({ ...prefs, sort: { ...prefs.sort, descending: false } }), !prefs.sort.descending),
-                entry("Descending", "sort", () => setPrefs({ ...prefs, sort: { ...prefs.sort, descending: true } }), prefs.sort.descending),
-              ];
-            if (menu.kind === "export")
-              return [
-                entry(`Copy ${CITATION_STYLES.find((s) => s.id === style)?.label ?? ""} reference list`, "copy", () => void exportAll("bibliography")),
+                entry(prefs.sort.descending ? "Descending" : "Ascending", "sort", () => setPrefs({ ...prefs, sort: { ...prefs.sort, descending: !prefs.sort.descending } })),
+                <hr key="r1" />,
+                heading("Show"),
+                ...SCOPES.map((x) => entry(`${x.label} (${page?.counts[x.count] ?? 0})`, "filter", () => setPrefs({ ...prefs, scope: x.scope }), prefs.scope === x.scope)),
+                <hr key="r2" />,
+                heading("Citation style"),
+                ...CITATION_STYLES.map((x) => entry(x.label, "quote", () => setPrefs({ ...prefs, style: x.id as CitationStyle }), style === x.id)),
+                <hr key="r3" />,
+                entry(`Copy ${CITATION_STYLES.find((x) => x.id === style)?.label ?? ""} reference list`, "copy", () => void exportAll("bibliography")),
                 entry("Copy BibTeX", "copy", () => void exportAll("bibtex")),
               ];
             return [
@@ -279,22 +274,5 @@ export default function ReferencesPanel({
         </ContextMenu>
       )}
     </section>
-  );
-}
-
-/** A compact select that reads as text with a chevron, for sidebar toolbars. */
-export function SidebarSelect({ label, value, options, onChange, icon }: { label: string; value: string; options: [string, string][]; onChange: (value: string) => void; icon?: IconName }) {
-  return (
-    <label className="kx-select" title={label}>
-      {icon && <Icon name={icon} size={12} />}
-      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map(([id, text]) => (
-          <option key={id} value={id}>
-            {text}
-          </option>
-        ))}
-      </select>
-      <Icon name="chevronDown" size={10} />
-    </label>
   );
 }

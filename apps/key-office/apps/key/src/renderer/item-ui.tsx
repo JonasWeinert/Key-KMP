@@ -356,7 +356,7 @@ function ContextMenu({ request, onClose }: { request: MenuRequest; onClose: () =
   return (
     <div
       ref={box}
-      className="kx-context-menu"
+      className="kx-item-menu"
       role="menu"
       tabIndex={-1}
       style={style}

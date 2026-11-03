@@ -37,7 +37,6 @@ import {
   type WorkspaceViewDrop,
 } from "../shared/tab-model";
 import { TabKindIcon, type ContentDropTarget } from "./TabBar";
-import LinkedFolders from "./LinkedFolders";
 interface Workspace {
   id: string;
   name: string;
@@ -860,17 +859,10 @@ export default function App() {
                 Choose a workspace to see its library and pages.
               </p>
             )}
-            <div className="key-sidebar-section kx-library-section">
+            {/* Library: opens the library; the chevron folds its collections and references. */}
+            <div className="key-sidebar-section kx-top-section">
               <button
-                className="kx-section-toggle kx-library-toggle"
-                aria-expanded={libraryOpen}
-                aria-label={libraryOpen ? "Collapse library" : "Expand library"}
-                onClick={() => setLibraryOpen(!libraryOpen)}
-              >
-                <Icon name="chevronRight" size={9} style={{ transform: libraryOpen ? "rotate(90deg)" : undefined }} />
-              </button>
-              <button
-                className="kx-section-title kx-nav-item"
+                className="kx-top-title"
                 aria-current={section === "sources" ? "page" : undefined}
                 disabled={!workspaceId}
                 title="Open the library"
@@ -881,15 +873,14 @@ export default function App() {
                   })
                 }
               >
-                <Icon name="books" />
-                <span>Library</span>
+                Library
+              </button>
+              <button className="kx-top-chevron" aria-expanded={libraryOpen} aria-label={libraryOpen ? "Collapse library" : "Expand library"} onClick={() => setLibraryOpen(!libraryOpen)}>
+                <Icon name="chevronRight" size={10} />
               </button>
             </div>
             {libraryOpen && workspaceId && (
               <div className="kx-library-groups">
-                <nav className="kx-nav" aria-label="Library views">
-                  {navItem("Highlights", "quote", section === "highlights", () => sidebarClick({ kind: "highlights" }, () => action("open-content", { section: "highlights", workspaceId })))}
-                </nav>
                 <CollectionTree
                   invoke={invoke}
                   workspaceId={workspaceId}
@@ -958,6 +949,15 @@ export default function App() {
                           New {label.toLowerCase()}
                         </button>
                       ))}
+                      <button
+                        onClick={() => {
+                          setCreateMenu(false);
+                          window.dispatchEvent(new Event("key:link-folder"));
+                        }}
+                      >
+                        <Icon name="link" />
+                        Link a folder…
+                      </button>
                       <hr />
                       {["docs", "sheets", "slides", "markdown", "html"].map(
                         (kind) => (
@@ -978,7 +978,6 @@ export default function App() {
                 </>
               }
             />
-            <LinkedFolders invoke={invoke} workspaceId={workspaceId} />
           </div>
           <div className="key-sidebar-footer">
             <ModelProgressPill progress={model} />

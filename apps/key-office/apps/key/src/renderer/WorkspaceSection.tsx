@@ -1,3 +1,4 @@
+import LinkedFolders from "./LinkedFolders";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ContextMenu } from "./DatabaseView";
 import { Icon, type IconName } from "./icons";
@@ -5,8 +6,6 @@ import { setItemDrag } from "./item-links";
 import { toast } from "./item-actions";
 import { itemAttrs } from "./item-ui";
 import type { Invoke } from "./library-api";
-import LinkedFolders from "./LinkedFolders";
-import { SidebarSelect } from "./ReferencesPanel";
 import {
   ROOT,
   addFolder,
@@ -100,6 +99,7 @@ export default function WorkspaceSection({
   const [renaming, setRenaming] = useState<string>();
   const [drop, setDrop] = useState<{ key: string; place: Place }>();
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
+  const [viewMenu, setViewMenu] = useState<{ x: number; y: number }>();
   const dragging = useRef<string | null>(null);
   const hoverOpen = useRef<{ key: string; timer: number } | null>(null);
 
@@ -353,27 +353,56 @@ export default function WorkspaceSection({
   const menuKey = menu?.key;
   return (
     <section className="kx-workspace-section" aria-label="Workspace items">
-      <div className="key-sidebar-section kx-workspace-heading">
-        <span title={name}>{name}</span>
+      <div className="key-sidebar-section kx-top-section kx-workspace-heading">
+        <span className="kx-top-title" title={name}>
+          {name}
+          {view.filter !== "all" && <small> · {FILTERS.find(([id]) => id === view.filter)?.[1]}</small>}
+        </span>
+        <button
+          aria-label="Show and sort"
+          title="Show and sort"
+          disabled={!workspaceId}
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setViewMenu({ x: rect.left, y: rect.bottom + 4 });
+          }}
+        >
+          <Icon name="more" size={13} />
+        </button>
         <button aria-label="New folder" title="New folder" disabled={!workspaceId} onClick={() => newFolder()}>
           <Icon name="folder" size={13} />
         </button>
         {createMenu}
       </div>
-      {workspaceId && (
-        <div className="kx-workspace-toolbar">
-          <SidebarSelect label="Show in workspace" icon="filter" value={view.filter} onChange={(filter) => setView({ ...view, filter: filter as Filter })} options={FILTERS} />
-          <SidebarSelect label="Sort workspace" icon="sort" value={view.sort} onChange={(sort) => setView({ ...view, sort: sort as Sort })} options={SORTS} />
-        </div>
+      {viewMenu && (
+        <ContextMenu x={viewMenu.x} y={viewMenu.y} label="Show and sort" onClose={() => setViewMenu(undefined)}>
+          {(close) => [
+            <div key="h1" className="kx-menu-heading">Show</div>,
+            ...FILTERS.map(([id, text]) => (
+              <button key={`f${id}`} role="menuitemradio" aria-checked={view.filter === id} onClick={() => (close(), setView({ ...view, filter: id as Filter }))}>
+                <Icon name={view.filter === id ? "check" : "filter"} size={13} />
+                {text}
+              </button>
+            )),
+            <hr key="r" />,
+            <div key="h2" className="kx-menu-heading">Sort</div>,
+            ...SORTS.map(([id, text]) => (
+              <button key={`s${id}`} role="menuitemradio" aria-checked={view.sort === id} onClick={() => (close(), setView({ ...view, sort: id as Sort }))}>
+                <Icon name={view.sort === id ? "check" : "sort"} size={13} />
+                {text}
+              </button>
+            )),
+          ]}
+        </ContextMenu>
       )}
       <nav className="kx-tree kx-workspace-tree" role="tree" aria-label="Workspace">
         {top.map((key) => row(key, 0))}
-        {workspaceId && !entries.length && <p className="key-sidebar-hint">No notes, canvases or pages yet. Create one with +.</p>}
+        {view.filter === "all" && <LinkedFolders invoke={invoke} workspaceId={workspaceId} />}
+        {workspaceId && !entries.length && <p className="key-sidebar-hint">No notes, canvases or pages yet. Create one, or link a folder, with +.</p>}
         {workspaceId && view.filter !== "all" && !!entries.length && !top.some(visible) && <p className="key-sidebar-hint">Nothing of this kind yet.</p>}
         {/* The rest of the section takes a row dropped at the end of the top level. */}
         <div className="kx-workspace-end" data-drop={drop?.key === "@end" ? "after" : undefined} {...dropProps(null)} />
       </nav>
-      <LinkedFolders invoke={invoke} workspaceId={workspaceId} />
       {menu && menuKey && (
         <ContextMenu x={menu.x} y={menu.y} label={`${label(menuKey)} folder`} onClose={() => setMenu(undefined)}>
           {(close) => {

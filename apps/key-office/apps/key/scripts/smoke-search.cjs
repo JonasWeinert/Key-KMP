@@ -97,8 +97,8 @@ const assert = require("node:assert/strict");
     assert.equal(await activeKind(), "search", "still in the search tab");
     await shot(page, "tab-collection");
 
-    // Sources (the library) drops the collection but keeps sources only.
-    await sidebar.locator(".kx-tree-label", { hasText: "Sources" }).first().click();
+    // The Library drops the collection but keeps sources only.
+    await sidebar.locator(".kx-top-title", { hasText: "Library" }).click();
     await page.waitForFunction(() => !document.querySelector('.kx-search-page .kx-token[data-field="collection"]'));
     await tab.locator('.kx-kind-chips button[data-kind="source"][aria-pressed="true"]').waitFor();
     assert.equal(await activeKind(), "search");
