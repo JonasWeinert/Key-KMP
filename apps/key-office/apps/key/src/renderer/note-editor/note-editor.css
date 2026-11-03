@@ -1163,7 +1163,7 @@
 }
 
 /* Picker sections and passages */
-.ne-menu-section .kx-section-head {
+.ne-menu-section .kx-search-head {
   padding: 6px 8px 2px;
 }
 .ne-menu-snippet {
@@ -1221,5 +1221,5 @@
 }
 .ne-drop-choice button[aria-pressed="true"] {
   background: var(--kx-accent-soft);
-  color: var(--kx-accent-ink);
+  color: var(--kx-accent);
 }

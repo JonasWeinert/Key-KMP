@@ -1,6 +1,6 @@
 /* Search results in sections: titles and details, in the text, related by meaning. */
 
-.kx-section-head {
+.kx-search-head {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -17,16 +17,16 @@
   text-align: left;
   cursor: default;
 }
-.kx-section-head:hover {
+.kx-search-head:hover {
   color: var(--kx-text-2);
 }
 .kx-section-chevron {
   transition: transform 140ms var(--kx-ease);
 }
-.kx-section-head[aria-expanded="true"] .kx-section-chevron {
+.kx-search-head[aria-expanded="true"] .kx-section-chevron {
   transform: rotate(90deg);
 }
-.kx-section-head .kx-count {
+.kx-search-head .kx-count {
   text-transform: none;
 }
 .kx-section-tag {
@@ -34,7 +34,7 @@
   padding: 0 6px;
   border-radius: 999px;
   background: var(--kx-accent-soft);
-  color: var(--kx-accent-ink);
+  color: var(--kx-accent);
   font-size: 10px;
   text-transform: none;
   letter-spacing: 0;
@@ -63,7 +63,7 @@
 }
 .kx-found-row[aria-selected="true"] {
   background: var(--kx-accent);
-  color: var(--kx-on-accent);
+  color: var(--kx-accent-ink);
 }
 .kx-found-row[aria-selected="true"] :is(.kx-found-detail, .kx-found-where, .kx-found-icon) {
   color: inherit;

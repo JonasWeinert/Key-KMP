@@ -3,8 +3,10 @@
 .kx-palette {
   display: flex;
   flex-direction: column;
-  width: min(620px, 86vw);
+  box-sizing: border-box;
+  width: 100%;
   height: min(520px, 70vh);
+  padding: 14px 12px 10px;
 }
 .kx-palette-field {
   display: flex;
@@ -16,7 +18,11 @@
 }
 .kx-palette-field input {
   flex: 1;
+  height: auto;
+  padding: 2px 0;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   outline: none;
   background: transparent;
   color: var(--kx-text);
@@ -86,7 +92,9 @@
 
 /* Keyboard shortcuts sheet */
 .kx-shortcuts {
-  width: min(760px, 88vw);
+  box-sizing: border-box;
+  width: 100%;
+  padding: 20px 22px;
   max-height: 76vh;
   overflow-y: auto;
 }
@@ -125,4 +133,8 @@
 .kx-shortcuts dd {
   margin: 0;
   color: var(--kx-text-2);
+}
+.kx-palette .kx-palette-field input:is(:focus, :focus-visible) {
+  outline: none;
+  box-shadow: none;
 }

@@ -9,6 +9,7 @@ import {
   screen,
   shell as systemShell,
   nativeImage,
+  globalShortcut,
   type MenuItemConstructorOptions,
 } from "electron";
 import { existsSync } from "node:fs";
@@ -912,6 +913,55 @@ async function syncZotero(force = false) {
     zoteroSyncing = false;
   }
 }
+/** Quick capture (⌃⌥Space from anywhere): a small window for a thought or a link. */
+let captureWindow: BrowserWindow | undefined;
+function quickCapture() {
+  if (captureWindow && !captureWindow.isDestroyed()) {
+    captureWindow.show();
+    captureWindow.focus();
+    return;
+  }
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const width = 560,
+    height = 236;
+  captureWindow = new BrowserWindow({
+    width,
+    height,
+    x: Math.round(area.x + (area.width - width) / 2),
+    y: Math.round(area.y + area.height * 0.22),
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    title: "Quick capture",
+    ...(process.platform === "darwin" ? { vibrancy: "hud" as const, visualEffectState: "active" as const, backgroundColor: "#00000000", roundedCorners: true } : {}),
+    webPreferences: WINDOW_OPTIONS.webPreferences,
+  });
+  const win = captureWindow;
+  win.once("ready-to-show", () => win.show());
+  win.on("blur", () => !win.isDestroyed() && win.close());
+  if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(`${process.env.ELECTRON_RENDERER_URL}#capture`);
+  else void win.loadFile(join(renderer, "index.html"), { hash: "capture" });
+}
+/** Saves a capture to the focused window's workspace: a link joins the Inbox, text becomes a note. */
+async function saveCapture(text: string) {
+  const workspaceId = focusedShell()?.workspaceId || knownWorkspaces[0]?.id;
+  if (!workspaceId || !text.trim()) return;
+  const value = text.trim();
+  if (/^https?:\/\/\S+$/i.test(value)) {
+    const collections = await registry.invoke<{ id: string; name: string; parentId: string | null }[]>("store_collections", {}, workspaceId);
+    const inbox =
+      collections.find((c) => !c.parentId && c.name === "Inbox")?.id ??
+      (await registry.invoke<{ id: string }>("store_collection_create", { name: "Inbox", parentId: null }, workspaceId)).id;
+    await registry.invoke("store_create", { source: { kind: "web", itemType: "webpage", title: value, url: value, collections: [inbox] } }, workspaceId);
+  } else {
+    const [first, ...rest] = value.split("\n");
+    await registry.invoke("store_note_save", { id: null, sourceId: null, title: first.slice(0, 200), body: rest.join("\n").trim() }, workspaceId);
+  }
+  emit("library-changed");
+}
+
 const WINDOW_OPTIONS = {
   width: 1440,
   height: 960,
@@ -2006,6 +2056,13 @@ else
         });
         emit("note-append", { sourceId: source.id });
       });
+      ipcMain.handle("key:capture-save", async (event, text: unknown) => {
+        if (!captureWindow || event.sender !== captureWindow.webContents) throw Error("Not the capture window");
+        await saveCapture(String(text ?? ""));
+        captureWindow.close();
+      });
+      globalShortcut.register("Control+Alt+Space", quickCapture);
+      app.on("will-quit", () => globalShortcut.unregisterAll());
       // ⌥-dragging a source out of the library: the files themselves, as Finder drags them.
       ipcMain.on("key:start-file-drag", (event, paths: unknown) => {
         const files = (Array.isArray(paths) ? paths : []).map(String).filter((path) => existsSync(path));
@@ -2172,6 +2229,9 @@ else
           case "new":
             home(w);
             break;
+          case "quick-capture":
+            quickCapture();
+            return snapshot(w);
           case "open-home": {
             const existing =
               w.state.tabs.flatMap((t) => t.viewIds).find((id) => views.get(id)?.content?.section === "home") ??

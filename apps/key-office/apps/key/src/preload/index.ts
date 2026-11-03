@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("key", {
   thumbnail: (path: string, size?: number) => ipcRenderer.invoke("key:thumbnail", path, size),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   startFileDrag: (paths: string[]) => ipcRenderer.send("key:start-file-drag", paths),
+  captureSave: (text: string) => ipcRenderer.invoke("key:capture-save", text),
   openSource: (source: unknown, hit?: unknown, results?: unknown[]) =>
     ipcRenderer.invoke("key:open-source", source, hit, results),
   tabAction: (action: string, payload?: unknown) =>

@@ -1,0 +1,69 @@
+/* The quick capture window */
+html:has(.kx-capture),
+html:has(.kx-capture) body {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+.kx-capture {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--kx-bg-raised) 88%, transparent);
+  color: var(--kx-text);
+  font: 13px var(--kx-font);
+  -webkit-app-region: drag;
+}
+.kx-capture header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kx-capture textarea {
+  flex: 1;
+  margin: 10px 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--kx-text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-app-region: no-drag;
+}
+.kx-capture footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+}
+.kx-capture button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+  font: inherit;
+  font-weight: 600;
+  -webkit-app-region: no-drag;
+}
+.kx-capture button:disabled {
+  opacity: 0.5;
+}
+.kx-capture kbd {
+  font: inherit;
+  opacity: 0.75;
+}

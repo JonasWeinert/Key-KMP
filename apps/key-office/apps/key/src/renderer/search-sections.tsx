@@ -41,7 +41,7 @@ export function useCollapsedGroups() {
 
 export function SectionHeader({ group, count, collapsed, onToggle, pending, extra }: { group: SearchGroup; count: number; collapsed: boolean; onToggle: () => void; pending?: boolean; extra?: ReactNode }) {
   return (
-    <button type="button" className="kx-section-head" data-group={group} aria-expanded={!collapsed} onMouseDown={(e) => e.preventDefault()} onClick={onToggle}>
+    <button type="button" className="kx-search-head" data-group={group} aria-expanded={!collapsed} onMouseDown={(e) => e.preventDefault()} onClick={onToggle}>
       <Icon name="chevronRight" size={11} className="kx-section-chevron" />
       <span>{GROUP_LABEL[group]}</span>
       <span className="kx-count">{pending ? "…" : count}</span>
