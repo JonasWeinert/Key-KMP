@@ -82,23 +82,24 @@ export default function ReferencesPanel({
   }, [open, prefs]);
 
   const list = useCallback(
-    (limit: number, background = false) =>
-      invoke<SourcePage>(
-        "store_sources",
-        { text: query.trim() || null, scope: prefs.scope, sort: prefs.sort.field, descending: prefs.sort.descending, limit, ...(background ? { $background: true } : {}) },
-        workspaceId,
-      ),
+    (limit: number) =>
+      invoke<SourcePage>("store_sources", { text: query.trim() || null, scope: prefs.scope, sort: prefs.sort.field, descending: prefs.sort.descending, limit }, workspaceId),
     [invoke, workspaceId, query, prefs.scope, prefs.sort.field, prefs.sort.descending],
   );
   useEffect(() => {
     if (!workspaceId || !open) return setPage(undefined);
     let current = true;
-    let known: number | undefined;
+    // What the list last showed: how many sources, and the latest change to any of them.
+    let known: string | undefined;
+    const latest = () =>
+      invoke<SourcePage>("store_sources", { scope: prefs.scope, sort: "updated", descending: true, limit: 1, $background: true }, workspaceId).then(
+        (p) => `${p.counts.all}:${p.items[0]?.updatedAt ?? 0}`,
+      );
     const load = () =>
-      void list(LIMIT)
-        .then((p) => {
+      void Promise.all([list(LIMIT), latest()])
+        .then(([p, stamp]) => {
           if (!current) return;
-          known = p.counts.all;
+          known = stamp;
           setPage(p);
         })
         .catch(() => current && setPage(undefined));
@@ -107,8 +108,9 @@ export default function ReferencesPanel({
     // Sources added elsewhere (another window, an import, the agent) appear without a reload.
     const poll = window.setInterval(() => {
       if (document.hidden) return;
-      void list(1, true)
-        .then((p) => current && known !== undefined && p.counts.all !== known && load())
+      // Also catches changes made in the background (an OpenAlex lookup filling in authors).
+      void latest()
+        .then((stamp) => current && known !== undefined && stamp !== known && load())
         .catch(() => {});
     }, 4000);
     window.addEventListener("focus", load);

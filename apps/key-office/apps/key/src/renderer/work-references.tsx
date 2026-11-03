@@ -7,35 +7,82 @@ import { Icon } from "./icons";
 import { openItemAt } from "./item-actions";
 import { itemAttrs } from "./item-ui";
 import { libraryChanged } from "./library-nav";
-import type { Invoke, OpenAlexExtra, SourceGraph, WorkReference } from "./library-api";
+import type { Invoke, OpenAlexExtra, Source, SourceGraph, WorkReference } from "./library-api";
 import "./entity.css";
 
 const SHOWN = 12;
 
 type Work = Pick<WorkReference, "title" | "byline" | "year" | "container" | "doi" | "openalexId" | "matchedSourceId" | "text">;
 
-function WorkRow({ work, onAdd }: { work: Work; onAdd?: () => void }) {
+/** One work: its title and byline; opened, its abstract (read when first opened) and what
+ *  can be done with it. Works already in the library say so. */
+function WorkRow({ work, invoke, workspaceId, onAdd }: { work: Work; invoke: Invoke; workspaceId: string; onAdd?: () => Promise<void> }) {
   const title = work.title || work.text || work.doi || "Untitled work";
   const detail = [work.byline, work.year, work.container].filter(Boolean).join(" · ");
   const inLibrary = !!work.matchedSourceId;
+  const [open, setOpen] = useState(false);
+  const [about, setAbout] = useState<{ abstract?: string | null; doi?: string | null; oaUrl?: string | null } | "loading" | string>();
+  const [adding, setAdding] = useState(false);
+  const toggle = () => {
+    setOpen(!open);
+    if (open || about !== undefined) return;
+    setAbout("loading");
+    const read = inLibrary
+      ? invoke<Source | null>("store_source", { id: work.matchedSourceId }, workspaceId).then((s) => ({ abstract: s?.abstract, doi: s?.doi, oaUrl: s?.oaUrl }))
+      : work.openalexId
+        ? invoke<{ abstract?: string | null; doi?: string | null; oaUrl?: string | null }>("store_openalex_work", { openalexId: work.openalexId }, workspaceId)
+        : Promise.resolve({ abstract: null, doi: work.doi });
+    void read.then(setAbout).catch((e) => setAbout(String(e).replace(/^Error: /, "")));
+  };
+  const link = typeof about === "object" ? (about.doi ? `https://doi.org/${about.doi}` : about.oaUrl) : work.doi ? `https://doi.org/${work.doi}` : undefined;
   return (
-    <li data-in-library={inLibrary} {...(inLibrary ? itemAttrs({ kind: "source", id: work.matchedSourceId!, title }) : {})}>
-      <span>
-        {inLibrary ? (
-          <button className="kx-work-title" onClick={(e) => openItemAt({ kind: "source", id: work.matchedSourceId! }, e.altKey ? "split" : "tab", title)}>
-            {title}
-          </button>
-        ) : (
-          <span className="kx-work-title" title="Not in your library">
-            {title}
-          </span>
-        )}
-        {detail && <small>{detail}</small>}
-      </span>
-      {!inLibrary && onAdd && (
-        <button className="kx-work-add" onClick={onAdd} aria-label={`Add “${title}” to the library`}>
-          Add
-        </button>
+    <li data-in-library={inLibrary} data-open={open} {...(inLibrary ? itemAttrs({ kind: "source", id: work.matchedSourceId!, title }) : {})}>
+      <button className="kx-work-head" aria-expanded={open} onClick={toggle}>
+        <Icon name="chevronRight" size={10} />
+        <span className="kx-work-text">
+          <span className="kx-work-title">{title}</span>
+          {detail && <small>{detail}</small>}
+        </span>
+        {inLibrary && <span className="kx-work-badge">In library</span>}
+      </button>
+      {open && (
+        <div className="kx-work-body">
+          {about === "loading" ? (
+            <p className="kx-work-abstract kx-work-muted">Loading the abstract…</p>
+          ) : typeof about === "string" ? (
+            <p className="kx-work-abstract kx-work-muted">{about}</p>
+          ) : about?.abstract ? (
+            <p className="kx-work-abstract">{about.abstract}</p>
+          ) : (
+            <p className="kx-work-abstract kx-work-muted">No abstract available.</p>
+          )}
+          {!inLibrary && work.text && work.text !== title && <p className="kx-work-abstract kx-work-muted">{work.text}</p>}
+          <div className="kx-work-actions">
+            {inLibrary ? (
+              <button className="kx-page-action" onClick={(e) => openItemAt({ kind: "source", id: work.matchedSourceId! }, e.altKey ? "split" : "tab", title)}>
+                <Icon name="doc" size={12} /> Open
+              </button>
+            ) : (
+              onAdd && (
+                <button
+                  className="kx-page-action"
+                  disabled={adding}
+                  onClick={() => {
+                    setAdding(true);
+                    void onAdd().finally(() => setAdding(false));
+                  }}
+                >
+                  <Icon name="plus" size={12} /> {adding ? "Adding…" : "Add to library"}
+                </button>
+              )
+            )}
+            {link && (
+              <a className="kx-page-action" href={link} target="_blank" rel="noreferrer">
+                <Icon name="external" size={12} /> {link.includes("doi.org") ? "DOI" : "Open access copy"}
+              </a>
+            )}
+          </div>
+        </div>
       )}
     </li>
   );
@@ -64,7 +111,7 @@ export function WorkReferences({ invoke, workspaceId, sourceId, graph, hasWork, 
           </h3>
           <ul className="kx-work-list">
             {shown.map((work) => (
-              <WorkRow key={`${work.origin}:${work.seq}`} work={work} onAdd={work.openalexId ? () => void add(work) : undefined} />
+              <WorkRow key={`${work.origin}:${work.seq}`} work={work} invoke={invoke} workspaceId={workspaceId} onAdd={work.openalexId ? () => add(work) : undefined} />
             ))}
           </ul>
           {references.length > SHOWN && (
@@ -81,7 +128,7 @@ export function WorkReferences({ invoke, workspaceId, sourceId, graph, hasWork, 
           </h3>
           <ul className="kx-work-list">
             {graph.citedBy.map((s) => (
-              <WorkRow key={s.id} work={{ title: s.title, year: s.year, matchedSourceId: s.id }} />
+              <WorkRow key={s.id} work={{ title: s.title, year: s.year, matchedSourceId: s.id }} invoke={invoke} workspaceId={workspaceId} />
             ))}
           </ul>
         </section>
@@ -111,7 +158,7 @@ export function WorkReferences({ invoke, workspaceId, sourceId, graph, hasWork, 
                   </h3>
                   <ul className="kx-work-list">
                     {extra.related.map((work) => (
-                      <WorkRow key={work.openalexId} work={work} onAdd={() => void add(work)} />
+                      <WorkRow key={work.openalexId} work={work} invoke={invoke} workspaceId={workspaceId} onAdd={() => add(work)} />
                     ))}
                   </ul>
                 </>

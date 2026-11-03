@@ -10,7 +10,9 @@ import { copyItemLink, openItemAt } from "./item-actions";
 import { ItemPage } from "./ItemPage";
 import LinkedFrom from "./LinkedFrom";
 import { libraryChanged } from "./library-nav";
+import { itemAttrs } from "./item-ui";
 import {
+  KIND_ICON,
   bridge,
   fetchedAgo,
   shortCreators,
@@ -156,22 +158,31 @@ export default function EntityPage({ invoke, workspaceId, kind, id, viewId }: { 
           </details>
         </header>
       }
+      titleText={name}
+      details={{
+        summary: entitySummary(kind, data, total),
+        content: (
+          <>
+            {kind === "person" && <PersonDetails page={data as PersonPageData} />}
+            {kind === "venue" && <VenueDetails page={data as VenuePageData} />}
+            {kind === "topic" && <TopicDetails page={data as TopicPageData} />}
+            {kind !== "topic" && (
+              <section className="kx-page-properties" aria-label="In your library">
+                <Row label="In your library">
+                  <span>
+                    {total} {total === 1 ? "source" : "sources"}
+                    {kind === "person" ? years((data as PersonPageData).firstYear, (data as PersonPageData).lastYear) && ` · ${years((data as PersonPageData).firstYear, (data as PersonPageData).lastYear)}` : ""}
+                    {kind === "venue" ? years((data as VenuePageData).firstYear, (data as VenuePageData).lastYear) && ` · ${years((data as VenuePageData).firstYear, (data as VenuePageData).lastYear)}` : ""}
+                  </span>
+                </Row>
+              </section>
+            )}
+          </>
+        ),
+      }}
+      notice={kind === "person" && <MergeSuggestions invoke={invoke} workspaceId={workspaceId} page={data as PersonPageData} onChanged={(next) => (next ? void load() : setData(null))} />}
       title={<h1 className="kx-note-title kx-entity-title">{name}</h1>}
     >
-      {kind === "person" && <PersonDetails invoke={invoke} workspaceId={workspaceId} page={data as PersonPageData} onChanged={(next) => (next ? void load() : setData(null))} />}
-      {kind === "venue" && <VenueDetails page={data as VenuePageData} />}
-      {kind === "topic" && <TopicDetails page={data as TopicPageData} />}
-      {kind !== "topic" && (
-        <section className="kx-page-properties" aria-label="In your library">
-          <Row label="In your library">
-            <span>
-              {total} {total === 1 ? "source" : "sources"}
-              {kind === "person" ? years((data as PersonPageData).firstYear, (data as PersonPageData).lastYear) && ` · ${years((data as PersonPageData).firstYear, (data as PersonPageData).lastYear)}` : ""}
-              {kind === "venue" ? years((data as VenuePageData).firstYear, (data as VenuePageData).lastYear) && ` · ${years((data as VenuePageData).firstYear, (data as VenuePageData).lastYear)}` : ""}
-            </span>
-          </Row>
-        </section>
-      )}
       {error && <p className="kx-inline-error">{error}</p>}
 
       <section className="kx-page-section" aria-label="Sources">
@@ -180,13 +191,14 @@ export default function EntityPage({ invoke, workspaceId, kind, id, viewId }: { 
         </h3>
         <ul className="kx-work-list">
           {sources.map((s) => (
-            <li key={s.id} data-in-library="true">
-              <span>
-                <button className="kx-work-title" onClick={(e) => openItemAt({ kind: "source", id: s.id }, e.altKey ? "split" : "tab", s.title)}>
-                  {s.title || "Untitled"}
-                </button>
-                <small>{[shortCreators(s.creators), s.year, s.containerShort || s.containerTitle, s.retracted === 1 ? "Retracted" : ""].filter(Boolean).join(" · ")}</small>
-              </span>
+            <li key={s.id} data-in-library="true" {...itemAttrs({ kind: "source", id: s.id, title: s.title || "Untitled" })}>
+              <button className="kx-work-head" onClick={(e) => openItemAt({ kind: "source", id: s.id }, e.altKey ? "split" : "tab", s.title)}>
+                <Icon name={KIND_ICON[s.kind] ?? "doc"} size={13} />
+                <span className="kx-work-text">
+                  <span className="kx-work-title">{s.title || "Untitled"}</span>
+                  <small>{[shortCreators(s.creators), s.year, s.containerShort || s.containerTitle, s.retracted === 1 ? "Retracted" : ""].filter(Boolean).join(" · ")}</small>
+                </span>
+              </button>
             </li>
           ))}
         </ul>
@@ -229,7 +241,8 @@ function Metrics({ works, hIndex, cited, at }: { works?: number | null; hIndex?:
   );
 }
 
-function PersonDetails({ invoke, workspaceId, page, onChanged }: { invoke: Invoke; workspaceId: string; page: PersonPageData; onChanged: (exists: boolean) => void }) {
+/** Possible duplicates of this person, to merge or dismiss: shown even while the details are folded. */
+function MergeSuggestions({ invoke, workspaceId, page, onChanged }: { invoke: Invoke; workspaceId: string; page: PersonPageData; onChanged: (exists: boolean) => void }) {
   const { person } = page;
   const merge = async (keep: string, other: string) => {
     await invoke("store_merge_people", { keep, other }, workspaceId);
@@ -264,6 +277,14 @@ function PersonDetails({ invoke, workspaceId, page, onChanged }: { invoke: Invok
           </div>
         );
       })}
+    </>
+  );
+}
+
+function PersonDetails({ page }: { page: PersonPageData }) {
+  const { person } = page;
+  return (
+    <>
       <section className="kx-page-properties" aria-label="Properties">
         {person.institution && (
           <Row label="Institution">
@@ -366,4 +387,19 @@ function TopicDetails({ page }: { page: TopicPageData }) {
       )}
     </section>
   );
+}
+
+/** The folded details' one line. */
+function entitySummary(kind: EntityKind, data: Data, total: number) {
+  const sources = `${total} ${total === 1 ? "source" : "sources"}`;
+  if (kind === "person") {
+    const { person } = data as PersonPageData;
+    return [person.institution?.name, sources, person.hIndex != null && `h-index ${person.hIndex}`].filter(Boolean).join(" · ");
+  }
+  if (kind === "venue") {
+    const { venue } = data as VenuePageData;
+    return [venue.publisher?.name, sources].filter(Boolean).join(" · ");
+  }
+  const { topic } = data as TopicPageData;
+  return [topic.path.map((t) => t.name).join(" › "), `${topic.sourceCount} ${topic.sourceCount === 1 ? "source" : "sources"}`].filter(Boolean).join(" · ");
 }

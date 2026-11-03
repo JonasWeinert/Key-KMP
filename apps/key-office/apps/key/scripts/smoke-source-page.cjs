@@ -46,7 +46,7 @@ const assert = require("node:assert/strict");
     const tab = tabs.tabs.find((t) => t.id === tabs.activeTabId);
     assert.deepEqual(tab.views.map((v) => v.kind), ["pdf", "page"]);
     assert.equal(await page.locator(".kx-source-page[data-side=false] .kx-source-page-title").inputValue(), "Health versus income");
-    await page.locator(".kx-source-page[data-side=false] .kx-page-properties .kx-field-row", { hasText: "Published in" }).waitFor();
+    await page.locator(".kx-source-page[data-side=false] .kx-page-details-toggle").waitFor();
     // Highlights sit above the note.
     assert.ok(
       await page.evaluate(() => {
@@ -135,19 +135,22 @@ const assert = require("node:assert/strict");
       return t.tabs.find((x) => x.id === t.activeTabId).views.map((v) => v.kind).join() === "pdf,page";
     });
 
-    // Like a note: the properties sit straight under the title, Author first, with no tabs
-    // or folding; the header is one quiet row.
+    // Everything between the title and the highlights folds under one control beneath the
+    // title, folded at first with a one-line summary; opened, Author comes first.
     const tabPage = page.locator(".kx-source-page[data-side=false]");
+    const toggle = tabPage.locator(".kx-page-details-toggle");
     assert.ok(
-      await page.evaluate(() => {
-        const title = document.querySelector(".kx-source-page[data-side=false] .kx-source-page-title");
-        const details = document.querySelector(".kx-source-page[data-side=false] .kx-page-details");
-        return !!details && title.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING && details.querySelector(".kx-page-author");
-      }),
-      "properties follow the title, Author first",
+      await page.evaluate(() => document.querySelector(".kx-source-page[data-side=false] .kx-page-title").nextElementSibling?.classList.contains("kx-page-details-toggle")),
+      "the control sits under the title",
     );
-    assert.equal(await tabPage.locator(".kx-page-parts, .kx-page-details-toggle").count(), 0, "no tabs or accordion");
+    assert.equal(await toggle.getAttribute("aria-expanded"), "false", "folded by default");
+    await tabPage.locator(".kx-page-details-summary", { hasText: "PLoS ONE · 2022" }).waitFor();
+    assert.equal(await tabPage.locator(".kx-page-details").count(), 0);
+    assert.equal(await tabPage.locator(".kx-page-parts").count(), 0, "no tabs");
+    await toggle.click();
+    await tabPage.locator(".kx-page-details .kx-page-author").waitFor();
     await tabPage.locator(".kx-page-properties .kx-field-row", { hasText: "Published in" }).waitFor();
+    await toggle.click();
     const barHeight = await tabPage.locator(".kx-source-page-bar").evaluate((el) => el.getBoundingClientRect().height);
     assert.ok(barHeight < 40, `the header is one row (${barHeight}px)`);
     const gap = await page.evaluate(() => {
@@ -157,6 +160,15 @@ const assert = require("node:assert/strict");
     });
     assert.ok(gap < 110, `the title follows the header closely (${gap}px)`);
     await page.screenshot({ path: path.join(temp, "note-style.png") });
+
+    // The title is sized for the pane, and pinned in a compact bar once it scrolls away.
+    assert.ok(Number.parseFloat(await tabPage.locator(".kx-page-title").evaluate((el) => getComputedStyle(el).getPropertyValue("--kx-title-size"))) >= 18);
+    await toggle.click();
+    await tabPage.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+    await tabPage.locator('.kx-page-pinned[data-visible="true"] button', { hasText: "Health versus income" }).waitFor();
+    await tabPage.locator(".kx-page-pinned button").click();
+    await tabPage.locator('.kx-page-pinned[data-visible="false"]').waitFor({ state: "attached" });
+    await toggle.click();
 
     // "More" opens the PDF in its own tab: here it is already open, so it jumps there.
     await tabPage.locator(".kx-source-more summary").click();

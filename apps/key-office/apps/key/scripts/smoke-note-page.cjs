@@ -22,6 +22,8 @@ const assert = require("node:assert/strict");
     page.on("pageerror", (e) => errors.push(String(e)));
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 900));
     await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+    // Page details start folded; these checks work with the properties, so open them once.
+    await page.evaluate(() => localStorage.setItem("key.page.details.open", "1"));
     const [ws] = await page.evaluate(() => window.key.workspaces());
     const call = (command, args = {}) => page.evaluate(({ command, args, id }) => window.key.invoke(command, args, id), { command, args, id: ws.id });
     await call("workspace_save_attribute", { name: "Stage", config: { type: "text" } });

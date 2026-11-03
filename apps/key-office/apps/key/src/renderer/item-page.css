@@ -309,3 +309,47 @@
 .key-record-page > .kx-page-cover {
   margin: 0 calc(-1 * clamp(24px, 6vw, 72px)) 12px;
 }
+
+/* The title: sized by ItemPage for the pane and its length (--kx-title-size). */
+.kx-item-page .kx-page-title > :is(.kx-source-page-title, .kx-note-title, .kx-entity-title) {
+  font-size: var(--kx-title-size, 30px);
+  line-height: 1.18;
+}
+/* Pinned once the title has scrolled away: a compact copy at the top of the page, which
+   goes back up when clicked. Takes no room of its own. */
+.kx-page-pinned {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 0;
+}
+.kx-page-pinned > button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: block;
+  height: 38px;
+  padding: 0 56px;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid var(--kx-line);
+  background: color-mix(in srgb, var(--kx-bg) 86%, transparent);
+  backdrop-filter: saturate(1.6) blur(14px);
+  color: var(--kx-text);
+  font: 600 13px/38px var(--kx-font);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--kx-ease),
+    transform 160ms var(--kx-ease);
+}
+.kx-page-pinned[data-visible="true"] > button {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}

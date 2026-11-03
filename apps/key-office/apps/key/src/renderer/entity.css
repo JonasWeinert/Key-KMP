@@ -141,60 +141,83 @@
   font: inherit;
 }
 
-/* What a work cites and what cites it. Works not in the library are faint, with Add. */
+/* What a work cites and what cites it: each row opens in place to its abstract. Works in
+   the library carry a small mark. */
 .kx-work-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.kx-work-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 0;
+.kx-work-list > li {
   border-bottom: 1px solid var(--kx-line);
-  font-size: 13px;
 }
-.kx-work-list li > :first-child {
-  flex: 1;
-  min-width: 0;
-}
-.kx-work-list li[data-in-library="false"] {
-  color: var(--kx-text-3);
-}
-.kx-work-list small {
-  display: block;
-  color: var(--kx-text-3);
-  font-size: 11.5px;
-}
-.kx-work-list li[data-in-library="true"] button.kx-work-title {
-  color: var(--kx-text);
-}
-.kx-work-title {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-.kx-work-list li[data-in-library="true"] .kx-work-title:hover {
-  color: var(--kx-accent);
-  text-decoration: underline;
-}
-.kx-work-add {
-  flex: none;
-  padding: 1px 8px;
+.kx-work-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 4px;
   border: 0;
   border-radius: 6px;
-  background: var(--kx-fill);
-  color: var(--kx-text-2);
-  font: 500 11.5px var(--kx-font);
-  opacity: 0;
+  background: transparent;
+  color: var(--kx-text);
+  font: 13.5px/1.4 var(--kx-font);
+  text-align: left;
 }
-.kx-work-list li:hover .kx-work-add,
-.kx-work-add:focus-visible {
-  opacity: 1;
+.kx-work-head:hover {
+  background: var(--kx-fill);
+}
+.kx-work-head > svg {
+  flex: none;
+  margin-top: 5px;
+  color: var(--kx-text-3);
+  transition: transform 140ms var(--kx-ease);
+}
+.kx-work-head[aria-expanded="true"] > svg {
+  transform: rotate(90deg);
+}
+.kx-work-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.kx-work-title {
+  color: var(--kx-text);
+}
+.kx-work-text small {
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.kx-work-badge {
+  flex: none;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--kx-accent-soft);
+  color: var(--kx-accent);
+  font: 500 11px/16px var(--kx-font);
+}
+.kx-work-body {
+  padding: 0 4px 10px 22px;
+  animation: kx-pop 140ms var(--kx-ease);
+}
+.kx-work-abstract {
+  margin: 2px 0 8px;
+  color: var(--kx-text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.kx-work-muted {
+  color: var(--kx-text-2);
+}
+.kx-work-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kx-work-actions a.kx-page-action {
+  text-decoration: none;
 }
 
 /* An entity page: facts in a grid, then everything the library connects to it. */
@@ -327,4 +350,8 @@
 .kx-entity-title.kx-note-title {
   margin-bottom: 14px;
   font: 700 30px var(--kx-font-display);
+}
+.kx-entity-page {
+  height: 100%;
+  overflow-y: auto;
 }

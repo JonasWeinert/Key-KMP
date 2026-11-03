@@ -70,8 +70,14 @@ export function AutoText({ value, onCommit, className, placeholder, label }: { v
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = "0";
-    el.style.height = `${el.scrollHeight}px`;
+    const fit = () => {
+      el.style.height = "0";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    // A page title changes size with its pane (see ItemPage's titleSize).
+    window.addEventListener("key:title-size", fit);
+    return () => window.removeEventListener("key:title-size", fit);
   }, [draft]);
   return (
     <textarea

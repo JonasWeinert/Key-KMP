@@ -2,7 +2,7 @@
 // actions (Read for a PDF, Open file for a file ...), an optional cover and icon, the title,
 // a block of properties, then the item's editor and parts. Notes, sources and workspace
 // pages all render through `ItemPage`; each passes its own bar, title and body.
-import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode, type Ref } from "react";
 import type { Creator } from "./citation";
 import { Icon, type IconName } from "./icons";
 import type { PropertyDefinition } from "./PropertySheets";
@@ -33,6 +33,9 @@ export function ItemPage({
   defaultIcon,
   bar,
   title,
+  titleText,
+  details,
+  notice,
   children,
   ...rest
 }: {
@@ -49,19 +52,110 @@ export function ItemPage({
   defaultIcon: IconName;
   bar: ReactNode;
   title: ReactNode;
+  /** The title as text: sizes the title and shows in the bar pinned on scroll. */
+  titleText?: string;
+  /** Everything between the title and the item's content: folded by default under one
+   *  control beneath the title. `summary` is the line shown while it is folded. */
+  details?: { summary?: ReactNode; content: ReactNode };
+  /** Shown under the title whether the details are open or not (a retraction). */
+  notice?: ReactNode;
   children: ReactNode;
 } & Omit<HTMLAttributes<HTMLElement>, "title">) {
   const background = coverBackground(appearance.cover, media?.url);
+  const article = useRef<HTMLElement | null>(null);
+  const setArticle = useCallback(
+    (el: HTMLElement | null) => {
+      article.current = el;
+      if (typeof pageRef === "function") pageRef(el);
+      else if (pageRef) (pageRef as { current: HTMLElement | null }).current = el;
+    },
+    [pageRef],
+  );
+  const heading = useRef<HTMLDivElement>(null);
+  const [pinned, setPinned] = useState(false);
+  const [size, setSize] = useState<number>();
+  // The title follows the pane's width and its own length: large when short in a wide pane.
+  useLayoutEffect(() => {
+    const el = article.current;
+    if (!el) return;
+    const fit = () => setSize(titleSize(el.clientWidth, titleText?.length ?? 0));
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [titleText?.length]);
+  useLayoutEffect(() => {
+    window.dispatchEvent(new Event("key:title-size"));
+  }, [size]);
+  // Once the title has scrolled away, a compact copy stays at the top.
+  useEffect(() => {
+    const root = article.current;
+    const target = heading.current;
+    if (!root || !target) return;
+    // Only once the page has been scrolled: while a pane first lays out the title can briefly
+    // read as out of view.
+    const observer = new IntersectionObserver(
+      ([entry]) => setPinned(root.scrollTop > 8 && !entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0) + 1),
+      { root, threshold: 0 },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
   return (
-    <article ref={pageRef} className={`kx-item-page ${className}`} data-kind={kind} data-cover={!!appearance.cover} data-icon={!!appearance.icon} {...rest}>
+    <article ref={setArticle} className={`kx-item-page ${className}`} data-kind={kind} data-cover={!!appearance.cover} data-icon={!!appearance.icon} {...rest}>
+      {titleText !== undefined && (
+        <div className="kx-page-pinned" aria-hidden={!pinned} data-visible={pinned}>
+          <button tabIndex={pinned ? 0 : -1} onClick={() => article.current?.scrollTo({ top: 0, behavior: "smooth" })} title="Back to the top">
+            {titleText || "Untitled"}
+          </button>
+        </div>
+      )}
       <div className={`${innerClassName} kx-item-page-toprow`}>{bar}</div>
       {background && <PageCover background={background} appearance={appearance} onAppearance={onAppearance} media={media} />}
       <div className={`${innerClassName} kx-item-page-body`} {...innerProps}>
         <PageHeading appearance={appearance} onAppearance={onAppearance} media={media} defaultIcon={defaultIcon} />
-        {title}
+        <div ref={heading} className="kx-page-title" style={size ? ({ "--kx-title-size": `${size}px` } as CSSProperties) : undefined}>
+          {title}
+        </div>
+        {details && <PageDetails summary={details.summary}>{details.content}</PageDetails>}
+        {notice}
         {children}
       </div>
     </article>
+  );
+}
+
+/** Title size in px for a pane `width` wide and a title `length` characters long. */
+export function titleSize(width: number, length: number) {
+  const base = width < 420 ? 22 : width < 640 ? 26 : width < 900 ? 31 : 36;
+  const long = length > 90 ? 7 : length > 60 ? 5 : length > 36 ? 2 : 0;
+  return Math.max(18, base - long);
+}
+
+/** The details' fold, the same on every page and remembered across them (folded at first). */
+function PageDetails({ summary, children }: { summary?: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem("key.page.details.open") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () => {
+    setOpen(!open);
+    try {
+      localStorage.setItem("key.page.details.open", open ? "0" : "1");
+    } catch {}
+  };
+  return (
+    <>
+      <button className="kx-page-details-toggle" onClick={toggle} aria-expanded={open}>
+        <Icon name="chevronRight" size={11} />
+        <span>Details</span>
+        {!open && summary && <span className="kx-page-details-summary">{summary}</span>}
+      </button>
+      {open && <div className="kx-page-details">{children}</div>}
+    </>
   );
 }
 

@@ -216,6 +216,9 @@ fn fixture(dir: &std::path::Path, path: &str, query: &[(&str, &str)]) -> Result<
     if let Some(found) = read(&format!("{key}.json")) {
         return Ok(found);
     }
+    if let Some(found) = records().into_iter().find(|r| short(r) == key) {
+        return Ok(found);
+    }
     let (scheme, value) = key.split_once(':').ok_or(Fail::NotFound)?;
     let value = value.to_ascii_lowercase();
     records()
@@ -427,6 +430,23 @@ pub fn dispatch(library: &Library, command: &str, args: &Json) -> Option<Result<
             let record = get_now(&path, &[("select", select)], &options).map_err(|f| f.message())?;
             let related: Vec<String> = record["related_works"].as_array().into_iter().flatten().filter_map(Json::as_str).map(|w| w.rsplit('/').next().unwrap_or("").to_string()).collect();
             json_output(json!({ "countsByYear": record["counts_by_year"], "related": described(store, &related, &options)? }))
+        })(),
+        // One cited or related work's abstract and links, when the user opens it (not stored).
+        "store_openalex_work" => (|| {
+            let work: String = arg(args, "openalexId")?;
+            let options = openalex.options();
+            let record = get_now(&format!("works/{work}"), &[("select", "id,doi,abstract_inverted_index,open_access,cited_by_count")], &options);
+            let record = match record {
+                Ok(record) => record,
+                Err(Fail::NotFound) => return json_output(json!({ "abstract": null })),
+                Err(fail) => return Err(fail.message()),
+            };
+            json_output(json!({
+                "abstract": record.get("abstract_inverted_index").and_then(key_store::abstract_text),
+                "doi": record["doi"].as_str().map(bare_doi),
+                "oaUrl": record["open_access"]["oa_url"],
+                "citedByCount": record["cited_by_count"],
+            }))
         })(),
         // "Add to library" for a cited work that is not in it yet: a reference, looked up next.
         "store_add_work" => (|| {

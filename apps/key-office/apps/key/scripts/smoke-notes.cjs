@@ -59,6 +59,8 @@ function png(width, height, [r, g, b]) {
     await page.emulateMedia({ colorScheme: null });
     // Let start-up open its Home tab first, so it doesn't take focus from Sources later.
     await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+    // Page details start folded; these checks work with the properties, so open them once.
+    await page.evaluate(() => localStorage.setItem("key.page.details.open", "1"));
     const [ws] = await page.evaluate(() => window.key.workspaces());
     const call = (command, args = {}) => page.evaluate(({ command, args, id }) => window.key.invoke(command, args, id), { command, args, id: ws.id });
     const [created] = await page.evaluate(({ id, files }) => window.key.importPaths(id, files), { id: ws.id, files: [fixture] });

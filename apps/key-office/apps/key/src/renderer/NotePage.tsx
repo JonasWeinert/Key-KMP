@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
 import { ItemPage, ItemProperties, type AppearancePatch } from "./ItemPage";
-import type { Invoke, Note, Source } from "./library-api";
+import { shortCreators, type Invoke, type Note, type Source } from "./library-api";
+import type { Creator } from "./citation";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
 import LinkedFrom from "./LinkedFrom";
@@ -126,6 +127,22 @@ export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invo
           </button>
         </header>
       }
+      titleText={note.title}
+      details={{
+        summary: noteSummary(note.fields ?? {}, note.properties ?? {}),
+        content: (
+          <ItemProperties
+            id={note.id}
+            fields={note.fields ?? {}}
+            properties={note.properties ?? {}}
+            definitions={definitions}
+            onFields={(fields) => void saveMeta({ fields })}
+            onProperties={(properties) => void saveMeta({ properties })}
+            onEditDefinition={(definition) => setSheet({ mode: "edit", definition, targets: [] })}
+            onNewProperty={() => setSheet({ mode: "new", targets: [] })}
+          />
+        ),
+      }}
       title={
         <input
           className="kx-note-title"
@@ -147,16 +164,6 @@ export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invo
         />
       }
     >
-      <ItemProperties
-        id={note.id}
-        fields={note.fields ?? {}}
-        properties={note.properties ?? {}}
-        definitions={definitions}
-        onFields={(fields) => void saveMeta({ fields })}
-        onProperties={(properties) => void saveMeta({ properties })}
-        onEditDefinition={(definition) => setSheet({ mode: "edit", definition, targets: [] })}
-        onNewProperty={() => setSheet({ mode: "new", targets: [] })}
-      />
       {error && <p className="kx-inline-error">{error}</p>}
       <NoteEditor
         value={note.body}
@@ -185,4 +192,11 @@ export default function NotePage({ invoke, workspaceId, noteId, viewId }: { invo
       )}
     </ItemPage>
   );
+}
+
+/** The folded details' one line: who wrote it and how many fields and properties it has. */
+function noteSummary(fields: Record<string, unknown>, properties: Record<string, unknown>) {
+  const creators = Array.isArray(fields.creators) ? (fields.creators as Creator[]) : [];
+  const count = Object.keys(fields).filter((k) => k !== "creators").length + Object.keys(properties).length;
+  return [shortCreators(creators), count && `${count} ${count === 1 ? "property" : "properties"}`].filter(Boolean).join(" · ") || undefined;
 }

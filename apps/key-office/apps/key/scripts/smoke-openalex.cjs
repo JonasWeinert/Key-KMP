@@ -58,12 +58,21 @@ const assert = require("node:assert/strict");
     // Its page: the OpenAlex rows among the properties, references with the one in the library.
     await tabAction("open-source-page", { workspaceId: ws.id, sourceId: paper.id, title: "The state of OA", read: false });
     const sourcePage = page.locator(".kx-source-page[data-side=false]");
+    // The OpenAlex rows are among the details, folded under the title at first.
+    await sourcePage.locator(".kx-page-details-toggle").click();
     await sourcePage.locator('.kx-research-row[data-research="Topics"]', { hasText: "Academic Publishing and Open Access" }).waitFor();
     await sourcePage.locator('.kx-research-row[data-research="Cited by"]', { hasText: "1,238" }).waitFor();
     await sourcePage.locator('.kx-research-row[data-research="Access"]', { hasText: "Gold open access" }).waitFor();
     await sourcePage.locator(".kx-work-references h3", { hasText: "1 in your library" }).waitFor();
     await sourcePage.locator('.kx-work-list li[data-in-library="true"]', { hasText: "How open science helps researchers succeed" }).waitFor();
-    assert.ok((await sourcePage.locator('.kx-work-list li[data-in-library="false"]').count()) > 5, "works not in the library show, faint");
+    assert.ok((await sourcePage.locator('.kx-work-list li[data-in-library="false"]').count()) > 5, "works not yet in the library are listed too");
+    // A reference opens in place to its abstract, read from OpenAlex only when opened.
+    await sourcePage.getByRole("button", { name: "Show all 47" }).click();
+    const reference = sourcePage.locator(".kx-work-list li", { hasText: "The Development of Open Access Journal Publishing" });
+    await reference.locator(".kx-work-head").click();
+    await reference.locator(".kx-work-abstract", { hasText: "open access" }).waitFor();
+    await reference.getByRole("button", { name: "Add to library" }).waitFor();
+    await page.screenshot({ path: path.join(temp, "reference-open.png") });
     assert.equal(await sourcePage.locator(".kx-retracted").count(), 0);
     await page.screenshot({ path: path.join(temp, "source-page.png") });
 

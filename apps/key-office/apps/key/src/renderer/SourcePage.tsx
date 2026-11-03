@@ -8,7 +8,7 @@ import { apa, apaInText, bibtex } from "./citation";
 import { Icon } from "./icons";
 import { ProgressRing } from "./index-activity";
 import { ItemPage } from "./ItemPage";
-import { ITEM_TYPES, KIND_ICON, OA_LABEL, bridge as libraryBridge, fetchedAgo, formatBytes, itemTypeLabel, type Collection, type Facet, type Invoke, type Note, type Source, type SourceGraph } from "./library-api";
+import { ITEM_TYPES, KIND_ICON, OA_LABEL, bridge as libraryBridge, fetchedAgo, formatBytes, itemTypeLabel, shortCreators, type Collection, type Facet, type Invoke, type Note, type Source, type SourceGraph } from "./library-api";
 import { libraryChanged } from "./library-nav";
 import { FilterButton, FilterLink, FilterLinks, fieldFilter, showInLibrary, sourceFilter } from "./filter-links";
 import { EntityLink } from "./entity-ui";
@@ -326,103 +326,9 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
   const status = indexLabel(source);
   const progress = side?.progress;
 
-  return (
-    <FilterLinks.Provider value={filterBy}>
-    <ItemPage
-      kind="source"
-      className="kx-source-page"
-      innerClassName="kx-source-page-inner"
-      pageRef={pageRef}
-      data-narrow={width !== "wide"}
-      data-tight={width === "tight"}
-      data-side={!!side}
-      appearance={readAppearance(source.appearance)}
-      onAppearance={(appearance) => void save({ appearance })}
-      media={sources.media}
-      defaultIcon={KIND_ICON[source.kind] ?? "doc"}
-      bar={
-        // Like a note's: what it is on the left, a few quiet actions on the right, the rest under "More".
-        <header className="kx-note-page-head kx-source-page-bar">
-          <span className="kx-note-source kx-kind-badge" data-kind={source.kind}>
-            <Icon name={KIND_ICON[source.kind] ?? "doc"} size={12} />
-            <select aria-label="Item type" value={source.itemType || "document"} onChange={(e) => void save({ itemType: e.target.value })}>
-              {!ITEM_TYPES.some(([id]) => id === source.itemType) && <option value={source.itemType}>{itemTypeLabel(source.itemType)}</option>}
-              {ITEM_TYPES.map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </span>
-          <span className="kx-spacer" />
-          {copied && (
-            <span className="kx-note-saved" aria-live="polite">
-              Copied {copied}
-            </span>
-          )}
-          {isPdf ? (
-            <button className="kx-page-action" onClick={openReader} title="Read the PDF beside this page">
-              <Icon name="book" size={13} />
-              Read
-            </button>
-          ) : source.filePath ? (
-            <button className="kx-icon-button" title="Open file" aria-label="Open file" onClick={() => void libraryBridge().openPath(source.filePath!)}>
-              <Icon name="external" size={14} />
-            </button>
-          ) : (
-            (source.url || source.doi) && (
-              <button className="kx-icon-button" title="Open link" aria-label="Open link" onClick={() => window.open(source.url || `https://doi.org/${source.doi}`, "_blank")}>
-                <Icon name="globe" size={14} />
-              </button>
-            )
-          )}
-          <button className="kx-icon-button" data-active={source.starred} aria-pressed={source.starred} title={source.starred ? "Unstar" : "Star"} onClick={() => void save({ starred: !source.starred })}>
-            <Icon name="star" size={14} fill={source.starred ? "currentColor" : "none"} />
-          </button>
-          <details className="kx-menu kx-source-more">
-            <summary className="kx-icon-button" title="More" aria-label="More">
-              <Icon name="more" size={14} />
-            </summary>
-            <div className="kx-menu-popover" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
-              <button onClick={() => void copy("APA", apa(source), apa(source, true))}>Copy APA reference</button>
-              <button onClick={() => void copy("in-text", apaInText(source))}>Copy in-text citation</button>
-              <button onClick={() => void copy("BibTeX", bibtex(source))}>Copy BibTeX</button>
-              {isPdf && <button onClick={openReaderTab}>Open PDF in its own tab</button>}
-              {!source.filePath && (source.doi || source.url) && <button onClick={() => void findPdf()}>Find PDF</button>}
-              {source.filePath && <button onClick={() => void libraryBridge().revealPath(source.filePath!)}>Show in Finder</button>}
-              <button onClick={() => void enrich()}>Look up in OpenAlex</button>
-              <button onClick={() => void invoke("store_index_control", { action: "reindex", ids: [sourceId] }, workspaceId).then(() => void loadSource())}>Re-index</button>
-            </div>
-          </details>
-          {side && (
-            <>
-              <button className="kx-icon-button" title="Open as page" aria-label="Open as page" onClick={() => side.onOpenPage(source)}>
-                <Icon name="doc" size={14} />
-              </button>
-              <button className="kx-icon-button" title="Close details" aria-label="Close details" onClick={side.onClose}>
-                <Icon name="close" size={13} />
-              </button>
-            </>
-          )}
-        </header>
-      }
-      title={<AutoText className="kx-inspector-title kx-source-page-title kx-note-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />}
-    >
-        {source.kind === "image" && source.filePath && (
-          // served by the shell from the linked file, so the page shows what the source is
-          <figure className="kx-source-image">
-            <img src={`key-media://${workspaceId.toLowerCase()}/source/${encodeURIComponent(source.id)}`} alt={source.title || ""} onDoubleClick={() => void libraryBridge().openPath(source.filePath!)} />
-          </figure>
-        )}
-        {source.retracted === 1 && (
-          <div className="kx-retracted" role="alert">
-            <Icon name="info" size={14} />
-            Retracted
-            <span>OpenAlex lists this work as retracted. Check before citing it.</span>
-          </div>
-        )}
-        {/* Like a note's properties: one list straight under the title, Author first. */}
-        <div className="kx-page-details">
+  // Everything between the title and the highlights folds under "Details" (see ItemPage).
+  const details = (
+    <>
         <section className="kx-page-properties" aria-label="Properties">
           <div className="kx-field-row kx-page-chips kx-page-author">
             <span>Author</span>
@@ -548,8 +454,117 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
             </footer>
           </section>
         )}
-        </div>
+    </>
+  );
+  const detailsSummary = [
+    shortCreators(source.creators),
+    source.containerShort || source.containerTitle,
+    source.year,
+    source.tags.length && `${source.tags.length} ${source.tags.length === 1 ? "tag" : "tags"}`,
+    source.collections.length && `${source.collections.length} ${source.collections.length === 1 ? "collection" : "collections"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
+  return (
+    <FilterLinks.Provider value={filterBy}>
+    <ItemPage
+      kind="source"
+      className="kx-source-page"
+      innerClassName="kx-source-page-inner"
+      pageRef={pageRef}
+      data-narrow={width !== "wide"}
+      data-tight={width === "tight"}
+      data-side={!!side}
+      appearance={readAppearance(source.appearance)}
+      onAppearance={(appearance) => void save({ appearance })}
+      media={sources.media}
+      defaultIcon={KIND_ICON[source.kind] ?? "doc"}
+      bar={
+        // Like a note's: what it is on the left, a few quiet actions on the right, the rest under "More".
+        <header className="kx-note-page-head kx-source-page-bar">
+          <span className="kx-note-source kx-kind-badge" data-kind={source.kind}>
+            <Icon name={KIND_ICON[source.kind] ?? "doc"} size={12} />
+            <select aria-label="Item type" value={source.itemType || "document"} onChange={(e) => void save({ itemType: e.target.value })}>
+              {!ITEM_TYPES.some(([id]) => id === source.itemType) && <option value={source.itemType}>{itemTypeLabel(source.itemType)}</option>}
+              {ITEM_TYPES.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </span>
+          <span className="kx-spacer" />
+          {copied && (
+            <span className="kx-note-saved" aria-live="polite">
+              Copied {copied}
+            </span>
+          )}
+          {isPdf ? (
+            <button className="kx-page-action" onClick={openReader} title="Read the PDF beside this page">
+              <Icon name="book" size={13} />
+              Read
+            </button>
+          ) : source.filePath ? (
+            <button className="kx-icon-button" title="Open file" aria-label="Open file" onClick={() => void libraryBridge().openPath(source.filePath!)}>
+              <Icon name="external" size={14} />
+            </button>
+          ) : (
+            (source.url || source.doi) && (
+              <button className="kx-icon-button" title="Open link" aria-label="Open link" onClick={() => window.open(source.url || `https://doi.org/${source.doi}`, "_blank")}>
+                <Icon name="globe" size={14} />
+              </button>
+            )
+          )}
+          <button className="kx-icon-button" data-active={source.starred} aria-pressed={source.starred} title={source.starred ? "Unstar" : "Star"} onClick={() => void save({ starred: !source.starred })}>
+            <Icon name="star" size={14} fill={source.starred ? "currentColor" : "none"} />
+          </button>
+          <details className="kx-menu kx-source-more">
+            <summary className="kx-icon-button" title="More" aria-label="More">
+              <Icon name="more" size={14} />
+            </summary>
+            <div className="kx-menu-popover" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
+              <button onClick={() => void copy("APA", apa(source), apa(source, true))}>Copy APA reference</button>
+              <button onClick={() => void copy("in-text", apaInText(source))}>Copy in-text citation</button>
+              <button onClick={() => void copy("BibTeX", bibtex(source))}>Copy BibTeX</button>
+              {isPdf && <button onClick={openReaderTab}>Open PDF in its own tab</button>}
+              {!source.filePath && (source.doi || source.url) && <button onClick={() => void findPdf()}>Find PDF</button>}
+              {source.filePath && <button onClick={() => void libraryBridge().revealPath(source.filePath!)}>Show in Finder</button>}
+              <button onClick={() => void enrich()}>Look up in OpenAlex</button>
+              <button onClick={() => void invoke("store_index_control", { action: "reindex", ids: [sourceId] }, workspaceId).then(() => void loadSource())}>Re-index</button>
+            </div>
+          </details>
+          {side && (
+            <>
+              <button className="kx-icon-button" title="Open as page" aria-label="Open as page" onClick={() => side.onOpenPage(source)}>
+                <Icon name="doc" size={14} />
+              </button>
+              <button className="kx-icon-button" title="Close details" aria-label="Close details" onClick={side.onClose}>
+                <Icon name="close" size={13} />
+              </button>
+            </>
+          )}
+        </header>
+      }
+      titleText={source.title || ""}
+      details={{ summary: detailsSummary, content: details }}
+      notice={
+        source.retracted === 1 && (
+          <div className="kx-retracted" role="alert">
+            <Icon name="info" size={14} />
+            Retracted
+            <span>OpenAlex lists this work as retracted. Check before citing it.</span>
+          </div>
+        )
+      }
+      title={<AutoText className="kx-inspector-title kx-source-page-title kx-note-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />}
+    >
+        {source.kind === "image" && source.filePath && (
+          // served by the shell from the linked file, so the page shows what the source is
+          <figure className="kx-source-image">
+            <img src={`key-media://${workspaceId.toLowerCase()}/source/${encodeURIComponent(source.id)}`} alt={source.title || ""} onDoubleClick={() => void libraryBridge().openPath(source.filePath!)} />
+          </figure>
+        )}
         {error && <p className="kx-inline-error">{error}</p>}
 
         {highlights.length > 0 && (
