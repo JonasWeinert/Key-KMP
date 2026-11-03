@@ -206,6 +206,21 @@ const assert = require("node:assert/strict");
     await titlebar.locator(".key-workspace-home strong", { hasText: "Fieldwork" }).waitFor();
     report.switchChoice = true;
 
+    // Sidebar menus open over the content, whole, not clipped at the sidebar's edge.
+    const sidebarRight = await page.locator(".key-sidebar").evaluate((el) => el.getBoundingClientRect().right);
+    await page.locator(".kx-workspace-section").hover();
+    await page.locator('button[aria-label="Show and sort"]').click();
+    const menu = page.getByRole("menu").last();
+    await menu.waitFor();
+    const box = await menu.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.right - 6, r.top + r.height / 2);
+      return { right: r.right, parent: el.parentElement === document.body, onTop: !!hit && el.contains(hit) };
+    });
+    assert.ok(box.parent && box.onTop, "the Show and sort menu is drawn above everything");
+    assert.ok(box.right > sidebarRight, "and reaches past the sidebar without being cut off");
+    await page.keyboard.press("Escape");
+
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ ok: true, temp, ...report }));
   } catch (error) {

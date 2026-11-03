@@ -2,6 +2,7 @@
 // virtualized grid, list and table layouts, a toolbar to switch between them, and
 // table columns the user can show, hide, reorder, resize and pin, sorted on several levels.
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { createPortal } from "react-dom";
 import {
   forwardRef,
   useCallback,
@@ -758,7 +759,9 @@ export function ContextMenu({
       window.removeEventListener("blur", onClose);
     };
   }, [onClose]);
-  return (
+  // Drawn on the body: inside the sidebar (or any pane with a transform or filter) a fixed
+  // menu would be framed and clipped by that pane.
+  return createPortal(
     <div
       ref={ref}
       className="kx-menu-popover kx-context-menu"
@@ -777,6 +780,7 @@ export function ContextMenu({
       }}
     >
       {children(onClose)}
-    </div>
+    </div>,
+    document.body,
   );
 }
