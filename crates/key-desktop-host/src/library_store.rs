@@ -18,6 +18,7 @@ pub struct Library {
     pub store: Store,
     pub indexer: Indexer,
     pub references: super::reference_worker::ReferenceWorker,
+    pub openalex: super::openalex::OpenAlex,
     /// One Zotero import or sync at a time; its progress while it runs.
     zotero: std::sync::Mutex<()>,
     zotero_progress: std::sync::Arc<std::sync::Mutex<Option<key_zotero::Progress>>>,
@@ -72,7 +73,8 @@ impl Library {
         // The app turns the layout model off through the environment (Settings).
         indexer.set_layout_model(std::env::var("KEY_LAYOUT_MODEL_ENABLED").map_or(true, |v| v != "0"));
         let references = super::reference_worker::ReferenceWorker::start(store.clone(), native, cache);
-        Ok(Self { store, indexer, references, zotero: Default::default(), zotero_progress: Default::default() })
+        let openalex = super::openalex::OpenAlex::start(store.clone());
+        Ok(Self { store, indexer, references, openalex, zotero: Default::default(), zotero_progress: Default::default() })
     }
 
     fn zotero_run(&self, options: &key_zotero::ImportOptions, mode: key_zotero::Mode) -> Result<key_zotero::ImportReport, String> {
@@ -85,6 +87,7 @@ impl Library {
         });
         *self.zotero_progress.lock().map_err(|e| e.to_string())? = None;
         self.indexer.wake();
+        self.openalex.wake();
         report
     }
 
@@ -103,6 +106,7 @@ impl Library {
             "store_create" => arg::<SourceInput>(args, "source").and_then(|input| {
                 let source = self.store.insert_source(input)?;
                 self.indexer.wake();
+                self.openalex.wake();
                 json_output(source)
             }),
             "store_update" => (|| {
@@ -110,6 +114,7 @@ impl Library {
                 let patch: Map<String, Json> = arg(args, "patch")?;
                 let source = self.store.update_source(&id, &patch)?;
                 self.indexer.wake();
+                self.openalex.wake();
                 json_output(source)
             })(),
             "store_trash" => (|| json_output(self.store.trash(&arg::<Vec<String>>(args, "ids")?, arg::<Option<bool>>(args, "trashed")?.unwrap_or(true))?))(),
@@ -227,6 +232,7 @@ impl Library {
                     "busy": self.indexer.is_busy(),
                     "activity": self.indexer.activity(),
                     "references": self.store.references_activity()?,
+                    "enrichment": self.store.enrichment_queue(self.openalex.options().auto)?,
                     "vectors": self.store.vector_count()?,
                     "counts": counts,
                 }))
@@ -335,7 +341,7 @@ impl Library {
                 json_output(json!({ "layoutModel": self.indexer.layout_model(), "outdated": self.store.outdated_analyses(engine)? }))
             })(),
             "store_provenance" => arg::<String>(args, "id").and_then(|id| json_output(self.store.property_provenance(&id)?)),
-            _ => return super::linked_folders::dispatch(self, command, args, root),
+            _ => return super::openalex::dispatch(self, command, args).or_else(|| super::linked_folders::dispatch(self, command, args, root)),
         };
         Some(result)
     }

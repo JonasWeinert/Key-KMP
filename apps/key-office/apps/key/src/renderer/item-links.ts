@@ -61,7 +61,7 @@ export function targetRef(target: LinkTarget): SourceRef {
     page: target.page,
   };
 }
-const TARGET_LABEL: Record<ItemKind, string> = { source: "Source", note: "Note", canvas: "Canvas", record: "Page", file: "File" };
+const TARGET_LABEL: Record<ItemKind, string> = { source: "Source", note: "Note", canvas: "Canvas", record: "Page", file: "File", person: "Person", venue: "Journal", topic: "Topic" };
 
 /** Opens whatever a link points at. A followed link replaces the pane it is in (Back returns),
  * like a browser; other places pass "tab" or "split". */

@@ -4,7 +4,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { Icon } from "./icons";
 import type { Creator } from "./citation";
-import { bridge, creatorName, itemTypeLabel } from "./library-api";
+import { OA_LABEL, bridge, creatorName, itemTypeLabel } from "./library-api";
 import { selectLibrary } from "./library-nav";
 import "./search-page.css";
 import type { SearchFilter } from "./search-suggest";
@@ -26,7 +26,33 @@ export const sourceFilter = {
   itemType: (type: string): SearchFilter => ({ field: "itemType", op: "is", value: type, label: itemTypeLabel(type) }),
   collection: (id: string, name: string): SearchFilter => ({ field: "collection", op: "is", value: id, label: name }),
   property: (key: string, value: unknown): SearchFilter => ({ field: "property", op: "is", key, value: String(value), label: String(value) }),
+  // The metadata graph: by id, so a renamed or merged person or journal still matches.
+  person: (id: string, name: string): SearchFilter => ({ field: "person", op: "is", value: id, label: name }),
+  venue: (id: string, name: string): SearchFilter => ({ field: "venue", op: "is", value: id, label: name }),
+  institution: (id: string, name: string): SearchFilter => ({ field: "institution", op: "is", value: id, label: name }),
+  topic: (id: string, name: string): SearchFilter => ({ field: "topic", op: "is", value: id, label: name }),
+  keyword: (id: string, name: string): SearchFilter => ({ field: "keyword", op: "is", value: id, label: name }),
+  funder: (id: string, name: string): SearchFilter => ({ field: "funder", op: "is", value: id, label: name }),
+  citations: (op: "gt" | "gte" | "lt" | "lte", count: number): SearchFilter => ({
+    field: "citations",
+    op,
+    value: String(count),
+    label: `Cited ${{ gt: "more than", gte: "at least", lt: "fewer than", lte: "at most" }[op]} ${count} times`,
+  }),
+  retracted: (): SearchFilter => ({ field: "retracted", op: "is", value: "true", label: "Retracted" }),
+  oaStatus: (status: string): SearchFilter => ({ field: "oaStatus", op: "is", value: status, label: OA_LABEL[status] ?? status }),
+  workType: (type: string): SearchFilter => ({ field: "workType", op: "is", value: type, label: type.replace(/-/g, " ") }),
+  language: (code: string): SearchFilter => ({ field: "language", op: "is", value: code, label: languageName(code) }),
 };
+
+/** "English" for "en", when the system knows the code. */
+export function languageName(code: string) {
+  try {
+    return new Intl.DisplayNames(undefined, { type: "language" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
 
 /** A value that filters the library when clicked (plain text where nothing would happen). */
 export function FilterLink({ filter, children, className }: { filter?: SearchFilter; children: ReactNode; className?: string }) {
@@ -82,6 +108,7 @@ export function fieldFilter(key: string, value: unknown): SearchFilter | undefin
   if (value === undefined || value === null || value === "") return undefined;
   if (key === "containerTitle") return sourceFilter.container(String(value));
   if (key === "year") return sourceFilter.year(value as number);
+  if (key === "language") return sourceFilter.language(String(value));
   if (key === "publisher") return { field: "container", op: "contains", value: String(value), label: String(value) };
   return undefined;
 }

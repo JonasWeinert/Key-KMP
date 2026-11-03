@@ -4,6 +4,8 @@ export interface Creator {
   given?: string;
   literal?: string;
   role?: string;
+  /** The person this creator is in the library (read-only; see the store's graph). */
+  personId?: string;
 }
 export interface CitableSource {
   id: string;

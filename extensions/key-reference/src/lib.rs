@@ -24,6 +24,7 @@
 
 mod executor;
 mod link_preview;
+mod openalex;
 mod registry_preview;
 mod scholarly;
 
@@ -34,6 +35,7 @@ pub use link_preview::{
     LinkPreviewEvent, LinkPreviewFetcher, LinkPreviewKind, LinkPreviewSession, WebsitePreview,
     WebsitePreviewProvider, WebsitePreviewState,
 };
+pub use openalex::{OpenAlexResponse, openalex_get};
 pub use scholarly::{
     MatchCertainty, ScholarlyEvent, ScholarlyFetcher, ScholarlyMetadata, ScholarlyMetadataProvider,
     ScholarlyMetadataState, ScholarlyQuery, ScholarlySession, ScholarlySource,

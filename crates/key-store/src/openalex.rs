@@ -294,6 +294,19 @@ impl Store {
             .map_err(e)
     }
 
+    /// The library source for an OpenAlex work, by its id or DOI.
+    pub fn source_for_work(&self, openalex_id: Option<&str>, doi: Option<&str>) -> Result<Option<String>> {
+        let doi = doi.map(bare_doi).filter(|d| !d.is_empty());
+        self.read()?
+            .query_row(
+                "SELECT id FROM sources WHERE trashed_at IS NULL AND ((?1 IS NOT NULL AND openalex_id = ?1) OR (?2 IS NOT NULL AND (lower(doi) = ?2 OR lower(doi) = 'https://doi.org/' || ?2))) LIMIT 1",
+                params![openalex_id, doi],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(e)
+    }
+
     // ── Works ───────────────────────────────────────────────
 
     /// Stores an OpenAlex work on a source (see the module comment for what goes where).

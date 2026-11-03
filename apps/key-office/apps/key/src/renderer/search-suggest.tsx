@@ -9,7 +9,7 @@ import { Highlight, prefixPattern } from "./search-highlight";
 export interface SearchFilter {
   /** creator | container | title | notes | fulltext | tag | collection | year | property */
   field: string;
-  op?: "is" | "contains";
+  op?: "is" | "contains" | "gt" | "gte" | "lt" | "lte";
   value: string;
   /** The property name, for `field = "property"`. */
   key?: string;
@@ -41,11 +41,23 @@ const FIELD: Record<string, { label: string; icon: IconName }> = {
   itemType: { label: "Item type", icon: "doc" },
   kind: { label: "Kind", icon: "doc" },
   abstract: { label: "Abstract", icon: "doc" },
+  person: { label: "Author", icon: "user" },
+  venue: { label: "Journal", icon: "book" },
+  publisher: { label: "Publisher", icon: "book" },
+  institution: { label: "Institution", icon: "home" },
+  topic: { label: "Topic", icon: "tag" },
+  keyword: { label: "Keyword", icon: "tag" },
+  funder: { label: "Funder", icon: "star" },
+  citations: { label: "Citations", icon: "quote" },
+  retracted: { label: "Retracted", icon: "info" },
+  oaStatus: { label: "Open access", icon: "globe" },
+  workType: { label: "Work type", icon: "doc" },
+  language: { label: "Language", icon: "globe" },
   // "Only in" one note, canvas, page or source (the search tab's sidebar picks).
   item: { label: "Only in", icon: "pin" },
 };
 // Specific matches come first, in this order; a typed year leads.
-const ORDER = ["year", "creator", "container", "tag", "collection", "property"];
+const ORDER = ["year", "citations", "creator", "container", "topic", "keyword", "tag", "collection", "funder", "property"];
 const CONTAINS: [string, string][] = [
   ["creator", "Author contains"],
   ["title", "Title contains"],
@@ -120,7 +132,7 @@ export default function SearchField({
       .map((s): MenuItem => {
         const field = FIELD[s.filter.field] ?? FIELD.property;
         return {
-          filter: { ...s.filter, op: "is", label: s.label },
+          filter: { ...s.filter, op: s.filter.op ?? "is", label: s.label },
           icon: field.icon,
           count: s.count,
           content: (
@@ -129,7 +141,7 @@ export default function SearchField({
                 {s.filter.field === "property" && <span className="kx-suggest-scope">{s.filter.key}: </span>}
                 <Highlight text={s.label} pattern={pattern} />
               </span>
-              {s.filter.field !== "creator" && <span className="kx-suggest-scope"> — {field.label}</span>}
+              {s.filter.field !== "creator" && s.filter.field !== "citations" && <span className="kx-suggest-scope"> — {field.label}</span>}
             </>
           ),
         };
@@ -267,6 +279,8 @@ export default function SearchField({
 /** "Author", "Status" or "Title contains" in front of the token's value. */
 function tokenScope(f: SearchFilter) {
   if (f.field === "item") return FIELD.item.label;
+  // The label says it all: "Cited more than 100 times", "Retracted".
+  if (f.field === "citations" || f.field === "retracted") return "";
   const field = f.field === "property" ? (f.key ?? "Property") : (FIELD[f.field]?.label ?? f.field);
-  return f.op === "is" ? field : `${field} contains`;
+  return !f.op || f.op === "contains" ? `${field} contains` : field;
 }

@@ -137,11 +137,12 @@ function paneItem(content?: ContentSpec, title?: string): DraggedItem | undefine
   if (content.section === "source" && content.sourceId) return { kind: "source", id: content.sourceId, title: name };
   if (content.section === "record" && content.record?.id) return { kind: "record", id: content.record.id, title: name };
   if (content.section === "file" && content.fileId) return { kind: "file", id: content.fileId, title: name };
+  if ((content.section === "person" || content.section === "venue" || content.section === "topic") && content.entityId) return { kind: content.section, id: content.entityId, title: name };
   return undefined;
 }
 /** Remounts a pane's content when a followed link changes what it shows. */
 const contentIdentity = (content?: ContentSpec) =>
-  content ? [content.section, content.noteId ?? content.canvasId ?? content.sourceId ?? content.record?.id ?? content.workspaceId ?? ""].join(":") : "";
+  content ? [content.section, content.noteId ?? content.canvasId ?? content.sourceId ?? content.entityId ?? content.record?.id ?? content.workspaceId ?? ""].join(":") : "";
 
 const tabSummary = (state: TabState): TabSummary[] =>
   state.tabs.map((tab) => ({

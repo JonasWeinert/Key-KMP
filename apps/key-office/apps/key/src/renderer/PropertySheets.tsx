@@ -6,7 +6,7 @@ import { GlobalDialog } from "./GlobalDrawer";
 import { Icon } from "./icons";
 import type { Invoke, Source } from "./library-api";
 import PropertyEditor, { type PropertyDraft } from "./PropertyEditor";
-import { preparePropertyDraft } from "./property-draft";
+import { preparePropertyDraft, renamedOptions } from "./property-draft";
 import { evaluatePropertyFormula } from "./property-formula";
 import TagManagerDialog from "./TagManagerDialog";
 
@@ -107,6 +107,10 @@ export function PropertySheet({
     setBusy(true);
     try {
       if (editing && editing.name !== name) await invoke("workspace_rename_attribute", { name: editing.name, newName: name }, workspaceId);
+      // A choice edited in place is a rename: every source holding it gets the new text.
+      if (editing?.type === "select" && draft.type === "select")
+        for (const [from, to] of renamedOptions(editing.options ?? [], (config as { options?: string[] }).options ?? []))
+          await invoke("store_rename_property_option", { name, from, to }, workspaceId);
       await invoke("workspace_save_attribute", { name, config }, workspaceId);
       if (draft.applyValues) {
         for (const target of state.targets) {
@@ -341,3 +345,4 @@ export function IdentifierSheet({
     </GlobalDialog>
   );
 }
+

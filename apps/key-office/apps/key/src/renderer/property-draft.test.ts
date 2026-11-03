@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { preparePropertyDraft } from "./property-draft";
+import { preparePropertyDraft, renamedOptions } from "./property-draft";
 import type { PropertyDraft } from "./PropertyEditor";
 const draft = (patch: Partial<PropertyDraft>): PropertyDraft => ({
   name: "Rating",
@@ -59,5 +59,13 @@ describe("property definitions and explicit value assignment", () => {
     expect(() => preparePropertyDraft(draft({ type: "select" }))).toThrow(
       "option",
     );
+  });
+});
+
+describe("renamedOptions", () => {
+  it("treats a choice edited in place as a rename, not an add and a remove", () => {
+    expect(renamedOptions(["Read", "Later"], ["Finished", "Later"])).toEqual([["Read", "Finished"]]);
+    expect(renamedOptions(["Read", "Later"], ["Later", "Read"])).toEqual([]);
+    expect(renamedOptions(["Read"], ["Read", "Later"])).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import type { Creator } from "./citation";
 import { FilterButton, FilterLink, FilterLinks, fieldFilter, sourceFilter } from "./filter-links";
 import type { SearchFilter } from "./search-suggest";
 import { Icon } from "./icons";
+import { EntityButton, EntityLink, type EntityRef } from "./entity-ui";
 import { formulaValue, type PropertyDefinition } from "./PropertySheets";
 import type { Facet, Source } from "./library-api";
 
@@ -96,7 +97,7 @@ export function AutoText({ value, onCommit, className, placeholder, label }: { v
   );
 }
 
-export function FieldRow({ label, value, kind, onCommit, filter }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void; filter?: SearchFilter }) {
+export function FieldRow({ label, value, kind, onCommit, filter, entity }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void; filter?: SearchFilter; entity?: EntityRef }) {
   const text = value === undefined || value === null ? "" : String(value);
   const [draft, setDraft] = useState(text);
   useEffect(() => setDraft(text), [text]);
@@ -123,7 +124,7 @@ export function FieldRow({ label, value, kind, onCommit, filter }: { label: stri
           <Icon name="external" size={12} />
         </a>
       )}
-      <FilterButton filter={filter} />
+      {entity ? <EntityButton entity={entity} /> : <FilterButton filter={filter} />}
     </label>
   );
 }
@@ -142,7 +143,13 @@ export function Creators({ creators, onCommit }: { creators: Creator[]; onCommit
           {creators.map((c, i) => (
             <Fragment key={i}>
               {i > 0 && ", "}
-              <FilterLink filter={sourceFilter.creator(c)}>{c.literal || [c.given, c.family].filter(Boolean).join(" ")}</FilterLink>
+              {c.personId ? (
+                <EntityLink entity={{ kind: "person", id: c.personId, name: c.literal || [c.given, c.family].filter(Boolean).join(" ") }}>
+                  {c.literal || [c.given, c.family].filter(Boolean).join(" ")}
+                </EntityLink>
+              ) : (
+                <FilterLink filter={sourceFilter.creator(c)}>{c.literal || [c.given, c.family].filter(Boolean).join(" ")}</FilterLink>
+              )}
               {c.role && c.role !== "author" ? ` (${c.role})` : ""}
             </Fragment>
           ))}

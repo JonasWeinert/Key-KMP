@@ -14,8 +14,14 @@ export interface AppSettings {
   layoutModel: boolean
   /** Keep the imported Zotero library in step with Zotero (off: import once). */
   zoteroSync: boolean
+  /** Look sources up in OpenAlex when they arrive with a DOI, and refresh counts when viewed. */
+  openalex: boolean
+  /** Sent with OpenAlex requests (their polite pool); empty uses the app's own address. */
+  openalexMailto: string
+  /** An OpenAlex API key, for a daily budget of one's own. */
+  openalexApiKey: string
 }
-const DEFAULTS: AppSettings = { theme: 'system', onboarded: false, layoutModel: true, zoteroSync: false }
+const DEFAULTS: AppSettings = { theme: 'system', onboarded: false, layoutModel: true, zoteroSync: false, openalex: true, openalexMailto: '', openalexApiKey: '' }
 
 export class AppSettingsStore {
   private value: AppSettings = { ...DEFAULTS }
@@ -51,6 +57,9 @@ function sanitize(input: AppSettings): AppSettings {
     onboarded: input.onboarded === true,
     layoutModel: input.layoutModel !== false,
     zoteroSync: input.zoteroSync === true,
+    openalex: input.openalex !== false,
+    openalexMailto: typeof input.openalexMailto === 'string' && /^[^\s@]+@[^\s@]+$/.test(input.openalexMailto.trim()) ? input.openalexMailto.trim() : '',
+    openalexApiKey: typeof input.openalexApiKey === 'string' ? input.openalexApiKey.trim().slice(0, 200) : '',
   }
 }
 
@@ -59,6 +68,9 @@ function sanitize(input: AppSettings): AppSettings {
 function apply(settings: AppSettings) {
   nativeTheme.themeSource = settings.theme
   process.env.KEY_LAYOUT_MODEL_ENABLED = settings.layoutModel ? '1' : '0'
+  process.env.KEY_OPENALEX_ENABLED = settings.openalex ? '1' : '0'
+  process.env.KEY_OPENALEX_MAILTO = settings.openalexMailto
+  process.env.KEY_OPENALEX_API_KEY = settings.openalexApiKey
 }
 
 /** Versions, data locations and whether a Zotero library is present on this Mac. */

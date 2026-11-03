@@ -7,6 +7,8 @@ mod scholarly_resolver;
 mod library_store;
 #[path = "linked_folders.rs"]
 mod linked_folders;
+#[path = "openalex.rs"]
+mod openalex;
 #[path = "reference_worker.rs"]
 mod reference_worker;
 use crate::ipc;

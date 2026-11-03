@@ -3,14 +3,16 @@
 // followed by the PDF's highlights (each quotable into the note) and any further notes.
 // Opened beside the PDF reader for sources that have one, and as the library's details
 // panel (`variant="side"`), so a source looks the same wherever it is shown.
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { apa, apaInText, bibtex } from "./citation";
 import { Icon } from "./icons";
 import { ProgressRing } from "./index-activity";
 import { ItemPage } from "./ItemPage";
-import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, formatBytes, itemTypeLabel, shortCreators, type Collection, type Facet, type Invoke, type Note, type Source } from "./library-api";
+import { ITEM_TYPES, KIND_ICON, OA_LABEL, bridge as libraryBridge, fetchedAgo, formatBytes, itemTypeLabel, type Collection, type Facet, type Invoke, type Note, type Source, type SourceGraph } from "./library-api";
 import { libraryChanged } from "./library-nav";
 import { FilterButton, FilterLink, FilterLinks, fieldFilter, showInLibrary, sourceFilter } from "./filter-links";
+import { EntityLink } from "./entity-ui";
+import { WorkReferences } from "./work-references";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
 import LinkedFrom from "./LinkedFrom";
@@ -55,7 +57,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
   const [source, setSource] = useState<Source>();
   const [notes, setNotes] = useState<Note[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
-  const [part, setPart] = useState<"all" | "notes" | "highlights" | "info" | "linked">("all");
   // In the library's side panel a clicked value filters the library; on its own page it opens the library filtered.
   const libraryFilter = useContext(FilterLinks);
   const filterBy = libraryFilter ?? ((filter: Parameters<typeof showInLibrary>[1]) => showInLibrary(workspaceId, filter));
@@ -63,27 +64,8 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
   const [tagSuggestions, setTagSuggestions] = useState<Facet[]>([]);
   const [moreFields, setMoreFields] = useState(false);
   const [abstractOpen, setAbstractOpen] = useState(false);
-  // Authors, properties and abstract fold together into one summary line (open by default),
-  // so highlights and the note can start right under the title.
-  const [detailsOpen, setDetailsOpen] = useState(() => {
-    try {
-      return localStorage.getItem("key.page.details") !== "closed";
-    } catch {
-      return true;
-    }
-  });
-  /** Shows one part of the page; Info opens the details. */
-  const showPart = (next: typeof part) => {
-    setPart(next);
-    if (next === "info") toggleDetails(true);
-    pageRef.current?.scrollTo({ top: 0 });
-  };
-  const toggleDetails = (open: boolean) => {
-    setDetailsOpen(open);
-    try {
-      localStorage.setItem("key.page.details", open ? "open" : "closed");
-    } catch {}
-  };
+  /** People, journal, topics, citations: the metadata graph around the source. */
+  const [graph, setGraph] = useState<SourceGraph>();
   const [sheet, setSheet] = useState<PropertySheetState>();
   const [copied, setCopied] = useState("");
   const [error, setError] = useState("");
@@ -135,6 +117,13 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
         .catch(() => {}),
     [invoke, workspaceId, sourceId],
   );
+  const loadGraph = useCallback(
+    () =>
+      invoke<SourceGraph>("store_source_graph", { id: sourceId }, workspaceId)
+        .then(setGraph)
+        .catch(() => {}),
+    [invoke, workspaceId, sourceId],
+  );
   const loadHighlights = useCallback(
     () =>
       invoke<Highlight[]>("library_annotations", { hash: sourceId }, workspaceId)
@@ -144,18 +133,36 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
   );
   useEffect(() => {
     void loadSource();
+    void loadGraph();
+    // Cached counts (citations, FWCI) are fetched again when old; the host decides.
+    void invoke<Source | null>("store_refresh", { kind: "source", id: sourceId }, workspaceId)
+      .then((s) => s && setSource(s))
+      .catch(() => {});
     void loadHighlights();
     void invoke<Collection[]>("store_collections", {}, workspaceId).then(setCollections).catch(() => {});
     void invoke<{ tags: Facet[] }>("store_facets", {}, workspaceId).then((f) => setTagSuggestions(f.tags)).catch(() => {});
-  }, [invoke, workspaceId, loadSource, loadHighlights]);
+  }, [invoke, workspaceId, sourceId, loadSource, loadGraph, loadHighlights]);
+  // While OpenAlex is being asked, the page follows the lookup.
+  const looking = source?.enrichStatus === "requested" || source?.enrichStatus === "pending";
+  useEffect(() => {
+    if (!looking) return;
+    const timer = setInterval(() => {
+      void loadSource();
+      void loadGraph();
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [looking, loadSource, loadGraph]);
   useEffect(() => {
     const offs = [
-      bridge().on("library-changed", () => void loadSource()),
+      bridge().on("library-changed", () => {
+        void loadSource();
+        void loadGraph();
+      }),
       bridge().on("note-changed", (p) => (p as { sourceId?: string })?.sourceId === sourceId && void loadNotes()),
       bridge().on("annotations-changed", () => void loadHighlights()),
     ];
     return () => offs.forEach((off) => off());
-  }, [sourceId, loadSource, loadNotes, loadHighlights]);
+  }, [sourceId, loadSource, loadGraph, loadNotes, loadHighlights]);
   // The tab follows the title.
   useEffect(() => {
     if (source && viewId) void bridge().tabAction("content-title", { viewId, title: source.title || "Untitled" });
@@ -259,6 +266,15 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
       setError(String(e).replace(/^Error: /, ""));
     }
   };
+  const enrich = async () => {
+    setError("");
+    try {
+      await invoke("store_enrich", { ids: [sourceId] }, workspaceId);
+      await loadSource();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
   const copy = async (label: string, text: string, html?: string) => {
     try {
       if (html && "ClipboardItem" in window)
@@ -311,7 +327,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
       kind="source"
       className="kx-source-page"
       innerClassName="kx-source-page-inner"
-      innerProps={{ "data-part": part }}
       pageRef={pageRef}
       data-narrow={width !== "wide"}
       data-tight={width === "tight"}
@@ -321,9 +336,10 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
       media={sources.media}
       defaultIcon={KIND_ICON[source.kind] ?? "doc"}
       bar={
-        <header className="kx-source-page-bar">
-          <span className="kx-kind-badge" data-kind={source.kind}>
-            <Icon name={KIND_ICON[source.kind] ?? "doc"} size={13} />
+        // Like a note's: what it is on the left, a few quiet actions on the right, the rest under "More".
+        <header className="kx-note-page-head kx-source-page-bar">
+          <span className="kx-note-source kx-kind-badge" data-kind={source.kind}>
+            <Icon name={KIND_ICON[source.kind] ?? "doc"} size={12} />
             <select aria-label="Item type" value={source.itemType || "document"} onChange={(e) => void save({ itemType: e.target.value })}>
               {!ITEM_TYPES.some(([id]) => id === source.itemType) && <option value={source.itemType}>{itemTypeLabel(source.itemType)}</option>}
               {ITEM_TYPES.map(([id, label]) => (
@@ -332,72 +348,47 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
                 </option>
               ))}
             </select>
-            <FilterButton filter={sourceFilter.itemType(source.itemType || "document")} />
           </span>
-          {/* The page's parts, one at a time or all together. */}
-          <nav className="kx-page-parts" role="tablist" aria-label="Show">
-            {(
-              [
-                ["all", "Overview"],
-                ["notes", "Notes"],
-                ["highlights", `Highlights${highlights.length ? ` ${highlights.length}` : ""}`],
-                ["info", "Info"],
-                ["linked", "Linked"],
-              ] as const
-            ).map(([key, label]) => (
-              <button key={key} role="tab" aria-selected={part === key} onClick={() => showPart(key)}>
-                {label}
-              </button>
-            ))}
-          </nav>
           <span className="kx-spacer" />
+          {copied && (
+            <span className="kx-note-saved" aria-live="polite">
+              Copied {copied}
+            </span>
+          )}
+          {isPdf ? (
+            <button className="kx-page-action" onClick={openReader} title="Read the PDF beside this page">
+              <Icon name="book" size={13} />
+              Read
+            </button>
+          ) : source.filePath ? (
+            <button className="kx-icon-button" title="Open file" aria-label="Open file" onClick={() => void libraryBridge().openPath(source.filePath!)}>
+              <Icon name="external" size={14} />
+            </button>
+          ) : (
+            (source.url || source.doi) && (
+              <button className="kx-icon-button" title="Open link" aria-label="Open link" onClick={() => window.open(source.url || `https://doi.org/${source.doi}`, "_blank")}>
+                <Icon name="globe" size={14} />
+              </button>
+            )
+          )}
           <button className="kx-icon-button" data-active={source.starred} aria-pressed={source.starred} title={source.starred ? "Unstar" : "Star"} onClick={() => void save({ starred: !source.starred })}>
-            <Icon name="star" size={15} fill={source.starred ? "currentColor" : "none"} />
+            <Icon name="star" size={14} fill={source.starred ? "currentColor" : "none"} />
           </button>
-          <details className="kx-menu">
-            <summary className="kx-page-action">
-              <Icon name="quote" size={13} />
-              {copied ? `Copied ${copied}` : "Cite"}
+          <details className="kx-menu kx-source-more">
+            <summary className="kx-icon-button" title="More" aria-label="More">
+              <Icon name="more" size={14} />
             </summary>
             <div className="kx-menu-popover" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
               <button onClick={() => void copy("APA", apa(source), apa(source, true))}>Copy APA reference</button>
               <button onClick={() => void copy("in-text", apaInText(source))}>Copy in-text citation</button>
               <button onClick={() => void copy("BibTeX", bibtex(source))}>Copy BibTeX</button>
+              {isPdf && <button onClick={openReaderTab}>Open PDF in its own tab</button>}
+              {!source.filePath && (source.doi || source.url) && <button onClick={() => void findPdf()}>Find PDF</button>}
+              {source.filePath && <button onClick={() => void libraryBridge().revealPath(source.filePath!)}>Show in Finder</button>}
+              <button onClick={() => void enrich()}>Look up in OpenAlex</button>
+              <button onClick={() => void invoke("store_index_control", { action: "reindex", ids: [sourceId] }, workspaceId).then(() => void loadSource())}>Re-index</button>
             </div>
           </details>
-          {isPdf ? (
-            <div className="kx-page-split">
-              <button className="kx-page-action kx-page-action-primary" onClick={openReader} title="Read the PDF beside this page">
-                <Icon name="book" size={13} />
-                Read
-              </button>
-              <details className="kx-menu">
-                <summary className="kx-page-action kx-page-action-primary" aria-label="More ways to read">
-                  <Icon name="chevronDown" size={11} />
-                </summary>
-                <div className="kx-menu-popover" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
-                  <button onClick={openReader}>
-                    <Icon name="split" size={13} /> Read beside this page
-                  </button>
-                  <button onClick={openReaderTab}>
-                    <Icon name="book" size={13} /> Open PDF in its own tab
-                  </button>
-                </div>
-              </details>
-            </div>
-          ) : source.filePath ? (
-            <button className="kx-page-action kx-page-action-primary" onClick={() => void libraryBridge().openPath(source.filePath!)}>
-              <Icon name="external" size={13} />
-              Open file
-            </button>
-          ) : (
-            (source.url || source.doi) && (
-              <button className="kx-page-action kx-page-action-primary" onClick={() => window.open(source.url || `https://doi.org/${source.doi}`, "_blank")}>
-                <Icon name="globe" size={13} />
-                Open link
-              </button>
-            )
-          )}
           {side && (
             <>
               <button className="kx-icon-button" title="Open as page" aria-label="Open as page" onClick={() => side.onOpenPage(source)}>
@@ -410,7 +401,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
           )}
         </header>
       }
-      title={<AutoText className="kx-inspector-title kx-source-page-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />}
+      title={<AutoText className="kx-inspector-title kx-source-page-title kx-note-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />}
     >
         {source.kind === "image" && source.filePath && (
           // served by the shell from the linked file, so the page shows what the source is
@@ -418,32 +409,31 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
             <img src={`key-media://${workspaceId.toLowerCase()}/source/${encodeURIComponent(source.id)}`} alt={source.title || ""} onDoubleClick={() => void libraryBridge().openPath(source.filePath!)} />
           </figure>
         )}
-        {/* Accordion: the details fold under the title, with a one-line summary when closed. */}
-        <button data-part-of="info" className="kx-page-details-toggle" onClick={() => toggleDetails(!detailsOpen)} aria-expanded={detailsOpen}>
-          <Icon name="chevronRight" size={11} />
-          <span>Details</span>
-          {!detailsOpen && (
-            <span className="kx-page-details-summary">
-              {[
-                shortCreators(source.creators),
-                source.containerShort || source.containerTitle,
-                source.year,
-                source.tags.length && `${source.tags.length} ${source.tags.length === 1 ? "tag" : "tags"}`,
-                source.collections.length && `${source.collections.length} ${source.collections.length === 1 ? "collection" : "collections"}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          )}
-        </button>
-        {detailsOpen && (
-          <div className="kx-page-details" data-part-of="info">
-        <Creators creators={source.creators} onCommit={(creators) => void save({ creators })} />
-        {/* One grid: bibliographic fields, tags, collections and the user's properties. */}
+        {source.retracted === 1 && (
+          <div className="kx-retracted" role="alert">
+            <Icon name="info" size={14} />
+            Retracted
+            <span>OpenAlex lists this work as retracted. Check before citing it.</span>
+          </div>
+        )}
+        {/* Like a note's properties: one list straight under the title, Author first. */}
+        <div className="kx-page-details">
         <section className="kx-page-properties" aria-label="Properties">
+          <div className="kx-field-row kx-page-chips kx-page-author">
+            <span>Author</span>
+            <Creators creators={source.creators} onCommit={(creators) => void save({ creators })} />
+          </div>
           {shown.map(([key, label, kind]) => (
-            <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} filter={fieldFilter(key, source[key])} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
+            <FieldRow
+              key={key}
+              label={label}
+              kind={kind}
+              value={source[key] as string | number | undefined}
+              filter={fieldFilter(key, source[key])}
+              entity={key === "containerTitle" && graph?.venue ? { kind: "venue", id: graph.venue.id, name: graph.venue.name } : undefined}
+              onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
           ))}
+          <ResearchRows source={source} graph={graph} onEnrich={() => void enrich()} />
           <div className="kx-field-row kx-page-chips">
             <span>Tags</span>
             <TagEditor tags={source.tags} suggestions={tagSuggestions} onCommit={(tags) => void save({ tags })} />
@@ -546,24 +536,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
                   <span style={{ width: `${progress.fraction * 100}%` }} />
                 </div>
               )}
-              <div className="kx-file-actions">
-                {!source.filePath && (source.doi || source.url) && (
-                  <button onClick={() => void findPdf()}>
-                    <Icon name="upload" size={12} style={{ transform: "rotate(180deg)" }} />
-                    Find PDF
-                  </button>
-                )}
-                {source.filePath && (
-                  <button onClick={() => void libraryBridge().revealPath(source.filePath!)}>
-                    <Icon name="folder" size={12} />
-                    Show in Finder
-                  </button>
-                )}
-                <button onClick={() => void invoke("store_index_control", { action: "reindex", ids: [sourceId] }, workspaceId).then(() => void loadSource())}>
-                  <Icon name="retry" size={12} />
-                  Re-index
-                </button>
-              </div>
             </div>
             <footer className="kx-inspector-foot">
               Added {new Date(source.addedAt).toLocaleDateString()} · Modified {new Date(source.updatedAt).toLocaleDateString()}
@@ -571,8 +543,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
             </footer>
           </section>
         )}
-          </div>
-        )}
+        </div>
 
         {error && <p className="kx-inline-error">{error}</p>}
 
@@ -645,10 +616,8 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
           />
         </div>
 
-        <div data-part-of="linked">
-          <LinkedFrom invoke={invoke} workspaceId={workspaceId} item={{ kind: "source", id: sourceId }} />
-          {part === "linked" && <p className="kx-page-parts-hint">Notes and canvases that link here appear above; drag this page's title bar into a note to link it.</p>}
-        </div>
+        <LinkedFrom invoke={invoke} workspaceId={workspaceId} item={{ kind: "source", id: sourceId }} />
+        {graph && <WorkReferences invoke={invoke} workspaceId={workspaceId} sourceId={sourceId} graph={graph} hasWork={!!source.openalexId} onChanged={() => void loadGraph()} />}
 
         {notes.length > 1 && (
           <section className="kx-page-section" data-part-of="notes">
@@ -700,5 +669,97 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
       )}
     </ItemPage>
     </FilterLinks.Provider>
+  );
+}
+
+/** What OpenAlex knows of a source, as rows among its properties: each value filters the
+ * library (topics open their popover), the counts say when they were fetched. */
+function ResearchRows({ source, graph, onEnrich }: { source: Source; graph?: SourceGraph; onEnrich: () => void }) {
+  const row = (label: string, children: ReactNode) => (
+    <div className="kx-field-row kx-page-chips kx-research-row" data-research={label}>
+      <span>{label}</span>
+      <div className="kx-research-values">{children}</div>
+    </div>
+  );
+  const status = source.enrichStatus;
+  const looking = status === "pending" || status === "requested";
+  const nice = (n: number) => [1000, 500, 100, 50, 10].find((step) => n >= step);
+  return (
+    <>
+      {source.citedByCount != null &&
+        row(
+          "Cited by",
+          <>
+            <span>
+              {source.citedByCount.toLocaleString()} {source.citedByCount === 1 ? "work" : "works"}
+              {source.fwci != null && ` · FWCI ${source.fwci.toFixed(1)}`}
+            </span>
+            {nice(source.citedByCount) && <FilterButton filter={sourceFilter.citations("gte", nice(source.citedByCount)!)} />}
+            <small title="Citation counts are cached and refreshed when the page is opened">updated {fetchedAgo(source.metricsAt)}</small>
+          </>,
+        )}
+      {source.oaStatus &&
+        row(
+          "Access",
+          <>
+            <FilterLink filter={sourceFilter.oaStatus(source.oaStatus)}>{OA_LABEL[source.oaStatus] ?? source.oaStatus}</FilterLink>
+            {source.oaUrl && (
+              <a href={source.oaUrl} target="_blank" rel="noreferrer" title={source.oaUrl}>
+                <Icon name="external" size={12} />
+              </a>
+            )}
+          </>,
+        )}
+      {source.workType && row("Work type", <FilterLink filter={sourceFilter.workType(source.workType)}>{source.workType.replace(/-/g, " ")}</FilterLink>)}
+      {!!graph?.topics.length &&
+        row(
+          "Topics",
+          graph.topics.map((t) => (
+            <EntityLink key={t.id} entity={{ kind: "topic", id: t.id, name: t.name }}>
+              {t.name}
+            </EntityLink>
+          )),
+        )}
+      {!!graph?.keywords.length &&
+        row(
+          "Keywords",
+          graph.keywords.map((k) => (
+            <FilterLink key={k.id} filter={sourceFilter.keyword(k.id, k.name)}>
+              {k.name}
+            </FilterLink>
+          )),
+        )}
+      {!!graph?.grants.length &&
+        row(
+          "Funding",
+          graph.grants.map((g) => (
+            <span key={`${g.funderId}:${g.awardId ?? ""}`}>
+              <FilterLink filter={sourceFilter.funder(g.funderId, g.funder)}>{g.funder}</FilterLink>
+              {g.awardId && <small> {g.awardId}</small>}
+            </span>
+          )),
+        )}
+      {row(
+        "OpenAlex",
+        <span className="kx-enrich-line">
+          {looking ? (
+            "Looking up…"
+          ) : source.openalexId ? (
+            <>
+              <a href={`https://openalex.org/${source.openalexId}`} target="_blank" rel="noreferrer">
+                {source.openalexId}
+              </a>
+              <span>looked up {fetchedAgo(source.enrichedAt)}</span>
+              <button onClick={onEnrich}>Look up again</button>
+            </>
+          ) : (
+            <>
+              {status === "not_found" ? <span>Not found</span> : status === "failed" ? <span title={source.enrichError}>Lookup failed</span> : null}
+              <button onClick={onEnrich}>{status ? "Try again" : "Look up"}</button>
+            </>
+          )}
+        </span>,
+      )}
+    </>
   );
 }

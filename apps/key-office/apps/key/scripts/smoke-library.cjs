@@ -30,6 +30,12 @@ const assert = require("node:assert/strict");
     page.on("pageerror", (e) => errors.push(String(e)));
     // Let start-up open its Home tab first, so it doesn't take focus from Sources later.
     await page.getByRole("region", { name: "Home", exact: true }).waitFor();
+    // Sidebar controls show while their row is hovered.
+    const sidebarControl = async (name) => {
+      const button = page.locator(`button[aria-label="${name}"]`);
+      await button.locator("xpath=..").hover();
+      await button.click();
+    };
     const [ws] = await page.evaluate(() => window.key.workspaces());
     const call = (command, args = {}) => page.evaluate(({ command, args, id }) => window.key.invoke(command, args, id), { command, args, id: ws.id });
 
@@ -60,11 +66,11 @@ const assert = require("node:assert/strict");
     report.inspector = true;
 
     // Collections: create from the sidebar, then file both sources with the bulk bar.
-    await page.getByRole("button", { name: "New collection", exact: true }).click();
+    await sidebarControl("New collection");
     await page.getByPlaceholder("Collection name").fill("Thesis");
     await page.getByPlaceholder("Collection name").press("Enter");
     await page.locator(".kx-tree-label", { hasText: "Thesis" }).waitFor();
-    await page.locator(".kx-library-section .kx-section-title").click();
+    await page.locator(".kx-top-title", { hasText: "Library" }).click();
     await page.locator(".kx-row").nth(0).click();
     await page.locator(".kx-row").nth(1).click({ modifiers: ["Shift"] });
     const bulk = page.getByRole("toolbar", { name: "Selected sources" });
@@ -77,7 +83,7 @@ const assert = require("node:assert/strict");
     // Collection management in the sidebar's Library section: nest, rename, reorder, delete.
     const treeRow = (name) => page.locator(".kx-tree-row", { has: page.locator(".kx-tree-label > span", { hasText: new RegExp(`^${name}$`) }) });
     await treeRow("Thesis").hover();
-    await page.getByRole("button", { name: "New collection in Thesis", exact: true }).click();
+    await sidebarControl("New collection in Thesis");
     await page.getByRole("textbox", { name: "New collection name" }).fill("Chapter 1");
     await page.getByRole("textbox", { name: "New collection name" }).press("Enter");
     await treeRow("Chapter 1").waitFor();
@@ -87,7 +93,7 @@ const assert = require("node:assert/strict");
     await page.getByRole("textbox", { name: "Rename Chapter 1" }).fill("Chapter One");
     await page.getByRole("textbox", { name: "Rename Chapter 1" }).press("Enter");
     await treeRow("Chapter One").waitFor();
-    await page.getByRole("button", { name: "New collection", exact: true }).click();
+    await sidebarControl("New collection");
     await page.getByRole("textbox", { name: "New collection name" }).fill("Archive");
     await page.getByRole("textbox", { name: "New collection name" }).press("Enter");
     await treeRow("Archive").waitFor();
@@ -196,7 +202,7 @@ const assert = require("node:assert/strict");
 
     // Multi-level sort: Year, then Title, from header clicks (Shift adds a level) and the sort menu.
     for (const c of created) await call("store_update", { id: c.id, patch: { year: 2021 } });
-    await page.locator(".kx-library-section .kx-section-title").click();
+    await page.locator(".kx-top-title", { hasText: "Library" }).click();
     const titles = () => page.locator(".kx-table-row .kx-cell-title > span:last-child").allInnerTexts();
     await header("Year").click();
     await header("Title").click({ modifiers: ["Shift"] });
@@ -314,7 +320,7 @@ const assert = require("node:assert/strict");
     assert.equal(await page.locator(".kx-results [role=alert]").count(), 0);
     await search.fill("");
     await search.press("Escape");
-    await page.locator(".kx-library-section .kx-section-title").click();
+    await page.locator(".kx-top-title", { hasText: "Library" }).click();
     report.search = true;
 
     // Suggestions turn into filter tokens: an author, picked with the keyboard, narrows the list;
