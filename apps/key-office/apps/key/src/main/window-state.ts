@@ -23,7 +23,7 @@ export type SavedLayout =
   | { split: "row" | "column"; ratio: number; a: SavedLayout; b: SavedLayout };
 export interface SavedTabs {
   /** Each tab's layout, and which of its panes (in reading order) had focus. */
-  tabs: { layout: SavedLayout; active: number }[];
+  tabs: { layout: SavedLayout; active: number; pinned?: boolean }[];
   active: number;
 }
 export interface SavedWindow {

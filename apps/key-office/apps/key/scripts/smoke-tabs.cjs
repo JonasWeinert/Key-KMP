@@ -350,10 +350,11 @@ const assert = require("node:assert/strict");
       near(left.y + left.height, dom.height, "left reader reaches the bottom");
       near(top.x, dom.row.right, "right reader starts after the row divider");
       near(top.x + top.width, dom.width, "right reader reaches the window edge");
-      near(top.y, 40, "right reader starts below the tab bar");
+      // Each pane of a split has a 26px header (title, close) above its content.
+      near(top.y, 40 + 26, "right reader starts below the tab bar and its pane header");
       near(top.y + top.height, dom.column.y, "right reader meets the column divider");
       near(dom.column.x, top.x, "column divider spans the right half");
-      near(dom.home.top, dom.column.bottom, "Home pane starts after the column divider");
+      near(dom.home.top, dom.column.bottom + 26, "Home pane starts below the column divider and its header");
       near(dom.home.left, top.x, "Home pane aligns with the reader above");
       near(dom.home.bottom, dom.height, "Home pane reaches the bottom");
       near(dom.home.right, dom.width, "Home pane reaches the window edge");
