@@ -239,7 +239,8 @@ impl Store {
                 });
             }
         }
-        if wants("highlight") && !text.trim().is_empty() {
+        // Without text, highlights come only when asked for by name (the most recent first).
+        if wants("highlight") && (!text.trim().is_empty() || kinds.iter().any(|k| k == "highlight")) {
             let mut statement = db
                 .prepare(
                     "SELECT a.id, a.source_id, a.payload, a.updated_at, s.title FROM annotations a JOIN sources s ON s.id = a.source_id

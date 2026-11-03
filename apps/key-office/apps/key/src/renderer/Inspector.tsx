@@ -1,7 +1,8 @@
 // The inspector: a panel at the window's right edge that follows whatever is selected
 // (a library row, a canvas card, the focused note) and shows it in place — its preview,
 // details, a source's notes and highlights, and what links to it — without opening it.
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { FilterLink, FilterLinks, showInLibrary, sourceFilter } from "./filter-links";
 import { Icon } from "./icons";
 import { copyCitation, copyItemLink, highlightPage, openItemAt, type Highlight } from "./item-actions";
 import { itemLinks, setItemDrag, type Link } from "./item-links";
@@ -159,40 +160,52 @@ export default function Inspector({ invoke, workspaceId, items, onClose }: { inv
             </div>
           </div>
           {info.source && !info.highlight && (
-            <section className="kx-inspector-section kx-inspector-facts">
-              {info.source.creators.length > 0 && (
-                <p>
-                  <span>Authors</span>
-                  {info.source.creators.map(creatorName).join(", ")}
-                </p>
-              )}
-              {info.source.year && (
-                <p>
-                  <span>Year</span>
-                  {info.source.year}
-                </p>
-              )}
-              {info.source.containerTitle && (
-                <p>
-                  <span>In</span>
-                  {info.source.containerTitle}
-                </p>
-              )}
-              {info.source.doi && (
-                <p>
-                  <span>DOI</span>
-                  <a href={`https://doi.org/${info.source.doi}`} target="_blank" rel="noreferrer">
-                    {info.source.doi}
-                  </a>
-                </p>
-              )}
-              {info.source.tags.length > 0 && (
-                <p>
-                  <span>Tags</span>
-                  {info.source.tags.join(", ")}
-                </p>
-              )}
-            </section>
+            <FilterLinks.Provider value={(filter) => showInLibrary(workspaceId, filter)}>
+              <section className="kx-inspector-section kx-inspector-facts">
+                {info.source.creators.length > 0 && (
+                  <p>
+                    <span>Authors</span>
+                    {info.source.creators.map((c, i) => (
+                      <Fragment key={i}>
+                        {i > 0 && ", "}
+                        <FilterLink filter={sourceFilter.creator(c)}>{creatorName(c)}</FilterLink>
+                      </Fragment>
+                    ))}
+                  </p>
+                )}
+                {info.source.year && (
+                  <p>
+                    <span>Year</span>
+                    <FilterLink filter={sourceFilter.year(info.source.year)}>{info.source.year}</FilterLink>
+                  </p>
+                )}
+                {info.source.containerTitle && (
+                  <p>
+                    <span>In</span>
+                    <FilterLink filter={sourceFilter.container(info.source.containerTitle)}>{info.source.containerTitle}</FilterLink>
+                  </p>
+                )}
+                {info.source.doi && (
+                  <p>
+                    <span>DOI</span>
+                    <a href={`https://doi.org/${info.source.doi}`} target="_blank" rel="noreferrer">
+                      {info.source.doi}
+                    </a>
+                  </p>
+                )}
+                {info.source.tags.length > 0 && (
+                  <p>
+                    <span>Tags</span>
+                    {info.source.tags.map((tag, i) => (
+                      <Fragment key={tag}>
+                        {i > 0 && ", "}
+                        <FilterLink filter={sourceFilter.tag(tag)}>{tag}</FilterLink>
+                      </Fragment>
+                    ))}
+                  </p>
+                )}
+              </section>
+            </FilterLinks.Provider>
           )}
           {info.source && !item.anchor && <SourceExtras invoke={invoke} workspaceId={workspaceId} sourceId={info.source.id} sourceTitle={info.source.title || "Untitled"} />}
           <LinksTo invoke={invoke} workspaceId={workspaceId} item={item} />

@@ -14,6 +14,7 @@ import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import CollectionTree from "./CollectionTree";
+import { sidebarClick } from "./sidebar-intent";
 import { hasExternalDrop, hasItemDrag, importDrop, inboxCollection, readItemDrag, setItemDrag } from "./item-links";
 import { describeCount, sendToCanvas, sendToNote, setShellContext, toast } from "./item-actions";
 import { ItemLayer, itemAttrs, onShowInInspector, selectItems, useSelectedItems } from "./item-ui";
@@ -649,6 +650,7 @@ export default function App() {
       <CommandCenter
         invoke={invoke}
         workspaceId={workspaceId}
+        section={section}
         commands={[
           { id: "new-note", label: "New note", icon: "note", run: createNote },
           { id: "new-canvas", label: "New canvas", icon: "canvas", run: createCanvas },
@@ -745,7 +747,8 @@ export default function App() {
             {navItem("Home", "home", section === "home", () =>
               action("open-home"),
             )}
-            {navItem("Highlights", "quote", section === "highlights", () => action("open-content", { section: "highlights", workspaceId }), !workspaceId)}
+            {navItem("Search", "search", section === "search", () => window.dispatchEvent(new Event("key:search")), !workspaceId)}
+            {navItem("Highlights", "quote", section === "highlights", () => sidebarClick({ kind: "highlights" }, () => action("open-content", { section: "highlights", workspaceId })), !workspaceId)}
           </nav>
           <div className="kx-sidebar-scroll">
             <CollectionTree
@@ -762,11 +765,11 @@ export default function App() {
                   "layers",
                   section === "records",
                   () =>
-                    action("open-content", {
+                    sidebarClick({ kind: "records" }, () => action("open-content", {
                       section: "records",
                       workspaceId,
                       projectId,
-                    }),
+                    })),
                   !workspaceId,
                 )}
               </div>
@@ -788,7 +791,7 @@ export default function App() {
                   key={n.id}
                   className="kx-nav-item"
                   aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
-                  onClick={() => openNote(n)}
+                  onClick={() => sidebarClick({ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" }, () => openNote(n))}
                   {...dropTarget({ kind: "note", id: n.id, title: n.title || "Untitled note" })}
                   {...itemAttrs({ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" })}
                   draggable
@@ -809,7 +812,7 @@ export default function App() {
                   key={c.id}
                   className="kx-nav-item"
                   aria-current={activeView?.content?.canvasId === c.id ? "page" : undefined}
-                  onClick={() => openCanvas(c)}
+                  onClick={() => sidebarClick({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" }, () => openCanvas(c))}
                   {...dropTarget({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" })}
                   {...itemAttrs({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" })}
                   draggable
@@ -876,7 +879,7 @@ export default function App() {
                     key={r.id}
                     className="kx-nav-item"
                     aria-current={record?.id === r.id ? "page" : undefined}
-                    onClick={() => selectRecord(r)}
+                    onClick={() => sidebarClick({ kind: "record", id: r.id, title: r.title || "Untitled" }, () => selectRecord(r))}
                     {...itemAttrs({ kind: "record", id: r.id, title: r.title || "Untitled" })}
                     draggable
                     onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "record", id: r.id, title: r.title || "Untitled" }])}

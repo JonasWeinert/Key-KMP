@@ -41,6 +41,8 @@ export interface SearchOptions {
   /** Leave out the full-text search (titles only). */
   titlesOnly?: boolean;
   limit?: number;
+  /** Library filters (as the store takes them) for the text search; standalone notes then drop out. */
+  filters?: { field: string; op?: string; value: string; key?: string }[];
 }
 
 const FIELD_WHERE: Record<string, string> = { creators: "Authors", container: "Journal", abstract: "Abstract", tags: "Tags", notes: "Notes", identifiers: "Identifier" };
@@ -58,7 +60,7 @@ function rank(query: string, found: Found[]) {
   return found.map((f, i) => [f, score(f), i] as const).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(([f]) => f);
 }
 
-function targetFound(target: LinkTarget): Found {
+export function targetFound(target: LinkTarget): Found {
   const highlight = target.anchor?.startsWith("highlight:");
   return {
     kind: target.kind,
@@ -97,7 +99,7 @@ export async function searchTitles(invoke: Invoke, workspaceId: string, query: s
 
 /** The library search: details beyond the title, passages in the text, and passages by meaning. */
 export async function searchText(invoke: Invoke, workspaceId: string, query: string, options: SearchOptions = {}) {
-  const result = await invoke<SearchResult>("store_search", { text: query, limit: options.limit ?? 12, passagesPerSource: 2 }, workspaceId);
+  const result = await invoke<SearchResult>("store_search", { text: query, limit: options.limit ?? 12, passagesPerSource: 2, filters: options.filters ?? [] }, workspaceId);
   const details: Found[] = [],
     text: Found[] = [],
     meaning: Found[] = [];
@@ -120,7 +122,7 @@ export async function searchText(invoke: Invoke, workspaceId: string, query: str
         });
     }
   }
-  for (const note of result.notes) {
+  for (const note of options.filters?.length ? [] : result.notes) {
     for (const passage of note.passages.slice(0, 1)) {
       const into = passage.related ? meaning : text;
       into.push({ kind: "note", id: note.noteId, title: note.title || "Untitled note", group: into === text ? "text" : "meaning", where: "Note", snippet: passage.snippet });

@@ -7,6 +7,7 @@ import { apa, apaInText, bibtex } from "./citation";
 import { Icon } from "./icons";
 import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, itemTypeLabel, shortCreators, type Collection, type Facet, type Invoke, type Note, type Source } from "./library-api";
 import { libraryChanged } from "./library-nav";
+import { FilterButton, FilterLink, FilterLinks, fieldFilter, showInLibrary, sourceFilter } from "./filter-links";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
 import LinkedFrom from "./LinkedFrom";
@@ -260,6 +261,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
     });
 
   return (
+    <FilterLinks.Provider value={(filter) => showInLibrary(workspaceId, filter)}>
     <article className="kx-source-page" ref={pageRef} data-narrow={width !== "wide"} data-tight={width === "tight"}>
       <div className="kx-source-page-inner" data-part={part}>
         <header className="kx-source-page-bar">
@@ -273,6 +275,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
                 </option>
               ))}
             </select>
+            <FilterButton filter={sourceFilter.itemType(source.itemType || "document")} />
           </span>
           {/* The page's parts, one at a time or all together. */}
           <nav className="kx-page-parts" role="tablist" aria-label="Show">
@@ -371,7 +374,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
         {/* One grid: bibliographic fields, tags, collections and the user's properties. */}
         <section className="kx-page-properties" aria-label="Properties">
           {shown.map(([key, label, kind]) => (
-            <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
+            <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} filter={fieldFilter(key, source[key])} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
           ))}
           <div className="kx-field-row kx-page-chips">
             <span>Tags</span>
@@ -383,7 +386,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
               {source.collections.map((id) => (
                 <span className="kx-chip" key={id}>
                   <Icon name="folder" size={11} />
-                  <span>{names.get(id) ?? "Collection"}</span>
+                  <FilterLink filter={sourceFilter.collection(id, names.get(id) ?? "Collection")}>{names.get(id) ?? "Collection"}</FilterLink>
                   <button
                     aria-label={`Remove from ${names.get(id) ?? "collection"}`}
                     onClick={() =>
@@ -560,5 +563,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
         />
       )}
     </article>
+    </FilterLinks.Provider>
   );
 }

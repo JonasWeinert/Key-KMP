@@ -360,7 +360,9 @@ function snapshot(w: ShellWindow) {
                   ? "canvas"
                   : views.get(id)?.content?.section === "source"
                     ? "page"
-                    : "records"
+                    : views.get(id)?.content?.section === "search"
+                      ? "search"
+                      : "records"
               : views.get(id)?.kind,
         content: views.get(id)?.content,
         back: views.get(id)?.back?.map((e) => e.title).slice(-3),
@@ -1175,7 +1177,7 @@ function savedView(id: string): SavedView | undefined {
   if (!c || c.section === "home") return { type: "home" };
   // A record that was never saved has nothing to reopen.
   if (c.section === "record" && !c.record?.id) return undefined;
-  if (!["sources", "records", "record", "note", "source", "canvas"].includes(c.section)) return undefined;
+  if (!["sources", "records", "record", "note", "source", "canvas", "search"].includes(c.section)) return undefined;
   return {
     type: "content",
     section: c.section as "sources",
@@ -1239,7 +1241,7 @@ const contentKey = (section: string, workspaceId?: string, projectId?: string, i
     : JSON.stringify([section, workspaceId || null, projectId || null, id ?? null]);
 /** Opens (or focuses) a library list, record, note or source page in `w`. */
 async function openContent(w: ShellWindow, p: any) {
-  if (!["sources", "records", "record", "note", "canvas", "highlights"].includes(p.section))
+  if (!["sources", "records", "record", "note", "canvas", "highlights", "search"].includes(p.section))
     throw Error("Invalid content view");
   if (p.section === "note" && (typeof p.noteId !== "string" || !p.noteId))
     throw Error("Choose a note");
@@ -1286,7 +1288,9 @@ async function openContent(w: ShellWindow, p: any) {
             ? String(p.title || "Untitled canvas").slice(0, 200)
             : p.section === "highlights"
               ? "Highlights"
-              : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
+              : p.section === "search"
+                ? "Search"
+                : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
     workspaceId: p.workspaceId,
     lastUsed: Date.now(),
     contentKey: recordKey,
@@ -1621,6 +1625,7 @@ function baseMenu() {
         submenu: [
           { label: "Open Quickly…", accelerator: "CmdOrCtrl+P", click: () => emitTo(focusedShell(), "command", "quick-open") },
           { label: "Commands…", accelerator: "CmdOrCtrl+K", click: () => emitTo(focusedShell(), "command", "palette") },
+          { label: "Search Everything…", accelerator: "CmdOrCtrl+Shift+F", click: () => emitTo(focusedShell(), "command", "search") },
           { type: "separator" },
           { label: "Copy Link", accelerator: "CmdOrCtrl+L", click: () => emitTo(focusedShell(), "command", "copy-link") },
           { label: "Copy Citation", accelerator: "CmdOrCtrl+Shift+C", click: () => emitTo(focusedShell(), "command", "copy-citation") },

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apa, apaInText, bibtex } from "./citation";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
 import type { Creator } from "./citation";
+import { FilterButton, FilterLink, FilterLinks, fieldFilter, sourceFilter } from "./filter-links";
+import type { SearchFilter } from "./search-suggest";
 import { Icon } from "./icons";
 import { ProgressRing } from "./index-activity";
 import { formulaValue, type PropertyDefinition, type PropertySheetState } from "./PropertySheets";
@@ -141,6 +143,7 @@ export default function SourceInspector({
               </option>
             ))}
           </select>
+          <FilterButton filter={sourceFilter.itemType(source.itemType || "document")} />
         </span>
         <span className="kx-spacer" />
         <button className="kx-icon-button" title="Open as page" aria-label="Open as page" onClick={() => onOpenPage(source)}>
@@ -185,10 +188,10 @@ export default function SourceInspector({
           <h3>Details</h3>
           <div className="kx-inspector-group kx-details">
             {fields.map(([key, label, kind]) => (
-              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
+              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} filter={fieldFilter(key, source[key])} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
             ))}
             {MORE_FIELDS.filter(([key]) => moreOpen || !!source[key]).map(([key, label, kind]) => (
-              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | undefined} onCommit={(value) => void save({ [key]: value })} />
+              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | undefined} filter={fieldFilter(key, source[key])} onCommit={(value) => void save({ [key]: value })} />
             ))}
             <TypedProperties
               source={source}
@@ -224,7 +227,7 @@ export default function SourceInspector({
             {source.collections.map((id) => (
               <span className="kx-chip" key={id}>
                 <Icon name="folder" size={11} />
-                <span>{collectionNames.get(id) ?? "Collection"}</span>
+                <FilterLink filter={sourceFilter.collection(id, collectionNames.get(id) ?? "Collection")}>{collectionNames.get(id) ?? "Collection"}</FilterLink>
                 <button
                   aria-label={`Remove from ${collectionNames.get(id) ?? "collection"}`}
                   onClick={() =>
@@ -399,7 +402,7 @@ export function AutoText({ value, onCommit, className, placeholder, label }: { v
   );
 }
 
-export function FieldRow({ label, value, kind, onCommit }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void }) {
+export function FieldRow({ label, value, kind, onCommit, filter }: { label: string; value?: string | number; kind?: string; onCommit: (v: string) => void; filter?: SearchFilter }) {
   const text = value === undefined || value === null ? "" : String(value);
   const [draft, setDraft] = useState(text);
   useEffect(() => setDraft(text), [text]);
@@ -426,6 +429,7 @@ export function FieldRow({ label, value, kind, onCommit }: { label: string; valu
           <Icon name="external" size={12} />
         </a>
       )}
+      <FilterButton filter={filter} />
     </label>
   );
 }
@@ -434,6 +438,26 @@ export function Creators({ creators, onCommit }: { creators: Creator[]; onCommit
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(creators);
   useEffect(() => setDraft(creators), [creators]);
+  const filterBy = useContext(FilterLinks);
+  // Each name shows that person's sources; a pencil edits the list.
+  if (!editing && filterBy && creators.length)
+    return (
+      <div className="kx-creators">
+        <Icon name="user" size={12} />
+        <span>
+          {creators.map((c, i) => (
+            <Fragment key={i}>
+              {i > 0 && ", "}
+              <FilterLink filter={sourceFilter.creator(c)}>{c.literal || [c.given, c.family].filter(Boolean).join(" ")}</FilterLink>
+              {c.role && c.role !== "author" ? ` (${c.role})` : ""}
+            </Fragment>
+          ))}
+        </span>
+        <button className="kx-filter-button" title="Edit creators" aria-label="Edit creators" onClick={() => setEditing(true)}>
+          <Icon name="pen" size={11} />
+        </button>
+      </div>
+    );
   if (!editing)
     return (
       <button className="kx-creators" onClick={() => setEditing(true)} title="Edit creators">
@@ -495,7 +519,7 @@ export function TagEditor({ tags, suggestions, onCommit }: { tags: string[]; sug
     <div className="kx-chips">
       {tags.map((tag) => (
         <span className="kx-chip" key={tag} title={tag}>
-          <span>{tag}</span>
+          <FilterLink filter={sourceFilter.tag(tag)}>{tag}</FilterLink>
           <button aria-label={`Remove tag ${tag}`} onClick={() => onCommit(tags.filter((t) => t !== tag))}>
             <Icon name="close" size={9} />
           </button>
@@ -584,6 +608,7 @@ export function TypedProperties({
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               />
             )}
+            <FilterButton filter={definition.type !== "formula" && definition.type !== "boolean" && text ? sourceFilter.property(definition.name, text) : undefined} />
             {definition.type !== "formula" && (
               <button className="kx-row-remove" title={`Fill “${definition.name}” with AI`} aria-label={`Fill ${definition.name} with AI`} onClick={() => onFill(definition.name)}>
                 <Icon name="sparkle" size={11} />

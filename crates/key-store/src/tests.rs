@@ -567,4 +567,7 @@ fn the_link_picker_finds_every_kind() {
     assert_eq!(found[3].context.as_deref(), Some("Growth paper"));
     assert_eq!(found[3].page, Some(1));
     assert_eq!(store.link_targets("growth", &["canvas".into()], 10).unwrap().len(), 1);
+    // With no text, recent highlights come only when asked for.
+    assert!(store.link_targets("", &[], 10).unwrap().iter().all(|t| t.item.anchor.is_none()));
+    assert_eq!(store.link_targets("", &["highlight".into()], 10).unwrap().len(), 1);
 }
