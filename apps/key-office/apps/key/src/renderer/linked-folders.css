@@ -1,0 +1,96 @@
+/* Linked folders: the sidebar tree and a file's pane. */
+.kx-linked-section:hover .kx-section-toggle > svg {
+  opacity: 1;
+}
+.kx-linked-tree .kx-tree-row[data-missing] .kx-tree-label {
+  color: var(--kx-text-3);
+}
+.kx-linked-tree .kx-linked-file-row > svg {
+  color: var(--kx-text-3);
+}
+.kx-linked-tree .kx-linked-file-row[data-kind="markdown"] > svg {
+  color: var(--kx-accent);
+}
+.kx-linked-tree .kx-linked-badge {
+  flex: none;
+  margin: 0 2px;
+  color: var(--kx-text-3);
+}
+
+.kx-linked-file-title {
+  margin: 0 0 12px;
+  overflow: hidden;
+  color: var(--kx-text);
+  font: 700 34px/1.2 var(--kx-font-display);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-linked-file-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+  font-size: 13px;
+}
+.kx-linked-file-banner-action {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+  font: 500 12px var(--kx-font);
+}
+.kx-linked-file-text {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--kx-bg-sunken);
+  color: var(--kx-text);
+  font: 12.5px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.kx-linked-file-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 0;
+  color: var(--kx-text-3);
+}
+.kx-linked-file-preview > img {
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: 6px;
+  box-shadow: var(--kx-shadow-card);
+}
+.kx-linked-file-actions {
+  display: flex;
+  gap: 8px;
+}
+.kx-linked-file-actions > button {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+  font: 500 13px var(--kx-font);
+}
+.kx-linked-file-actions > button:first-child {
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+}
+.kx-linked-file-actions > button:disabled {
+  opacity: 0.5;
+}
+.kx-linked-file-note {
+  margin: 0;
+  font-size: 12px;
+}

@@ -8,6 +8,7 @@ import { bridge, shortCreators, type Invoke, type Note, type Source } from "./li
 import { itemFromHref, itemHref, markdownToPlainText, type DraggedItem, type ItemLink } from "./note-editor";
 import { noteSources } from "./note-sources";
 import { belowContent, layoutCards, normalizeDoc } from "./canvas/model";
+import { describeLinkedFile, openLinkedFile } from "./linked-files";
 
 export type Placement = "tab" | "split" | "here";
 
@@ -48,6 +49,8 @@ export interface ItemInfo {
   highlight?: Highlight & { page?: number };
   canvas?: { nodes: { x: number; y: number; w: number; h: number; type: string; color?: string }[]; cards: number };
   note?: Note;
+  /** A file in a linked folder: where it is on disk, for a Quick Look preview. */
+  file?: { path: string; kind: string; folder: string; missing: boolean };
   exists: boolean;
 }
 
@@ -58,6 +61,7 @@ export function itemIcon(item: Pick<ItemLink, "kind" | "anchor">, sourceKind?: s
   if (item.kind === "note") return "note";
   if (item.kind === "canvas") return "canvas";
   if (item.kind === "record") return "doc";
+  if (item.kind === "file") return sourceKind === "markdown" ? "note" : sourceKind === "image" ? "image" : "doc";
   return SOURCE_ICON[sourceKind ?? ""] ?? "doc";
 }
 
@@ -97,6 +101,8 @@ async function readItem(invoke: Invoke, workspaceId: string, item: ItemLink): Pr
       if (!record) return missing("Page");
       return { item, title: record.title || "Untitled", kindLabel: record.kind === "database" ? "Database" : "Page", icon: record.kind === "database" ? "database" : "doc", body: record.body, exists: true };
     }
+    case "file":
+      return (await describeLinkedFile(invoke, workspaceId, item)) ?? missing("File");
     case "canvas": {
       const canvas = await invoke<{ title: string; doc: unknown } | null>("store_canvas", { id: item.id }, workspaceId);
       if (!canvas) return missing("Canvas");
@@ -162,6 +168,8 @@ export function openItemAt(item: ItemLink, placement: Placement = "tab", title?:
       return action("open-content", { section: "canvas", workspaceId, canvasId: item.id, title });
     case "record":
       return action("open-content", { section: "record", workspaceId, record: { id: item.id } });
+    case "file":
+      return void openLinkedFile(invoke, workspaceId, item.id, title, where);
     case "source": {
       const page = item.anchor?.startsWith("page:") ? Number(item.anchor.slice(5)) : undefined;
       const highlight = item.anchor?.startsWith("highlight:") ? item.anchor.slice(10) : undefined;

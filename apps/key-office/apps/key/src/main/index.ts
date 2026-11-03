@@ -20,6 +20,7 @@ import { setUiLang, normalizeLang } from "@key/i18n";
 import { AgentFill } from "./agent-fill";
 import { AppSettingsStore, appInfo } from "./app-settings";
 import { downloadPdf } from "./download-pdf";
+import { LinkedFolders } from "./linked-folders";
 import { Registry, type WorkspaceInfo } from "./workspaces";
 import { registerMediaScheme, routeEmbeddedMedia, serveNoteMedia } from "./note-media";
 import { WindowStateStore, type SavedLayout, type SavedTabs, type SavedView, type SavedWindow, type WindowState } from "./window-state";
@@ -67,6 +68,7 @@ type OwnedView = {
     noteId?: string;
     sourceId?: string;
     canvasId?: string;
+    fileId?: string;
   };
   contentKey?: string;
   /** What this pane showed before a link was followed in place, and after going back. */
@@ -358,7 +360,7 @@ function snapshot(w: ShellWindow) {
                   ? "note"
                   : views.get(id)?.content?.section === "canvas"
                   ? "canvas"
-                  : views.get(id)?.content?.section === "source"
+                  : views.get(id)?.content?.section === "source" || views.get(id)?.content?.section === "file"
                     ? "page"
                     : "records"
               : views.get(id)?.kind,
@@ -1175,7 +1177,7 @@ function savedView(id: string): SavedView | undefined {
   if (!c || c.section === "home") return { type: "home" };
   // A record that was never saved has nothing to reopen.
   if (c.section === "record" && !c.record?.id) return undefined;
-  if (!["sources", "records", "record", "note", "source", "canvas"].includes(c.section)) return undefined;
+  if (!["sources", "records", "record", "note", "source", "canvas", "file"].includes(c.section)) return undefined;
   return {
     type: "content",
     section: c.section as "sources",
@@ -1184,6 +1186,7 @@ function savedView(id: string): SavedView | undefined {
     noteId: c.noteId,
     sourceId: c.sourceId,
     canvasId: c.canvasId,
+    fileId: c.fileId,
     recordId: c.record?.id,
     title: v.title,
   };
@@ -1239,12 +1242,14 @@ const contentKey = (section: string, workspaceId?: string, projectId?: string, i
     : JSON.stringify([section, workspaceId || null, projectId || null, id ?? null]);
 /** Opens (or focuses) a library list, record, note or source page in `w`. */
 async function openContent(w: ShellWindow, p: any) {
-  if (!["sources", "records", "record", "note", "canvas", "highlights"].includes(p.section))
+  if (!["sources", "records", "record", "note", "canvas", "highlights", "file"].includes(p.section))
     throw Error("Invalid content view");
   if (p.section === "note" && (typeof p.noteId !== "string" || !p.noteId))
     throw Error("Choose a note");
   if (p.section === "canvas" && (typeof p.canvasId !== "string" || !p.canvasId))
     throw Error("Choose a canvas");
+  if (p.section === "file" && (typeof p.fileId !== "string" || !p.fileId))
+    throw Error("Choose a file");
   if (p.section !== "sources" && !p.workspaceId)
     throw Error("Choose a workspace");
   // A library without a workspace is this window's library.
@@ -1254,7 +1259,7 @@ async function openContent(w: ShellWindow, p: any) {
     p.section,
     p.workspaceId,
     p.projectId,
-    p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : p.section === "canvas" ? p.canvasId : null,
+    p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : p.section === "canvas" ? p.canvasId : p.section === "file" ? p.fileId : null,
   );
   const existing = [...views.values()].find((v) => v.contentKey === recordKey);
   if (existing) {
@@ -1282,8 +1287,8 @@ async function openContent(w: ShellWindow, p: any) {
         ? p.record?.title || `Untitled ${p.record?.kind || "page"}`
         : p.section === "note"
           ? String(p.title || "Untitled note").slice(0, 200)
-          : p.section === "canvas"
-            ? String(p.title || "Untitled canvas").slice(0, 200)
+          : p.section === "canvas" || p.section === "file"
+            ? String(p.title || (p.section === "file" ? "File" : "Untitled canvas")).slice(0, 200)
             : p.section === "highlights"
               ? "Highlights"
               : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
@@ -1297,6 +1302,7 @@ async function openContent(w: ShellWindow, p: any) {
       record: p.record,
       noteId: p.section === "note" ? p.noteId : undefined,
       canvasId: p.section === "canvas" ? p.canvasId : undefined,
+      fileId: p.section === "file" ? p.fileId : undefined,
     },
   }, w);
 }
@@ -1328,10 +1334,11 @@ async function restoredView(saved: SavedView): Promise<OwnedView | undefined> {
     if (section === "note" && !(await registry.invoke("store_note", { id: saved.noteId }, workspaceId))) return undefined;
     if (section === "canvas" && !(await registry.invoke("store_canvas", { id: saved.canvasId }, workspaceId))) return undefined;
     if (section === "source" && !(await registry.invoke("store_source", { id: saved.sourceId }, workspaceId))) return undefined;
+    if (section === "file" && !(await registry.invoke("store_linked_file", { id: saved.fileId }, workspaceId))) return undefined;
     const key =
       section === "source"
         ? JSON.stringify(["source", workspaceId, null, saved.sourceId])
-        : contentKey(section, workspaceId, projectId, section === "record" ? saved.recordId : section === "note" ? saved.noteId : section === "canvas" ? saved.canvasId : null);
+        : contentKey(section, workspaceId, projectId, section === "record" ? saved.recordId : section === "note" ? saved.noteId : section === "canvas" ? saved.canvasId : section === "file" ? saved.fileId : null);
     if ([...views.values()].some((v) => v.contentKey === key)) return undefined;
     const view: OwnedView = {
       id: randomUUID(),
@@ -1340,7 +1347,7 @@ async function restoredView(saved: SavedView): Promise<OwnedView | undefined> {
       workspaceId,
       lastUsed: Date.now(),
       contentKey: key,
-      content: { section, workspaceId, projectId, record, noteId: saved.noteId, sourceId: saved.sourceId, canvasId: saved.canvasId },
+      content: { section, workspaceId, projectId, record, noteId: saved.noteId, sourceId: saved.sourceId, canvasId: saved.canvasId, fileId: saved.fileId },
     };
     views.set(view.id, view);
     return view;
@@ -1678,6 +1685,7 @@ else
             : join(root, "vendor/pdfium/lib/libpdfium.dylib")),
       });
       serveNoteMedia(registry);
+      const linkedFolders = new LinkedFolders((c, a, w) => registry.invoke(c, a, w), () => liveShells().map((w) => w.workspaceId), (v) => emit("linked-folders-changed", v));
       routeEmbeddedMedia();
       agentFill = new AgentFill(
         registry,
@@ -1813,6 +1821,7 @@ else
             emit("library-changed");
             return result;
           }
+          if (linkedFolders.handles(command)) return linkedFolders.handle(command, args, targetWorkspace, (from ?? focusedShell()).window);
           if (command === "agent_fill_propose")
             return agentFill.propose(targetWorkspace, args);
           if (command === "agent_fill_apply")

@@ -31,6 +31,7 @@ import {
   type WorkspaceViewDrop,
 } from "../shared/tab-model";
 import type { ContentDropTarget } from "./TabBar";
+import LinkedFolders from "./LinkedFolders";
 interface Workspace {
   id: string;
   name: string;
@@ -129,6 +130,7 @@ function paneItem(content?: ContentSpec, title?: string): DraggedItem | undefine
   if (content.section === "canvas" && content.canvasId) return { kind: "canvas", id: content.canvasId, title: name };
   if (content.section === "source" && content.sourceId) return { kind: "source", id: content.sourceId, title: name };
   if (content.section === "record" && content.record?.id) return { kind: "record", id: content.record.id, title: name };
+  if (content.section === "file" && content.fileId) return { kind: "file", id: content.fileId, title: name };
   return undefined;
 }
 /** Remounts a pane's content when a followed link changes what it shows. */
@@ -891,6 +893,7 @@ export default function App() {
                   <p className="key-sidebar-hint">No pages yet.</p>
                 )}
             </nav>
+            <LinkedFolders invoke={invoke} workspaceId={workspaceId} />
           </div>
           <div className="key-sidebar-footer">
             <ModelProgressPill progress={model} />

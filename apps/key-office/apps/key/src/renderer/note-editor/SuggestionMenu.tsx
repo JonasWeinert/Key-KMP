@@ -14,7 +14,7 @@ export interface SuggestionMenuHandle {
 const MODE_TITLE = { link: "Link to", embed: "Embed", quote: "Quote from a source", cite: "Cite or mention" } as const;
 const GROUP_ORDER = ["titles", "text", "meaning"] as const;
 const refGroup = (ref: SourceRef) => ref.group ?? "titles";
-const ITEM_ICON = { note: "note", canvas: "canvas", record: "doc" } as const;
+const ITEM_ICON = { note: "note", canvas: "canvas", record: "doc", file: "doc" } as const;
 
 function refIcon(ref: SourceRef, mode: MenuState["mode"]): IconName {
   if (mode === "quote") return "quote";

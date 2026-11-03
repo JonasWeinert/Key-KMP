@@ -1,6 +1,7 @@
-/** What a link can point at. Highlights and pages are a source with an anchor. */
-export type ItemKind = "source" | "note" | "canvas" | "record";
-export const ITEM_KINDS: readonly ItemKind[] = ["source", "note", "canvas", "record"];
+/** What a link can point at. Highlights and pages are a source with an anchor; `file` is a
+ * file in a linked folder. */
+export type ItemKind = "source" | "note" | "canvas" | "record" | "file";
+export const ITEM_KINDS: readonly ItemKind[] = ["source", "note", "canvas", "record", "file"];
 
 export interface ItemLink {
   kind: ItemKind;
