@@ -17,8 +17,6 @@ import "./pdf-ui-adapter.css";
 import { Icon } from "./icons";
 import { PdfRail } from "./PdfRail";
 
-// The outline lives on the rail; its full list opens from the rail's footer.
-const renderRail = (rail: PdfReaderRail) => <PdfRail rail={rail} />;
 
 type Target = {
   id: string;
@@ -74,6 +72,8 @@ interface AnalysisReport {
   }[];
   layoutModel: boolean;
   indexStatus?: string | null;
+  /** Headings layout analysis found: the rail's chapters when the PDF has no outline. */
+  sections?: { title: string; page: number; top: number }[];
 }
 const ENGINES: Record<string, string> = {
   "layout-onnx": "Layout analysis with the layout model",
@@ -137,6 +137,10 @@ export default function PdfReader() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [report, setReport] = useState<AnalysisReport | null>();
+  // The outline lives on the rail (or, without one, the headings analysis found); its full
+  // list opens from the rail's footer.
+  const detected = report?.sections;
+  const renderRail = useCallback((rail: PdfReaderRail) => <PdfRail rail={rail} detected={detected} />, [detected]);
   // "Show in PDF": go to the place once the document is ready. Annotations load just after
   // the document, so a second try lights the highlight up if the first was too early.
   const [focus, setFocus] = useState<Focus>();

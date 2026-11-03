@@ -318,6 +318,7 @@ impl Library {
                     "analysis": self.store.analysis(&id)?,
                     "references": self.store.references(&id)?,
                     "citations": self.store.citations(&id)?,
+                    "sections": self.store.sections(&id)?,
                     "layoutModel": self.indexer.layout_model(),
                     "indexStatus": self.store.source(&id)?.map(|s| s.index_status),
                 }))

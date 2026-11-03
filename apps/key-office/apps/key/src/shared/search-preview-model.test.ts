@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { placeSearchResultTab } from "./search-preview-model";
-import { tabWithLayout, type WorkspaceTabsState, type WorkspaceTab } from "./tab-model";
+import { placeSearchResultBeside, placeSearchResultTab } from "./search-preview-model";
+import { singleWorkspaceTab, tabWithLayout, type WorkspaceTabsState, type WorkspaceTab } from "./tab-model";
 const tab = (id: string, ...views: string[]): WorkspaceTab =>
   tabWithLayout(
     { id },
@@ -50,5 +50,19 @@ describe("search results open in tabs", () => {
     expect(s.tabs).toHaveLength(2);
     expect(s.activeTabId).toBe("work");
     expect(s.tabs[1].activeViewId).toBe("pdf");
+  });
+});
+
+describe("placeSearchResultBeside", () => {
+  const search = { tabs: [singleWorkspaceTab("search")], activeTabId: "" } as WorkspaceTabsState;
+  search.activeTabId = search.tabs[0].id;
+  it("opens a result beside the search in its tab, and reuses that pane for the next one", () => {
+    const first = placeSearchResultBeside(search, "search", "pdf:a");
+    expect(first.tabs).toHaveLength(1);
+    expect(first.tabs[0].viewIds).toEqual(["search", "pdf:a"]);
+    expect(first.tabs[0].activeViewId).toBe("pdf:a");
+    const second = placeSearchResultBeside(first, "search", "pdf:b", "pdf:a");
+    expect(second.tabs[0].viewIds).toEqual(["search", "pdf:b"]);
+    expect(placeSearchResultBeside(second, "search", "pdf:b", "pdf:b").tabs[0].viewIds).toEqual(["search", "pdf:b"]);
   });
 });

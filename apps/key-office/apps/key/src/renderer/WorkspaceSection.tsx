@@ -54,8 +54,8 @@ const SORTS: [Sort, string][] = [
 const NODE_DRAG_TYPE = "application/x-key-sidebar-node";
 const LAYOUT_KEY = "sidebar.workspace";
 type Place = "before" | "inside" | "after";
-/** The sidebar's grid (native.css): a 16px gutter, then the icon; 16px per level. */
-const indent = (depth: number) => `min(${4 + depth * 16}px, 40%)`;
+/** The sidebar's grid (native.css): a 12px gutter, then the icon; 12px per level. */
+const indent = (depth: number) => `min(${2 + depth * 12}px, 40%)`;
 
 /**
  * The sidebar's Workspace section: the workspace's notes, canvases, pages and documents
@@ -318,7 +318,7 @@ export default function WorkspaceSection({
             <div role="group">
               {kids.map((k) => row(k, depth + 1))}
               {!kids.length && (
-                <p className="key-sidebar-hint kx-folder-empty" style={{ paddingLeft: `calc(${indent(depth + 1)} + 16px)` }}>
+                <p className="key-sidebar-hint kx-folder-empty" style={{ paddingLeft: `calc(${indent(depth + 1)} + 12px)` }}>
                   Drag items here
                 </p>
               )}
@@ -335,7 +335,7 @@ export default function WorkspaceSection({
         <button
           className="kx-nav-item kx-workspace-item"
           aria-current={currentKey === key ? "page" : undefined}
-          style={{ paddingLeft: `calc(${indent(depth)} + 16px)` }}
+          style={{ paddingLeft: `calc(${indent(depth)} + 12px)` }}
           title={entry.title}
           onClick={() => onOpen(entry)}
           {...(fallback ?? {})}

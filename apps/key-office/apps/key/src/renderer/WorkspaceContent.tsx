@@ -732,7 +732,7 @@ export default function WorkspaceContent({
         <CanvasPage invoke={invoke} workspaceId={workspaceId} canvasId={spec.canvasId} viewId={viewId} />
       )}
       {section === "highlights" && workspaceId && <HighlightsPage invoke={invoke} workspaceId={workspaceId} />}
-      {section === "search" && workspaceId && <SearchPage invoke={invoke} workspaceId={workspaceId} active={visible && tabs.activeViewId === viewId} />}
+      {section === "search" && workspaceId && <SearchPage invoke={invoke} workspaceId={workspaceId} active={visible && tabs.activeViewId === viewId} viewId={viewId} />}
       {section === "file" && workspaceId && spec.fileId && <LinkedFileView invoke={invoke} workspaceId={workspaceId} fileId={spec.fileId} />}
       {(section === "person" || section === "venue" || section === "topic") && workspaceId && spec.entityId && (
         <EntityPage invoke={invoke} workspaceId={workspaceId} kind={section} id={spec.entityId} viewId={viewId} />

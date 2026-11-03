@@ -9,7 +9,7 @@ mod links;
 mod openalex;
 mod properties;
 mod search;
-pub use analysis::{CitationInput, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
+pub use analysis::{CitationInput, DetectedSection, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
 pub use filters::{Filter, Suggestion};
 pub use graph::{
     CitingSource, Grant, Institution, Keyword, MergeSuggestion, NamedCount, Person, PersonPage, Publisher, SourceGraph, SourcePerson, SourceTopic, Topic,

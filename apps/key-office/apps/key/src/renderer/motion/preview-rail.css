@@ -2,7 +2,7 @@
   position: absolute;
   display: flex;
   align-items: center;
-  width: 32px;
+  width: 20px;
   pointer-events: none;
   isolation: isolate;
 }
@@ -11,22 +11,20 @@
   z-index: 1;
   display: grid;
   align-content: center;
-  width: 32px;
-  padding: 6px 0;
-  border-radius: 10px;
+  width: 20px;
+  padding: 4px 0;
+  border-radius: 6px;
   pointer-events: auto;
   opacity: 0.62;
   transition:
     opacity 160ms var(--key-ui-ease, ease),
     background-color 160ms var(--key-ui-ease, ease);
 }
+/* No plate behind the ticks: they only brighten while pointed at. */
 .key-preview-rail-ticks:hover,
 .key-preview-rail-ticks:focus-within,
 .key-preview-rail.is-open .key-preview-rail-ticks {
   opacity: 1;
-  background: color-mix(in srgb, var(--key-ui-surface) 82%, transparent);
-  box-shadow: 0 0 0 1px var(--key-ui-border-subtle, var(--key-ui-border));
-  backdrop-filter: blur(12px);
 }
 .key-preview-rail-ticks > button {
   position: relative;
@@ -35,9 +33,9 @@
   width: 100%;
   min-height: 0;
   margin: 0;
-  padding: 0 0 0 8px;
+  padding: 0 0 0 4px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 3px;
   background: transparent;
   color: var(--key-ui-muted);
   cursor: pointer;
@@ -58,7 +56,7 @@
 }
 .key-preview-rail-tick {
   display: block;
-  width: 16px;
+  width: 10px;
   height: 2px;
   border-radius: 1px;
   background: currentColor;
@@ -66,7 +64,7 @@
 }
 .key-preview-rail-mark {
   position: absolute;
-  left: 26px;
+  left: 16px;
   width: 4px;
   height: 4px;
   border-radius: 50%;
@@ -76,7 +74,7 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  width: 32px;
+  width: 20px;
   display: flex;
   justify-content: center;
   opacity: 0;
@@ -90,12 +88,12 @@
 }
 .key-preview-rail-previews {
   position: absolute;
-  inset: 0 auto 0 40px;
+  inset: 0 auto 0 26px;
   z-index: 2;
   display: grid;
   align-content: center;
   /* Rows carry the same top padding as the ticks so each card sits on its tick. */
-  padding: 6px 0;
+  padding: 4px 0;
   pointer-events: none;
 }
 .key-preview-rail-slot {
@@ -111,8 +109,8 @@
 }
 .key-preview-rail-card {
   flex-shrink: 0;
-  width: 200px;
-  padding: 8px;
+  width: 172px;
+  padding: 7px;
   border: 1px solid var(--key-ui-border);
   border-radius: var(--key-ui-radius-lg, 12px);
   background: var(--key-ui-surface);

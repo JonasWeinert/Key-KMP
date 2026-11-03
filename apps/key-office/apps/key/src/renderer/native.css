@@ -4801,15 +4801,15 @@ button.kx-note-source:hover {
 }
 
 /* ── The sidebar as a macOS source list ──
-   One grid for every row: section headers sit at the left edge; each row keeps a 16px
+   One grid for every row: section headers sit at the left edge; each row keeps a 12px
    gutter for its disclosure chevron, then a 16px icon, so icons line up in columns that
-   step 16px per level (level 0 at 20px, level 1 at 36px …). Rows are 28px with 13px text;
+   step 12px per level (level 0 at 14px, level 1 at 26px …). Rows are 28px with 13px text;
    controls appear on hover in place of counts. The indent functions in CollectionTree and
    WorkspaceSection follow the same steps. */
 .key-sidebar {
-  --sb-gutter: 16px;
-  --sb-level: 16px;
-  --sb-icon-x: 20px;
+  --sb-gutter: 12px;
+  --sb-level: 12px;
+  --sb-icon-x: 14px;
 }
 
 /* Search reads as a search field, not a row. */
@@ -4837,7 +4837,7 @@ button.kx-note-source:hover {
   gap: 2px;
   height: 26px;
   margin-top: 16px;
-  padding: 0 4px 0 8px;
+  padding: 0 4px 0 6px;
   color: var(--kx-text-3);
   font: 600 11px var(--kx-font);
   letter-spacing: 0.01em;
@@ -4941,7 +4941,7 @@ button.kx-note-source:hover {
 .key-sidebar .kx-library-groups .kx-sidebar-group {
   height: 28px;
   margin-top: 0;
-  padding: 0 4px;
+  padding: 0 4px 0 2px;
   border-radius: 6px;
 }
 .key-sidebar .kx-library-groups .kx-sidebar-group:hover {
@@ -4968,7 +4968,7 @@ button.kx-note-source:hover {
   box-sizing: content-box;
   width: 9px;
   margin: 0 -8px 0 0;
-  padding: 0 3.5px;
+  padding: 0 1.5px;
   color: var(--kx-text-3);
   opacity: 0;
 }
@@ -5042,9 +5042,10 @@ button.kx-note-source:hover {
 .kx-ref-search input::placeholder {
   color: var(--kx-text-3);
 }
+/* The search spans the sidebar, like the main Search field above. */
 .key-sidebar .kx-ref-search {
   height: 26px;
-  margin: 2px 4px 4px calc(var(--sb-icon-x) + var(--sb-level) - 8px);
+  margin: 2px 0 4px;
   padding: 0 8px;
   border-radius: 7px;
 }

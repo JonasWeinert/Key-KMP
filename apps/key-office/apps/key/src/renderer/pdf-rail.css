@@ -3,13 +3,17 @@
   position: absolute;
   top: 56px;
   bottom: 28px;
-  left: 6px;
+  left: 4px;
   z-index: 15;
-  width: 32px;
+  width: 20px;
   pointer-events: none;
 }
 .key-pdf-rail > .key-preview-rail {
-  inset: 0;
+  inset: 0 0 44px;
+}
+/* Contents: the heading and its page, no thumbnail, so the card stays small. */
+.key-pdf-rail-preview[data-mode="contents"] {
+  gap: 2px;
 }
 .key-pdf-rail-preview {
   display: grid;
@@ -69,4 +73,45 @@
 .key-pdf-rail-all svg {
   width: 14px;
   height: 14px;
+}
+
+/* Beneath the rail: show chapters or page thumbnails. Quiet until pointed at. */
+.key-pdf-rail-mode {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: auto;
+  opacity: 0.55;
+  transition: opacity 160ms var(--key-ui-ease, ease);
+}
+.key-pdf-rail-mode:hover,
+.key-pdf-rail-mode:focus-within {
+  opacity: 1;
+}
+.key-pdf-rail-mode button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--key-ui-muted);
+  cursor: pointer;
+}
+.key-pdf-rail-mode button[aria-checked="true"] {
+  background: var(--key-ui-hover);
+  color: var(--key-ui-text);
+}
+.key-pdf-rail-mode button:focus-visible {
+  outline: 2px solid var(--key-ui-focus);
+  outline-offset: 1px;
+}
+.key-pdf-rail-mode svg {
+  width: 12px;
+  height: 12px;
 }

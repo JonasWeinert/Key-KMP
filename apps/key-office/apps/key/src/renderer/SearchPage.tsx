@@ -7,11 +7,12 @@ import { EMPTY_FIND, FIND_KINDS, KIND_LABEL, kindOf, onPendingFind, sidebarFilte
 import { Icon } from "./icons";
 import { openItemAt } from "./item-actions";
 import { itemAttrs } from "./item-ui";
-import type { Invoke } from "./library-api";
+import { bridge, type Invoke } from "./library-api";
 import SearchField from "./search-suggest";
 import { SectionHeader, Snippet, foundIcon, useCollapsedGroups } from "./search-sections";
 import { claimSidebar } from "./sidebar-intent";
 import { GROUPS, GROUP_LABEL, type Found } from "./unified-search";
+import "./reference-library.css";
 import "./search-page.css";
 
 const ONE: Record<FindKind, string> = { source: "Source", note: "Note", record: "Page", canvas: "Canvas", highlight: "Highlight" };
@@ -53,7 +54,26 @@ export function KindChips({ result, kinds, onKinds }: { result: FindResult; kind
 type GroupBy = "section" | "kind";
 const GROUP_BY = "key.search.groupBy";
 
-export default function SearchPage({ invoke, workspaceId, active }: { invoke: Invoke; workspaceId: string; active: boolean }) {
+/** The results of one item in one section: the item, and each place it matched. */
+interface ItemGroup {
+  key: string;
+  item: Found;
+  matches: Found[];
+}
+/** Results by item, like the library's search: a source once, its passages beneath it. */
+function byItem(entries: Found[]): ItemGroup[] {
+  const groups = new Map<string, ItemGroup>();
+  for (const entry of entries) {
+    // A highlight is an item of its own; a page of a document belongs to the document.
+    const key = entry.anchor?.startsWith("highlight:") ? `${entry.kind}:${entry.id}:${entry.anchor}` : `${entry.kind}:${entry.id}`;
+    const group = groups.get(key) ?? { key, item: { ...entry, anchor: entry.anchor?.startsWith("highlight:") ? entry.anchor : undefined, snippet: undefined, where: undefined }, matches: [] };
+    if (entry.snippet || entry.where) group.matches.push(entry);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
+export default function SearchPage({ invoke, workspaceId, active, viewId }: { invoke: Invoke; workspaceId: string; active: boolean; viewId?: string }) {
   const [state, setState] = useState<FindState>(() => takePendingFind(workspaceId) ?? EMPTY_FIND);
   useEffect(() => onPendingFind(workspaceId, setState), [workspaceId]);
   const result = useFind(invoke, workspaceId, state, 40);
@@ -113,12 +133,38 @@ export default function SearchPage({ invoke, workspaceId, active }: { invoke: In
             ),
             entries: shutKinds.includes(kind) ? [] : entries,
           }));
-  const visible = sections.flatMap((s) => s.entries);
+  const grouped = sections.map((section) => ({ ...section, items: byItem(section.entries) }));
+  const visible = grouped.flatMap((s) => s.items);
   useEffect(() => setCurrent(-1), [state.text, state.kinds.join(), JSON.stringify(state.filters), groupBy]);
   useEffect(() => {
     list.current?.querySelector(`[data-index="${current}"]`)?.scrollIntoView({ block: "nearest" });
   }, [current]);
-  const open = (entry: Found | undefined, beside = false) => entry && openItemAt(entry, beside ? "split" : "tab", entry.title, workspaceId, invoke);
+  // Results open beside the search, which stays where it is. A passage of a PDF opens the
+  // reader there with the result bar to step through every passage found.
+  const passages = all.filter((f) => f.passageId && f.documentHash && f.sourceKind === "pdf");
+  const openMatch = (entry: Found | undefined, newTab = false) => {
+    if (!entry) return;
+    if (!newTab && entry.passageId && entry.documentHash && entry.sourceKind === "pdf") {
+      const page = entry.anchor?.startsWith("page:") ? Number(entry.anchor.slice(5)) : 0;
+      void bridge().tabAction("preview-result", {
+        sourceViewId: viewId,
+        source: { documentHash: entry.documentHash, documentId: entry.documentHash, title: entry.title, workspaceId },
+        hit: { id: entry.passageId, documentHash: entry.documentHash, documentTitle: entry.title, page, workspaceId },
+        results: passages.map((p) => ({
+          id: p.passageId,
+          documentHash: p.documentHash,
+          documentTitle: p.title,
+          page: p.anchor?.startsWith("page:") ? Number(p.anchor.slice(5)) : 0,
+          workspaceId,
+        })),
+        query: state.text,
+        beside: true,
+      });
+      return;
+    }
+    openItemAt(entry, newTab ? "tab" : "split", entry.title, workspaceId, invoke);
+  };
+  const open = (group: ItemGroup | undefined, newTab = false) => group && openMatch(group.matches.find((m) => m.passageId) ?? group.item, newTab);
 
   return (
     <section className="kx-search-page" aria-label="Search">
@@ -178,38 +224,50 @@ export default function SearchPage({ invoke, workspaceId, active }: { invoke: In
         {!sections.length && !result.found.pending ? (
           <p className="kx-found-empty">{state.text.trim() || state.filters.length || state.kinds.length ? "Nothing matches" : "Nothing in this workspace yet"}</p>
         ) : (
-          sections.map((section) => (
+          grouped.map((section) => (
             <section key={section.id} className="kx-found-group" data-group={section.id}>
               {section.header}
-              {section.entries.map((entry) => {
-                const index = visible.indexOf(entry);
-                const kind = kindOf(entry);
-                const kindLabel = groupBy === "section" ? ONE[kind] : GROUP_LABEL[entry.group];
-                const where = entry.where === kindLabel ? undefined : entry.where;
+              {section.items.map((group) => {
+                const index = visible.indexOf(group);
+                const { item } = group;
+                const kind = kindOf(item);
                 return (
-                  <button
-                    type="button"
-                    key={`${entry.kind}:${entry.id}:${entry.anchor ?? ""}:${entry.group}`}
+                  <article
+                    key={group.key}
                     role="option"
                     aria-selected={index === current}
                     data-index={index}
-                    className="kx-found-row"
-                    {...itemAttrs(entry)}
+                    className="kx-hit kx-found-hit"
+                    {...itemAttrs(item)}
                     onMouseMove={() => index !== current && setCurrent(index)}
-                    onClick={(e) => open(entry, e.altKey)}
                   >
-                    <Icon name={foundIcon(entry)} size={15} className="kx-found-icon" data-color={entry.color} />
-                    <span className="kx-found-text">
-                      <span className="kx-found-title">{entry.title}</span>
-                      {(where || entry.snippet) && (
-                        <span className="kx-found-detail">
-                          {where && <span className="kx-found-where">{where}</span>}
-                          {entry.snippet && <Snippet text={entry.snippet} />}
-                        </span>
-                      )}
+                    <span className="kx-row-kind" data-kind={item.sourceKind ?? kind}>
+                      <Icon name={foundIcon(item)} size={15} data-color={item.color} />
                     </span>
-                    <span className="kx-found-kind">{kindLabel}</span>
-                  </button>
+                    <div className="kx-hit-body">
+                      <button type="button" className="kx-found-open" title="Open beside the search (⌘-click: in a new tab)" onClick={(e) => openMatch(item, e.metaKey)}>
+                        <strong className="kx-hit-title">{item.title}</strong>
+                        <span className="kx-found-kind">{ONE[kind]}</span>
+                      </button>
+                      {item.byline && <span className="kx-hit-meta">{item.byline}</span>}
+                      {group.matches.length > 0 && (
+                        <ul className="kx-hit-matches">
+                          {group.matches.map((match, i) => (
+                            <li key={`${match.anchor ?? ""}:${match.passageId ?? i}`}>
+                              <button type="button" className="kx-passage" data-related={match.group === "meaning"} onClick={(e) => openMatch(match, e.metaKey)}>
+                                {match.where && <span className="kx-match-where">{match.where}</span>}
+                                {match.snippet && (
+                                  <span className="kx-match-text">
+                                    <Snippet text={match.snippet} />
+                                  </span>
+                                )}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </article>
                 );
               })}
             </section>

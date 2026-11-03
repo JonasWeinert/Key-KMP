@@ -81,7 +81,39 @@ const assert = require("node:assert/strict");
     const tab = page.locator(".kx-search-page");
     await tab.waitFor();
     assert.equal(await tab.getByRole("combobox", { name: "Search everything" }).inputValue(), "Interaction");
-    await tab.locator(".kx-found-row", { hasText: "Alpha" }).first().waitFor();
+    await tab.locator(".kx-found-hit", { hasText: "Alpha" }).first().waitFor();
+    // Results by item, like the library: the PDF once, with its matching passages under it.
+    const field = tab.getByRole("combobox", { name: "Search everything" });
+    for (let i = 0; i < 120 && (await call("store_source", { id: source.id })).indexStatus !== "ready"; i++) await page.waitForTimeout(250);
+    await field.fill("compare exactly");
+    await field.press("Escape");
+    const study = tab.locator('.kx-found-group[data-group="text"] .kx-found-hit', { hasText: "Interaction study" });
+    await study.locator(".kx-passage").first().waitFor();
+    assert.equal(await tab.locator('.kx-found-group[data-group="text"] .kx-found-hit', { hasText: "Interaction study" }).count(), 1, "one row per item");
+    // A passage opens beside the search, with the reader's result bar; the search stays.
+    await study.locator(".kx-passage").first().click();
+    await page.waitForFunction(async () => {
+      const t = await window.key.tabs();
+      // In the search's own tab, beside it: no tab of its own.
+      const tab = t.tabs.find((x) => x.views.some((v) => v.kind === "search"));
+      return t.activeTabId === tab?.id && tab.views.map((v) => v.kind).join() === "search,pdf" && !t.tabs.some((x) => x.views.length === 1 && x.views[0].kind === "pdf");
+    });
+    let reader;
+    for (let i = 0; i < 100 && !reader; i++) {
+      reader = app.windows().find((p) => p.url().endsWith("/pdf.html"));
+      if (!reader) await page.waitForTimeout(100);
+    }
+    await reader.locator(".key-pdf-result").waitFor();
+    await shot(page, "search-beside");
+    await page.evaluate(async () => {
+      const t = await window.key.tabs();
+      const pdf = t.tabs.find((x) => x.id === t.activeTabId).views.find((v) => v.kind === "pdf");
+      await window.key.tabAction("close-pane", { viewId: pdf.id });
+    });
+    await waitKind("search");
+    await field.fill("Interaction");
+    await field.press("Escape");
+    await tab.locator(".kx-found-hit", { hasText: "Alpha" }).first().waitFor();
     await tab.locator(".kx-segmented button", { hasText: "Kinds" }).click();
     await tab.locator('.kx-search-head[data-kind="note"]').waitFor();
     await tab.locator(".kx-segmented button", { hasText: "Sections" }).click();
@@ -90,9 +122,9 @@ const assert = require("node:assert/strict");
     await sidebar.locator(".kx-tree-label", { hasText: "Reading list" }).click();
     await tab.locator('.kx-token[data-field="collection"]', { hasText: "Reading list" }).waitFor();
     await tab.locator('.kx-kind-chips button[data-kind="source"][aria-pressed="true"]').waitFor();
-    await tab.locator(".kx-found-row", { hasText: "Interaction study" }).first().waitFor();
+    await tab.locator(".kx-found-hit", { hasText: "Interaction study" }).first().waitFor();
     await page.waitForFunction(() => {
-      const rows = [...document.querySelectorAll(".kx-search-page .kx-found-row")].map((r) => r.textContent);
+      const rows = [...document.querySelectorAll(".kx-search-page .kx-found-hit")].map((r) => r.textContent);
       return rows.length && rows.every((t) => !t.includes("budgets") && !t.includes("Alpha") && !t.includes("board"));
     });
     assert.equal(await tab.locator('.kx-kind-chips button[data-kind="note"] .kx-count').textContent(), "0", "notes are not in a collection");
@@ -109,7 +141,7 @@ const assert = require("node:assert/strict");
     await sidebar.locator(".kx-nav-item", { hasText: "Alpha" }).click();
     await tab.locator('.kx-token[data-field="item"]', { hasText: "Alpha" }).waitFor();
     await page.waitForFunction(() => {
-      const rows = [...document.querySelectorAll(".kx-search-page .kx-found-row")];
+      const rows = [...document.querySelectorAll(".kx-search-page .kx-found-hit")];
       return rows.length > 0 && rows.every((r) => r.textContent.includes("Alpha") || r.querySelector(".kx-found-kind")?.textContent === "Note");
     });
     assert.equal(await activeKind(), "search");

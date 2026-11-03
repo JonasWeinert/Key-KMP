@@ -61,9 +61,19 @@ const { tmpdir } = require("node:os");
     );
     await pdf.screenshot({ path: path.join(temp, "pdf.png") });
     console.log("PDF", await pdf.locator("body").innerText());
-    // The structure rail: hovering a tick previews it, clicking jumps there.
+    // The structure rail: hovering a tick previews it, clicking jumps there. With chapters
+    // (the outline or the headings analysis found) a switch beneath it picks contents or
+    // page thumbnails; thumbnails are what this check looks at.
     const ticks = pdf.locator('.key-pdf-rail [data-slot="preview-rail-item"]');
     await ticks.first().waitFor({ timeout: 30000 });
+    const thumbnails = pdf.getByRole("radio", { name: "Page thumbnails" });
+    if (await thumbnails.count()) {
+      await pdf.getByRole("radio", { name: "Contents" }).click();
+      await ticks.first().hover();
+      await pdf.locator(".key-pdf-rail-preview[data-mode=contents]").waitFor({ timeout: 5000 });
+      await pdf.mouse.move(600, 300);
+      await thumbnails.click();
+    }
     const labels = await ticks.evaluateAll((items) =>
       items.map((item) => item.getAttribute("aria-label")),
     );

@@ -1,4 +1,4 @@
-import { placeSearchResultTab } from "../shared/search-preview-model";
+import { placeSearchResultBeside, placeSearchResultTab } from "../shared/search-preview-model";
 import {
   app,
   BrowserWindow,
@@ -200,6 +200,8 @@ type SearchPreviewSession = {
   error?: string;
   sequence: number;
   dismissed: boolean;
+  /** Results show beside the search in its tab (the search tab), not in a tab of their own. */
+  beside?: boolean;
 };
 const searchPreviews = new Map<string, SearchPreviewSession>();
 // The search bar belongs to the tab showing a result (results open in their own tab).
@@ -280,7 +282,7 @@ async function showSearchPreview(session: SearchPreviewSession, index: number) {
     const old = views.get(session.previewViewId || "");
     const replaceable =
       old?.searchPreviewOwner === session.sourceViewId ? old.id : undefined;
-    w.state = placeSearchResultTab(w.state, session.sourceViewId, id, replaceable);
+    w.state = (session.beside ? placeSearchResultBeside : placeSearchResultTab)(w.state, session.sourceViewId, id, replaceable);
     if (
       old &&
       old.id !== id &&
@@ -2270,6 +2272,7 @@ else
               busy: false,
               sequence: 0,
               dismissed: false,
+              beside: p.beside === true,
             };
             searchPreviews.set(source.id, session);
             await showSearchPreview(session, index);

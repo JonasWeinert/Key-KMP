@@ -3,7 +3,7 @@
 // library's search: matches in titles and details first, then in the text, then related
 // by meaning. Title matches come back at once; the full-text search follows.
 import { useEffect, useRef, useState } from "react";
-import type { Invoke, SearchResult } from "./library-api";
+import { shortCreators, type Invoke, type SearchResult } from "./library-api";
 import { linkTargets, type LinkTarget } from "./item-links";
 import type { DraggedItem, ItemKind } from "./note-editor";
 
@@ -23,6 +23,11 @@ export interface Found extends DraggedItem {
   snippet?: string;
   /** A source's kind (pdf, web …), for the icon. */
   sourceKind?: string;
+  /** Authors and year of a source, for the result row. */
+  byline?: string;
+  /** A matching passage of a document: its id (to open the reader there) and the document. */
+  passageId?: string;
+  documentHash?: string;
 }
 
 export interface Found3 {
@@ -116,7 +121,8 @@ export async function searchText(invoke: Invoke, workspaceId: string, query: str
   for (const hit of result.hits) {
     const source = hit.source;
     const title = source?.title || hit.title || "Untitled";
-    const base = { kind: "source" as const, id: hit.sourceId, title, sourceKind: source?.kind, detail: source?.kind };
+    const byline = source ? [shortCreators(source.creators), source.year].filter(Boolean).join(" · ") || undefined : undefined;
+    const base = { kind: "source" as const, id: hit.sourceId, title, sourceKind: source?.kind, detail: source?.kind, byline, documentHash: hit.documentHash };
     const field = hit.fields.find((f) => f.field !== "notes");
     if (hit.metadataMatch && field) details.push({ ...base, group: "titles", where: FIELD_WHERE[field.field], snippet: field.snippet });
     for (const passage of hit.passages) {
@@ -125,6 +131,7 @@ export async function searchText(invoke: Invoke, workspaceId: string, query: str
       else
         into.push({
           ...base,
+          passageId: passage.id,
           anchor: passage.page != null ? `page:${passage.page}` : undefined,
           group: into === text ? "text" : "meaning",
           where: passage.page != null ? `p. ${passage.page + 1}` : undefined,

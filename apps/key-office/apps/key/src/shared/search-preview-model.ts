@@ -1,4 +1,6 @@
 import {
+  insertIntoLayout,
+  removeFromLayout,
   singleWorkspaceTab,
   tabWithLayout,
   type WorkspaceTabsState,
@@ -45,4 +47,35 @@ export function placeSearchResultTab(
     tabs: [...state.tabs.slice(0, at), tab, ...state.tabs.slice(at)],
     activeTabId: tab.id,
   };
+}
+
+/** Open a search result beside its results, in the same tab (the search tab keeps its
+ * place). A result shown there before is replaced, so stepping through results reuses
+ * one pane; a view already open in that tab is simply focused.
+ */
+export function placeSearchResultBeside(
+  state: WorkspaceTabsState,
+  sourceViewId: string,
+  resultViewId: string,
+  replaceableViewId?: string,
+): WorkspaceTabsState {
+  const source = state.tabs.find((t) => t.viewIds.includes(sourceViewId));
+  if (!source || sourceViewId === resultViewId) return state;
+  if (source.viewIds.includes(resultViewId))
+    return { tabs: state.tabs.map((t) => (t.id === source.id ? { ...t, activeViewId: resultViewId } : t)), activeTabId: source.id };
+  const without =
+    replaceableViewId && replaceableViewId !== sourceViewId && source.viewIds.includes(replaceableViewId)
+      ? (removeFromLayout(source.layout, replaceableViewId) ?? { view: sourceViewId })
+      : source.layout;
+  const layout = insertIntoLayout(without, sourceViewId, { view: resultViewId }, "right");
+  const tabs = state.tabs
+    // The result leaves any other tab it was in.
+    .map((t) => {
+      if (t.id === source.id || !t.viewIds.includes(resultViewId)) return t;
+      const rest = removeFromLayout(t.layout, resultViewId);
+      return rest ? tabWithLayout(t, rest) : null;
+    })
+    .filter((t): t is WorkspaceTab => !!t)
+    .map((t) => (t.id === source.id ? tabWithLayout({ ...t, activeViewId: resultViewId }, layout) : t));
+  return { tabs, activeTabId: source.id };
 }

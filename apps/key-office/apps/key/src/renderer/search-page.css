@@ -184,3 +184,37 @@
   flex: none;
   padding: 0 7px;
 }
+
+/* Results by item, as in the library: the item's title (which opens it beside the search),
+   its byline, then each place it matched. */
+.kx-search-page .kx-found-hit {
+  cursor: default;
+}
+.kx-found-open {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.kx-found-open > .kx-hit-title {
+  flex: 1;
+  min-width: 0;
+}
+.kx-found-open:hover > .kx-hit-title {
+  color: var(--kx-accent);
+}
+.kx-found-open > .kx-found-kind {
+  flex: none;
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+}
+.kx-found-hit[aria-selected="true"] {
+  background: var(--kx-fill);
+}
