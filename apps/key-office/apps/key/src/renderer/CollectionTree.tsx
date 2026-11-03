@@ -21,30 +21,28 @@ const readSet = (key: string, fallback: string[] = []) => {
 };
 
 /**
- * The sidebar's Library section: Sources with the workspace's collections nested under it,
- * then `children` (further library views). Collections are added, renamed, deleted, nested
- * and reordered here, and sources dropped on one are filed into it.
+ * The Collections group in the sidebar's Library section: the workspace's collections and
+ * sub-collections. Collections are added, renamed, deleted, nested and reordered here, and
+ * sources dropped on one are filed into it. The group's header takes collections dragged
+ * to the top level.
  */
 export default function CollectionTree({
   invoke,
   workspaceId,
   sourcesCurrent,
   onShowSources,
-  children,
 }: {
   invoke: Invoke;
   workspaceId?: string;
   /** The Sources view is the active tab. */
   sourcesCurrent: boolean;
   onShowSources: () => void;
-  children?: ReactNode;
 }) {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selection, setSelection] = useState(currentSelection(workspaceId));
   const openKey = `key.collections.open:${workspaceId}`;
-  // "@sources" stands for the Sources row's own disclosure; the section starts open.
-  const [expanded, setExpanded] = useState<Set<string>>(() => readSet(openKey, ["@sources"]));
-  const [sectionOpen, setSectionOpen] = useState(() => localStorage.getItem("key.sidebar.library") !== "closed");
+  const [expanded, setExpanded] = useState<Set<string>>(() => readSet(openKey));
+  const [sectionOpen, setSectionOpen] = useState(() => localStorage.getItem("key.sidebar.collections") !== "closed");
   const [creating, setCreating] = useState<{ parentId?: string } | null>(null);
   const [renaming, setRenaming] = useState<string>();
   const [drop, setDrop] = useState<{ id: string; place: Place }>();
@@ -59,7 +57,7 @@ export default function CollectionTree({
   useEffect(() => {
     load();
     setSelection(currentSelection(workspaceId));
-    setExpanded(readSet(openKey, ["@sources"]));
+    setExpanded(readSet(openKey));
     return onLibraryChanged(load);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, workspaceId]);
@@ -71,7 +69,7 @@ export default function CollectionTree({
   }, [expanded, openKey]);
   useEffect(() => {
     try {
-      localStorage.setItem("key.sidebar.library", sectionOpen ? "open" : "closed");
+      localStorage.setItem("key.sidebar.collections", sectionOpen ? "open" : "closed");
     } catch {}
   }, [sectionOpen]);
 
@@ -108,7 +106,6 @@ export default function CollectionTree({
     setCreating(null);
     if (!name.trim() || !workspaceId) return;
     const created = await invoke<Collection>("store_collection_create", { name, parentId: parentId ?? null }, workspaceId);
-    toggle("@sources", true);
     if (parentId) toggle(parentId, true);
     libraryChanged();
     choose(created.id);
@@ -122,7 +119,6 @@ export default function CollectionTree({
     });
   };
   const startCreate = (parentId?: string) => {
-    toggle("@sources", true);
     if (parentId) toggle(parentId, true);
     setSectionOpen(true);
     setCreating({ parentId });
@@ -145,7 +141,7 @@ export default function CollectionTree({
   const dropProps = (target: Collection | null) => ({
     onDragOver: (e: React.DragEvent<HTMLElement>) => {
       const types = e.dataTransfer.types;
-      const id = target?.id ?? "@sources";
+      const id = target?.id ?? "@top";
       // Sources (from the list, a canvas, the inspector …) join a collection; files are imported into it.
       const sources = types.includes(SOURCE_DRAG_TYPE) || hasItemDrag(e.dataTransfer);
       if ((sources || hasExternalDrop(e.dataTransfer)) && workspaceId) {
@@ -201,7 +197,7 @@ export default function CollectionTree({
     const open = expanded.has(c.id);
     const current = sourcesCurrent && selection?.collectionId === c.id;
     return (
-      <div key={c.id} role="treeitem" aria-expanded={kids.length ? open : undefined} aria-selected={current} aria-level={depth + 2}>
+      <div key={c.id} role="treeitem" aria-expanded={kids.length ? open : undefined} aria-selected={current} aria-level={depth}>
         <div
           className="kx-tree-row"
           data-current={current}
@@ -294,52 +290,24 @@ export default function CollectionTree({
   };
 
   const top = children_.get(null) ?? [];
-  const sourcesOpen = expanded.has("@sources");
   const menuCollection = menu && collections.find((c) => c.id === menu.id);
   return (
     <>
-      <div className="key-sidebar-section kx-library-section">
-        <button className="kx-section-toggle" aria-expanded={sectionOpen} onClick={() => setSectionOpen(!sectionOpen)}>
-          <span>Library</span>
+      <div className="kx-sidebar-group" data-drop={drop?.id === "@top" ? "inside" : undefined} {...dropProps(null)}>
+        <button className="kx-section-toggle" aria-expanded={sectionOpen} onClick={() => setSectionOpen(!sectionOpen)} title="Drop a collection here to move it to the top level">
           <Icon name="chevronRight" size={9} style={{ transform: sectionOpen ? "rotate(90deg)" : undefined }} />
+          <span>Collections</span>
+          {!!collections.length && <small>{collections.length}</small>}
         </button>
         <button aria-label="New collection" title="New collection" disabled={!workspaceId} onClick={() => startCreate()}>
-          <Icon name="plus" size={14} />
+          <Icon name="plus" size={13} />
         </button>
       </div>
       {sectionOpen && (
-        <nav className="kx-tree" role="tree" aria-label="Library">
-          <div role="treeitem" aria-expanded={top.length ? sourcesOpen : undefined} aria-selected={sourcesCurrent && !selection?.collectionId} aria-level={1}>
-            <div
-              className="kx-tree-row kx-tree-root"
-              data-current={sourcesCurrent && !selection?.collectionId}
-              data-drop={drop?.id === "@sources" ? "inside" : undefined}
-              style={{ paddingLeft: 4 }}
-              {...dropProps(null)}
-            >
-              <button
-                className="kx-tree-disclosure"
-                aria-label={sourcesOpen ? "Collapse collections" : "Expand collections"}
-                tabIndex={-1}
-                style={{ visibility: top.length || creating ? "visible" : "hidden" }}
-                onClick={() => toggle("@sources")}
-              >
-                <Icon name="chevronRight" size={10} style={{ transform: sourcesOpen ? "rotate(90deg)" : undefined }} />
-              </button>
-              <button className="kx-tree-label kx-nav-item" onClick={() => choose(undefined)} title="All sources · drop a collection here to move it to the top level">
-                <Icon name="books" />
-                <span>Sources</span>
-              </button>
-            </div>
-            {sourcesOpen && (
-              <div role="group">
-                {top.map((c) => row(c, 1))}
-                {creating && !creating.parentId && <NewRow depth={1} onDone={(name) => void create(name)} />}
-                {workspaceId && !collections.length && !creating && <p className="key-sidebar-hint kx-tree-hint">Add a collection with +, then drag items onto it.</p>}
-              </div>
-            )}
-          </div>
-          {children}
+        <nav className="kx-tree" role="tree" aria-label="Collections">
+          {top.map((c) => row(c, 1))}
+          {creating && !creating.parentId && <NewRow depth={1} onDone={(name) => void create(name)} />}
+          {workspaceId && !collections.length && !creating && <p className="key-sidebar-hint kx-tree-hint">Add a collection with +, then drag sources onto it.</p>}
         </nav>
       )}
       {menu && menuCollection && (

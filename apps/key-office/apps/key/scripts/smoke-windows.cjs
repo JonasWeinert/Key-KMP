@@ -171,6 +171,8 @@ const assert = require("node:assert/strict");
     }, fieldwork);
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.getByRole("menuitem", { name: "Add workspace…", exact: true }).click();
+    // Picking a workspace asks whether it replaces this window's.
+    await page.getByRole("menu", { name: "Open Fieldwork" }).getByRole("menuitem", { name: /^Replace/ }).click();
     await until(async () => (await tabs()).workspaceId !== ws.id, "switched to the added workspace");
     state = await tabs();
     const added = (await page.evaluate(() => window.key.workspaces())).find((w) => w.id === state.workspaceId);
@@ -181,11 +183,12 @@ const assert = require("node:assert/strict");
     // The first workspace's reader closed with it.
     for (let i = 0; i < 50 && app.windows().some((p) => p.url().endsWith("/pdf.html")); i++) await page.waitForTimeout(100);
     assert(!app.windows().some((p) => p.url().endsWith("/pdf.html")));
-    await page.getByRole("button", { name: "Workspace", exact: true }).locator("strong").filter({ hasText: "Fieldwork" }).waitFor();
+    await page.locator(".key-workspace-home strong").filter({ hasText: "Fieldwork" }).waitFor();
 
     // Back again: the arrangement returns, ratios included, reader and all.
     await page.getByRole("button", { name: "Workspace", exact: true }).click();
     await page.locator(`[data-workspace-id="${ws.id}"]`).click();
+    await page.getByRole("menuitem", { name: /^Replace/ }).click();
     await until(async () => (await tabs()).workspaceId === ws.id && (await tabs()).tabs.length > 1, "switched back");
     state = await tabs();
     const back = state.tabs.find((t) => t.id === state.activeTabId);
