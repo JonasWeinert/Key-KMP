@@ -99,6 +99,8 @@ export default function CommandCenter({
   const close = () => setOpen(undefined);
   const current = () => selectedItems();
   useEffect(() => onSendTo((items) => setOpen({ mode: "send", items })), []);
+  // A highlight sent from a PDF reader.
+  useEffect(() => bridge().on("send-items", (items) => setOpen({ mode: "send", items: items as DraggedItem[] })), []);
   useEffect(() => {
     const show = () => setTimeout(() => setOpen({ mode: "shortcuts" }));
     window.addEventListener("key:shortcuts", show);
@@ -115,6 +117,8 @@ export default function CommandCenter({
             return setOpen({ mode: "commands" });
           case "shortcuts":
             return setOpen({ mode: "shortcuts" });
+          case "highlights":
+            return workspaceId && void bridge().tabAction("open-content", { section: "highlights", workspaceId });
           case "copy-link":
             // A text selection copies as usual; the shortcut is for items.
             if (document.getSelection()?.toString()) return;

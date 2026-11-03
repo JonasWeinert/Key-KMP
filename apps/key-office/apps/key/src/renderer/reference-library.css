@@ -2137,3 +2137,44 @@
   padding-bottom: 6px;
   border-bottom: 1px solid var(--kx-line);
 }
+
+/* A source page's parts: Overview shows all of them, the others one each. */
+.kx-page-parts {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 0 10px;
+  padding: 2px;
+  width: fit-content;
+  border-radius: 8px;
+  background: var(--kx-fill);
+}
+.kx-page-parts button {
+  padding: 3px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: inherit;
+  font-size: 12.5px;
+}
+.kx-page-parts button[aria-selected="true"] {
+  background: var(--kx-bg-raised);
+  color: var(--kx-text);
+  box-shadow: var(--kx-shadow-sm);
+}
+.kx-source-page-inner[data-part="notes"] [data-part-of]:not([data-part-of="notes"]),
+.kx-source-page-inner[data-part="highlights"] [data-part-of]:not([data-part-of="highlights"]),
+.kx-source-page-inner[data-part="info"] [data-part-of]:not([data-part-of="info"]),
+.kx-source-page-inner[data-part="linked"] [data-part-of]:not([data-part-of="linked"]) {
+  display: none;
+}
+.kx-source-page-inner:not([data-part="all"]) .kx-source-image {
+  display: none;
+}
+.kx-page-parts-hint {
+  color: var(--kx-text-3);
+  font-size: 12.5px;
+}
+.kx-page-highlights li[draggable="true"] {
+  cursor: grab;
+}

@@ -704,6 +704,7 @@ export default function App() {
             {navItem("Home", "home", section === "home", () =>
               action("open-home"),
             )}
+            {navItem("Highlights", "quote", section === "highlights", () => action("open-content", { section: "highlights", workspaceId }), !workspaceId)}
           </nav>
           <div className="kx-sidebar-scroll">
             <CollectionTree

@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld("key", {
   readerDismiss: () => ipcRenderer.invoke("key:reader-dismiss"),
   readerNotes: () => ipcRenderer.invoke("key:reader-notes"),
   readerAddToNote: (passage: unknown) => ipcRenderer.invoke("key:reader-add-to-note", passage),
+  readerSendTo: (highlight: unknown) => ipcRenderer.invoke("key:reader-send-to", highlight),
   readerAnalysis: () => ipcRenderer.invoke("key:reader-analysis"),
   readerReanalyze: () => ipcRenderer.invoke("key:reader-reanalyze"),
   readerOpenSource: (sourceId: string) => ipcRenderer.invoke("key:reader-open-source", sourceId),

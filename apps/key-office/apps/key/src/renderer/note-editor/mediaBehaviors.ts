@@ -156,7 +156,9 @@ export const NoteMedia = Extension.create({
               event.preventDefault();
               const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
               // ⌥ embeds, ⌘ cites; a plain drop links (and offers the other two).
-              const mode: DropMode = event.altKey ? "embed" : event.metaKey || event.ctrlKey ? "cite" : "link";
+              // Highlights on their own come in as quotes with their citation.
+              const quotes = items.every((item) => item.anchor?.startsWith("highlight:"));
+              const mode: DropMode = event.altKey ? "embed" : event.metaKey || event.ctrlKey || quotes ? "cite" : "link";
               void insertDroppedItems(editor, items, at?.pos ?? view.state.selection.from, mode);
               return true;
             }

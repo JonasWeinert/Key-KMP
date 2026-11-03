@@ -1436,6 +1436,9 @@ interface PdfJsBenchmarkAppProps {
   onRequestControlMode?: (mode: 'search' | 'comments' | null) => void;
   /** When set, the selection toolbar sends the passage to the source's note instead of a comment. */
   onAddToNote?: (passage: { text: string; page: number; color?: string }) => void;
+  /** When set, the selection toolbar offers Send to…: the passage is highlighted (if it isn't
+   * yet) and the highlight handed to the host to place on a canvas or in a note. */
+  onSendTo?: (highlight: { annotationId: string; text: string; page: number; color?: string }) => void;
   /** References kept by the host's library; when given they replace the reader's own analysis. */
   references?: Array<{ number: number; page: number; xFraction?: number; yFraction?: number; text: string }>;
   /** Shown at the top of the References panel (e.g. the library's analysis status). */
@@ -1508,6 +1511,7 @@ function PdfJsBenchmarkApp({
   initialControlState,
   onRequestControlMode,
   onAddToNote,
+  onSendTo,
   referencesHeader,
   referenceAside,
   references: libraryReferences,
@@ -2144,6 +2148,7 @@ function PdfJsBenchmarkApp({
         );
       });
       setStatus(`Added ${color} highlight`);
+      return updated;
     },
     [activeAnnotation, annotations, selection, updateAnnotations],
   );
@@ -2897,6 +2902,23 @@ function PdfJsBenchmarkApp({
               onClick={openCommentEditor}
             >
               <Icon name="note" />
+            </button>
+          )}
+          {onSendTo && (
+            <button
+              type="button"
+              className="pdfjs-selection-action pdfjs-selection-to-note"
+              aria-label="Send to a canvas or note"
+              title="Highlight this passage and send it to a canvas or note"
+              onClick={() => {
+                const annotation = activeAnnotation ?? addHighlight(HIGHLIGHT_COLORS[0]);
+                if (!annotation) return;
+                onSendTo({ annotationId: annotation.id, text: annotation.text, page: annotation.range.start.page, color: annotation.color });
+                window.getSelection()?.removeAllRanges();
+              }}
+            >
+              <Icon name="next" />
+              <span>Send to…</span>
             </button>
           )}
           {activeAnnotation && (

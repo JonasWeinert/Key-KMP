@@ -10,6 +10,8 @@ import { libraryChanged } from "./library-nav";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
 import LinkedFrom from "./LinkedFrom";
+import { setItemDrag } from "./item-links";
+import { itemAttrs } from "./item-ui";
 import { PropertySheet, usePropertyDefinitions, type PropertySheetState } from "./PropertySheets";
 import { AutoText, Creators, DEFAULT_FIELDS, FIELDS, FieldRow, MORE_FIELDS, TagEditor, TypedProperties } from "./SourceInspector";
 
@@ -38,6 +40,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
   const [source, setSource] = useState<Source>();
   const [notes, setNotes] = useState<Note[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [part, setPart] = useState<"all" | "notes" | "highlights" | "info" | "linked">("all");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<Facet[]>([]);
   const [moreFields, setMoreFields] = useState(false);
@@ -51,6 +54,12 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
       return true;
     }
   });
+  /** Shows one part of the page; Info opens the details. */
+  const showPart = (next: typeof part) => {
+    setPart(next);
+    if (next === "info") toggleDetails(true);
+    pageRef.current?.scrollTo({ top: 0 });
+  };
   const toggleDetails = (open: boolean) => {
     setDetailsOpen(open);
     try {
@@ -252,7 +261,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
 
   return (
     <article className="kx-source-page" ref={pageRef} data-narrow={width !== "wide"} data-tight={width === "tight"}>
-      <div className="kx-source-page-inner">
+      <div className="kx-source-page-inner" data-part={part}>
         <header className="kx-source-page-bar">
           <span className="kx-kind-badge" data-kind={source.kind}>
             <Icon name={KIND_ICON[source.kind] ?? "doc"} size={13} />
@@ -265,6 +274,22 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
               ))}
             </select>
           </span>
+          {/* The page's parts, one at a time or all together. */}
+          <nav className="kx-page-parts" role="tablist" aria-label="Show">
+            {(
+              [
+                ["all", "Overview"],
+                ["notes", "Notes"],
+                ["highlights", `Highlights${highlights.length ? ` ${highlights.length}` : ""}`],
+                ["info", "Info"],
+                ["linked", "Linked"],
+              ] as const
+            ).map(([key, label]) => (
+              <button key={key} role="tab" aria-selected={part === key} onClick={() => showPart(key)}>
+                {label}
+              </button>
+            ))}
+          </nav>
           <span className="kx-spacer" />
           <button className="kx-icon-button" data-active={source.starred} aria-pressed={source.starred} title={source.starred ? "Unstar" : "Star"} onClick={() => void save({ starred: !source.starred })}>
             <Icon name="star" size={15} fill={source.starred ? "currentColor" : "none"} />
@@ -323,7 +348,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
           </figure>
         )}
         {/* Accordion: the details fold under the title, with a one-line summary when closed. */}
-        <button className="kx-page-details-toggle" onClick={() => toggleDetails(!detailsOpen)} aria-expanded={detailsOpen}>
+        <button data-part-of="info" className="kx-page-details-toggle" onClick={() => toggleDetails(!detailsOpen)} aria-expanded={detailsOpen}>
           <Icon name="chevronRight" size={11} />
           <span>Details</span>
           {!detailsOpen && (
@@ -341,7 +366,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
           )}
         </button>
         {detailsOpen && (
-          <div className="kx-page-details">
+          <div className="kx-page-details" data-part-of="info">
         <Creators creators={source.creators} onCommit={(creators) => void save({ creators })} />
         {/* One grid: bibliographic fields, tags, collections and the user's properties. */}
         <section className="kx-page-properties" aria-label="Properties">
@@ -433,7 +458,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
         {error && <p className="kx-inline-error">{error}</p>}
 
         {highlights.length > 0 && (
-          <section className="kx-page-section">
+          <section className="kx-page-section" data-part-of="highlights">
             <h3>
               Highlights <span className="kx-count">{highlights.length}</span>
             </h3>
@@ -441,7 +466,14 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
               {highlights.map((h) => {
                 const pageIndex = highlightPage(h);
                 return (
-                  <li key={h.id} data-color={h.color || "orange"}>
+                  <li
+                    key={h.id}
+                    data-color={h.color || "orange"}
+                    {...itemAttrs({ kind: "source", id: sourceId, anchor: `highlight:${h.id}`, title: h.text || "Highlight" })}
+                    draggable
+                    onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "source", id: sourceId, anchor: `highlight:${h.id}`, title: h.text || h.comment || "Highlight", detail: source.title, color: h.color }])}
+                    title="Drag onto a canvas or into a note"
+                  >
                     {h.text && (
                       <blockquote title={h.text}>
                         <mark>{h.text.replace(/\s*\r?\n\s*/g, " ")}</mark>
@@ -467,7 +499,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
           </section>
         )}
 
-        <div className="kx-page-note">
+        <div className="kx-page-note" data-part-of="notes">
           {/* One editor for the page's life: creating the note on the first keystroke must not remount it. */}
           <NoteEditor
             value={pageNote}
@@ -484,10 +516,13 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
           />
         </div>
 
-        <LinkedFrom invoke={invoke} workspaceId={workspaceId} item={{ kind: "source", id: sourceId }} />
+        <div data-part-of="linked">
+          <LinkedFrom invoke={invoke} workspaceId={workspaceId} item={{ kind: "source", id: sourceId }} />
+          {part === "linked" && <p className="kx-page-parts-hint">Notes and canvases that link here appear above; drag this page's title bar into a note to link it.</p>}
+        </div>
 
         {notes.length > 1 && (
-          <section className="kx-page-section">
+          <section className="kx-page-section" data-part-of="notes">
             <h3>
               More notes <span className="kx-count">{notes.length - 1}</span>
             </h3>

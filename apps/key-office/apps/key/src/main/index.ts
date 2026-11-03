@@ -1189,7 +1189,7 @@ const contentKey = (section: string, workspaceId?: string, projectId?: string, i
     : JSON.stringify([section, workspaceId || null, projectId || null, id ?? null]);
 /** Opens (or focuses) a library list, record, note or source page in `w`. */
 async function openContent(w: ShellWindow, p: any) {
-  if (!["sources", "records", "record", "note", "canvas"].includes(p.section))
+  if (!["sources", "records", "record", "note", "canvas", "highlights"].includes(p.section))
     throw Error("Invalid content view");
   if (p.section === "note" && (typeof p.noteId !== "string" || !p.noteId))
     throw Error("Choose a note");
@@ -1234,7 +1234,9 @@ async function openContent(w: ShellWindow, p: any) {
           ? String(p.title || "Untitled note").slice(0, 200)
           : p.section === "canvas"
             ? String(p.title || "Untitled canvas").slice(0, 200)
-            : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
+            : p.section === "highlights"
+              ? "Highlights"
+              : `${p.section === "records" ? "All items" : "Sources"}${scope ? ` · ${scope}` : ""}`,
     workspaceId: p.workspaceId,
     lastUsed: Date.now(),
     contentKey: recordKey,
@@ -2003,6 +2005,20 @@ else
           pdf: { documentHash: hash, documentId: hash, title: v.title, workspaceId: v.workspaceId },
         });
         emit("note-append", { sourceId: source.id });
+      });
+      // "Send to…" on a PDF highlight: the window it is in asks where to put it.
+      ipcMain.handle("key:reader-send-to", async (event, highlight: { annotationId: string; text: string; page: number; color?: string }) => {
+        const v = bound(event.sender.id);
+        if (v?.kind !== "pdf" || !v.workspaceId) throw Error("Not a PDF reader");
+        const hash = v.source?.hash ?? v.id.split(":").at(-1);
+        const found = await registry.invoke<{ items: any[] }>("store_sources", { ids: [hash], limit: 1, scope: "all" }, v.workspaceId);
+        const source = found.items[0];
+        if (!source) throw Error("This PDF is not in the library");
+        const w = shellOfView(v.id) ?? focusedShell();
+        w.window.webContents.focus();
+        emitTo(w, "send-items", [
+          { kind: "source", id: source.id, anchor: `highlight:${String(highlight.annotationId)}`, title: String(highlight.text ?? "").trim() || "Highlight", detail: source.title, color: highlight.color },
+        ]);
       });
       // The References panel: how this PDF was analysed, its references and what they
       // link to; Re-run analyses it again; a linked reference opens beside the reader.

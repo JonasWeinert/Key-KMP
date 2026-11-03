@@ -40,6 +40,7 @@ interface ReaderBridge {
   readerDismiss?(): Promise<void>;
   readerNotes?(): Promise<boolean>;
   readerAddToNote?(passage: { text: string; page: number; color?: string }): Promise<void>;
+  readerSendTo?(highlight: { annotationId: string; text: string; page: number; color?: string }): Promise<void>;
   readerAnalysis?(): Promise<AnalysisReport | null>;
   readerReanalyze?(): Promise<void>;
   readerOpenSource?(sourceId: string): Promise<void>;
@@ -473,6 +474,7 @@ export default function PdfReader() {
               </div>
             );
           }}
+          onSendTo={bridge().readerSendTo ? (highlight) => void bridge().readerSendTo?.(highlight).catch(() => {}) : undefined}
           onAddToNote={
             bridge().readerAddToNote
               ? (passage) =>
