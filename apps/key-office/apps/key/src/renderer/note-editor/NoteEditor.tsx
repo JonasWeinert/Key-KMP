@@ -18,7 +18,8 @@ import { resolveSourceCached } from "./sourceCache";
 import { SuggestionMenu, usePopoverPosition } from "./SuggestionMenu";
 import type { SuggestionMenuHandle } from "./SuggestionMenu";
 import type { DraggedItem, NoteEditorProps } from "./types";
-import { insertDroppedItems, type DropMode } from "./mediaBehaviors";
+import { insertDroppedItems, insertLinks, type DropMode } from "./mediaBehaviors";
+import { editorTargetFocused, registerEditorTarget, type EditorTarget } from "./targets";
 import "./note-editor.css";
 
 const SAVE_DELAY_MS = 400;
@@ -279,10 +280,35 @@ export default function NoteEditor(props: NoteEditorProps): JSX.Element {
     if (!props.readOnly && props.autoFocus) editor.commands.focus("end");
   }, [editor, props.readOnly]);
 
+  // Editable notes take citations from outside at the cursor (or where it last was).
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!editor || editor.isDestroyed || props.readOnly || !root) return;
+    const own: EditorTarget = {
+      root,
+      insertLinks: (links) => {
+        const range = insertLinks(editor, links, editor.state.selection.to);
+        if (!range) return null;
+        const text = editor.state.doc.textBetween(range.from, range.to);
+        return () => {
+          if (!editor.isDestroyed && editor.state.doc.textBetween(range.from, range.to) === text) editor.chain().deleteRange(range).run();
+        };
+      },
+    };
+    const focused = () => editorTargetFocused(own);
+    editor.on("focus", focused);
+    const unregister = registerEditorTarget(own);
+    return () => {
+      editor.off("focus", focused);
+      unregister();
+    };
+  }, [editor, props.readOnly]);
+
   const rootClass = ["ne-root", props.compact ? "ne-root--compact" : "", props.readOnly ? "ne-root--readonly" : "", props.className ?? ""].filter(Boolean).join(" ");
 
   return (
-    <div className={rootClass}>
+    <div className={rootClass} ref={rootRef}>
       <EditorContent editor={editor} className="ne-content" />
       {editor && !props.readOnly && <BubbleToolbar editor={editor} />}
       {/* Floating menus live at the document root: the shell's panes use CSS containment, which

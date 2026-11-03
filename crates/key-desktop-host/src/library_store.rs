@@ -139,6 +139,17 @@ impl Library {
                 self.store.reorder_collections(parent.as_deref(), &arg::<Vec<String>>(args, "ids")?)?;
                 json_output(true)
             })(),
+            // Small JSON settings the renderer keeps per workspace (the sidebar's order and folders).
+            "store_ui_get" => arg::<String>(args, "key").and_then(|key| {
+                let value = self.store.meta(&format!("ui.{key}"))?;
+                json_output(value.and_then(|v| serde_json::from_str::<Json>(&v).ok()))
+            }),
+            "store_ui_set" => (|| {
+                let key: String = arg(args, "key")?;
+                let value: Json = arg(args, "value")?;
+                self.store.set_meta(&format!("ui.{key}"), &value.to_string())?;
+                json_output(true)
+            })(),
             "store_collection_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_collection(&id)?)),
             "store_membership" => (|| {
                 json_output(self.store.set_membership(

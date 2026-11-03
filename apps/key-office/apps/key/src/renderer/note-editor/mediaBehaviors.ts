@@ -13,7 +13,7 @@ export type DropMode = "link" | "embed" | "cite";
 
 /** Text links at `pos` (moved to the end of a word it would split), comma-separated. Answers
  * the range the links themselves take. */
-function insertLinks(editor: Editor, links: { text: string; href: string }[], pos: number): { from: number; to: number } | null {
+export function insertLinks(editor: Editor, links: { text: string; href: string }[], pos: number): { from: number; to: number } | null {
   const { doc } = editor.state;
   const word = /[\p{L}\p{N}]/u;
   const charAt = (at: number) => (at > 0 && at < doc.content.size ? doc.textBetween(at, at + 1, "\n", "\n") : "");

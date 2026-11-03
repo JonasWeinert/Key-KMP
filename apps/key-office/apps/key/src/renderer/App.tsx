@@ -14,9 +14,12 @@ import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import CollectionTree from "./CollectionTree";
-import { hasExternalDrop, hasItemDrag, importDrop, inboxCollection, readItemDrag, setItemDrag } from "./item-links";
+import ReferencesPanel from "./ReferencesPanel";
+import WorkspaceSection, { type WorkspaceEntry } from "./WorkspaceSection";
+import { hasExternalDrop, hasItemDrag, importDrop, inboxCollection, readItemDrag } from "./item-links";
 import { describeCount, sendToCanvas, sendToNote, setShellContext, toast } from "./item-actions";
-import { ItemLayer, itemAttrs, onShowInInspector, selectItems, useSelectedItems } from "./item-ui";
+import { ItemLayer, onShowInInspector, selectItems, useSelectedItems } from "./item-ui";
+import { selectLibrary } from "./library-nav";
 import Inspector from "./Inspector";
 import CommandCenter from "./CommandCenter";
 import type { DraggedItem } from "./note-editor";
@@ -387,16 +390,17 @@ export default function App() {
   }, [invoke, workspaceId, refreshKey]);
   const openNote = (note: Pick<Note, "id" | "title">) =>
     action("open-content", { section: "note", workspaceId, noteId: note.id, title: note.title });
-  const createNote = () =>
-    void task(async () => {
-      setCreateMenu(false);
-      if (!workspaceId) throw Error("Choose a workspace to create a note.");
-      const note = await invoke<Note>("store_note_save", { id: null, sourceId: null, title: "", body: "" }, workspaceId);
-      notesChanged();
-      openNote(note);
-    });
+  const newNote = async () => {
+    setCreateMenu(false);
+    if (!workspaceId) throw Error("Choose a workspace to create a note.");
+    const note = await invoke<Note>("store_note_save", { id: null, sourceId: null, title: "", body: "" }, workspaceId);
+    notesChanged();
+    openNote(note);
+    return note;
+  };
+  const createNote = () => void task(async () => void (await newNote()));
   // Canvases (key-store), listed under the notes and opened as tabs.
-  const [canvases, setCanvases] = useState<{ id: string; title: string }[]>([]);
+  const [canvases, setCanvases] = useState<{ id: string; title: string; updatedAt?: number }[]>([]);
   useEffect(() => {
     if (!workspaceId) return setCanvases([]);
     const load = () => void invoke<{ id: string; title: string }[]>("store_canvases", {}, workspaceId).then(setCanvases).catch(() => setCanvases([]));
@@ -594,6 +598,43 @@ export default function App() {
   };
   const recordIcon = (r: RecordItem): IconName =>
     r.kind === "note" ? "note" : r.kind === "database" ? "database" : "doc";
+  // The Workspace section lists notes, canvases, pages and documents together.
+  const noteTitle = (n: Note) => n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note";
+  const workspaceEntries: WorkspaceEntry[] = [
+    ...notes.map((n): WorkspaceEntry => ({
+      key: `note:${n.id}`,
+      kind: "note",
+      id: n.id,
+      title: noteTitle(n),
+      icon: "note",
+      type: "note",
+      updatedAt: n.updatedAt,
+      // Dropped into another app, a note is its text.
+      text: [n.title && `# ${n.title}`, n.body].filter(Boolean).join("\n\n"),
+    })),
+    ...canvases.map((c): WorkspaceEntry => ({ key: `canvas:${c.id}`, kind: "canvas", id: c.id, title: c.title || "Untitled canvas", icon: "canvas", type: "canvas", updatedAt: c.updatedAt })),
+    ...records
+      .filter((r) => r.kind !== "source")
+      .map((r): WorkspaceEntry => ({
+        key: `record:${r.id}`,
+        kind: "record",
+        id: r.id,
+        title: r.title || "Untitled",
+        icon: recordIcon(r),
+        type: r.properties?.editor ? "document" : "page",
+      })),
+  ];
+  const currentEntry = activeView?.content?.noteId
+    ? `note:${activeView.content.noteId}`
+    : activeView?.content?.canvasId
+      ? `canvas:${activeView.content.canvasId}`
+      : record?.id
+        ? `record:${record.id}`
+        : undefined;
+  const [libraryOpen, setLibraryOpen] = useState(() => localStorage.getItem("key.sidebar.library") !== "closed");
+  useEffect(() => {
+    localStorage.setItem("key.sidebar.library", libraryOpen ? "open" : "closed");
+  }, [libraryOpen]);
   const sidebarToggle = (
     <button
       className="key-sidebar-toggle"
@@ -715,182 +756,162 @@ export default function App() {
           inert={sidebarCollapsed}
           aria-hidden={sidebarCollapsed}
         >
-          <div className="kx-sidebar-titlebar">{sidebarToggle}</div>
-          <WorkspaceSwitcher
-            workspaces={workspaces}
-            selectedId={workspaceId}
-            openElsewhere={(tabs.windows ?? []).filter((w) => w.windowId !== tabs.windowId).map((w) => w.workspaceId)}
-            openRequest={switcherRequest}
-            onSelect={(id, newWindow) =>
-              // Choosing the workspace this window already shows opens its library.
-              id === tabs.workspaceId && !newWindow
-                ? action("open-content", { section: "sources", workspaceId: id })
-                : void switchWorkspace(id, newWindow)
-            }
-            onAdd={async () => {
-              const added = await api().addWorkspace();
-              setWorkspaces(await api().workspaces());
-              if (added) await switchWorkspace(added.id);
-            }}
-            onSave={async (id, icon, color) => {
-              await api().invoke(
-                "workspace_set_appearance",
-                { icon, color },
-                id,
-              );
-              setWorkspaces(await api().workspaces());
-            }}
-          />
-          <nav className="kx-nav" aria-label="Main">
-            {navItem("Home", "home", section === "home", () =>
-              action("open-home"),
-            )}
-            {navItem("Highlights", "quote", section === "highlights", () => action("open-content", { section: "highlights", workspaceId }), !workspaceId)}
-          </nav>
-          <div className="kx-sidebar-scroll">
-            <CollectionTree
-              invoke={invoke}
-              workspaceId={workspaceId}
-              sourcesCurrent={section === "sources"}
-              onShowSources={() =>
-                action("open-content", { section: "sources", workspaceId, projectId })
+          {/* The workspace sits in the title bar, between the traffic lights and the toggle. */}
+          <div className="kx-sidebar-titlebar">
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              selectedId={workspaceId}
+              openElsewhere={(tabs.windows ?? []).filter((w) => w.windowId !== tabs.windowId).map((w) => w.workspaceId)}
+              openRequest={switcherRequest}
+              onHome={() => action("open-home")}
+              onSettings={() => setSettingsSection("libraries")}
+              onSelect={(id, newWindow) =>
+                // Choosing the workspace this window already shows goes Home.
+                id === tabs.workspaceId && !newWindow ? action("open-home") : void switchWorkspace(id, newWindow)
               }
-            >
-              <div role="treeitem" aria-level={1} aria-selected={section === "records"}>
-                {navItem(
-                  "All items",
-                  "layers",
-                  section === "records",
-                  () =>
-                    action("open-content", {
-                      section: "records",
-                      workspaceId,
-                      projectId,
-                    }),
-                  !workspaceId,
-                )}
-              </div>
-            </CollectionTree>
+              onAdd={async () => {
+                const added = await api().addWorkspace();
+                setWorkspaces(await api().workspaces());
+                return added;
+              }}
+              onSave={async (id, icon, color) => {
+                await api().invoke(
+                  "workspace_set_appearance",
+                  { icon, color },
+                  id,
+                );
+                setWorkspaces(await api().workspaces());
+              }}
+            />
+            {sidebarToggle}
+          </div>
+          <div className="kx-sidebar-scroll">
+            <nav className="kx-nav" aria-label="Main">
+              <button className="kx-nav-item kx-search-row" disabled={!workspaceId} onClick={() => window.dispatchEvent(new CustomEvent("key:command", { detail: "quick-open" }))}>
+                <Icon name="search" />
+                <span>Search</span>
+                <kbd>⌘P</kbd>
+              </button>
+            </nav>
             {!workspaceId && (
               <p className="key-sidebar-hint">
-                Choose a workspace to see its collections and pages.
+                Choose a workspace to see its library and pages.
               </p>
             )}
-            <div className="key-sidebar-section">
-              <span>Notes</span>
-              <button disabled={!workspaceId} aria-label="New note" title="New note" onClick={createNote}>
-                <Icon name="plus" size={14} />
-              </button>
-            </div>
-            <nav className="kx-nav" aria-label="Notes">
-              {notes.map((n) => (
-                <button
-                  key={n.id}
-                  className="kx-nav-item"
-                  aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
-                  onClick={() => openNote(n)}
-                  {...dropTarget({ kind: "note", id: n.id, title: n.title || "Untitled note" })}
-                  {...itemAttrs({ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" })}
-                  draggable
-                  onDragStart={(e) => {
-                    setItemDrag(e.dataTransfer, [{ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" }]);
-                    // Dropped into another app, a note is its text.
-                    e.dataTransfer.setData("text/plain", [n.title && `# ${n.title}`, n.body].filter(Boolean).join("\n\n"));
-                  }}
-                  title={n.title || markdownToPlainText(n.body).slice(0, 120) || "Untitled note"}
-                >
-                  <Icon name="note" />
-                  <span>{n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note"}</span>
-                </button>
-              ))}
-              {workspaceId && !notes.length && <p className="key-sidebar-hint">No notes yet.</p>}
-              {canvases.map((c) => (
-                <button
-                  key={c.id}
-                  className="kx-nav-item"
-                  aria-current={activeView?.content?.canvasId === c.id ? "page" : undefined}
-                  onClick={() => openCanvas(c)}
-                  {...dropTarget({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" })}
-                  {...itemAttrs({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" })}
-                  draggable
-                  onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" }])}
-                  title={c.title || "Untitled canvas"}
-                >
-                  <Icon name="canvas" />
-                  <span>{c.title || "Untitled canvas"}</span>
-                </button>
-              ))}
-            </nav>
-            <div className="key-sidebar-section">
-              <span>Pages</span>
+            <div className="key-sidebar-section kx-library-section">
               <button
-                disabled={!workspaceId}
-                aria-label="Create item"
-                title="New page, note or document"
-                aria-expanded={createMenu}
-                onClick={() => setCreateMenu(!createMenu)}
+                className="kx-section-toggle kx-library-toggle"
+                aria-expanded={libraryOpen}
+                aria-label={libraryOpen ? "Collapse library" : "Expand library"}
+                onClick={() => setLibraryOpen(!libraryOpen)}
               >
-                <Icon name="plus" size={14} />
+                <Icon name="chevronRight" size={9} style={{ transform: libraryOpen ? "rotate(90deg)" : undefined }} />
+              </button>
+              <button
+                className="kx-section-title kx-nav-item"
+                aria-current={section === "sources" ? "page" : undefined}
+                disabled={!workspaceId}
+                title="Open the library"
+                onClick={() => {
+                  if (workspaceId) selectLibrary({ workspaceId });
+                  action("open-content", { section: "sources", workspaceId, projectId });
+                }}
+              >
+                <Icon name="books" />
+                <span>Library</span>
               </button>
             </div>
-            {createMenu && (
-              <div className="key-create-menu">
-                {(
-                  [
-                    ["note", "Note", "note"],
-                    ["canvas", "Canvas", "canvas"],
-                    ["page", "Page", "doc"],
-                    ["database", "Database", "database"],
-                  ] as const
-                ).map(([kind, label, icon]) => (
-                  <button
-                    key={kind}
-                    onClick={() => createRecord(kind)}
-                  >
-                    <Icon name={icon} />
-                    New {label.toLowerCase()}
-                  </button>
-                ))}
-                <hr />
-                {["docs", "sheets", "slides", "markdown", "html"].map(
-                  (kind) => (
-                    <button
-                      key={kind}
-                      onClick={() => {
-                        setCreateMenu(false);
-                        action("create-office", { kind, workspaceId });
-                      }}
-                    >
-                      <Icon name="doc" />
-                      New {kind === "docs" ? "document" : kind}
-                    </button>
-                  ),
-                )}
+            {libraryOpen && workspaceId && (
+              <div className="kx-library-groups">
+                <nav className="kx-nav" aria-label="Library views">
+                  {navItem("Highlights", "quote", section === "highlights", () => action("open-content", { section: "highlights", workspaceId }))}
+                </nav>
+                <CollectionTree
+                  invoke={invoke}
+                  workspaceId={workspaceId}
+                  sourcesCurrent={section === "sources"}
+                  onShowSources={() =>
+                    action("open-content", { section: "sources", workspaceId, projectId })
+                  }
+                />
+                <ReferencesPanel
+                  invoke={invoke}
+                  workspaceId={workspaceId}
+                  context={{
+                    viewId: tabs.activeViewId,
+                    note: activeView?.content?.section === "note" && activeView.content.noteId ? { id: activeView.content.noteId, title: activeView.title.replace(/ •$/, "") } : undefined,
+                    canvas: activeView?.content?.section === "canvas" && activeView.content.canvasId ? { id: activeView.content.canvasId, title: activeView.title.replace(/ •$/, "") } : undefined,
+                  }}
+                  refreshKey={refreshKey}
+                  onOpenLibrary={() => action("open-content", { section: "sources", workspaceId })}
+                />
               </div>
             )}
-            <nav className="kx-nav" aria-label="Pages">
-              {records
-                .filter((r) => r.kind !== "source")
-                .map((r) => (
+            <WorkspaceSection
+              invoke={invoke}
+              workspaceId={workspaceId}
+              name={selectedWorkspace?.name ?? "Workspace"}
+              entries={workspaceEntries}
+              currentKey={currentEntry}
+              onOpen={(entry) => {
+                if (entry.kind === "note") openNote(entry);
+                else if (entry.kind === "canvas") openCanvas(entry);
+                else {
+                  const r = records.find((r) => r.id === entry.id);
+                  if (r) selectRecord(r);
+                }
+              }}
+              itemDrop={(entry) => dropTarget({ kind: entry.kind as "note" | "canvas", id: entry.id, title: entry.title })}
+              onNewNote={() => newNote().catch((e) => void setError(String(e)))}
+              createMenu={
+                <>
                   <button
-                    key={r.id}
-                    className="kx-nav-item"
-                    aria-current={record?.id === r.id ? "page" : undefined}
-                    onClick={() => selectRecord(r)}
-                    {...itemAttrs({ kind: "record", id: r.id, title: r.title || "Untitled" })}
-                    draggable
-                    onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "record", id: r.id, title: r.title || "Untitled" }])}
+                    disabled={!workspaceId}
+                    aria-label="Create item"
+                    title="New note, canvas, page or document"
+                    aria-expanded={createMenu}
+                    onClick={() => setCreateMenu(!createMenu)}
                   >
-                    <Icon name={recordIcon(r)} />
-                    <span>{r.title || "Untitled"}</span>
+                    <Icon name="plus" size={14} />
                   </button>
-                ))}
-              {workspaceId &&
-                !records.some((r) => r.kind !== "source") &&
-                !createMenu && (
-                  <p className="key-sidebar-hint">No pages yet.</p>
-                )}
-            </nav>
+                  {createMenu && (
+                    <div className="key-create-menu">
+                      {(
+                        [
+                          ["note", "Note", "note"],
+                          ["canvas", "Canvas", "canvas"],
+                          ["page", "Page", "doc"],
+                          ["database", "Database", "database"],
+                        ] as const
+                      ).map(([kind, label, icon]) => (
+                        <button
+                          key={kind}
+                          onClick={() => createRecord(kind)}
+                        >
+                          <Icon name={icon} />
+                          New {label.toLowerCase()}
+                        </button>
+                      ))}
+                      <hr />
+                      {["docs", "sheets", "slides", "markdown", "html"].map(
+                        (kind) => (
+                          <button
+                            key={kind}
+                            onClick={() => {
+                              setCreateMenu(false);
+                              action("create-office", { kind, workspaceId });
+                            }}
+                          >
+                            <Icon name="doc" />
+                            New {kind === "docs" ? "document" : kind}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </>
+              }
+            />
           </div>
           <div className="key-sidebar-footer">
             <ModelProgressPill progress={model} />

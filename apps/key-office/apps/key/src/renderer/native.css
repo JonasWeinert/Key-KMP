@@ -288,13 +288,17 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   transform: translateX(-16px);
   pointer-events: none;
 }
+/* The traffic lights, then the workspace's name and menu, then the sidebar toggle. */
 .kx-sidebar-titlebar {
+  position: relative;
   height: 40px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 2px;
   margin-right: -2px;
+  padding-left: 62px;
   -webkit-app-region: drag;
 }
 .key-sidebar-toggle {
@@ -495,43 +499,84 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
   text-overflow: ellipsis;
 }
 
-/* Workspace switcher */
+/* Workspace switcher, in the sidebar's title bar */
 .key-workspace-switcher {
-  position: relative;
-  margin: 2px 0 10px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
 }
-.key-shell .key-workspace-trigger.kui-button {
-  justify-content: flex-start;
-  gap: 9px;
-  width: 100%;
-  height: 40px;
-  min-height: 40px;
-  padding: 0 8px 0 6px;
+.key-workspace-home,
+.key-workspace-trigger {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  height: 26px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
-  box-shadow: none;
-  font-weight: 400;
+  color: var(--kx-text);
+  font: inherit;
   cursor: default;
 }
-.key-shell .key-workspace-trigger.kui-button:hover,
-.key-shell .key-workspace-trigger.kui-button[aria-expanded="true"] {
-  background: var(--kx-fill);
+.key-workspace-home {
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 6px;
+  padding: 0 6px 0 3px;
 }
-.key-workspace-trigger strong {
-  flex: 1;
+.key-workspace-home strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
-  text-align: left;
 }
-.key-workspace-trigger > span:last-child {
+.key-workspace-home .key-workspace-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.key-workspace-trigger {
   flex: none;
+  justify-content: center;
+  width: 20px;
+  padding: 0;
   color: var(--kx-text-3);
-  display: grid;
+}
+.key-workspace-home:hover,
+.key-workspace-trigger:hover,
+.key-workspace-trigger[aria-expanded="true"] {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.key-workspace-home:focus-visible,
+.key-workspace-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--kx-accent-soft);
+}
+/* Asked after picking a workspace: replace this window's, or open a new window. */
+.key-workspace-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.key-workspace-choice > p {
+  margin: 2px 8px 6px;
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.key-workspace-choice > p strong {
+  color: var(--kx-text);
+}
+.key-workspace-choice hr {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--kx-line);
 }
 .key-workspace-icon {
   display: inline-grid;
@@ -545,10 +590,11 @@ html:not(.kx-vibrancy) .key-sidebar-slot {
 }
 .key-workspace-dropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% - 2px);
   left: 0;
   z-index: 20;
   width: 100%;
+  -webkit-app-region: no-drag;
   padding: 6px;
   border-radius: 10px;
   background: var(--kx-bg-raised);
@@ -4401,4 +4447,374 @@ button.kx-note-source:hover {
   .kx-note-page .kx-note-title {
     font-size: 26px;
   }
+}
+
+/* ── Sidebar sections: Search, Library (Collections, References), Workspace ── */
+.kx-search-row {
+  color: var(--kx-text-2);
+}
+.kx-search-row > svg {
+  color: var(--kx-text-2);
+}
+.kx-search-row > span {
+  flex: 1;
+}
+.kx-search-row > kbd {
+  flex: none;
+  color: var(--kx-text-3);
+  font: 11px var(--kx-font);
+}
+.kx-library-section {
+  justify-content: flex-start;
+  gap: 0;
+  padding-left: 0;
+}
+.kx-library-section > .kx-library-toggle {
+  flex: none;
+  opacity: 1;
+  width: 16px;
+  padding: 0;
+  justify-content: center;
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item {
+  display: flex;
+  place-items: initial;
+  flex: 1;
+  width: auto;
+  height: 26px;
+  padding: 0 6px;
+  opacity: 1;
+  color: var(--kx-text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item > svg {
+  color: var(--kx-text-3);
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item:hover:not(:disabled) {
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+}
+.key-sidebar-section > .kx-section-title.kx-nav-item[aria-current="page"] {
+  background: var(--kx-sidebar-selected);
+  color: var(--kx-text);
+}
+.kx-library-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 8px;
+}
+/* A group's header inside a section: disclosure, small caps label and count, trailing actions. */
+.kx-sidebar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  margin-top: 6px;
+  padding: 0 2px 0 0;
+  border-radius: 6px;
+  color: var(--kx-text-3);
+}
+.kx-sidebar-group[data-drop="inside"] {
+  background: var(--kx-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--kx-accent);
+}
+.kx-sidebar-group > .kx-section-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: 600 10.5px var(--kx-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+}
+.kx-sidebar-group > .kx-section-toggle:hover {
+  color: var(--kx-text-2);
+}
+.kx-sidebar-group > .kx-section-toggle > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-sidebar-group > .kx-section-toggle > small {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--kx-fill);
+  font-size: 10px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.kx-sidebar-group > button:not(.kx-section-toggle, .kx-group-text-button) {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-2);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.key-sidebar:hover .kx-sidebar-group > button,
+.kx-sidebar-group > button:focus-visible {
+  opacity: 1;
+}
+.kx-sidebar-group > button:hover:not(:disabled),
+.kx-group-text-button:hover:not(:disabled) {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.kx-sidebar-group > .kx-group-text-button,
+.kx-group-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: auto;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-2);
+  font: 12px var(--kx-font);
+  opacity: 1;
+}
+.kx-group-text-button:disabled {
+  opacity: 0.4;
+}
+
+/* References: a compact reference manager list. */
+.kx-ref-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 0 4px;
+}
+.kx-ref-search > label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 7px;
+  background: var(--kx-fill);
+  color: var(--kx-text-3);
+}
+.kx-ref-search > label:focus-within {
+  box-shadow: 0 0 0 2px var(--kx-accent-soft);
+}
+.kx-ref-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--kx-text);
+  font: 12.5px var(--kx-font);
+}
+.kx-ref-search input::placeholder {
+  color: var(--kx-text-3);
+}
+.kx-ref-toolbar,
+.kx-workspace-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-bottom: 2px;
+}
+.kx-ref-toolbar > span {
+  flex: 1;
+}
+.kx-ref-toolbar > button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--kx-text-2);
+}
+.kx-ref-toolbar > button:hover {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-select {
+  position: relative;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 5px;
+  color: var(--kx-text-2);
+}
+.kx-select:hover,
+.kx-select:focus-within {
+  background: var(--kx-fill);
+  color: var(--kx-text);
+}
+.kx-select > svg {
+  flex: none;
+}
+.kx-select select {
+  min-width: 0;
+  max-width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: 12px var(--kx-font);
+  text-overflow: ellipsis;
+  appearance: none;
+  cursor: default;
+}
+.kx-select select option {
+  color: var(--kx-text);
+  background: var(--kx-bg-raised);
+}
+.kx-ref-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -2px;
+}
+.kx-ref-row {
+  position: relative;
+  border-radius: 6px;
+}
+.kx-ref-row:hover,
+.kx-ref-row:focus-within {
+  background: var(--kx-fill);
+}
+.kx-ref-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--kx-text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.kx-ref-title,
+.kx-ref-byline {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kx-ref-title {
+  font-size: 13px;
+}
+.kx-ref-byline {
+  color: var(--kx-text-3);
+  font-size: 11.5px;
+}
+.kx-ref-action {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+  font: 600 11px var(--kx-font);
+  box-shadow: var(--kx-shadow-lift);
+}
+.kx-ref-row:hover .kx-ref-action,
+.kx-ref-row:focus-within .kx-ref-action {
+  display: inline-flex;
+}
+.kx-ref-row:hover .kx-ref-byline {
+  padding-right: 92px;
+}
+.kx-ref-more {
+  margin: 2px 0;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-accent);
+  font: 12px var(--kx-font);
+  text-align: left;
+}
+.kx-ref-more:hover {
+  background: var(--kx-fill);
+}
+
+/* Workspace: notes, canvases, pages and documents in the user's own order and folders. */
+.kx-workspace-heading {
+  position: relative;
+  margin-top: 16px;
+}
+.kx-workspace-heading > span {
+  flex: 1;
+}
+.kx-workspace-heading .key-create-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 10;
+}
+.kx-workspace-toolbar {
+  margin: 0 0 2px 4px;
+}
+.kx-workspace-tree .kx-nav-item {
+  position: relative;
+}
+.kx-workspace-item[data-drop="before"],
+.kx-workspace-tree .kx-folder-row[data-drop="before"] {
+  box-shadow: inset 0 2px 0 var(--kx-accent);
+}
+.kx-workspace-item[data-drop="after"],
+.kx-workspace-tree .kx-folder-row[data-drop="after"] {
+  box-shadow: inset 0 -2px 0 var(--kx-accent);
+}
+.kx-workspace-tree .kx-folder-row[data-drop="before"]::before,
+.kx-workspace-tree .kx-folder-row[data-drop="after"]::after {
+  content: none;
+}
+.kx-folder-row .kx-tree-label > svg {
+  color: var(--kx-text-2);
+}
+.kx-folder-empty {
+  margin: 0;
+  font-size: 11.5px;
+}
+.kx-workspace-end {
+  min-height: 28px;
+  border-radius: 4px;
+}
+.kx-workspace-end[data-drop="after"] {
+  box-shadow: inset 0 2px 0 var(--kx-accent);
 }

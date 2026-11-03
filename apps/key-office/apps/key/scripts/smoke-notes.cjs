@@ -127,7 +127,8 @@ function png(width, height, [r, g, b]) {
     await shot(page, "2-note-tab");
 
     // A standalone note from the sidebar, listed there once titled.
-    await page.locator(".key-sidebar").getByRole("button", { name: "New note", exact: true }).click();
+    await page.locator(".key-sidebar").getByRole("button", { name: "Create item" }).click();
+    await page.locator(".key-sidebar .key-create-menu button", { hasText: "New note" }).click();
     // A new, empty note focuses its title.
     await page.waitForFunction(() => document.activeElement?.classList.contains("kx-note-title") && !document.activeElement.value);
     await page.keyboard.type("Chapter plan");

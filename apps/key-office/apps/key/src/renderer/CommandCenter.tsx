@@ -106,31 +106,37 @@ export default function CommandCenter({
     window.addEventListener("key:shortcuts", show);
     return () => window.removeEventListener("key:shortcuts", show);
   }, []);
-  useEffect(
-    () =>
-      bridge().on("command", (name) => {
-        const items = current();
-        switch (name) {
-          case "quick-open":
-            return setOpen({ mode: "open" });
-          case "palette":
-            return setOpen({ mode: "commands" });
-          case "shortcuts":
-            return setOpen({ mode: "shortcuts" });
-          case "highlights":
-            return workspaceId && void bridge().tabAction("open-content", { section: "highlights", workspaceId });
-          case "copy-link":
-            // A text selection copies as usual; the shortcut is for items.
-            if (document.getSelection()?.toString()) return;
-            return items.length ? void copyItemLink(items.map((item) => ({ item, title: item.title }))) : toast("Select something to copy a link to");
-          case "copy-citation":
-            return items.length && workspaceId ? void copyCitation(invoke, workspaceId, items) : toast("Select a source or highlight to cite");
-          case "send-to":
-            return items.length ? setOpen({ mode: "send", items }) : toast("Select something to send");
-        }
-      }),
-    [invoke, workspaceId],
-  );
+  useEffect(() => {
+    const run = (name: unknown) => {
+      const items = current();
+      switch (name) {
+        case "quick-open":
+          return setOpen({ mode: "open" });
+        case "palette":
+          return setOpen({ mode: "commands" });
+        case "shortcuts":
+          return setOpen({ mode: "shortcuts" });
+        case "highlights":
+          return workspaceId && void bridge().tabAction("open-content", { section: "highlights", workspaceId });
+        case "copy-link":
+          // A text selection copies as usual; the shortcut is for items.
+          if (document.getSelection()?.toString()) return;
+          return items.length ? void copyItemLink(items.map((item) => ({ item, title: item.title }))) : toast("Select something to copy a link to");
+        case "copy-citation":
+          return items.length && workspaceId ? void copyCitation(invoke, workspaceId, items) : toast("Select a source or highlight to cite");
+        case "send-to":
+          return items.length ? setOpen({ mode: "send", items }) : toast("Select something to send");
+      }
+    };
+    // The menu's commands, and the same names sent from inside the window (the sidebar's Search).
+    const local = (e: Event) => run((e as CustomEvent).detail);
+    window.addEventListener("key:command", local);
+    const off = bridge().on("command", run);
+    return () => {
+      window.removeEventListener("key:command", local);
+      off();
+    };
+  }, [invoke, workspaceId]);
   if (!open || !workspaceId) return null;
   if (open.mode === "shortcuts") return <Shortcuts onClose={close} />;
   const selection = current();
