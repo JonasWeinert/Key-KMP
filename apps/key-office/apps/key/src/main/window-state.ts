@@ -7,12 +7,13 @@ export type SavedView =
   | { type: "home" }
   | {
       type: "content";
-      section: "sources" | "records" | "record" | "note" | "source" | "canvas" | "search" | "file";
+      section: "sources" | "records" | "record" | "note" | "source" | "canvas" | "search" | "file" | "person" | "venue" | "topic";
       workspaceId?: string;
       projectId?: string;
       noteId?: string;
       canvasId?: string;
       fileId?: string;
+      entityId?: string;
       sourceId?: string;
       recordId?: string;
       title: string;

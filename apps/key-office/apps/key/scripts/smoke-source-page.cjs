@@ -1,7 +1,8 @@
 // Run serially: native windows and focus are shared with other GUI checks.
 // A source opens as one page beside its PDF: details that fold, highlights above the note
 // that quote into it in their colour, "Add to note" from a PDF selection, live updates
-// from elsewhere, and the reader's "Details & notes" button to hide and show the page.
+// from elsewhere, the reader's "Details & notes" button to hide and show the page, and a
+// header and properties laid out like a note's.
 const { _electron: electron } = require("playwright-core");
 const { mkdtemp, readFile, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
@@ -134,17 +135,31 @@ const assert = require("node:assert/strict");
       return t.tabs.find((x) => x.id === t.activeTabId).views.map((v) => v.kind).join() === "pdf,page";
     });
 
-    // The details fold under the title like an accordion, leaving a one-line summary.
-    const toggle = page.locator(".kx-source-page[data-side=false] .kx-page-details-toggle");
-    assert.ok(await page.evaluate(() => document.querySelector(".kx-source-page[data-side=false] .kx-source-page-title").nextElementSibling?.classList.contains("kx-page-details-toggle")), "toggle sits under the title");
-    await toggle.click();
-    await page.locator(".kx-source-page[data-side=false] .kx-page-details-summary", { hasText: "PLoS ONE · 2022" }).waitFor();
-    assert.equal(await page.locator(".kx-source-page[data-side=false] .kx-page-details").count(), 0);
-    await toggle.click();
-    await page.locator(".kx-source-page[data-side=false] .kx-page-details").waitFor();
+    // Like a note: the properties sit straight under the title, Author first, with no tabs
+    // or folding; the header is one quiet row.
+    const tabPage = page.locator(".kx-source-page[data-side=false]");
+    assert.ok(
+      await page.evaluate(() => {
+        const title = document.querySelector(".kx-source-page[data-side=false] .kx-source-page-title");
+        const details = document.querySelector(".kx-source-page[data-side=false] .kx-page-details");
+        return !!details && title.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING && details.querySelector(".kx-page-author");
+      }),
+      "properties follow the title, Author first",
+    );
+    assert.equal(await tabPage.locator(".kx-page-parts, .kx-page-details-toggle").count(), 0, "no tabs or accordion");
+    await tabPage.locator(".kx-page-properties .kx-field-row", { hasText: "Published in" }).waitFor();
+    const barHeight = await tabPage.locator(".kx-source-page-bar").evaluate((el) => el.getBoundingClientRect().height);
+    assert.ok(barHeight < 40, `the header is one row (${barHeight}px)`);
+    const gap = await page.evaluate(() => {
+      const bar = document.querySelector(".kx-source-page[data-side=false] .kx-source-page-bar").getBoundingClientRect();
+      const title = document.querySelector(".kx-source-page[data-side=false] .kx-source-page-title").getBoundingClientRect();
+      return title.top - bar.bottom;
+    });
+    assert.ok(gap < 110, `the title follows the header closely (${gap}px)`);
+    await page.screenshot({ path: path.join(temp, "note-style.png") });
 
-    // The Read menu opens the PDF in its own tab: here it is already open, so it jumps there.
-    await page.locator(".kx-source-page[data-side=false] .kx-page-split summary").click();
+    // "More" opens the PDF in its own tab: here it is already open, so it jumps there.
+    await tabPage.locator(".kx-source-more summary").click();
     await page.getByRole("button", { name: "Open PDF in its own tab" }).click();
     const after = await page.evaluate(() => window.key.tabs());
     assert.ok(after.tabs.find((t) => t.id === after.activeTabId).views.some((v) => v.kind === "pdf"), "focuses the open PDF");

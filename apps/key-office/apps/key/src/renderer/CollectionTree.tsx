@@ -8,7 +8,8 @@ import { sidebarClick } from "./sidebar-intent";
 import { SOURCE_DRAG_TYPE, currentSelection, libraryChanged, onLibraryChanged, onLibrarySelection, selectLibrary } from "./library-nav";
 
 /** Nesting indent, capped so deep levels still leave room for the name in a narrow sidebar. */
-const indent = (depth: number) => `min(${4 + depth * 14}px, 30%)`;
+/** The sidebar's grid (native.css): a 16px gutter, then the icon; 16px per level. */
+const indent = (depth: number) => `min(${4 + depth * 16}px, 40%)`;
 const COLLECTION_DRAG_TYPE = "application/x-key-collection";
 type Place = "before" | "inside" | "after";
 

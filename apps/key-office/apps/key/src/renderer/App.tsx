@@ -139,11 +139,12 @@ function paneItem(content?: ContentSpec, title?: string): DraggedItem | undefine
   if (content.section === "source" && content.sourceId) return { kind: "source", id: content.sourceId, title: name };
   if (content.section === "record" && content.record?.id) return { kind: "record", id: content.record.id, title: name };
   if (content.section === "file" && content.fileId) return { kind: "file", id: content.fileId, title: name };
+  if ((content.section === "person" || content.section === "venue" || content.section === "topic") && content.entityId) return { kind: content.section, id: content.entityId, title: name };
   return undefined;
 }
 /** What a pane shows, so the selection follows it when that changes. */
 const contentIdentity = (content?: ContentSpec) =>
-  content ? [content.section, content.noteId ?? content.canvasId ?? content.sourceId ?? content.record?.id ?? content.workspaceId ?? ""].join(":") : "";
+  content ? [content.section, content.noteId ?? content.canvasId ?? content.sourceId ?? content.entityId ?? content.record?.id ?? content.workspaceId ?? ""].join(":") : "";
 
 const tabSummary = (state: TabState): TabSummary[] =>
   state.tabs.map((tab) => ({
@@ -994,18 +995,20 @@ export default function App() {
                 <span>Link folder…</span>
               </button>
             )}
-            <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
-              <Icon name="gear" />
-              <span>Settings</span>
-            </button>
-            <small>
-              <Icon name="disk" size={13} />
-              <span>
-                {selectedWorkspace
-                  ? "Stored on this Mac"
-                  : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`}
-              </span>
-            </small>
+            <div className="kx-sidebar-foot-row">
+              <button className="kx-nav-item" onClick={() => setSettingsSection("general")}>
+                <Icon name="gear" />
+                <span>Settings</span>
+              </button>
+              {(() => {
+                const where = selectedWorkspace ? "Stored on this Mac" : `${workspaces.length} workspace${workspaces.length === 1 ? "" : "s"} on this Mac`;
+                return (
+                  <span className="kx-sidebar-storage" title={where} aria-label={where} role="img">
+                    <Icon name="disk" size={13} />
+                  </span>
+                );
+              })()}
+            </div>
           </div>
         </aside>
         {!sidebarCollapsed && (

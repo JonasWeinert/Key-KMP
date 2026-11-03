@@ -1,10 +1,12 @@
 /* ── Item pages: the bar, an optional cover and icon, the title, properties, the body ── */
 /* The bar and the body share the page's own inner class (and so its width and padding);
    the cover between them runs the full width of the pane. */
-.kx-item-page > .kx-item-page-toprow {
+/* Stronger than any page's own padding (a narrow source page sets all four sides), so the
+   bar never carries the page's bottom padding into the space above the title. */
+.kx-item-page[data-kind] > div.kx-item-page-toprow {
   padding-bottom: 0;
 }
-.kx-item-page > .kx-item-page-body {
+.kx-item-page[data-kind] > div.kx-item-page-body {
   padding-top: 0;
 }
 .kx-item-page[data-cover="true"] > .kx-item-page-toprow > * {

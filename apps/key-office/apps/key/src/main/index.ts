@@ -73,6 +73,8 @@ type OwnedView = {
     sourceId?: string;
     canvasId?: string;
     fileId?: string;
+    /** A person, venue or topic of the library's metadata graph. */
+    entityId?: string;
   };
   contentKey?: string;
   /** What this pane showed before a link was followed in place, and after going back. */
@@ -367,7 +369,7 @@ function snapshot(w: ShellWindow) {
                   ? "note"
                   : views.get(id)?.content?.section === "canvas"
                   ? "canvas"
-                  : views.get(id)?.content?.section === "source" || views.get(id)?.content?.section === "file"
+                  : views.get(id)?.content?.section === "source" || views.get(id)?.content?.section === "file" || ENTITY_SECTIONS.includes(views.get(id)?.content?.section ?? "")
                     ? "page"
                     : views.get(id)?.content?.section === "search"
                       ? "search"
@@ -1201,7 +1203,7 @@ function savedView(id: string): SavedView | undefined {
   if (!c || c.section === "home") return { type: "home" };
   // A record that was never saved has nothing to reopen.
   if (c.section === "record" && !c.record?.id) return undefined;
-  if (!["sources", "records", "record", "note", "source", "canvas", "search", "file"].includes(c.section)) return undefined;
+  if (!["sources", "records", "record", "note", "source", "canvas", "search", "file", ...ENTITY_SECTIONS].includes(c.section)) return undefined;
   return {
     type: "content",
     section: c.section as "sources",
@@ -1211,6 +1213,7 @@ function savedView(id: string): SavedView | undefined {
     sourceId: c.sourceId,
     canvasId: c.canvasId,
     fileId: c.fileId,
+    entityId: c.entityId,
     recordId: c.record?.id,
     title: v.title,
   };
@@ -1260,14 +1263,19 @@ function freezeWindows() {
   frozen = true;
 }
 
+/** People, journals and topics open as pages of their own; the host command that reads each. */
+const ENTITY_SECTIONS = ["person", "venue", "topic"];
+const ENTITY_COMMAND: Record<string, string> = { person: "store_person", venue: "store_venue", topic: "store_topic" };
 const contentKey = (section: string, workspaceId?: string, projectId?: string, id?: string | null) =>
   section === "record" && id
     ? JSON.stringify(["record", workspaceId, id])
     : JSON.stringify([section, workspaceId || null, projectId || null, id ?? null]);
 /** Opens (or focuses) a library list, record, note or source page in `w`. */
 async function openContent(w: ShellWindow, p: any) {
-  if (!["sources", "records", "record", "note", "canvas", "highlights", "search", "file"].includes(p.section))
+  if (!["sources", "records", "record", "note", "canvas", "highlights", "search", "file", ...ENTITY_SECTIONS].includes(p.section))
     throw Error("Invalid content view");
+  if (ENTITY_SECTIONS.includes(p.section) && (typeof p.entityId !== "string" || !p.entityId))
+    throw Error("Choose a person, journal or topic");
   if (p.section === "note" && (typeof p.noteId !== "string" || !p.noteId))
     throw Error("Choose a note");
   if (p.section === "canvas" && (typeof p.canvasId !== "string" || !p.canvasId))
@@ -1283,7 +1291,7 @@ async function openContent(w: ShellWindow, p: any) {
     p.section,
     p.workspaceId,
     p.projectId,
-    p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : p.section === "canvas" ? p.canvasId : p.section === "file" ? p.fileId : null,
+    p.section === "record" ? p.record?.id || randomUUID() : p.section === "note" ? p.noteId : p.section === "canvas" ? p.canvasId : p.section === "file" ? p.fileId : ENTITY_SECTIONS.includes(p.section) ? p.entityId : null,
   );
   const existing = [...views.values()].find((v) => v.contentKey === recordKey);
   if (existing) {
@@ -1311,8 +1319,8 @@ async function openContent(w: ShellWindow, p: any) {
         ? p.record?.title || `Untitled ${p.record?.kind || "page"}`
         : p.section === "note"
           ? String(p.title || "Untitled note").slice(0, 200)
-          : p.section === "canvas" || p.section === "file"
-            ? String(p.title || (p.section === "file" ? "File" : "Untitled canvas")).slice(0, 200)
+          : p.section === "canvas" || p.section === "file" || ENTITY_SECTIONS.includes(p.section)
+            ? String(p.title || (p.section === "file" ? "File" : p.section === "canvas" ? "Untitled canvas" : p.section === "person" ? "Person" : p.section === "venue" ? "Journal" : "Topic")).slice(0, 200)
             : p.section === "highlights"
               ? "Highlights"
               : p.section === "search"
@@ -1329,6 +1337,7 @@ async function openContent(w: ShellWindow, p: any) {
       noteId: p.section === "note" ? p.noteId : undefined,
       canvasId: p.section === "canvas" ? p.canvasId : undefined,
       fileId: p.section === "file" ? p.fileId : undefined,
+      entityId: ENTITY_SECTIONS.includes(p.section) ? p.entityId : undefined,
     },
   }, w);
 }
@@ -1361,10 +1370,11 @@ async function restoredView(saved: SavedView): Promise<OwnedView | undefined> {
     if (section === "canvas" && !(await registry.invoke("store_canvas", { id: saved.canvasId }, workspaceId))) return undefined;
     if (section === "source" && !(await registry.invoke("store_source", { id: saved.sourceId }, workspaceId))) return undefined;
     if (section === "file" && !(await registry.invoke("store_linked_file", { id: saved.fileId }, workspaceId))) return undefined;
+    if (ENTITY_SECTIONS.includes(section) && !(await registry.invoke(ENTITY_COMMAND[section], { id: saved.entityId }, workspaceId))) return undefined;
     const key =
       section === "source"
         ? JSON.stringify(["source", workspaceId, null, saved.sourceId])
-        : contentKey(section, workspaceId, projectId, section === "record" ? saved.recordId : section === "note" ? saved.noteId : section === "canvas" ? saved.canvasId : section === "file" ? saved.fileId : null);
+        : contentKey(section, workspaceId, projectId, section === "record" ? saved.recordId : section === "note" ? saved.noteId : section === "canvas" ? saved.canvasId : section === "file" ? saved.fileId : ENTITY_SECTIONS.includes(section) ? saved.entityId : null);
     if ([...views.values()].some((v) => v.contentKey === key)) return undefined;
     const view: OwnedView = {
       id: randomUUID(),
@@ -1373,7 +1383,7 @@ async function restoredView(saved: SavedView): Promise<OwnedView | undefined> {
       workspaceId,
       lastUsed: Date.now(),
       contentKey: key,
-      content: { section, workspaceId, projectId, record, noteId: saved.noteId, sourceId: saved.sourceId, canvasId: saved.canvasId, fileId: saved.fileId },
+      content: { section, workspaceId, projectId, record, noteId: saved.noteId, sourceId: saved.sourceId, canvasId: saved.canvasId, fileId: saved.fileId, entityId: saved.entityId },
     };
     views.set(view.id, view);
     return view;
@@ -1933,6 +1943,11 @@ else
         if (before.layoutModel !== next.layoutModel)
           for (const workspace of await registry.list())
             void registry.invoke("store_analysis_options", { layoutModel: next.layoutModel }, workspace.id).catch(() => {});
+        if (before.openalex !== next.openalex || before.openalexMailto !== next.openalexMailto || before.openalexApiKey !== next.openalexApiKey)
+          for (const workspace of await registry.list())
+            void registry
+              .invoke("store_enrich_options", { auto: next.openalex, mailto: next.openalexMailto, apiKey: next.openalexApiKey }, workspace.id)
+              .catch(() => {});
         return next;
       });
       ipcMain.handle("key:workspaces", async (event) => {
@@ -2298,7 +2313,7 @@ else
           // A note's tab follows its title as it is edited.
           case "content-title": {
             const view = views.get(p.viewId);
-            if (!["note", "source", "canvas"].includes(view?.content?.section ?? "")) throw Error("Not a note, source or canvas page");
+            if (!["note", "source", "canvas", ...ENTITY_SECTIONS].includes(view?.content?.section ?? "")) throw Error("Not a note, source or canvas page");
             view!.title = String(p.title || (view!.content!.section === "note" ? "Untitled note" : view!.content!.section === "canvas" ? "Untitled canvas" : "Untitled")).slice(0, 200);
             tabsChanged(w);
             return snapshot(w);

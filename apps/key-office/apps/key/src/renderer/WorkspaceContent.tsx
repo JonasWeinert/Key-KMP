@@ -18,6 +18,7 @@ import LibraryHome, {
 } from "./LibraryHome";
 import "./shell.css";
 import ReferenceLibrary from "./ReferenceLibrary";
+import EntityPage from "./EntityPage";
 
 interface Workspace {
   id: string;
@@ -214,7 +215,7 @@ function parseFilterValue(value: string): unknown {
 }
 
 export interface ContentSpec {
-  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas" | "highlights" | "search" | "file";
+  section: "home" | "sources" | "records" | "record" | "note" | "source" | "canvas" | "highlights" | "search" | "file" | "person" | "venue" | "topic";
   workspaceId?: string;
   projectId?: string;
   record?: RecordItem;
@@ -222,6 +223,8 @@ export interface ContentSpec {
   sourceId?: string;
   canvasId?: string;
   fileId?: string;
+  /** The person, venue or topic of an entity page. */
+  entityId?: string;
 }
 export default function WorkspaceContent({
   viewId,
@@ -731,6 +734,9 @@ export default function WorkspaceContent({
       {section === "highlights" && workspaceId && <HighlightsPage invoke={invoke} workspaceId={workspaceId} />}
       {section === "search" && workspaceId && <SearchPage invoke={invoke} workspaceId={workspaceId} active={visible && tabs.activeViewId === viewId} />}
       {section === "file" && workspaceId && spec.fileId && <LinkedFileView invoke={invoke} workspaceId={workspaceId} fileId={spec.fileId} />}
+      {(section === "person" || section === "venue" || section === "topic") && workspaceId && spec.entityId && (
+        <EntityPage invoke={invoke} workspaceId={workspaceId} kind={section} id={spec.entityId} viewId={viewId} />
+      )}
       {section === "note" && workspaceId && spec.noteId && (
         <NotePage invoke={invoke} workspaceId={workspaceId} noteId={spec.noteId} viewId={viewId} />
       )}

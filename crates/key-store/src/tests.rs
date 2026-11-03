@@ -762,3 +762,225 @@ fn indexed_linked_files_are_searchable_and_untracked_folders_list_from_disk() {
     let photo = entries.files.iter().find(|f| f.name == "photo.jpg").unwrap();
     assert!(!photo.id.is_empty() || store.linked_file_at(&folder.id, "photo.jpg").is_ok());
 }
+
+// ── Metadata graph and OpenAlex (migration 010) ──────────────
+
+fn fixture(name: &str) -> Json {
+    let path = format!("{}/../../tests/fixtures/openalex/{name}", env!("CARGO_MANIFEST_DIR"));
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+fn filtered(store: &Store, filters: Value) -> Vec<String> {
+    let filters: Vec<Filter> = serde_json::from_value(filters).unwrap();
+    let page = store.list_sources(&ListQuery { filters, sort: Some("title".into()), ..Default::default() }).unwrap();
+    page.items.into_iter().map(|s| s.title().to_string()).collect()
+}
+use serde_json::Value;
+
+#[test]
+fn migration_links_existing_creators_and_journals() {
+    register_vector_extension();
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let conn = Connection::open(dir.path().join("key.db")).unwrap();
+        for sql in &MIGRATIONS[..9] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.execute_batch("PRAGMA user_version = 9").unwrap();
+        for (id, creators, journal, doi) in [
+            ("a", r#"[{"family":"Priem","given":"Jason"},{"family":"Piwowar","given":"Heather"}]"#, "PeerJ", Some("10.7717/peerj.4375")),
+            ("b", r#"[{"family":"Priem","given":"Jason"}]"#, "peerj", None),
+            ("c", r#"[{"family":"Priem","given":"J."},{"literal":"World Health Organization"}]"#, "Scientometrics", None),
+        ] {
+            conn.execute(
+                "INSERT INTO sources(id, kind, title, creators, container_title, doi, added_at, updated_at) VALUES (?1, 'pdf', ?1, ?2, ?3, ?4, 0, 0)",
+                params![id, creators, journal, doi],
+            )
+            .unwrap();
+        }
+        conn.execute("INSERT INTO property_definitions(name, config, updated_at) VALUES ('Status', '{\"type\":\"select\",\"options\":[\"Read\",\"Later\"]}', 0)", [])
+            .unwrap();
+        conn.execute("UPDATE sources SET properties = '{\"Status\":\"Read\"}' WHERE id IN ('a', 'b')", []).unwrap();
+    }
+    let store = Store::open(dir.path()).unwrap();
+    let a = store.source("a").unwrap().unwrap();
+    let b = store.source("b").unwrap().unwrap();
+    let c = store.source("c").unwrap().unwrap();
+    // The same spelling is one person; "J. Priem" is suggested, not merged.
+    assert_eq!(a.creators[0].person_id, b.creators[0].person_id);
+    assert_ne!(a.creators[0].person_id, c.creators[0].person_id);
+    let suggestions = store.merge_suggestions().unwrap();
+    assert_eq!(suggestions.len(), 1);
+    assert_eq!(suggestions[0].person.id, a.creators[0].person_id.clone().unwrap(), "the one with more sources is kept");
+    // "PeerJ" and "peerj" are one venue; the person filter finds their sources.
+    assert_eq!(a.fields["venueId"], b.fields["venueId"]);
+    assert_eq!(filtered(&store, json!([{"field": "person", "value": a.creators[0].person_id}])), vec!["a", "b"]);
+    assert_eq!(filtered(&store, json!([{"field": "venue", "value": a.fields["venueId"]}])), vec!["a", "b"]);
+    // Sources with a DOI wait for a lookup; select values have rows.
+    assert_eq!(a.field("enrichStatus"), Some("pending"));
+    assert_eq!(b.field("enrichStatus"), None);
+    let options = store.property_options("Status").unwrap();
+    assert_eq!(options.iter().map(|o| (o.value.as_str(), o.count)).collect::<Vec<_>>(), vec![("Read", 2), ("Later", 0)]);
+}
+
+#[test]
+fn openalex_work_fills_blanks_and_links_people_venue_topics_and_citations() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let work = fixture("W2741809807.json");
+    let source = store
+        .insert_source(input(json!({
+            "kind": "pdf", "title": "The state of OA", "doi": "https://doi.org/10.7717/peerj.4375",
+            "creators": [{"family": "Piwowar", "given": "Heather"}, {"family": "Priem", "given": "J."}],
+        })))
+        .unwrap();
+    // A source the paper cites, already in the library, and an older one by "Jason Priem".
+    let cited = store.insert_source(input(json!({"kind": "reference", "title": "How open science helps researchers succeed", "doi": "10.7554/eLife.16800"}))).unwrap();
+    let older = store.insert_source(input(json!({"kind": "reference", "title": "Altmetrics", "creators": [{"family": "Priem", "given": "Jason"}]}))).unwrap();
+    assert_eq!(source.field("enrichStatus"), Some("pending"));
+    // Sources open in a view go first.
+    let job = store.next_enrichment(true, std::slice::from_ref(&source.id)).unwrap().unwrap();
+    assert_eq!(job.id, source.id);
+    assert!(store.next_enrichment(false, &[]).unwrap().is_none(), "automatic lookups wait while the setting is off");
+
+    store.apply_openalex_work(&source.id, &work).unwrap();
+    let source = store.source(&source.id).unwrap().unwrap();
+    assert_eq!(source.title(), "The state of OA", "what the user wrote is kept");
+    assert_eq!(source.field("openalexId"), Some("W2741809807"));
+    assert_eq!(source.field("containerTitle"), Some("PeerJ"));
+    assert_eq!(source.field("oaStatus"), Some("gold"));
+    assert_eq!(source.field("language"), Some("en"));
+    assert_eq!(source.field("pmid"), Some("29456894"));
+    assert_eq!(source.field("date"), Some("2018-02-13"));
+    assert_eq!(source.fields["retracted"], json!(0));
+    assert_eq!(source.fields["citedByCount"], json!(1238));
+    assert_eq!(source.field("enrichStatus"), Some("done"));
+    assert!(source.field("abstract").unwrap_or_default().starts_with("Despite growing interest in Open Access"));
+    assert_eq!(source.creators.len(), 2, "the user's creators are kept");
+
+    let graph = store.source_graph(&source.id).unwrap();
+    assert_eq!(graph.people[0].orcid.as_deref(), Some("0000-0003-1613-5981"));
+    assert!(graph.people[0].corresponding);
+    assert_eq!(graph.people[0].institutions[0].name, "OpenAlex");
+    assert_eq!(graph.people[1].openalex_id.as_deref(), Some("A5023888391"), "J. Priem is matched to Jason R Priem");
+    let venue = graph.venue.unwrap();
+    assert_eq!((venue.name.as_str(), venue.openalex_id.as_deref(), venue.issn_l.as_deref()), ("PeerJ", Some("S1983995261"), Some("2167-8359")));
+    assert_eq!(venue.publisher.unwrap().name, "PeerJ, Inc.");
+    assert_eq!(graph.topics[0].id, "T13607");
+    assert!(graph.topics[0].primary);
+    assert_eq!(graph.topics[0].path.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), vec!["D2", "F18", "S1802"]);
+    assert!(graph.keywords.iter().any(|k| k.name == "open access"));
+    assert_eq!(graph.references.len(), 47);
+
+    // Cited works get their details; the one in the library becomes a link both ways.
+    store.apply_openalex_cited(&source.id, fixture("works-batch.json")["results"].as_array().unwrap()).unwrap();
+    let graph = store.source_graph(&source.id).unwrap();
+    let matched: Vec<_> = graph.references.iter().filter(|r| r.matched_source_id.is_some()).collect();
+    assert_eq!(matched.len(), 1);
+    assert_eq!(matched[0].matched_source_id.as_deref(), Some(cited.id.as_str()));
+    assert!(graph.references.iter().filter(|r| r.title.is_some()).count() >= 40);
+    assert_eq!(store.source_graph(&cited.id).unwrap().cited_by[0].id, source.id);
+    let backlinks = store.item_links("source", &cited.id).unwrap().backlinks;
+    assert_eq!(backlinks[0].from.id, source.id);
+    // A cited work added later is linked when it arrives.
+    let later = store.insert_source(input(json!({"kind": "reference", "title": "Journal coverage", "doi": "10.1007/s11192-015-1765-5"}))).unwrap();
+    assert_eq!(store.source_graph(&later.id).unwrap().cited_by.len(), 1);
+
+    // Filters: topic at any level, citation counts, retracted, people by id.
+    assert_eq!(filtered(&store, json!([{"field": "topic", "value": "F18"}])), vec!["The state of OA"]);
+    assert_eq!(filtered(&store, json!([{"field": "topic", "value": "T13607"}])), vec!["The state of OA"]);
+    assert_eq!(filtered(&store, json!([{"field": "citations", "op": "gt", "value": "100"}])), vec!["The state of OA"]);
+    assert!(filtered(&store, json!([{"field": "citations", "op": "gt", "value": "5000"}])).is_empty());
+    assert!(filtered(&store, json!([{"field": "retracted", "value": "true"}])).is_empty());
+    let keyword = graph.keywords[0].id.clone();
+    assert_eq!(filtered(&store, json!([{"field": "keyword", "value": keyword}])), vec!["The state of OA"]);
+    let suggestions = store.suggest("cited >100", &ListQuery::default(), 5).unwrap();
+    assert!(suggestions.iter().any(|s| s.filter.field == "citations" && s.count == 1 && s.label == "Cited more than 100 times"));
+    let suggestions = store.suggest("academic", &ListQuery::default(), 5).unwrap();
+    assert!(suggestions.iter().any(|s| s.filter.field == "topic" && s.filter.value == "T13607"));
+
+    // The older "Jason Priem" is suggested as the identified Jason R Priem, not merged.
+    let priem = graph.people[1].person_id.clone();
+    let older_person = store.source(&older.id).unwrap().unwrap().creators[0].person_id.clone().unwrap();
+    assert_ne!(priem, older_person);
+    let page = store.person_page(&priem).unwrap().unwrap();
+    assert_eq!(page.suggestions.len(), 1);
+    assert_eq!(page.suggestions[0].person.id, priem, "the identified person is kept");
+    assert!(page.coauthors.iter().any(|c| c.name == "Heather Piwowar"));
+    let merged = store.merge_people(&priem, &older_person).unwrap();
+    assert_eq!(merged.source_count, 2);
+    assert!(store.person(&older_person).unwrap().is_none());
+    assert!(store.merge_suggestions().unwrap().is_empty());
+    // The confirmed spelling now joins the merged person on new sources.
+    let next = store.insert_source(input(json!({"kind": "reference", "title": "Next", "creators": [{"family": "Priem", "given": "Jason"}]}))).unwrap();
+    assert_eq!(next.creators[0].person_id.as_deref(), Some(priem.as_str()));
+
+    // The author record fills the cached counts and other spellings.
+    store.apply_openalex_author(&priem, &fixture("A5023888391.json")).unwrap();
+    let person = store.person(&priem).unwrap().unwrap();
+    assert_eq!((person.works_count, person.h_index), (Some(55), Some(18)));
+    assert!(person.metrics_at.is_some());
+    assert!(person.names.iter().any(|n| n == "J. Priem"));
+    assert_eq!(person.institution.unwrap().name, "OpenAlex");
+}
+
+#[test]
+fn people_merge_by_identifier_and_keep_their_place_when_creators_are_edited() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let work = fixture("W2741809807.json");
+    let one = store.insert_source(input(json!({"kind": "reference", "title": "One", "doi": "10.7717/peerj.4375"}))).unwrap();
+    store.apply_openalex_work(&one.id, &work).unwrap();
+    let one = store.source(&one.id).unwrap().unwrap();
+    assert_eq!(one.creators.len(), 9, "a source without creators takes OpenAlex's");
+    assert_eq!(one.creators[1].family.as_deref(), Some("Priem"));
+    // A second source of the same work: the people are the same rows, by identifier.
+    let two = store.insert_source(input(json!({"kind": "reference", "title": "Two", "doi": "10.7717/peerj.4375"}))).unwrap();
+    store.apply_openalex_work(&two.id, &work).unwrap();
+    let two = store.source(&two.id).unwrap().unwrap();
+    assert_eq!(one.creators[1].person_id, two.creators[1].person_id);
+    assert!(store.merge_suggestions().unwrap().is_empty());
+
+    // Editing a creator's role keeps the person; renaming one makes a new one.
+    let mut creators = serde_json::to_value(&two.creators).unwrap();
+    creators[0]["role"] = json!("editor");
+    creators[1]["given"] = json!("Someone");
+    let mut patch = Map::new();
+    patch.insert("creators".into(), creators);
+    let edited = store.update_source(&two.id, &patch).unwrap();
+    assert_eq!(edited.creators[0].person_id, two.creators[0].person_id);
+    assert_ne!(edited.creators[1].person_id, two.creators[1].person_id);
+    assert!(store.source(&two.id).unwrap().unwrap().creators.iter().all(|c| c.person_id.is_some()));
+    let stored: String = store.db().unwrap().query_row("SELECT creators FROM sources WHERE id = ?", [&two.id], |r| r.get(0)).unwrap();
+    assert!(!stored.contains("personId"), "person ids are not written into the JSON");
+
+    // Changing the DOI queues a new lookup; deleting the sources removes their people.
+    let mut patch = Map::new();
+    patch.insert("doi".into(), json!("10.1/other"));
+    assert_eq!(store.update_source(&one.id, &patch).unwrap().field("enrichStatus"), Some("pending"));
+    store.delete(&[one.id.clone(), two.id.clone()]).unwrap();
+    let left: i64 = store.db().unwrap().query_row("SELECT count(*) FROM people", [], |r| r.get(0)).unwrap();
+    assert_eq!(left, 0);
+}
+
+#[test]
+fn renaming_a_select_value_renames_it_on_every_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    store.save_property_definition("Status", &json!({"type": "select", "options": ["Read", "Later", "Done"]})).unwrap();
+    let a = store.insert_source(input(json!({"kind": "pdf", "title": "A", "properties": {"Status": "Read"}}))).unwrap();
+    let b = store.insert_source(input(json!({"kind": "pdf", "title": "B", "properties": {"Status": "Later"}}))).unwrap();
+    let mut patch = Map::new();
+    patch.insert("properties".into(), json!({"Status": "Read"}));
+    store.update_source(&b.id, &patch).unwrap();
+    assert_eq!(store.rename_property_option("Status", "Read", "Finished").unwrap(), 2);
+    assert_eq!(store.source(&a.id).unwrap().unwrap().properties["Status"], json!("Finished"));
+    assert_eq!(store.source(&b.id).unwrap().unwrap().properties["Status"], json!("Finished"));
+    let definition = store.property_definitions().unwrap().into_iter().find(|d| d["name"] == "Status").unwrap();
+    assert_eq!(definition["options"], json!(["Finished", "Later", "Done"]));
+    // Renaming onto another value merges them; renaming the property keeps the rows.
+    assert_eq!(store.rename_property_option("Status", "Finished", "Done").unwrap(), 2);
+    store.rename_property("Status", "State").unwrap();
+    let options = store.property_options("State").unwrap();
+    assert_eq!(options.iter().map(|o| (o.value.as_str(), o.count)).collect::<Vec<_>>(), vec![("Done", 2), ("Later", 0)]);
+}

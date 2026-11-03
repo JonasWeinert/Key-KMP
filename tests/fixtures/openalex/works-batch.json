@@ -1,0 +1,1330 @@
+{
+ "meta": {
+  "count": 43
+ },
+ "results": [
+  {
+   "id": "https://openalex.org/W1767272795",
+   "doi": "https://doi.org/10.1007/s11192-015-1765-5",
+   "display_name": "The journal coverage of Web of Science and Scopus: a comparative analysis",
+   "publication_year": 2015,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5081963935",
+      "display_name": "Philippe Mongeon"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5086152924",
+      "display_name": "Adèle Paul‐Hus"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Scientometrics"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2463568293",
+   "doi": "https://doi.org/10.7554/elife.16800",
+   "display_name": "How open science helps researchers succeed",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5086963837",
+      "display_name": "Erin C. McKiernan"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5075833022",
+      "display_name": "Philip E. Bourne"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5036229691",
+      "display_name": "C. Titus Brown"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5079789496",
+      "display_name": "Stuart Buck"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5030524013",
+      "display_name": "Amye Kenall"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5056041496",
+      "display_name": "Jennifer Lin"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "eLife"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2016860460",
+   "doi": "https://doi.org/10.1371/journal.pone.0020961",
+   "display_name": "The Development of Open Access Journal Publishing from 1993 to 2009",
+   "publication_year": 2011,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5067698582",
+      "display_name": "Mikael Laakso"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5047186166",
+      "display_name": "Patrik Welling"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5006435364",
+      "display_name": "Helena Bukvova"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5031998462",
+      "display_name": "Linus Nyman"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5000440069",
+      "display_name": "Turid Hedlund"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "PLoS ONE"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2048185449",
+   "doi": "https://doi.org/10.1371/journal.pone.0013636",
+   "display_name": "Self-Selected or Mandated, Open Access Increases Citation Impact for Higher Quality Research",
+   "publication_year": 2010,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5057135074",
+      "display_name": "Yassine Gargouri"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5015643870",
+      "display_name": "Chawki Hajjem"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5068542997",
+      "display_name": "Vincent Larivière"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5074283997",
+      "display_name": "Yves Gingras"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5067426492",
+      "display_name": "Leslie Alan Carr"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5034672788",
+      "display_name": "Tim Brody"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "PLoS ONE"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2322381034",
+   "doi": "https://doi.org/10.12688/f1000research.8460.3",
+   "display_name": "The academic, economic and societal impacts of Open Access: an evidence-based review",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5009210770",
+      "display_name": "Jonathan Tennant"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5062689394",
+      "display_name": "François Waldner"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5081003521",
+      "display_name": "Damien Jacques"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5079670845",
+      "display_name": "Paola Masuzzo"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5032787867",
+      "display_name": "Lauren Collister"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5051997500",
+      "display_name": "Chris Hubertus Joseph Hartgerink"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "F1000Research"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2140880926",
+   "doi": "https://doi.org/10.1371/journal.pone.0011273",
+   "display_name": "Open Access to the Scientific Journal Literature: Situation 2009",
+   "publication_year": 2010,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5047186166",
+      "display_name": "Patrik Welling"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5067698582",
+      "display_name": "Mikael Laakso"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5087870453",
+      "display_name": "Péter Majlender"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5000440069",
+      "display_name": "Turid Hedlund"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5066287111",
+      "display_name": "Gudni Gudnason"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "PLoS ONE"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2089123513",
+   "doi": "https://doi.org/10.1016/j.joi.2007.04.001",
+   "display_name": "Do open access articles have greater citation impact?A critical review of the literature",
+   "publication_year": 2007,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5003800098",
+      "display_name": "Iain Craig"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5068430545",
+      "display_name": "Andrew Plume"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5044349787",
+      "display_name": "Marie McVeigh"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5013399379",
+      "display_name": "James Pringle"
+     }
+    },
+    {
+     "author": {
+      "id": null,
+      "display_name": "M AMIN"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of Informetrics"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2115339903",
+   "doi": "https://doi.org/10.1186/1741-7015-10-124",
+   "display_name": "Anatomy of open access publishing: a study of longitudinal development and internal structure",
+   "publication_year": 2012,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5067698582",
+      "display_name": "Mikael Laakso"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "BMC Medicine"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2160597895",
+   "doi": "https://doi.org/10.1096/fj.11-183988",
+   "display_name": "Open access, readership, citations: a randomized controlled trial of scientific journal publishing",
+   "publication_year": 2011,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5055227795",
+      "display_name": "Philip M. Davis"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "The FASEB Journal"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W1989318653",
+   "doi": "https://doi.org/10.1016/j.serrev.2007.12.005",
+   "display_name": "The Access/Impact Problem and the Green and Gold Roads to Open Access: An Update",
+   "publication_year": 2008,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5068938534",
+      "display_name": "Stevan R. Harnad"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5034672788",
+      "display_name": "Tim Brody"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5011046811",
+      "display_name": "François Vallières"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5067426492",
+      "display_name": "Leslie Alan Carr"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5108192433",
+      "display_name": "Steve Hitchcock"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5074283997",
+      "display_name": "Yves Gingras"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Serials Review"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W1560783210",
+   "doi": "https://doi.org/10.1002/asi.22963",
+   "display_name": "Anatomy of green open access",
+   "publication_year": 2013,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5067698582",
+      "display_name": "Mikael Laakso"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5047186166",
+      "display_name": "Patrik Welling"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5034331492",
+      "display_name": "Patrik Paetau"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of the Association for Information Science and Technology"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2003844967",
+   "doi": "https://doi.org/10.3163/1536-5050.99.3.008",
+   "display_name": "The impact of free access to the scientific literature: a review of recent research",
+   "publication_year": 2011,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5055227795",
+      "display_name": "Philip M. Davis"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5074821613",
+      "display_name": "William H. Walters"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of the Medical Library Association JMLA"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2997143876",
+   "doi": "https://doi.org/10.12688/f1000research.8460.1",
+   "display_name": "The academic, economic and societal impacts of Open Access: an evidence-based review",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5009210770",
+      "display_name": "Jonathan Tennant"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5062689394",
+      "display_name": "François Waldner"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5081003521",
+      "display_name": "Damien Jacques"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5079670845",
+      "display_name": "Paola Masuzzo"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5032787867",
+      "display_name": "Lauren Collister"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5051997500",
+      "display_name": "Chris Hubertus Joseph Hartgerink"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "F1000Research"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2785823074",
+   "doi": "https://doi.org/10.7554/elife.32822",
+   "display_name": "Sci-Hub provides access to nearly all scholarly literature",
+   "publication_year": 2018,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5043439179",
+      "display_name": "Daniel Himmelstein"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5005016288",
+      "display_name": "Ariel R Romero"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5088807673",
+      "display_name": "Jacob Levernier"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5040325195",
+      "display_name": "Thomas A. Munro"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5054724157",
+      "display_name": "Stephen Reid McLaughlin"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5018956214",
+      "display_name": "Bastian Greshake Tzovaras"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "eLife"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W3121567788",
+   "doi": "https://doi.org/10.1111/ecin.12064",
+   "display_name": "IDENTIFYING THE EFFECT OF OPEN ACCESS ON CITATIONS USING A PANEL OF SCIENCE JOURNALS",
+   "publication_year": 2014,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5011747945",
+      "display_name": "Mark J. McCabe"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5080665508",
+      "display_name": "Christopher M. Snyder"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Economic Inquiry"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2753353163",
+   "doi": "https://doi.org/10.1186/s12961-017-0235-3",
+   "display_name": "Knowledge sharing in global health research – the impact, uptake and cost of open access to scholarly literature",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5090777482",
+      "display_name": "Elise M. R. Smith"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5014077037",
+      "display_name": "Stefanie Haustein"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5081963935",
+      "display_name": "Philippe Mongeon"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5064266755",
+      "display_name": "Fei Shu"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5073831202",
+      "display_name": "Valéry Ridde"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5068542997",
+      "display_name": "Vincent Larivière"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Health Research Policy and Systems"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2587705861",
+   "doi": "https://doi.org/10.1002/leap.1096",
+   "display_name": "Gold, green, and black open access",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Learned Publishing"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2520991028",
+   "doi": "https://doi.org/10.1016/j.joi.2016.08.002",
+   "display_name": "Hybrid open access—A longitudinal study",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5067698582",
+      "display_name": "Mikael Laakso"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of Informetrics"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2299516731",
+   "doi": "https://doi.org/10.5281/zenodo.10030609",
+   "display_name": "Proportion of Open Access Papers Published in Peer-Reviewed Journals at the European and World Levels—1996–2013",
+   "publication_year": 2014,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5072324119",
+      "display_name": "Éric Archambault"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5043249207",
+      "display_name": "Didier Amyot"
+     }
+    },
+    {
+     "author": {
+      "id": null,
+      "display_name": "Deschamps, Philippe"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5012939103",
+      "display_name": "Aurore Nicol"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5072872556",
+      "display_name": "Françoise Provencher"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5028171566",
+      "display_name": "Lise Rebout"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Lincoln (University of Nebraska)"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2029057325",
+   "doi": "https://doi.org/10.1002/asi.22856",
+   "display_name": "Delayed open access: An overlooked high‐impact category of openly available scientific literature",
+   "publication_year": 2013,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5067698582",
+      "display_name": "Mikael Laakso"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of the American Society for Information Science and Technology"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W1957687230",
+   "doi": "https://doi.org/10.47678/cjhe.v39i3.479",
+   "display_name": "The SciELO Open Access: A Gold Way from the South",
+   "publication_year": 2010,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5074742346",
+      "display_name": "Abel Laerte Packer"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Canadian Journal of Higher Education"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2511661767",
+   "doi": "https://doi.org/10.1371/journal.pone.0159614",
+   "display_name": "The Post-Embargo Open Access Citation Advantage: It Exists (Probably), It’s Modest (Usually), and the Rich Get Richer (of Course)",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5008060738",
+      "display_name": "Jim Ottaviani"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "PLoS ONE"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2231201268",
+   "doi": "https://doi.org/10.1016/j.joi.2015.11.008",
+   "display_name": "Availability of digital object identifiers (DOIs) in Web of Science and Scopus",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5032440048",
+      "display_name": "Juan Ignacio Gorraiz"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5019903378",
+      "display_name": "David Melero-Fuentes"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5018269342",
+      "display_name": "Christian Gumpenberger"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5025240874",
+      "display_name": "Juan Carlos Valderrama‐Zurián"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of Informetrics"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2511663072",
+   "doi": "https://doi.org/10.5281/zenodo.10023327",
+   "display_name": "Research impact of paywalled versus open access papers",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5072324119",
+      "display_name": "Éric Archambault"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5015932536",
+      "display_name": "Grégoire Côté"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5029826836",
+      "display_name": "Brooke Struck"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5027851591",
+      "display_name": "Matthieu Voorons"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Lincoln (University of Nebraska)"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W1724212071",
+   "doi": null,
+   "display_name": "The nine flavours of open access scholarly publishing.",
+   "publication_year": 2003,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5008862123",
+      "display_name": "John M. Willinsky"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "PubMed"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W1917633107",
+   "doi": "https://doi.org/10.7551/mitpress/8479.003.0013",
+   "display_name": "Gratis and Libre Open Access",
+   "publication_year": 2016,
+   "authorships": [],
+   "primary_location": {
+    "source": {
+     "display_name": "The MIT Press eBooks"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2953072907",
+   "doi": "https://doi.org/10.12688/f1000research.11366.1",
+   "display_name": "Looking into Pandora's Box: The Content of Sci-Hub and its Usage",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5018956214",
+      "display_name": "Bastian Greshake Tzovaras"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "F1000Research"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2306268324",
+   "doi": "https://doi.org/10.1002/leap.1021",
+   "display_name": "The open access movement at a crossroad: Are the big publishers and academic social media taking over?",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5036789552",
+      "display_name": "Bo‐Christer Björk"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Learned Publishing"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2563251083",
+   "doi": "https://doi.org/10.1007/s11192-016-2225-6",
+   "display_name": "Availability of digital object identifiers in publications archived by PubMed",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5009076598",
+      "display_name": "Christophe Boudry"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5002256690",
+      "display_name": "Ghislaine Chartron"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Scientometrics"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2078310052",
+   "doi": "https://doi.org/10.1241/johokanri.41.678",
+   "display_name": "Free Internet Access to Traditional Journals.",
+   "publication_year": 1998,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5103421529",
+      "display_name": "Thomas J. Walker"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5008526180",
+      "display_name": "象一 時実"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of Information Processing and Management"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2345375849",
+   "doi": "https://doi.org/10.1080/00987913.2016.1182672",
+   "display_name": "Measuring the Degrees of Openness of Scholarly Journals with the Open Access Spectrum (OAS) Evaluation Tool",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5100764810",
+      "display_name": "Xiaotian Chen"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5017400088",
+      "display_name": "Tom Olijhoek"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Serials Review"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W3012252063",
+   "doi": null,
+   "display_name": "Leveraging the growth of open access in library collection decision making",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5041481384",
+      "display_name": "Kristin Antelman"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "CaltechAUTHORS (California Institute of Technology)"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2020807482",
+   "doi": "https://doi.org/10.1080/19322909.2013.795426",
+   "display_name": "Journal Article Retrieval in an Age of Open Access: How Journal Indexes Indicate Open Access Articles",
+   "publication_year": 2013,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5100764810",
+      "display_name": "Xiaotian Chen"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of Web Librarianship"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2031754690",
+   "doi": "https://doi.org/10.3163/1536-5050.97.1.002",
+   "display_name": "Status of open access in the biomedical field in 2005",
+   "publication_year": 2009,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5075388605",
+      "display_name": "Mamiko Matsubayashi"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5062402570",
+      "display_name": "Keiko Kurata"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5039781071",
+      "display_name": "Yukiko Sakai"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5044873143",
+      "display_name": "Tomoko Morioka"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5110402972",
+      "display_name": "Shinya Kato"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5017508695",
+      "display_name": "Shinji Mine"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Journal of the Medical Library Association JMLA"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W1931854307",
+   "doi": "https://doi.org/10.48550/arxiv.cs/0606079",
+   "display_name": "Ten-Year Cross-Disciplinary Comparison of the Growth of Open Access and How it Increases Research Citation Impact",
+   "publication_year": 2006,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5015643870",
+      "display_name": "Chawki Hajjem"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5068938534",
+      "display_name": "Stevan R. Harnad"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5074283997",
+      "display_name": "Yves Gingras"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "arXiv (Cornell University)"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2343014812",
+   "doi": "https://doi.org/10.1126/science.352.6285.508",
+   "display_name": "Who's downloading pirated papers? Everyone",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5019596252",
+      "display_name": "John Bohannon"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Science"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2588027260",
+   "doi": "https://doi.org/10.1007/s11192-017-2291-4",
+   "display_name": "Copyright compliance and infringement in ResearchGate full-text journal articles",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5023462838",
+      "display_name": "Hamid R. Jamali"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Scientometrics"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W1944943415",
+   "doi": "https://doi.org/10.48550/arxiv.1206.3664",
+   "display_name": "Green and Gold Open Access Percentages and Growth, by Discipline",
+   "publication_year": 2012,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5057135074",
+      "display_name": "Yassine Gargouri"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5068542997",
+      "display_name": "Vincent Larivière"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5074283997",
+      "display_name": "Yves Gingras"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5067426492",
+      "display_name": "Leslie Alan Carr"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5068938534",
+      "display_name": "Stevan R. Harnad"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "arXiv (Cornell University)"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W4301734034",
+   "doi": "https://doi.org/10.29173/istl2069",
+   "display_name": "The Access Principle: The Case for Open Access To Research and Scholarship.",
+   "publication_year": 2006,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5068895491",
+      "display_name": "Marian Burright"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Issues in Science and Technology Librarianship"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2737712680",
+   "doi": "https://doi.org/10.7287/peerj.preprints.3100v1",
+   "display_name": "Sci-Hub provides access to nearly all scholarly literature",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5043439179",
+      "display_name": "Daniel Himmelstein"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5005016288",
+      "display_name": "Ariel R Romero"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5054724157",
+      "display_name": "Stephen Reid McLaughlin"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5018956214",
+      "display_name": "Bastian Greshake Tzovaras"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5050692257",
+      "display_name": "Casey S. Greene"
+     }
+    }
+   ],
+   "primary_location": null
+  },
+  {
+   "id": "https://openalex.org/W2566143661",
+   "doi": "https://doi.org/10.1038/nature.2016.21223",
+   "display_name": "Scientists in Germany, Peru and Taiwan to lose access to Elsevier journals",
+   "publication_year": 2016,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5013915020",
+      "display_name": "Quirin Schiermeier"
+     }
+    },
+    {
+     "author": {
+      "id": "https://openalex.org/A5110941849",
+      "display_name": "Emiliano Rodríguez Mega"
+     }
+    }
+   ],
+   "primary_location": {
+    "source": {
+     "display_name": "Nature"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W2762597540",
+   "doi": "https://doi.org/10.1126/science.aaq1560",
+   "display_name": "Publishers take ResearchGate to court, alleging massive copyright infringement",
+   "publication_year": 2017,
+   "authorships": [],
+   "primary_location": {
+    "source": {
+     "display_name": "AAAS Articles DO Group"
+    }
+   }
+  },
+  {
+   "id": "https://openalex.org/W4298108315",
+   "doi": "https://doi.org/10.14293/s2199-1006.1.sor-edu.clpdpzb.v1",
+   "display_name": "The Open Access Citation Advantage",
+   "publication_year": 2017,
+   "authorships": [
+    {
+     "author": {
+      "id": "https://openalex.org/A5009210770",
+      "display_name": "Jonathan Tennant"
+     }
+    }
+   ],
+   "primary_location": null
+  }
+ ]
+}

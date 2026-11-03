@@ -1,10 +1,11 @@
 // Settings: a window-sized sheet with a sidebar of sections, like macOS System Settings.
 // General (appearance), Libraries, Search & indexing, AI and About.
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { GlobalDrawer } from "./GlobalDrawer";
 import { Icon, type IconName } from "./icons";
 import { ActivityPanel, useLibraryStatus } from "./index-activity";
-import { bridge, type AppInfo, type AppSettings, type Invoke, type Theme, type WorkspaceSummary, type ZoteroStatus } from "./library-api";
+import { bridge, type AppInfo, type AppSettings, type Invoke, type MergeSuggestion, type Theme, type WorkspaceSummary, type ZoteroStatus } from "./library-api";
+import "./entity.css";
 import { Conflicts, ZoteroImport } from "./ZoteroImport";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
 
@@ -496,6 +497,86 @@ function SearchSettings({
           </button>
         </Row>
       </Group>
+      <Group
+        title="OpenAlex"
+        footer="Sources with a DOI, PMID or OpenAlex id are looked up in OpenAlex, the open catalogue of research: authors with their ORCID, the journal, topics, funding, open-access status, retractions and the works each one cites. Citation counts are refreshed when a page is opened. Only identifiers are sent, never your files or notes."
+      >
+        <Row label="Look up new sources" detail={status?.enrichment ? `${status.enrichment.toLocaleString()} waiting` : "Off: only when you choose Look up in OpenAlex."}>
+          <input
+            type="checkbox"
+            className="kx-switch"
+            aria-label="Look up new sources in OpenAlex"
+            checked={settings.openalex}
+            onChange={(e) => onSettings({ openalex: e.target.checked })}
+          />
+        </Row>
+        <Row label="Contact email" detail="OpenAlex asks for one so it can reach whoever sends many requests.">
+          <input
+            className="kx-settings-select"
+            type="email"
+            aria-label="OpenAlex contact email"
+            placeholder="you@example.org"
+            defaultValue={settings.openalexMailto}
+            onBlur={(e) => e.target.value.trim() !== settings.openalexMailto && onSettings({ openalexMailto: e.target.value.trim() })}
+          />
+        </Row>
+        <Row label="API key" detail="Optional. A free key gives you a daily budget of your own.">
+          <input
+            className="kx-settings-select"
+            type="password"
+            aria-label="OpenAlex API key"
+            defaultValue={settings.openalexApiKey}
+            onBlur={(e) => e.target.value.trim() !== settings.openalexApiKey && onSettings({ openalexApiKey: e.target.value.trim() })}
+          />
+        </Row>
+        <PossibleDuplicates invoke={invoke} workspaceId={workspaceId} />
+      </Group>
+    </>
+  );
+}
+
+/** People whose names might be one person: merged only when the user says so. */
+function PossibleDuplicates({ invoke, workspaceId }: { invoke: Invoke; workspaceId?: string }) {
+  const [suggestions, setSuggestions] = useState<MergeSuggestion[]>();
+  const [open, setOpen] = useState(false);
+  const load = useCallback(() => {
+    if (workspaceId) void invoke<MergeSuggestion[]>("store_merge_suggestions", {}, workspaceId).then(setSuggestions).catch(() => setSuggestions([]));
+  }, [invoke, workspaceId]);
+  useEffect(load, [load]);
+  const answer = async (s: MergeSuggestion, merge: boolean) => {
+    if (merge) await invoke("store_merge_people", { keep: s.person.id, other: s.other.id }, workspaceId);
+    else await invoke("store_merge_dismiss", { personId: s.person.id, otherId: s.other.id }, workspaceId);
+    load();
+  };
+  const describe = (p: MergeSuggestion["person"]) => `${p.name} (${p.sourceCount} ${p.sourceCount === 1 ? "source" : "sources"}${p.orcid ? ", ORCID" : ""})`;
+  return (
+    <>
+      <Row label="Possible duplicate people" detail={suggestions?.length ? `${suggestions.length} to review` : "None to review."}>
+        <button className="kx-settings-button" disabled={!suggestions?.length} onClick={() => setOpen(!open)}>
+          {open ? "Hide" : "Review"}
+        </button>
+      </Row>
+      {open && !!suggestions?.length && (
+        <div className="kx-settings-row kx-settings-row-wide">
+          <ul className="kx-merge-list">
+            {suggestions.map((s) => (
+              <li key={`${s.person.id}:${s.other.id}`}>
+                <span>
+                  {describe(s.other)} → {describe(s.person)}
+                  <br />
+                  <small>{s.reason}</small>
+                </span>
+                <button className="kx-settings-button" onClick={() => void answer(s, true)}>
+                  Merge
+                </button>
+                <button className="kx-settings-button" onClick={() => void answer(s, false)}>
+                  Not the same
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </>
   );
 }

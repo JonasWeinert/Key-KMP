@@ -4,7 +4,7 @@
 // send reaches an open editor rather than racing it through the store.
 import { apa, apaInText } from "./citation";
 import type { IconName } from "./icons";
-import { bridge, shortCreators, type Invoke, type Note, type Source } from "./library-api";
+import { bridge, shortCreators, type Invoke, type Note, type PersonPageData, type Source, type TopicPageData, type VenuePageData } from "./library-api";
 import { itemFromHref, itemHref, markdownToPlainText, type DraggedItem, type ItemLink } from "./note-editor";
 import { noteSources } from "./note-sources";
 import { belowContent, layoutCards, normalizeDoc } from "./canvas/model";
@@ -61,6 +61,9 @@ export function itemIcon(item: Pick<ItemLink, "kind" | "anchor">, sourceKind?: s
   if (item.kind === "note") return "note";
   if (item.kind === "canvas") return "canvas";
   if (item.kind === "record") return "doc";
+  if (item.kind === "person") return "user";
+  if (item.kind === "venue") return "book";
+  if (item.kind === "topic") return "tag";
   if (item.kind === "file") return sourceKind === "markdown" ? "note" : sourceKind === "image" ? "image" : "doc";
   return SOURCE_ICON[sourceKind ?? ""] ?? "doc";
 }
@@ -103,6 +106,56 @@ async function readItem(invoke: Invoke, workspaceId: string, item: ItemLink): Pr
     }
     case "file":
       return (await describeLinkedFile(invoke, workspaceId, item)) ?? missing("File");
+    case "person": {
+      const page = await invoke<PersonPageData | null>("store_person", { id: item.id }, workspaceId);
+      if (!page) return missing("Person");
+      const { person } = page;
+      return {
+        item,
+        title: person.name,
+        kindLabel: "Person",
+        icon: "user",
+        subtitle: [person.institution?.name, person.orcid && `ORCID ${person.orcid}`].filter(Boolean).join(" · ") || undefined,
+        summary: [
+          `${person.sourceCount} ${person.sourceCount === 1 ? "source" : "sources"} in your library`,
+          page.firstYear && page.lastYear && (page.firstYear === page.lastYear ? `${page.firstYear}` : `${page.firstYear}–${page.lastYear}`),
+          page.coauthors.length && `${page.coauthors.length} co-authors`,
+          person.hIndex != null && `h-index ${person.hIndex}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        exists: true,
+      };
+    }
+    case "venue": {
+      const page = await invoke<VenuePageData | null>("store_venue", { id: item.id }, workspaceId);
+      if (!page) return missing("Journal");
+      const { venue } = page;
+      return {
+        item,
+        title: venue.name,
+        kindLabel: venue.type === "repository" ? "Repository" : venue.type === "conference" ? "Conference" : "Journal",
+        icon: "book",
+        subtitle: [venue.publisher?.name, venue.issnL && `ISSN ${venue.issnL}`].filter(Boolean).join(" · ") || undefined,
+        summary: [`${venue.sourceCount} ${venue.sourceCount === 1 ? "source" : "sources"} in your library`, venue.isOa && "Open access", venue.hIndex != null && `h-index ${venue.hIndex}`]
+          .filter(Boolean)
+          .join(" · "),
+        exists: true,
+      };
+    }
+    case "topic": {
+      const page = await invoke<TopicPageData | null>("store_topic", { id: item.id }, workspaceId);
+      if (!page) return missing("Topic");
+      return {
+        item,
+        title: page.topic.name,
+        kindLabel: page.topic.level === "topic" ? "Topic" : page.topic.level[0].toUpperCase() + page.topic.level.slice(1),
+        icon: "tag",
+        subtitle: page.topic.path.map((t) => t.name).join(" › ") || undefined,
+        summary: `${page.topic.sourceCount} ${page.topic.sourceCount === 1 ? "source" : "sources"} in your library`,
+        exists: true,
+      };
+    }
     case "canvas": {
       const canvas = await invoke<{ title: string; doc: unknown } | null>("store_canvas", { id: item.id }, workspaceId);
       if (!canvas) return missing("Canvas");
@@ -170,6 +223,10 @@ export function openItemAt(item: ItemLink, placement: Placement = "tab", title?:
       return action("open-content", { section: "record", workspaceId, record: { id: item.id } });
     case "file":
       return void openLinkedFile(invoke, workspaceId, item.id, title, where);
+    case "person":
+    case "venue":
+    case "topic":
+      return action("open-content", { section: item.kind, workspaceId, entityId: item.id, title });
     case "source": {
       const page = item.anchor?.startsWith("page:") ? Number(item.anchor.slice(5)) : undefined;
       const highlight = item.anchor?.startsWith("highlight:") ? item.anchor.slice(10) : undefined;

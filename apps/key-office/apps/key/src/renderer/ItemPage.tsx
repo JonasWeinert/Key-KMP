@@ -10,7 +10,7 @@ import { Creators, DEFAULT_FIELDS, FIELDS, FieldRow, MORE_FIELDS, TypedPropertie
 import { COVER_COLORS, COVER_GRADIENTS, PAGE_ICONS, coverBackground, type PageAppearance } from "./page-appearance";
 import "./item-page.css";
 
-export type ItemKind = "note" | "source" | "record";
+export type ItemKind = "note" | "source" | "record" | "person" | "venue" | "topic";
 
 /** Saves a cover image and turns a stored path back into a URL (the notes' media host). */
 export interface PageMedia {

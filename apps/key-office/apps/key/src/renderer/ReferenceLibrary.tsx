@@ -756,6 +756,10 @@ export default function ReferenceLibrary({
               setSheet(definition ? { mode: "edit", definition, targets, applyValue: true } : { mode: "new", targets });
             }}
             onFill={() => setAgent({ targets: items.filter((s) => selected.has(s.id)) })}
+            onEnrich={async () => {
+              const count = await invoke<number>("store_enrich", { ids: [...selected] }, workspaceId);
+              setToast({ text: `Looking up ${count} ${count === 1 ? "source" : "sources"} in OpenAlex` });
+            }}
             onTrash={() => void trash([...selected], scope !== "trashed")}
             onDelete={async () => {
               if (!window.confirm(`Delete ${selected.size} items permanently? Linked files stay on disk.`)) return;
@@ -1354,6 +1358,7 @@ function BulkBar({
   definitions,
   onSetProperty,
   onFill,
+  onEnrich,
   onTag,
   onCollect,
   onStar,
@@ -1367,6 +1372,7 @@ function BulkBar({
   definitions: PropertyDefinition[];
   onSetProperty: (definition?: PropertyDefinition) => void;
   onFill: () => void;
+  onEnrich: () => Promise<void>;
   onTag: (tag: string) => Promise<void>;
   onCollect: (id: string) => Promise<void>;
   onStar: () => Promise<void>;
@@ -1425,6 +1431,9 @@ function BulkBar({
           </select>
           <button onClick={onFill} title={count > 25 ? "Agent fill works on 25 sources at a time" : "Fill a property with AI"}>
             <Icon name="sparkle" size={13} /> Fill with AI
+          </button>
+          <button onClick={() => void onEnrich()} title="Look the selection up in OpenAlex: authors, journal, topics, funding and citations">
+            <Icon name="globe" size={13} /> Look up
           </button>
           <span className="kx-bulk-sep" />
         </>

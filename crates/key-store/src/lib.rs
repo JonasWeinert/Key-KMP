@@ -3,12 +3,20 @@
 // chunked text of documents and notes that full-text and vector search run over.
 mod analysis;
 mod filters;
+mod graph;
 mod linked;
 mod links;
+mod openalex;
 mod properties;
 mod search;
 pub use analysis::{CitationInput, ReferenceInput, SourceAnalysis, SourceCitation, SourceReference};
 pub use filters::{Filter, Suggestion};
+pub use graph::{
+    CitingSource, Grant, Institution, Keyword, MergeSuggestion, NamedCount, Person, PersonPage, Publisher, SourceGraph, SourcePerson, SourceTopic, Topic,
+    TopicPage, TopicRef, Venue, VenuePage, WorkReference, name_key,
+};
+pub use openalex::{EnrichJob, abstract_text};
+pub use properties::PropertyOption;
 pub use linked::{LinkedDir, LinkedEntries, LinkedFile, LinkedFolder, MAX_PDF_BYTES, MAX_TEXT_BYTES, SyncReport, file_kind};
 pub use links::{Canvas, CanvasSummary, ItemLinks, ItemRef, Link, LinkEnd, LinkInput, LinkTarget, canvas_links, note_title};
 pub use search::{FileHit, NoteHit, SearchHit, SearchPassage, SearchQuery, SearchResult};
@@ -46,7 +54,10 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/007_links_canvases.sql"),
     include_str!("migrations/008_pages.sql"),
     include_str!("migrations/009_linked_folders.sql"),
+    include_str!("migrations/010_metadata_graph.sql"),
 ];
+/// The migration after which existing sources are linked to the new people and venue tables.
+const GRAPH_MIGRATION: usize = 10;
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
 /// order of the table. Kept in one list so inserts, patches and reads cannot drift.
@@ -83,13 +94,31 @@ const TEXT_FIELDS: &[(&str, &str)] = &[
     ("filePath", "file_path"),
     ("fileHash", "file_hash"),
     ("mime", "mime"),
+    // From OpenAlex (see openalex.rs); `venueId` and `publisherId` link to their tables.
+    ("openalexId", "openalex_id"),
+    ("workType", "work_type"),
+    ("oaStatus", "oa_status"),
+    ("oaUrl", "oa_url"),
+    ("enrichStatus", "enrich_status"),
+    ("enrichError", "enrich_error"),
+    ("venueId", "venue_id"),
+    ("publisherId", "publisher_id"),
 ];
 const NUMBER_FIELDS: &[(&str, &str)] = &[
     ("year", "year"),
     ("durationSeconds", "duration_seconds"),
     ("fileSize", "file_size"),
     ("pageCount", "page_count"),
+    ("retracted", "retracted"),
+    ("citedByCount", "cited_by_count"),
+    ("fwci", "fwci"),
+    ("metricsAt", "metrics_at"),
+    ("enrichedAt", "enriched_at"),
 ];
+/// Fields only the store writes: a patch naming them is ignored.
+const DERIVED_FIELDS: &[&str] = &["venueId", "publisherId", "enrichStatus", "enrichError", "enrichedAt", "metricsAt"];
+/// Identifiers a source can be looked up by; a new one queues the lookup.
+const LOOKUP_FIELDS: &[&str] = &["doi", "pmid", "openalexId"];
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -102,6 +131,9 @@ pub struct Creator {
     pub literal: Option<String>,
     #[serde(default = "author_role")]
     pub role: String,
+    /// The person this creator is (see graph.rs); filled when read, never stored in the JSON.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub person_id: Option<String>,
 }
 fn author_role() -> String {
     "author".into()
@@ -247,6 +279,7 @@ fn sort_expression(field: &str) -> String {
         "creator" => "json_extract(s.creators, '$[0].family') COLLATE NOCASE",
         "container" => "s.container_title COLLATE NOCASE",
         "type" => "s.item_type",
+        "citations" => "s.cited_by_count",
         "kind" => "s.kind",
         "pages" => "s.page_count",
         _ => "s.added_at",
@@ -408,6 +441,11 @@ impl Store {
         for (index, sql) in MIGRATIONS.iter().enumerate().skip(version) {
             let tx = conn.unchecked_transaction().map_err(e)?;
             tx.execute_batch(sql).map_err(|error| format!("migration {}: {error}", index + 1))?;
+            if index + 1 == GRAPH_MIGRATION {
+                graph::backfill(&tx)
+                    .and_then(|()| properties::backfill_choices(&tx))
+                    .map_err(|error| format!("migration {}: {error}", index + 1))?;
+            }
             tx.execute_batch(&format!("PRAGMA user_version = {}", index + 1)).map_err(e)?;
             tx.commit().map_err(e)?;
         }
@@ -460,6 +498,7 @@ impl Store {
                 )
                 .map_err(e)?;
             }
+            sync_graph(&tx, &id, None)?;
             refresh_fts(&tx, &id)?;
             tx.commit().map_err(e)?;
         }
@@ -486,12 +525,15 @@ impl Store {
             };
             let id = match existing {
                 Some(id) => {
-                    patch_source_row(&tx, &id, &input_patch(input), now)?;
+                    let patch = input_patch(input);
+                    patch_source_row(&tx, &id, &patch, now)?;
+                    sync_graph(&tx, &id, Some(&patch))?;
                     id
                 }
                 None => {
                     let id = new_id();
                     insert_source_row(&tx, &id, input, now)?;
+                    sync_graph(&tx, &id, None)?;
                     id
                 }
             };
@@ -516,6 +558,7 @@ impl Store {
             let db = self.db()?;
             let tx = db.unchecked_transaction().map_err(e)?;
             patch_source_row(&tx, id, patch, now_ms())?;
+            sync_graph(&tx, id, Some(patch))?;
             refresh_fts(&tx, id)?;
             tx.commit().map_err(e)?;
         }
@@ -621,6 +664,7 @@ impl Store {
             links::forget_item(&tx, links::SOURCE, id)?;
             removed += tx.execute("DELETE FROM sources WHERE id = ?", [id]).map_err(e)?;
         }
+        graph::prune_orphans(&tx)?;
         tx.commit().map_err(e)?;
         Ok(removed)
     }
@@ -1229,6 +1273,7 @@ fn select_sources() -> String {
             "(SELECT count(*) FROM notes WHERE source_id = s.id)",
             "(SELECT count(*) FROM annotations WHERE source_id = s.id)",
             "s.appearance",
+            "(SELECT json_group_object(position, person_id) FROM source_people WHERE source_id = s.id)",
         ]
         .map(String::from),
     );
@@ -1253,10 +1298,15 @@ fn read_source(row: &Row) -> rusqlite::Result<Source> {
     }
     let text = |i: usize| row.get::<_, String>(i);
     let collections: Option<String> = row.get(index + 15)?;
+    let mut creators: Vec<Creator> = serde_json::from_str(&text(index + 2)?).unwrap_or_default();
+    let people: Map<String, Json> = row.get::<_, Option<String>>(index + 19)?.and_then(|p| serde_json::from_str(&p).ok()).unwrap_or_default();
+    for (position, creator) in creators.iter_mut().enumerate() {
+        creator.person_id = people.get(&position.to_string()).and_then(Json::as_str).map(String::from);
+    }
     Ok(Source {
         id: text(index)?,
         kind: text(index + 1)?,
-        creators: serde_json::from_str(&text(index + 2)?).unwrap_or_default(),
+        creators,
         tags: serde_json::from_str(&text(index + 3)?).unwrap_or_default(),
         properties: serde_json::from_str(&text(index + 4)?).unwrap_or_default(),
         starred: row.get::<_, i64>(index + 5)? != 0,
@@ -1342,7 +1392,7 @@ fn insert_source_row(db: &Connection, id: &str, input: &SourceInput, now: i64) -
     let mut values: Vec<Value> = vec![
         Value::Text(id.into()),
         Value::Text(input.kind.clone()),
-        Value::Text(serde_json::to_string(&input.creators).map_err(e)?),
+        Value::Text(creators_json(&input.creators)?),
         Value::Text(serde_json::to_string(&normalize_tags(&input.tags)).map_err(e)?),
         Value::Text(Json::Object(input.properties.clone()).to_string()),
         input.origin.clone().map(Value::Text).unwrap_or(Value::Null),
@@ -1352,6 +1402,9 @@ fn insert_source_row(db: &Connection, id: &str, input: &SourceInput, now: i64) -
         Value::Text(input.index_status.clone().unwrap_or_else(|| "pending".into())),
     ];
     for (name, column) in TEXT_FIELDS.iter().chain(NUMBER_FIELDS) {
+        if DERIVED_FIELDS.contains(name) {
+            continue;
+        }
         if let Some(value) = input.fields.get(*name) {
             columns.push(column);
             values.push(json_to_sql(value));
@@ -1373,7 +1426,11 @@ fn insert_source_row(db: &Connection, id: &str, input: &SourceInput, now: i64) -
 fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i64) -> Result<()> {
     let mut sets = vec!["updated_at = ?".to_string()];
     let mut values: Vec<Value> = vec![Value::Integer(now)];
+    let lookup_before = lookup_ids(db, id, patch)?;
     for (name, column) in TEXT_FIELDS.iter().chain(NUMBER_FIELDS) {
+        if DERIVED_FIELDS.contains(name) {
+            continue;
+        }
         if let Some(value) = patch.get(*name) {
             sets.push(format!("{column} = ?"));
             values.push(if *column == "title" && value.is_null() { Value::Text(String::new()) } else { json_to_sql(value) });
@@ -1386,7 +1443,7 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
     if let Some(creators) = patch.get("creators") {
         let creators: Vec<Creator> = serde_json::from_value(creators.clone()).map_err(e)?;
         sets.push("creators = ?".into());
-        values.push(Value::Text(serde_json::to_string(&creators).map_err(e)?));
+        values.push(Value::Text(creators_json(&creators)?));
     }
     if let Some(tags) = patch.get("tags") {
         let tags: Vec<String> = serde_json::from_value(tags.clone()).map_err(e)?;
@@ -1431,11 +1488,62 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
     if changed == 0 {
         return Err("Source not found".into());
     }
+    // A new identifier means a new lookup.
+    if lookup_before.is_some() && lookup_ids(db, id, patch)? != lookup_before {
+        db.execute(
+            "UPDATE sources SET enrich_status = CASE WHEN coalesce(nullif(doi, ''), nullif(pmid, ''), nullif(openalex_id, '')) IS NULL THEN NULL ELSE 'pending' END,
+               enrich_error = NULL, enrich_attempts = 0, enrich_after = NULL WHERE id = ?",
+            [id],
+        )
+        .map_err(e)?;
+    }
+    Ok(())
+}
+
+/// The identifiers a source is looked up by, when `patch` touches any of them.
+fn lookup_ids(db: &Connection, id: &str, patch: &Map<String, Json>) -> Result<Option<(Option<String>, Option<String>, Option<String>)>> {
+    if !LOOKUP_FIELDS.iter().any(|f| patch.contains_key(*f)) {
+        return Ok(None);
+    }
+    db.query_row("SELECT nullif(doi, ''), nullif(pmid, ''), nullif(openalex_id, '') FROM sources WHERE id = ?", [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .optional()
+        .map_err(e)
+}
+
+/// Creators as stored: without the person ids that are only added when reading.
+fn creators_json(creators: &[Creator]) -> Result<String> {
+    let bare: Vec<Creator> = creators.iter().cloned().map(|c| Creator { person_id: None, ..c }).collect();
+    serde_json::to_string(&bare).map_err(e)
+}
+
+/// Keeps the tables around a source in step with what a write changed (`None`: a new source).
+fn sync_graph(db: &Connection, id: &str, patch: Option<&Map<String, Json>>) -> Result<()> {
+    let has = |key: &str| patch.is_none_or(|p| p.contains_key(key));
+    if has("creators") {
+        graph::sync_people(db, id, true)?;
+    }
+    if has("containerTitle") || has("issn") || has("publisher") {
+        graph::sync_venue(db, id)?;
+    }
+    if patch.is_none() {
+        db.execute(
+            "UPDATE sources SET enrich_status = 'pending' WHERE id = ? AND enrich_status IS NULL
+               AND coalesce(nullif(doi, ''), nullif(pmid, ''), nullif(openalex_id, '')) IS NOT NULL",
+            [id],
+        )
+        .map_err(e)?;
+    }
+    if LOOKUP_FIELDS.iter().any(|f| has(f)) {
+        graph::relink_citations(db, id)?;
+    }
+    if has("properties") || has("replaceProperties") {
+        properties::sync_choices(db, id)?;
+    }
     Ok(())
 }
 
 /// Rewrites the metadata FTS row for one source (title, creators, notes, identifiers...).
-fn refresh_fts(db: &Connection, id: &str) -> Result<()> {
+pub(crate) fn refresh_fts(db: &Connection, id: &str) -> Result<()> {
     db.execute("DELETE FROM sources_fts WHERE rowid = (SELECT rowid FROM sources WHERE id = ?)", [id])
         .map_err(e)?;
     db.execute(
