@@ -1,0 +1,72 @@
+/* The structure rail sits on the reader's leading edge; panels open on the trailing one. */
+.key-pdf-rail {
+  position: absolute;
+  top: 56px;
+  bottom: 28px;
+  left: 6px;
+  z-index: 15;
+  width: 32px;
+  pointer-events: none;
+}
+.key-pdf-rail > .key-preview-rail {
+  inset: 0;
+}
+.key-pdf-rail-preview {
+  display: grid;
+  gap: 4px;
+}
+.key-pdf-rail-thumb {
+  display: block;
+  margin-bottom: 4px;
+  overflow: hidden;
+  border-radius: var(--key-ui-radius-sm, 6px);
+  background: var(--key-ui-hover);
+  box-shadow: 0 0 0 1px var(--key-ui-border-subtle, var(--key-ui-border));
+}
+/* Holds a letter-size place until the page is drawn; then the page keeps its own shape. */
+.key-pdf-rail-thumb:empty {
+  aspect-ratio: 1 / 1.294;
+}
+.key-pdf-rail-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.key-pdf-rail-preview strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: var(--key-ui-text-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.key-pdf-rail-preview small {
+  color: var(--key-ui-muted);
+  font-size: var(--key-ui-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.key-pdf-rail-all {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--key-ui-muted);
+  cursor: pointer;
+}
+.key-pdf-rail-all:hover {
+  background: var(--key-ui-hover);
+  color: var(--key-ui-text);
+}
+.key-pdf-rail-all:focus-visible {
+  outline: 2px solid var(--key-ui-focus);
+  outline-offset: 1px;
+}
+.key-pdf-rail-all svg {
+  width: 14px;
+  height: 14px;
+}

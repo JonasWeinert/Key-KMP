@@ -5,6 +5,7 @@ import PdfJsBenchmarkApp, {
   type PdfReaderChromeState,
   type PdfReaderHandle,
   type PdfReaderPanel,
+  type PdfReaderRail,
 } from "@key-reader/pdfjs/PdfJsBenchmarkApp";
 import {
   registerManagedSource,
@@ -14,6 +15,10 @@ import "@key-reader/styles.css";
 import "./pdf-reader.css";
 import "./pdf-ui-adapter.css";
 import { Icon } from "./icons";
+import { PdfRail } from "./PdfRail";
+
+// The outline lives on the rail; its full list opens from the rail's footer.
+const renderRail = (rail: PdfReaderRail) => <PdfRail rail={rail} />;
 
 type Target = {
   id: string;
@@ -253,17 +258,6 @@ export default function PdfReader() {
     <main className="key-ui-root key-pdf-reader">
       <header className="key-pdf-toolbar" aria-label="PDF controls">
         <div className="key-pdf-toolbar-group">
-          <span className="key-pdf-seg">
-            <button
-              className="key-pdf-tool"
-              title="Document outline"
-              aria-label="Document outline"
-              aria-pressed={chrome?.activePanel === "outline"}
-              onClick={() => panel("outline")}
-            >
-              <Icon name="list" />
-            </button>
-          </span>
           <span className="key-pdf-page" aria-label={`Page ${page} of ${chrome?.pageCount || "…"}`}>
             {page}
             <span> of {chrome?.pageCount || "…"}</span>
@@ -437,6 +431,7 @@ export default function PdfReader() {
           searchTarget={target}
           onViewStateChange={viewChanged}
           onChromeStateChange={setChrome}
+          renderRail={renderRail}
           onRequestControlMode={(mode) => {
             setShowSearch(mode === "search");
           }}

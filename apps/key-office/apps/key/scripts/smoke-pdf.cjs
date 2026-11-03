@@ -61,6 +61,53 @@ const { tmpdir } = require("node:os");
     );
     await pdf.screenshot({ path: path.join(temp, "pdf.png") });
     console.log("PDF", await pdf.locator("body").innerText());
+    // The structure rail: hovering a tick previews it, clicking jumps there.
+    const ticks = pdf.locator('.key-pdf-rail [data-slot="preview-rail-item"]');
+    await ticks.first().waitFor({ timeout: 30000 });
+    const labels = await ticks.evaluateAll((items) =>
+      items.map((item) => item.getAttribute("aria-label")),
+    );
+    const last = ticks.last();
+    await last.hover();
+    const card = pdf.locator(".key-pdf-rail .key-preview-rail-card");
+    await card.waitFor({ timeout: 5000 });
+    await pdf.waitForFunction(
+      () => document.querySelector(".key-pdf-rail-thumb img")?.complete,
+      { timeout: 10000 },
+    );
+    const preview = await card.innerText();
+    await pdf.screenshot({ path: path.join(temp, "pdf-rail-light.png") });
+    await last.click();
+    const target = Number(/page (\d+)/i.exec(labels.at(-1))?.[1] ?? 0);
+    await pdf.waitForFunction(
+      (target) => {
+        const page = document.querySelector(`.pdfjs-page[data-page-index="${target - 1}"]`);
+        const rect = page?.getBoundingClientRect();
+        return !!rect && rect.top < innerHeight / 2 && rect.bottom > innerHeight / 3;
+      },
+      target,
+      { timeout: 5000 },
+    );
+    await pdf.waitForFunction(
+      () =>
+        document
+          .querySelector('.key-pdf-rail [data-slot="preview-rail-item"]:last-of-type')
+          ?.getAttribute("aria-current") === "location",
+      undefined,
+      { timeout: 5000 },
+    );
+    // Playwright pins pages to a light scheme, so the app setting alone shows nothing here.
+    await shell.evaluate(() => window.key.setAppSettings({ theme: "dark" }));
+    await pdf.emulateMedia({ colorScheme: "dark" });
+    await pdf.waitForTimeout(400);
+    await ticks.first().hover();
+    await card.waitFor({ timeout: 5000 });
+    await pdf.waitForTimeout(400);
+    await pdf.screenshot({ path: path.join(temp, "pdf-rail-dark.png") });
+    await shell.evaluate(() => window.key.setAppSettings({ theme: "system" }));
+    await pdf.emulateMedia({ colorScheme: "light" });
+    await pdf.mouse.move(600, 300);
+    console.log("RAIL", JSON.stringify({ labels, preview, jumpedTo: target }));
     await shell.evaluate(async (source) => {
       await window.key.openSource(source);
       const t = await window.key.tabs();
