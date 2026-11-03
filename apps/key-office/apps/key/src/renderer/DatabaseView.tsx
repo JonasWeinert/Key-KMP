@@ -342,6 +342,8 @@ interface Props<T> {
   onPointer: (row: T, event: React.MouseEvent) => void;
   onOpen: (row: T) => void;
   onDragStart?: (row: T, event: React.DragEvent) => void;
+  /** Extra attributes on each row or card (the item it shows, for previews and menus). */
+  rowAttrs?: (row: T) => Record<string, string | undefined>;
   /** List layout: the row element itself, absolutely placed at `top`. */
   renderListRow: (row: T, top: number, state: RowState) => ReactNode;
   listRowHeight?: number;
@@ -372,6 +374,7 @@ function DatabaseViewInner<T>(
     onPointer,
     onOpen,
     onDragStart,
+    rowAttrs,
     renderListRow,
     listRowHeight = 58,
     renderCard,
@@ -435,6 +438,7 @@ function DatabaseViewInner<T>(
     onDoubleClick: () => onOpen(row),
     draggable: !!onDragStart,
     onDragStart: onDragStart ? (e: React.DragEvent) => onDragStart(row, e) : undefined,
+    ...rowAttrs?.(row),
   });
 
   return (

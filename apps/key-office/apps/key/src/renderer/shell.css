@@ -352,3 +352,84 @@ textarea:focus-visible {
 .key-agent-fill-dialog button { cursor: pointer; font: inherit; font-size: 12px; }
 .key-agent-fill-dialog button:disabled { cursor: default; opacity: .45; }
 .key-agent-fill-dialog button:hover:not(:disabled) { background: var(--surface-subtle, #f4f4f5); }
+
+/* A pane that followed a link: back/forward and where it came from. */
+.key-content-pane:has(> .key-pane-history) {
+  flex-direction: column;
+}
+.key-content-pane:has(> .key-pane-history) > .key-shell-content {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.key-pane-history {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  height: 30px;
+  padding: 0 8px;
+  border-bottom: 0.5px solid var(--kx-line);
+  background: var(--kx-bg);
+  font-size: 12px;
+}
+.key-pane-history > button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kx-text-2);
+}
+.key-pane-history > button:hover:not(:disabled) {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}
+.key-pane-history > button:disabled {
+  color: var(--kx-text-3);
+  opacity: 0.5;
+}
+.key-pane-crumbs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0 0 0 6px;
+  padding: 0;
+  list-style: none;
+  color: var(--kx-text-2);
+}
+.key-pane-crumbs li {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+.key-pane-crumbs li + li::before {
+  content: "›";
+  margin: 0 6px;
+  color: var(--kx-text-3);
+}
+.key-pane-crumbs li[aria-current] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--kx-text);
+  font-weight: 500;
+}
+.key-pane-crumbs button {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.key-pane-crumbs button:hover {
+  background: var(--kx-fill-2);
+  color: var(--kx-text);
+}

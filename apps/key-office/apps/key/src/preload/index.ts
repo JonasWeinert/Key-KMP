@@ -57,6 +57,9 @@ contextBridge.exposeInMainWorld("key", {
         "operation-error",
         "focus-pane",
         "open-workspace-switcher",
+        "toggle-inspector",
+        "command",
+        "send-items",
       ].includes(event)
     )
       throw Error("Unknown event");

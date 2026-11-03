@@ -68,6 +68,9 @@ type OwnedView = {
     canvasId?: string;
   };
   contentKey?: string;
+  /** What this pane showed before a link was followed in place, and after going back. */
+  back?: PaneEntry[];
+  forward?: PaneEntry[];
   returnViewId?: string;
   searchPreviewOwner?: string;
   sharedSearchNavigation?: boolean;
@@ -93,6 +96,7 @@ type OwnedView = {
   /** The window whose content view currently holds this view's native WebContentsView. */
   host?: ShellWindow;
 };
+type PaneEntry = Pick<OwnedView, "title" | "contentKey" | "content">;
 /** One window: one workspace, its own tabs, sidebar width and modal overlay. Every window
  * talks to the same registry, Rust hosts and view records, so a document is never open twice. */
 type ShellWindow = {
@@ -102,6 +106,8 @@ type ShellWindow = {
   workspaceId: string;
   state: WorkspaceTabsState;
   sidebarWidth: number;
+  /** The inspector panel at the right edge, 0 while it is closed. */
+  inspectorWidth?: number;
   globalOverlay?: string;
   overlayCaptureSequence: number;
   overlayCaptureKey: string;
@@ -356,6 +362,8 @@ function snapshot(w: ShellWindow) {
                     : "records"
               : views.get(id)?.kind,
         content: views.get(id)?.content,
+        back: views.get(id)?.back?.map((e) => e.title).slice(-3),
+        forward: views.get(id)?.forward?.at(-1)?.title,
       })),
     })),
     activeTabId: state.activeTabId,
@@ -485,7 +493,7 @@ function placeViews(w: ShellWindow) {
   const { panes } = layoutPanes(tab.layout, {
     x: w.sidebarWidth,
     y: 40,
-    width: Math.max(0, width - w.sidebarWidth),
+    width: Math.max(0, width - w.sidebarWidth - (w.inspectorWidth ?? 0)),
     height: Math.max(0, height - 40),
   });
   for (const { viewId, ...bounds } of panes) views.get(viewId)?.view?.setBounds(bounds);
@@ -582,8 +590,56 @@ function focus(id: string) {
     if (!w.window.isFocused()) w.window.focus();
   }
 }
+/** Where the next `add` puts its view: beside a pane, or in a pane's place (with history). */
+let placement: { mode: "split" | "here"; viewId: string } | undefined;
+async function withPlacement(p: any, open: () => Promise<unknown>) {
+  placement = p.placement === "split" || p.placement === "here" ? { mode: p.placement, viewId: String(p.fromViewId ?? "") } : undefined;
+  try {
+    await open();
+  } finally {
+    placement = undefined;
+  }
+}
+const paneEntry = (v: OwnedView): PaneEntry => ({ title: v.title, contentKey: v.contentKey, content: v.content });
+/** Follows a link inside a DOM pane: it shows `record`'s content and remembers what it showed. */
+function navigateInPlace(w: ShellWindow, pane: OwnedView, record: OwnedView) {
+  views.delete(record.id);
+  pane.back = [...(pane.back ?? []), paneEntry(pane)].slice(-50);
+  pane.forward = [];
+  Object.assign(pane, { title: record.title, contentKey: record.contentKey, content: record.content, workspaceId: record.workspaceId, dirty: false });
+  focus(pane.id);
+  tabsChanged(w);
+}
+/** Back (-1) or forward (1) in a pane's history; an entry open elsewhere is focused there. */
+function stepHistory(w: ShellWindow, viewId: string, step: number) {
+  const pane = views.get(viewId);
+  if (!pane || pane.dirty) return;
+  const from = step < 0 ? pane.back : pane.forward;
+  const entry = from?.pop();
+  if (!entry) return;
+  const elsewhere = [...views.values()].find((v) => v !== pane && v.contentKey === entry.contentKey);
+  if (elsewhere && shellOfView(elsewhere.id)) return focus(elsewhere.id);
+  (step < 0 ? (pane.forward ??= []) : (pane.back ??= [])).push(paneEntry(pane));
+  Object.assign(pane, entry, { dirty: false });
+  tabsChanged(w);
+}
 function add(record: OwnedView, w: ShellWindow = focusedShell()) {
+  const target = placement && views.get(placement.viewId);
+  const mode = placement?.mode;
+  placement = undefined;
+  if (mode === "here" && target?.kind === "home" && target.content && !target.dirty && record.kind === "home" && shellOfView(target.id) === w) {
+    navigateInPlace(w, target, record);
+    return undefined;
+  }
   views.set(record.id, record);
+  const beside = mode === "split" && target ? w.state.tabs.find((t) => t.viewIds.includes(target.id)) : undefined;
+  if (beside && beside.viewIds.length < MAX_PANES) {
+    const tab = singleWorkspaceTab(record.id);
+    w.state.tabs.push(tab);
+    w.state = applyWorkspaceViewDrop(w.state, { kind: "split", viewId: record.id, targetTabId: beside.id, targetViewId: target!.id, edge: "right" });
+    layout(w);
+    return record.view;
+  }
   // A focused Home pane inside a split is a launcher: what it opens takes its place.
   const current = activeWorkspaceTab(w.state);
   const launcher = current && current.viewIds.length > 1 ? views.get(current.activeViewId) : undefined;
@@ -622,8 +678,21 @@ function afterClose(w: ShellWindow) {
   else if (!w.state.tabs.length) home(w);
   else layout(w);
 }
+/** Closed panes, newest last, for Reopen Closed Tab. */
+const closedViews: SavedView[] = [];
+async function reopenClosed(w: ShellWindow) {
+  while (closedViews.length) {
+    const record = await restoredView(closedViews.pop()!);
+    if (record) return void add(record, w);
+  }
+}
 /** Checks every view for unsaved changes before disposing any, then disposes them all. */
 async function closeViews(w: ShellWindow, ids: string[]): Promise<boolean> {
+  for (const viewId of ids) {
+    const saved = savedView(viewId);
+    if (saved && saved.type !== "home") closedViews.push(saved);
+  }
+  closedViews.splice(0, Math.max(0, closedViews.length - 20));
   for (const viewId of ids) {
     const record = views.get(viewId);
     if (record?.dirty) {
@@ -1472,6 +1541,9 @@ function baseMenu() {
             layout(w);
           }),
           { type: "separator" },
+          pane("Back", "CmdOrCtrl+[", (w, _tab, viewId) => stepHistory(w, viewId, -1)),
+          pane("Forward", "CmdOrCtrl+]", (w, _tab, viewId) => stepHistory(w, viewId, 1)),
+          { type: "separator" },
           { label: "Show Previous Tab", accelerator: "CmdOrCtrl+Shift+[", click: () => stepTab(-1) },
           { label: "Show Next Tab", accelerator: "CmdOrCtrl+Shift+]", click: () => stepTab(1) },
           {
@@ -1490,6 +1562,23 @@ function baseMenu() {
           { role: "zoomOut" },
           { type: "separator" },
           { role: "togglefullscreen" },
+        ],
+      },
+      {
+        label: "Go",
+        submenu: [
+          { label: "Open Quickly…", accelerator: "CmdOrCtrl+P", click: () => emitTo(focusedShell(), "command", "quick-open") },
+          { label: "Commands…", accelerator: "CmdOrCtrl+K", click: () => emitTo(focusedShell(), "command", "palette") },
+          { type: "separator" },
+          { label: "Copy Link", accelerator: "CmdOrCtrl+L", click: () => emitTo(focusedShell(), "command", "copy-link") },
+          { label: "Copy Citation", accelerator: "CmdOrCtrl+Shift+C", click: () => emitTo(focusedShell(), "command", "copy-citation") },
+          { label: "Send To…", accelerator: "CmdOrCtrl+Shift+S", click: () => emitTo(focusedShell(), "command", "send-to") },
+          { type: "separator" },
+          { label: "Show Inspector", accelerator: "CmdOrCtrl+Shift+I", click: () => emitTo(focusedShell(), "toggle-inspector") },
+          { label: "All Highlights", accelerator: "CmdOrCtrl+Shift+H", click: () => emitTo(focusedShell(), "command", "highlights") },
+          { label: "Reopen Closed Tab", accelerator: "CmdOrCtrl+Shift+T", click: () => void reopenClosed(focusedShell()) },
+          { type: "separator" },
+          { label: "Keyboard Shortcuts", accelerator: "CmdOrCtrl+/", click: () => emitTo(focusedShell(), "command", "shortcuts") },
         ],
       },
       { role: "windowMenu" },
@@ -2066,8 +2155,11 @@ else
             break;
           }
           case "open-content":
-            await openContent(w, p);
+            await withPlacement(p, () => openContent(w, p));
             break;
+          case "history":
+            stepHistory(w, String(p.viewId ?? activeWorkspaceTab(w.state)?.activeViewId ?? ""), Number(p.step) < 0 ? -1 : 1);
+            return snapshot(w);
           // A note's tab follows its title as it is edited.
           case "content-title": {
             const view = views.get(p.viewId);
@@ -2131,6 +2223,10 @@ else
               : 240;
             placeViews(w);
             return snapshot(w);
+          case "inspector-width":
+            w.inspectorWidth = Math.max(0, Math.min(480, Number(p.width) || 0));
+            placeViews(w);
+            return snapshot(w);
           case "drop-view":
             w.state = applyWorkspaceViewDrop(w.state, p);
             layout(w);
@@ -2174,7 +2270,7 @@ else
           }
           case "open-source-page":
             if (!p.workspaceId || !p.sourceId) throw Error("Choose a source");
-            await openSourcePage(w, p);
+            await withPlacement(p.read ? {} : p, () => openSourcePage(w, p));
             return snapshot(w);
           // Multiple windows: move a tab out to a new window or into another one.
           case "pop-out":

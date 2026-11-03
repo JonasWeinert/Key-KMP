@@ -67,6 +67,54 @@ export interface Viewport {
   zoom: number;
 }
 
+/** A card's size when placed: notes and pages show their text, sources a preview. */
+export function cardSize(item: { kind: string; anchor?: string; detail?: string }): { w: number; h: number } {
+  if (item.anchor?.startsWith("highlight:")) return { w: 260, h: 160 };
+  if (item.anchor?.startsWith("page:")) return { w: 260, h: 320 };
+  if (item.kind === "note" || item.kind === "record") return { w: 320, h: 300 };
+  if (item.kind === "source") return PREVIEW_KINDS.has(item.detail ?? "") ? { w: 280, h: 320 } : { w: 280, h: 180 };
+  return { w: 240, h: 120 };
+}
+/** Sources whose file has a Quick Look preview worth showing on the card. */
+export const PREVIEW_KINDS = new Set(["pdf", "image", "video", "book", "document"]);
+export const CARD_GAP = 24;
+
+/** Cards for `items` in rows of four, the first one centred on `centre`. */
+export function layoutCards(items: (ItemLink & { title: string; detail?: string; color?: string })[], [cx, cy]: Point): ItemNode[] {
+  let x = 0,
+    y = 0,
+    rowHeight = 0;
+  const first = items.length ? cardSize(items[0]) : { w: 0, h: 0 };
+  return items.map((item, i) => {
+    const size = cardSize(item);
+    if (i && i % 4 === 0) {
+      x = 0;
+      y += rowHeight + CARD_GAP;
+      rowHeight = 0;
+    }
+    const node: ItemNode = {
+      id: newId(),
+      type: "item",
+      ref: { kind: item.kind, id: item.id, ...(item.anchor ? { anchor: item.anchor } : {}) },
+      title: item.title,
+      detail: item.detail,
+      color: item.color,
+      x: Math.round(cx - first.w / 2 + x),
+      y: Math.round(cy - first.h / 2 + y),
+      ...size,
+    };
+    x += size.w + CARD_GAP;
+    rowHeight = Math.max(rowHeight, size.h);
+    return node;
+  });
+}
+
+/** Where cards added from outside a canvas go: below everything on it. */
+export function belowContent(doc: CanvasDoc): Point {
+  const box = bounds(doc.nodes);
+  return box ? [box.x + 160, box.y + box.h + 200] : [0, 0];
+}
+
 export const EMPTY_DOC: CanvasDoc = { version: 1, nodes: [], edges: [] };
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 4;

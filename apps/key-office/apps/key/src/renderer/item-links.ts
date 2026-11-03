@@ -1,6 +1,7 @@
 // Cross-references between items (the `store_links` / `store_link_targets` host commands):
 // what the link picker offers, and how a link opens what it points at.
 import { bridge, type Invoke, type Source } from "./library-api";
+import { openItemAt, type Placement } from "./item-actions";
 import { hasItemDrag, itemFromHref, type DraggedItem, type ItemKind, type ItemLink, type SourceRef } from "./note-editor";
 import { libraryChanged } from "./library-nav";
 import { noteSources } from "./note-sources";
@@ -62,23 +63,10 @@ export function targetRef(target: LinkTarget): SourceRef {
 }
 const TARGET_LABEL: Record<ItemKind, string> = { source: "Source", note: "Note", canvas: "Canvas", record: "Page" };
 
-/** Opens whatever a link points at, in the place the app opens that kind of item. */
-export function openItem(invoke: Invoke, workspaceId: string, item: ItemLink, title?: string) {
-  const action = (name: string, payload: unknown) => void bridge().tabAction(name, payload);
-  switch (item.kind) {
-    case "note":
-      return action("open-content", { section: "note", workspaceId, noteId: item.id, title });
-    case "canvas":
-      return action("open-content", { section: "canvas", workspaceId, canvasId: item.id, title });
-    case "record":
-      return action("open-content", { section: "record", workspaceId, record: { id: item.id } });
-    case "source": {
-      const page = item.anchor?.startsWith("page:") ? Number(item.anchor.slice(5)) : undefined;
-      const highlight = item.anchor?.startsWith("highlight:") ? item.anchor.slice(10) : undefined;
-      if (page !== undefined || highlight) return noteSources(invoke, workspaceId).onOpenSource(item.id, page, highlight);
-      return action("open-source-page", { workspaceId, sourceId: item.id, title: title || "Untitled", read: false });
-    }
-  }
+/** Opens whatever a link points at. A followed link replaces the pane it is in (Back returns),
+ * like a browser; other places pass "tab" or "split". */
+export function openItem(invoke: Invoke, workspaceId: string, item: ItemLink, title?: string, placement: Placement = "here") {
+  openItemAt(item, placement, title, workspaceId, invoke);
 }
 
 /** Notes, sources, highlights and canvases for the @ picker; an empty query lists recent ones. */

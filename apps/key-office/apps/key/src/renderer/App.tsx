@@ -15,6 +15,11 @@ import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import CollectionTree from "./CollectionTree";
 import { setItemDrag } from "./item-links";
+import { setShellContext } from "./item-actions";
+import { ItemLayer, itemAttrs, onShowInInspector, selectItems, useSelectedItems } from "./item-ui";
+import Inspector from "./Inspector";
+import CommandCenter from "./CommandCenter";
+import type { DraggedItem } from "./note-editor";
 import WorkspaceContent, { type ContentSpec } from "./WorkspaceContent";
 import {
   MAX_PANES,
@@ -64,6 +69,9 @@ interface TabState {
       kind: string;
       workspaceId?: string;
       content?: ContentSpec;
+      /** Titles of what this pane showed before (oldest first), and the next one forward. */
+      back?: string[];
+      forward?: string;
     }[];
   }[];
   activeTabId: string;
@@ -111,6 +119,21 @@ const CHROME_TOP = 40;
 /** A quarter of the pane, at most this many pixels, from an edge splits there. */
 const EDGE_BAND = 80;
 const DIVIDER_STEP = 0.025;
+const INSPECTOR_WIDTH = 300;
+
+/** The item a content pane shows, for the inspector when nothing is selected. */
+function paneItem(content?: ContentSpec, title?: string): DraggedItem | undefined {
+  if (!content) return undefined;
+  const name = title ?? "Untitled";
+  if (content.section === "note" && content.noteId) return { kind: "note", id: content.noteId, title: name };
+  if (content.section === "canvas" && content.canvasId) return { kind: "canvas", id: content.canvasId, title: name };
+  if (content.section === "source" && content.sourceId) return { kind: "source", id: content.sourceId, title: name };
+  if (content.section === "record" && content.record?.id) return { kind: "record", id: content.record.id, title: name };
+  return undefined;
+}
+/** Remounts a pane's content when a followed link changes what it shows. */
+const contentIdentity = (content?: ContentSpec) =>
+  content ? [content.section, content.noteId ?? content.canvasId ?? content.sourceId ?? content.record?.id ?? content.workspaceId ?? ""].join(":") : "";
 
 const tabSummary = (state: TabState): TabSummary[] =>
   state.tabs.map((tab) => ({
@@ -436,6 +459,22 @@ export default function App() {
       setSection("");
     }
   }, [activeView?.id, activeView?.content?.record?.id, tabs.workspaceId]);
+  // The shared item layer acts in this window's workspace and focused pane.
+  useEffect(() => setShellContext({ invoke, workspaceId, viewId: tabs.activeViewId }), [invoke, workspaceId, tabs.activeViewId]);
+  // A pane that gains focus is what's selected until something inside it is.
+  useEffect(() => {
+    const own = paneItem(activeView?.content, activeView?.title?.replace(/ •$/, ""));
+    selectItems(own ? [own] : []);
+  }, [activeView?.id, contentIdentity(activeView?.content)]);
+  const selected = useSelectedItems();
+  const [inspectorOpen, setInspectorOpen] = useState(() => localStorage.getItem("key.inspector.open") === "true");
+  const inspectorWidth = inspectorOpen ? INSPECTOR_WIDTH : 0;
+  useEffect(() => {
+    localStorage.setItem("key.inspector.open", String(inspectorOpen));
+    void api().tabAction("inspector-width", { width: inspectorWidth });
+  }, [inspectorOpen, inspectorWidth]);
+  useEffect(() => onShowInInspector(() => setInspectorOpen(true)), []);
+  useEffect(() => api().on("toggle-inspector", () => setInspectorOpen((open) => !open)), []);
   const switchWorkspace = (id: string, newWindow = false) =>
     task(() => api().tabAction("switch-workspace", { workspaceId: id, newWindow }));
   const [switcherRequest, setSwitcherRequest] = useState(0);
@@ -462,7 +501,7 @@ export default function App() {
     ? layoutPanes(shownLayout, {
         x: 0,
         y: 0,
-        width: Math.max(0, viewport.width - sidebarWidth),
+        width: Math.max(0, viewport.width - sidebarWidth - inspectorWidth),
         height: Math.max(0, viewport.height - CHROME_TOP),
       })
     : { panes: [], dividers: [] };
@@ -565,6 +604,23 @@ export default function App() {
       data-sidebar={sidebarCollapsed ? "collapsed" : "open"}
     >
       <GlobalDrawerHost />
+      <ItemLayer />
+      <CommandCenter
+        invoke={invoke}
+        workspaceId={workspaceId}
+        commands={[
+          { id: "new-note", label: "New note", icon: "note", run: createNote },
+          { id: "new-canvas", label: "New canvas", icon: "canvas", run: createCanvas },
+          { id: "library", label: "Show library", icon: "books", run: () => action("open-content", { section: "sources", workspaceId }) },
+          { id: "highlights", label: "All highlights", icon: "quote", shortcut: "⌘⇧H", run: () => action("open-content", { section: "highlights", workspaceId }) },
+          { id: "inspector", label: inspectorOpen ? "Hide inspector" : "Show inspector", icon: "panelRight", shortcut: "⌘⇧I", run: () => setInspectorOpen((o) => !o) },
+          { id: "sidebar", label: sidebarCollapsed ? "Show sidebar" : "Hide sidebar", icon: "sidebar", run: () => setSidebarCollapsed((v) => !v) },
+          { id: "split", label: "Split with another tab", icon: "split", run: () => action("split-menu") },
+          { id: "capture", label: "Quick capture", icon: "plus", shortcut: "⌃⌥Space", run: () => action("quick-capture") },
+          { id: "settings", label: "Settings", icon: "gear", shortcut: "⌘,", run: () => setSettingsSection("general") },
+          { id: "shortcuts", label: "Keyboard shortcuts", icon: "info", shortcut: "⌘/", run: () => window.dispatchEvent(new CustomEvent("key:shortcuts")) },
+        ]}
+      />
       {prefs && settingsSection && !welcome && (
         <Settings
           section={settingsSection}
@@ -691,6 +747,7 @@ export default function App() {
                   className="kx-nav-item"
                   aria-current={activeView?.content?.noteId === n.id ? "page" : undefined}
                   onClick={() => openNote(n)}
+                  {...itemAttrs({ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" })}
                   draggable
                   onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "note", id: n.id, title: n.title || markdownToPlainText(n.body).split("\n")[0] || "Untitled note" }])}
                   title={n.title || markdownToPlainText(n.body).slice(0, 120) || "Untitled note"}
@@ -706,6 +763,7 @@ export default function App() {
                   className="kx-nav-item"
                   aria-current={activeView?.content?.canvasId === c.id ? "page" : undefined}
                   onClick={() => openCanvas(c)}
+                  {...itemAttrs({ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" })}
                   draggable
                   onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "canvas", id: c.id, title: c.title || "Untitled canvas" }])}
                   title={c.title || "Untitled canvas"}
@@ -771,6 +829,7 @@ export default function App() {
                     className="kx-nav-item"
                     aria-current={record?.id === r.id ? "page" : undefined}
                     onClick={() => selectRecord(r)}
+                    {...itemAttrs({ kind: "record", id: r.id, title: r.title || "Untitled" })}
                     draggable
                     onDragStart={(e) => setItemDrag(e.dataTransfer, [{ kind: "record", id: r.id, title: r.title || "Untitled" }])}
                   >
@@ -921,7 +980,26 @@ export default function App() {
                     }
                   }
                 >
+                  {!!(v.back?.length || v.forward) && (
+                    <nav className="key-pane-history" aria-label="Pane history">
+                      <button disabled={!v.back?.length} title={v.back?.length ? `Back to ${v.back.at(-1)} (⌘[)` : undefined} aria-label="Back" onClick={() => action("history", { viewId: v.id, step: -1 })}>
+                        <Icon name="chevronRight" size={13} style={{ transform: "scaleX(-1)" }} />
+                      </button>
+                      <button disabled={!v.forward} title={v.forward ? `Forward to ${v.forward} (⌘])` : undefined} aria-label="Forward" onClick={() => action("history", { viewId: v.id, step: 1 })}>
+                        <Icon name="chevronRight" size={13} />
+                      </button>
+                      <ol className="key-pane-crumbs">
+                        {(v.back ?? []).map((title, i, all) => (
+                          <li key={i}>
+                            <button onClick={() => { for (let n = 0; n < all.length - i; n++) action("history", { viewId: v.id, step: -1 }); }}>{title}</button>
+                          </li>
+                        ))}
+                        <li aria-current="page">{v.title.replace(/ •$/, "")}</li>
+                      </ol>
+                    </nav>
+                  )}
                   <WorkspaceContent
+                    key={contentIdentity(v.content)}
                     viewId={v.id}
                     spec={v.content || { section: "sources" }}
                     visible={!!placed}
@@ -939,6 +1017,11 @@ export default function App() {
         </div>
       </div>
       </div>
+      {inspectorOpen && (
+        <div style={{ "--kx-inspector-width": `${INSPECTOR_WIDTH}px` } as React.CSSProperties}>
+          <Inspector invoke={invoke} workspaceId={workspaceId} items={selected} onClose={() => setInspectorOpen(false)} />
+        </div>
+      )}
       {laidOut.dividers.map((d) => {
         const row = d.split === "row";
         const fromPointer = (e: React.PointerEvent) =>

@@ -12,10 +12,13 @@ import { hasExternalDrop, hasItemDrag, importDrop, itemLinks, linkTargets, openI
 import { bridge as libraryBridge, shortCreators, type Invoke, type Note, type Source } from "../library-api";
 import NoteEditor from "../note-editor";
 import { noteSources } from "../note-sources";
+import { quickLook } from "../item-ui";
 import { CHROME, CONTENT_COLORS, contentColor, currentTheme, highlightColor, type Theme } from "./canvas-colors";
 import {
   EMPTY_DOC,
   History,
+  PREVIEW_KINDS,
+  layoutCards,
   SNAP_PX,
   arrowHead,
   bounds,
@@ -61,17 +64,7 @@ const TOOLS: { tool: Tool; icon: IconName; label: string; key: string }[] = [
 ];
 const ITEM_ICON: Record<string, IconName> = { note: "note", canvas: "canvas", record: "doc", source: "doc" };
 const SOURCE_ICON: Record<string, IconName> = { book: "book", web: "globe", image: "image", video: "video", audio: "audio" };
-const CARD_GAP = 24;
 /** A new card's size: notes and pages are big enough to read, sources leave room for a preview. */
-function cardSize(item: DraggedItem): { w: number; h: number } {
-  if (item.anchor?.startsWith("highlight:")) return { w: 260, h: 160 };
-  if (item.kind === "note" || item.kind === "record") return { w: 320, h: 300 };
-  if (item.kind === "source") return PREVIEW_KINDS.has(item.detail ?? "") ? { w: 280, h: 320 } : { w: 280, h: 180 };
-  return { w: 240, h: 120 };
-}
-/** Sources whose file has a Quick Look preview worth showing on the card. */
-const PREVIEW_KINDS = new Set(["pdf", "image", "video", "book", "document"]);
-
 type Gesture =
   | { kind: "pan"; start: Point; view: Viewport }
   | { kind: "move"; start: Point; before: CanvasDoc; ids: Set<string>; box: Rect; others: Rect[]; moved: boolean }
@@ -123,6 +116,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
   const [saved, setSaved] = useState<"saved" | "saving">("saved");
   const [color, setColor] = useState<string>("ink");
   const [space, setSpace] = useState(false);
+  const spacePanned = useRef(false);
   const [dropping, setDropping] = useState(false);
   const sources = useMemo(() => noteSources(invoke, workspaceId), [invoke, workspaceId]);
   /** Cards just placed, which take their content's height once it has loaded. */
@@ -267,32 +261,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
     if (!placing.length) return;
     const offset = at ? 0 : (docRef.current.nodes.length % 6) * 24;
     const [cx, cy] = at ?? viewportCentre();
-    let x = 0;
-    let y = 0;
-    let rowHeight = 0;
-    const nodes = placing.map((item, i): ItemNode => {
-      const size = cardSize(item);
-      if (i && i % 4 === 0) {
-        x = 0;
-        y += rowHeight + CARD_GAP;
-        rowHeight = 0;
-      }
-      const first = i === 0 ? size : cardSize(placing[0]);
-      const node: ItemNode = {
-        id: newId(),
-        type: "item",
-        ref: { kind: item.kind, id: item.id, ...(item.anchor ? { anchor: item.anchor } : {}) },
-        title: item.title,
-        detail: item.detail,
-        color: item.color,
-        x: Math.round(cx - first.w / 2 + offset + x),
-        y: Math.round(cy - first.h / 2 + offset + y),
-        ...size,
-      };
-      x += size.w + CARD_GAP;
-      rowHeight = Math.max(rowHeight, size.h);
-      return node;
-    });
+    const nodes = layoutCards(placing, [cx + offset, cy + offset]);
     for (const node of nodes) fitting.current.add(node.id);
     commit({ ...docRef.current, nodes: [...docRef.current.nodes, ...nodes] });
     setSelected(new Set(nodes.map((n) => n.id)));
@@ -337,6 +306,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
     if ((e.target as HTMLElement).closest(".kx-canvas-chrome, textarea, input")) return;
     const at = worldPoint(e);
     if (e.button === 1 || (e.button === 0 && (tool === "hand" || space))) {
+      if (space) spacePanned.current = true;
       gesture.current = { kind: "pan", start: screenPoint(e), view: viewRef.current };
     } else if (e.button !== 0) {
       return;
@@ -540,9 +510,13 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
     if ((e.target as HTMLElement).closest("textarea, input")) return;
     const mod = e.metaKey || e.ctrlKey;
     const key = e.key.toLowerCase();
-    if (key === " " && !space) {
-      setSpace(true);
+    if (key === " ") {
+      // Held, Space pans; a tap with one card selected previews it (see onKeyUp).
       e.preventDefault();
+      if (!space) {
+        setSpace(true);
+        spacePanned.current = false;
+      }
       return;
     }
     if (mod && key === "z") {
@@ -626,7 +600,12 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onKeyDown={onKeyDown}
-      onKeyUp={(e) => e.key === " " && setSpace(false)}
+      onKeyUp={(e) => {
+        if (e.key !== " ") return;
+        setSpace(false);
+        const only = selected.size === 1 ? nodeById.get([...selected][0]) : undefined;
+        if (!spacePanned.current && only?.type === "item") quickLook(only.ref);
+      }}
       onDragOver={onDragOver}
       onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDropping(false)}
       onDrop={onDrop}
@@ -636,7 +615,7 @@ export default function CanvasPage({ invoke, workspaceId, canvasId, viewId }: { 
         const id = nodeAt(document.elementFromPoint(e.clientX, e.clientY));
         const node = id ? nodeById.get(id) : undefined;
         if (!node) return addText(worldPoint(e));
-        if (node.type === "item") openItem(invoke, workspaceId, node.ref, live.get(node.id)?.title ?? node.title);
+        if (node.type === "item") openItem(invoke, workspaceId, node.ref, live.get(node.id)?.title ?? node.title, e.altKey ? "split" : "tab");
         else if (node.type !== "ink") setEditing(node.id);
       }}
     >

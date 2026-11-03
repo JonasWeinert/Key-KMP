@@ -1,3 +1,4 @@
+import { itemAttrs, selectItems } from "./item-ui";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityBanner, ActivityPill, ProgressRing, jobProgress, useLibraryStatus } from "./index-activity";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
@@ -366,6 +367,14 @@ export default function ReferenceLibrary({
     setInspector(source);
   };
   const selection = selected.size ? [...selected] : focusId ? [focusId] : [];
+  // The inspector and ⌘K act on the selected sources.
+  const selectionKey = selection.join(",");
+  useEffect(() => {
+    if (!active) return;
+    const known = new Map<string, Source>([...items, ...(search?.result?.hits.map((h) => h.source).filter((x): x is Source => !!x) ?? [])].map((x) => [x.id, x]));
+    const chosen = selection.map((id) => known.get(id)).filter((x): x is Source => !!x);
+    if (chosen.length) selectItems(chosen.map(sourceItem));
+  }, [selectionKey, active]);
   const select = (id: string, event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) => {
     if (event.shiftKey && anchor) {
       const a = rows.findIndex((s) => s.id === anchor);
@@ -656,6 +665,7 @@ export default function ReferenceLibrary({
           />
         ) : (
           <DatabaseView
+            rowAttrs={(source: Source) => itemAttrs({ kind: "source", id: source.id, title: source.title || "Untitled" })}
             ref={listRef}
             rows={items}
             rowId={(source) => source.id}
@@ -892,6 +902,7 @@ function SourceRow({
       onDoubleClick={onOpen}
       draggable
       onDragStart={onDragStart}
+      {...itemAttrs({ kind: "source", id: source.id, title: source.title || "Untitled" })}
     >
       <span className="kx-row-kind" data-kind={source.kind}>
         <Icon name={KIND_ICON[source.kind] ?? "doc"} size={15} />
@@ -1081,6 +1092,7 @@ const SearchHitRow = memo(function SearchHitRow({
             aria-selected={selected}
             data-focused={focused}
             data-hit={source.id}
+            {...itemAttrs({ kind: "source", id: source.id, title: source.title || "Untitled" })}
             onMouseDown={(e) => {
               if (!(e.target as HTMLElement).closest(".kx-passage")) handlers.onPointer(source.id, e);
             }}
