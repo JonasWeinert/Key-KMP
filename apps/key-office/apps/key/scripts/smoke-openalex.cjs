@@ -96,7 +96,17 @@ const assert = require("node:assert/strict");
     const merge = personPage.locator(".kx-entity-merge", { hasText: "Jason Priem" });
     await merge.waitFor();
     await page.screenshot({ path: path.join(temp, "person-page.png") });
-    await merge.getByRole("button", { name: "Merge" }).click();
+    // Compared side by side in a sheet, with a few of each one's sources, then merged.
+    await merge.getByRole("button", { name: "Compare…" }).click();
+    const review = page.getByRole("dialog", { name: "Possible duplicates" });
+    await review.locator(".kx-merge-card", { hasText: "Jason R Priem" }).locator(".kx-merge-sources li", { hasText: "The state of OA" }).waitFor();
+    await review.locator(".kx-merge-card", { hasText: "Jason Priem" }).last().locator(".kx-merge-sources li", { hasText: "Altmetrics: a manifesto" }).waitFor();
+    assert.equal(await review.locator('.kx-merge-card[aria-pressed="true"]').locator(".kx-merge-name").textContent(), "Jason R Priem", "the identified person is kept by default");
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(temp, "merge-review.png") });
+    await review.getByRole("button", { name: "Merge", exact: true }).click();
+    await review.getByText("Every possible duplicate has an answer.").waitFor();
+    await review.getByRole("button", { name: "Done" }).click();
     await personPage.locator(".kx-entity-merge").waitFor({ state: "detached" });
     await personPage.locator(".kx-work-list li", { hasText: "Altmetrics: a manifesto" }).waitFor();
     const merged = await call("store_source", { id: older.id });

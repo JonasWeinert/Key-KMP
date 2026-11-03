@@ -6,6 +6,7 @@ import { Icon, type IconName } from "./icons";
 import { ActivityPanel, useLibraryStatus } from "./index-activity";
 import { bridge, type AppInfo, type AppSettings, type Invoke, type MergeSuggestion, type Theme, type WorkspaceSummary, type ZoteroStatus } from "./library-api";
 import "./entity.css";
+import MergeReview from "./MergeReview";
 import { Conflicts, ZoteroImport } from "./ZoteroImport";
 import { ModelProgressCard, useModelProgress } from "./model-progress";
 
@@ -535,47 +536,30 @@ function SearchSettings({
   );
 }
 
-/** People whose names might be one person: merged only when the user says so. */
+/** People whose names might be one person: reviewed side by side, merged only when the user says so. */
 function PossibleDuplicates({ invoke, workspaceId }: { invoke: Invoke; workspaceId?: string }) {
-  const [suggestions, setSuggestions] = useState<MergeSuggestion[]>();
+  const [count, setCount] = useState<number>();
   const [open, setOpen] = useState(false);
   const load = useCallback(() => {
-    if (workspaceId) void invoke<MergeSuggestion[]>("store_merge_suggestions", {}, workspaceId).then(setSuggestions).catch(() => setSuggestions([]));
+    if (workspaceId) void invoke<MergeSuggestion[]>("store_merge_suggestions", {}, workspaceId).then((list) => setCount(list.length)).catch(() => setCount(0));
   }, [invoke, workspaceId]);
   useEffect(load, [load]);
-  const answer = async (s: MergeSuggestion, merge: boolean) => {
-    if (merge) await invoke("store_merge_people", { keep: s.person.id, other: s.other.id }, workspaceId);
-    else await invoke("store_merge_dismiss", { personId: s.person.id, otherId: s.other.id }, workspaceId);
-    load();
-  };
-  const describe = (p: MergeSuggestion["person"]) => `${p.name} (${p.sourceCount} ${p.sourceCount === 1 ? "source" : "sources"}${p.orcid ? ", ORCID" : ""})`;
   return (
     <>
-      <Row label="Possible duplicate people" detail={suggestions?.length ? `${suggestions.length} to review` : "None to review."}>
-        <button className="kx-settings-button" disabled={!suggestions?.length} onClick={() => setOpen(!open)}>
-          {open ? "Hide" : "Review"}
+      <Row label="Possible duplicate people" detail={count ? `${count} to review, side by side` : "None to review."}>
+        <button className="kx-settings-button" disabled={!count} onClick={() => setOpen(true)}>
+          Review…
         </button>
       </Row>
-      {open && !!suggestions?.length && (
-        <div className="kx-settings-row kx-settings-row-wide">
-          <ul className="kx-merge-list">
-            {suggestions.map((s) => (
-              <li key={`${s.person.id}:${s.other.id}`}>
-                <span>
-                  {describe(s.other)} → {describe(s.person)}
-                  <br />
-                  <small>{s.reason}</small>
-                </span>
-                <button className="kx-settings-button" onClick={() => void answer(s, true)}>
-                  Merge
-                </button>
-                <button className="kx-settings-button" onClick={() => void answer(s, false)}>
-                  Not the same
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {open && workspaceId && (
+        <MergeReview
+          invoke={invoke}
+          workspaceId={workspaceId}
+          onClose={() => {
+            setOpen(false);
+            load();
+          }}
+        />
       )}
     </>
   );

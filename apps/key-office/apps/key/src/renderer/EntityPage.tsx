@@ -28,6 +28,7 @@ import {
 } from "./library-api";
 import { itemHref } from "./note-editor";
 import { YearBars } from "./work-references";
+import MergeReview from "./MergeReview";
 import "./entity.css";
 
 type Data = PersonPageData | VenuePageData | TopicPageData;
@@ -244,40 +245,37 @@ function Metrics({ works, hIndex, cited, at }: { works?: number | null; hIndex?:
 /** Possible duplicates of this person, to merge or dismiss: shown even while the details are folded. */
 function MergeSuggestions({ invoke, workspaceId, page, onChanged }: { invoke: Invoke; workspaceId: string; page: PersonPageData; onChanged: (exists: boolean) => void }) {
   const { person } = page;
-  const merge = async (keep: string, other: string) => {
-    await invoke("store_merge_people", { keep, other }, workspaceId);
-    libraryChanged();
-    onChanged(keep === person.id);
-    if (keep !== person.id) openItemAt({ kind: "person", id: keep }, "here");
-  };
-  const dismiss = async (a: string, b: string) => {
-    await invoke("store_merge_dismiss", { personId: a, otherId: b }, workspaceId);
-    onChanged(true);
-  };
+  const [reviewing, setReviewing] = useState(false);
+  if (!page.suggestions.length) return null;
+  const others = page.suggestions.map((s) => (s.person.id === person.id ? s.other : s.person));
   return (
-    <>
-      {page.suggestions.map((s) => {
-        const other = s.person.id === person.id ? s.other : s.person;
-        return (
-          <div className="kx-entity-merge" key={other.id} role="group" aria-label={`Possibly the same person as ${other.name}`}>
-            <span>
-              Might be the same person as{" "}
-              <EntityLink entity={{ kind: "person", id: other.id, name: other.name }}>
-                <strong>{other.name}</strong>
-              </EntityLink>{" "}
-              ({other.sourceCount} {other.sourceCount === 1 ? "source" : "sources"}
-              {other.orcid ? `, ORCID ${other.orcid}` : ""}).
-            </span>
-            <button className="kx-page-action kx-page-action-primary" onClick={() => void merge(s.person.id, s.other.id)}>
-              Merge
-            </button>
-            <button className="kx-page-action" onClick={() => void dismiss(s.person.id, s.other.id)}>
-              Not the same
-            </button>
-          </div>
-        );
-      })}
-    </>
+    <div className="kx-entity-merge" role="group" aria-label="Possible duplicates">
+      <Icon name="user" size={14} />
+      <span>
+        {others.length === 1 ? (
+          <>
+            Might be the same person as <strong>{others[0].name}</strong> ({others[0].sourceCount} {others[0].sourceCount === 1 ? "source" : "sources"}).
+          </>
+        ) : (
+          <>Might be the same person as {others.length} others: {others.map((o) => o.name).join(", ")}.</>
+        )}
+      </span>
+      <button className="kx-page-action kx-page-action-primary" onClick={() => setReviewing(true)}>
+        Compare…
+      </button>
+      {reviewing && (
+        <MergeReview
+          invoke={invoke}
+          workspaceId={workspaceId}
+          first={person.id}
+          onClose={() => {
+            setReviewing(false);
+            // Merged into someone else: this page's person is gone.
+            void invoke<PersonPageData | null>("store_person", { id: person.id }, workspaceId).then((still) => onChanged(!!still));
+          }}
+        />
+      )}
+    </div>
   );
 }
 

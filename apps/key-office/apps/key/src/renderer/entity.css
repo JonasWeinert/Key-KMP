@@ -355,3 +355,130 @@
   height: 100%;
   overflow-y: auto;
 }
+
+/* Possible duplicates: a wider sheet with the two people side by side. */
+.key-global-drawer.key-global-sheet:has(.kx-merge-review) {
+  width: min(780px, calc(100vw - 48px));
+  margin-left: max(calc(min(780px, 100vw - 48px) / -2), -390px);
+}
+.kx-merge-review .key-property-body {
+  padding: 4px 20px 8px;
+}
+.kx-merge-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+}
+.kx-merge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--kx-line);
+  border-radius: 12px;
+  background: var(--kx-bg);
+  color: var(--kx-text);
+  font: 13px/1.4 var(--kx-font);
+  text-align: left;
+  transition:
+    border-color 140ms var(--kx-ease),
+    box-shadow 140ms var(--kx-ease);
+}
+.kx-merge-card:hover {
+  border-color: var(--kx-line-strong);
+}
+.kx-merge-card[aria-pressed="true"] {
+  border-color: var(--kx-accent);
+  box-shadow: 0 0 0 3px var(--kx-accent-soft);
+}
+.kx-merge-keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 9px;
+  background: var(--kx-fill);
+  color: var(--kx-text-2);
+  font: 500 11px/18px var(--kx-font);
+}
+.kx-merge-card[aria-pressed="true"] .kx-merge-keep {
+  background: var(--kx-accent);
+  color: var(--kx-accent-ink);
+}
+.kx-merge-name {
+  font: 600 16px/1.25 var(--kx-font-display);
+}
+.kx-merge-sub {
+  color: var(--kx-text-2);
+  font-size: 12px;
+}
+.kx-merge-facts {
+  display: grid;
+  gap: 3px;
+  margin: 4px 0 0;
+}
+.kx-merge-facts > div {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 8px;
+}
+.kx-merge-facts dt {
+  color: var(--kx-text-3);
+  font-size: 12px;
+}
+.kx-merge-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12.5px;
+}
+.kx-merge-sources {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--kx-line);
+  list-style: none;
+}
+.kx-merge-sources li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.kx-merge-source-title {
+  overflow: hidden;
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kx-merge-sources small {
+  color: var(--kx-text-2);
+  font-size: 11.5px;
+}
+.kx-merge-into {
+  display: grid;
+  place-items: center;
+  color: var(--kx-text-3);
+}
+.kx-merge-explain {
+  margin: 12px 2px 0;
+  color: var(--kx-text-2);
+  font-size: 12.5px;
+}
+.kx-merge-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 30px 0;
+  color: var(--kx-text-2);
+}
+.kx-merge-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 18px;
+}
