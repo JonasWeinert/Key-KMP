@@ -10,6 +10,9 @@
 //
 // Notes are cut into passages as they are saved (cheap, so keyword search is current);
 // their vectors follow through the same back-fill once a note has been left alone.
+//
+// Files in indexed linked folders are read between sources, a few per round, opened ones
+// first (`prioritize` with `file:<id>`); their vectors also come from the back-fill.
 mod chunk;
 mod layout;
 mod links;
@@ -20,7 +23,7 @@ pub use links::{note_links, parse_href};
 pub use note::chunk_note;
 
 use key_embed::{Embedder, ModelDir};
-use key_store::{ChunkInput, Note, Source, Store};
+use key_store::{ChunkInput, LinkedFile, Note, Source, Store};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -240,7 +243,7 @@ impl Indexer {
                 if out.len() == limit {
                     break;
                 }
-                if skip.contains(&id) {
+                if skip.contains(&id) || id.starts_with(FILE_PREFIX) {
                     continue;
                 }
                 match self.store.source(&id) {
@@ -305,6 +308,33 @@ impl Indexer {
         }
     }
 
+    /// Reads a few changed files of indexed linked folders: opened ones first, then the most
+    /// recently changed. Answers whether any were read, so the loop comes back for more.
+    fn index_linked_files(&self, pdf: &dyn PdfText) -> bool {
+        let wanted: Vec<String> = self
+            .priorities
+            .lock()
+            .map(|p| p.keys().filter_map(|id| id.strip_prefix(FILE_PREFIX).map(String::from)).collect())
+            .unwrap_or_default();
+        let files = self.store.stale_linked_files(LINKED_FILES_PER_ROUND, &wanted).unwrap_or_default();
+        for file in &files {
+            let job = Job { id: format!("{FILE_PREFIX}{}", file.id), title: file.name.clone(), kind: "file".into(), stage: "reading".into(), ..Default::default() };
+            self.set_reading(Some(job));
+            let (chunks, error) = match linked_chunks(file, pdf) {
+                Ok(chunks) => (chunks, None),
+                Err(error) => (Vec::new(), Some(error)),
+            };
+            if let Err(error) = self.store.replace_file_chunks(&file.id, file.mtime, &chunks, error.as_deref()) {
+                eprintln!("Key linked file indexing for {}: {error}", file.abs_path);
+            }
+            if let Ok(mut wanted) = self.priorities.lock() {
+                wanted.remove(&format!("{FILE_PREFIX}{}", file.id));
+            }
+        }
+        self.set_reading(None);
+        !files.is_empty()
+    }
+
     pub fn embed_query(&self, text: &str) -> Option<Vec<f32>> {
         self.embedder()?.embed_query(text).ok()
     }
@@ -354,8 +384,12 @@ impl Indexer {
                 in_flight.retain(|id| !done.contains(id));
             }
             self.index_stale_notes();
+            let read_files = self.index_linked_files(pdf.as_ref());
             let next = self.queue(1, &in_flight).into_iter().next().map(|(id, _)| id);
             let Some(id) = next else {
+                if read_files {
+                    continue;
+                }
                 if in_flight.is_empty() {
                     self.busy.store(false, Ordering::SeqCst);
                     if let Ok(mut live) = self.live.lock() {
@@ -595,6 +629,35 @@ fn abstract_chunk(source: &Source) -> Option<ChunkInput> {
     (!text.is_empty()).then(|| ChunkInput { text: text.to_string(), ..Default::default() })
 }
 
+const FILE_PREFIX: &str = "file:";
+const LINKED_FILES_PER_ROUND: usize = 8;
+
+/// A linked file's passages: Markdown by blocks like a note, text as paragraphs, PDFs by page.
+fn linked_chunks(file: &LinkedFile, pdf: &dyn PdfText) -> Result<Vec<ChunkInput>> {
+    let path = Path::new(&file.abs_path);
+    match file.kind.as_str() {
+        "pdf" => {
+            let hash = file.hash.clone().unwrap_or_default();
+            Ok(chunk_pages(&pdf.pages(path, &hash, &|_, _| {})?))
+        }
+        "markdown" | "text" => {
+            let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+            if bytes.iter().take(8192).any(|b| *b == 0) {
+                return Err("Not a text file".into());
+            }
+            let text = String::from_utf8_lossy(&bytes);
+            if file.kind == "markdown" {
+                Ok(chunk_note(&format!("{}\n\n{text}", file.name)))
+            } else {
+                let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+                let text = if matches!(extension.as_str(), "html" | "htm") { chunk::html_text(&text) } else { text.into_owned() };
+                Ok(chunk_pages(&[PageText::plain(text)]))
+            }
+        }
+        _ => Ok(Vec::new()),
+    }
+}
+
 pub fn file_hash(path: &Path) -> Result<String> {
     let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
     let mut hasher = Sha256::new();
@@ -688,5 +751,34 @@ mod tests {
         let note = store.save_note(Some(&note.id), None, "Reading", "No more links.", None).unwrap();
         indexer.index_note(&note).unwrap();
         assert!(store.item_links("source", &paper.id).unwrap().backlinks.is_empty());
+    }
+
+    struct NoPdf;
+    impl PdfText for NoPdf {
+        fn pages(&self, _: &Path, _: &str, _: &dyn Fn(usize, usize)) -> Result<Vec<PageText>> {
+            Err("no PDFs here".into())
+        }
+    }
+
+    #[test]
+    fn files_of_indexed_linked_folders_become_searchable_passages() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("field notes.md"), "# Visit\n\nThe clinic hands out bed nets.").unwrap();
+        std::fs::write(outside.path().join("scan.pdf"), "%PDF").unwrap();
+        let store = Store::open(dir.path().join(".key")).unwrap();
+        let indexer = idle(&store, dir.path());
+        let folder = store.link_folder(outside.path()).unwrap();
+        store.sync_linked_folder(&folder.id, &[]).unwrap();
+        assert!(!indexer.index_linked_files(&NoPdf), "not indexed: nothing to read");
+        store.set_linked_folder(&folder.id, None, Some(true)).unwrap();
+        assert!(indexer.index_linked_files(&NoPdf));
+        // Read once; the PDF that failed is not retried until it changes.
+        assert!(!indexer.index_linked_files(&NoPdf));
+        let found = store.search(&key_store::SearchQuery { text: "bed nets".into(), ..Default::default() }, None).unwrap();
+        assert_eq!(found.files.len(), 1);
+        assert_eq!(found.files[0].name, "field notes.md");
+        let folders = store.linked_folders().unwrap();
+        assert_eq!((folders[0].indexed_files, folders[0].pending_files), (1, 0));
     }
 }

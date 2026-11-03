@@ -317,7 +317,7 @@ impl Library {
                 json_output(json!({ "layoutModel": self.indexer.layout_model(), "outdated": self.store.outdated_analyses(engine)? }))
             })(),
             "store_provenance" => arg::<String>(args, "id").and_then(|id| json_output(self.store.property_provenance(&id)?)),
-            _ => return None,
+            _ => return super::linked_folders::dispatch(self, command, args, root),
         };
         Some(result)
     }

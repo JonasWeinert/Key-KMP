@@ -5,6 +5,8 @@ mod native_process;
 mod scholarly_resolver;
 #[path = "library_store.rs"]
 mod library_store;
+#[path = "linked_folders.rs"]
+mod linked_folders;
 #[path = "reference_worker.rs"]
 mod reference_worker;
 use crate::ipc;

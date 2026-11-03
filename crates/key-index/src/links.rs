@@ -5,7 +5,7 @@ use crate::note::{NOTE_FENCES, attribute, fence, inline};
 use key_store::{ItemRef, LinkInput};
 
 pub const LINK_SCHEME: &str = "key://";
-const KINDS: [&str; 4] = ["source", "note", "canvas", "record"];
+const KINDS: [&str; 5] = ["source", "note", "canvas", "record", "file"];
 const CONTEXT_CHARS: usize = 240;
 
 pub fn note_links(note_id: &str, markdown: &str) -> Vec<LinkInput> {
