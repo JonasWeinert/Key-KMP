@@ -83,8 +83,13 @@ export default function EntityPage({ invoke, workspaceId, kind, id, viewId }: { 
     void load().then(() => {
       // Cached counts that are old are fetched again (the host decides, and respects Settings).
       if (kind !== "topic")
-        void invoke<Data | null>("store_refresh", { kind, id }, workspaceId)
-          .then((page) => page && setData(page))
+        void invoke<(Data & { refreshing?: boolean }) | null>("store_refresh", { kind, id }, workspaceId)
+          .then((page) => {
+            if (!page) return;
+            setData(page);
+            // Fetched in the background: read the new counts once they are in.
+            if (page.refreshing) setTimeout(() => void load(), 2500);
+          })
           .catch(() => {});
     });
     return bridge().on("library-changed", () => void load());
@@ -99,8 +104,11 @@ export default function EntityPage({ invoke, workspaceId, kind, id, viewId }: { 
   if (!data) return <div className="kx-entity-page" aria-busy="true" />;
 
   const refresh = () =>
-    void invoke<Data>("store_refresh", { kind, id, force: true }, workspaceId)
-      .then(setData)
+    void invoke<Data & { refreshing?: boolean }>("store_refresh", { kind, id, force: true }, workspaceId)
+      .then((page) => {
+        setData(page);
+        if (page.refreshing) setTimeout(() => void load(), 2500);
+      })
       .catch((e) => setError(String(e).replace(/^Error: /, "")));
   const showSources = () => showInLibrary(workspaceId, entityFilter({ kind, id, name }));
   const newNote = async () => {

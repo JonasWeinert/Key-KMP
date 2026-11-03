@@ -126,6 +126,18 @@ const assert = require("node:assert/strict");
     await tabAction("open-source-page", { workspaceId: ws.id, sourceId: cited.id, title: "How open science helps researchers succeed", read: false });
     await page.locator(".kx-source-page[data-side=false] .kx-retracted", { hasText: "Retracted" }).waitFor();
 
+    // A flood of background polls never holds up, or turns away, what the user does.
+    const flood = Array.from({ length: 300 }, () => call("store_status").then(() => "ok", (e) => String(e)));
+    const started = Date.now();
+    assert.equal((await call("store_source", { id: paper.id })).id, paper.id);
+    assert.ok(Date.now() - started < 3000, `a user request answers while polls queue (${Date.now() - started} ms)`);
+    assert.deepEqual([...new Set(await Promise.all(flood))], ["ok"], "no poll is refused");
+    // An answer larger than the control frame arrives whole.
+    const abstract = "Long abstract. ".repeat(500);
+    for (let i = 0; i < 160; i++) await create({ kind: "reference", title: `Large answer ${i}`, abstract });
+    const large = await call("store_sources", { limit: 200 });
+    assert.ok(large.items.length >= 160 && JSON.stringify(large).length > 1024 * 1024, "a source list over 1 MiB comes back");
+
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ ok: true, temp, enriched: true, popover: true, personPage: true, merged: true, topicFilter: true, citationFilter: true, retracted: true }));
   } catch (e) {

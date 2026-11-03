@@ -206,6 +206,27 @@ const assert = require("node:assert/strict");
     await titlebar.locator(".key-workspace-home strong", { hasText: "Fieldwork" }).waitFor();
     report.switchChoice = true;
 
+    // Collections and References take at most half the sidebar; the rest waits behind Show more.
+    // (In the workspace this window now shows.)
+    const shownId = (await page.evaluate(() => window.key.workspaces())).find((w) => w.name === "Fieldwork").id;
+    const callShown = (command, args) => page.evaluate(({ command, args, id }) => window.key.invoke(command, args, id), { command, args, id: shownId });
+    for (let i = 0; i < 40; i++) await callShown("store_create", { source: { kind: "reference", itemType: "article", title: `Budget study ${String(i).padStart(2, "0")}` } });
+    for (let i = 0; i < 14; i++) await callShown("store_collection_create", { name: `Budget collection ${i}`, parentId: null });
+    await page.reload();
+    const more = page.locator(".kx-library-groups .kx-sidebar-more");
+    await more.first().waitFor();
+    const heights = async () =>
+      page.evaluate(() => ({
+        library: document.querySelector(".kx-library-groups").getBoundingClientRect().height,
+        sidebar: document.querySelector(".kx-sidebar-scroll").getBoundingClientRect().height,
+      }));
+    const folded = await heights();
+    assert.ok(folded.library <= folded.sidebar / 2 + 40, `the library lists keep to half the sidebar (${folded.library} of ${folded.sidebar})`);
+    await more.last().click();
+    await page.locator(".kx-library-groups .kx-sidebar-more", { hasText: "Show fewer" }).waitFor();
+    assert.ok((await heights()).library > folded.library, "Show more shows the rest");
+    await page.locator(".kx-library-groups .kx-sidebar-more", { hasText: "Show fewer" }).click();
+
     // Sidebar menus open over the content, whole, not clipped at the sidebar's edge.
     const sidebarRight = await page.locator(".key-sidebar").evaluate((el) => el.getBoundingClientRect().right);
     await page.locator(".kx-workspace-section").hover();

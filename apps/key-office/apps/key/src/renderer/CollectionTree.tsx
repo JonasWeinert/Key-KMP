@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ROW_PX, rowsThatFit } from "./sidebar-budget";
 import { ContextMenu } from "./DatabaseView";
 import { Icon } from "./icons";
 import type { Collection, Invoke } from "./library-api";
@@ -32,13 +33,20 @@ export default function CollectionTree({
   workspaceId,
   sourcesCurrent,
   onShowSources,
+  budget,
+  onNeed,
 }: {
   invoke: Invoke;
   workspaceId?: string;
   /** The Sources view is the active tab. */
   sourcesCurrent: boolean;
   onShowSources: () => void;
+  /** Height (px) the list may take before "Show more" (see sidebar-budget.ts). */
+  budget?: number;
+  /** The height the whole list would take. */
+  onNeed?: (px: number) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selection, setSelection] = useState(currentSelection(workspaceId));
   const openKey = `key.collections.open:${workspaceId}`;
@@ -194,6 +202,8 @@ export default function CollectionTree({
   });
 
   const row = (c: Collection, depth: number): ReactNode => {
+    if (left <= 0) return null;
+    left -= 1;
     const kids = children_.get(c.id) ?? [];
     const open = expanded.has(c.id);
     const current = sourcesCurrent && selection?.collectionId === c.id;
@@ -291,6 +301,13 @@ export default function CollectionTree({
   };
 
   const top = children_.get(null) ?? [];
+  // Rows as shown: collections, and the children of the open ones.
+  const visibleRows = (id: string | null): number => (children_.get(id) ?? []).reduce((n, c) => n + 1 + (expanded.has(c.id) ? visibleRows(c.id) : 0), 0);
+  const rowCount = sectionOpen ? visibleRows(null) : 0;
+  useEffect(() => onNeed?.(rowCount * ROW_PX), [onNeed, rowCount]);
+  const shown = showAll ? undefined : rowsThatFit(budget, rowCount, ROW_PX);
+  // Rows left to draw this render, in reading order.
+  let left = shown ?? Infinity;
   const menuCollection = menu && collections.find((c) => c.id === menu.id);
   return (
     <>
@@ -308,6 +325,11 @@ export default function CollectionTree({
       {sectionOpen && (
         <nav className="kx-tree" role="tree" aria-label="Collections">
           {top.map((c) => row(c, 1))}
+          {(shown !== undefined || (showAll && rowsThatFit(budget, rowCount, ROW_PX) !== undefined)) && (
+            <button className="kx-ref-more kx-sidebar-more" onClick={() => setShowAll(!showAll)}>
+              {showAll ? "Show fewer" : `Show ${rowCount - shown!} more`}
+            </button>
+          )}
           {creating && !creating.parentId && <NewRow depth={1} onDone={(name) => void create(name)} />}
           {workspaceId && !collections.length && !creating && <p className="key-sidebar-hint kx-tree-hint">Add a collection with +, then drag sources onto it.</p>}
         </nav>

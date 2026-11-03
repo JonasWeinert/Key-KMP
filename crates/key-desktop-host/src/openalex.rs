@@ -135,12 +135,21 @@ fn fixtures() -> Option<PathBuf> {
 
 /// One request: paced against every other, retried with backoff while OpenAlex is busy.
 pub fn get(path: &str, query: &[(&str, &str)], options: &Options) -> Result<Json, Fail> {
+    fetch(path, query, options, 3)
+}
+
+/// One attempt, for something the user is waiting on: no backoff sleeps.
+fn get_now(path: &str, query: &[(&str, &str)], options: &Options) -> Result<Json, Fail> {
+    fetch(path, query, options, 1)
+}
+
+fn fetch(path: &str, query: &[(&str, &str)], options: &Options, attempts: usize) -> Result<Json, Fail> {
     if let Some(dir) = fixtures() {
         return fixture(&dir, path, query);
     }
     static LAST: Mutex<Option<Instant>> = Mutex::new(None);
     let mut delay = Duration::from_secs(1);
-    for attempt in 0..3 {
+    for attempt in 0..attempts {
         {
             let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(wait) = last.and_then(|l| PACE.checked_sub(l.elapsed())) {
@@ -160,7 +169,7 @@ pub fn get(path: &str, query: &[(&str, &str)], options: &Options) -> Result<Json
             },
             Err(error) => error,
         };
-        if attempt == 2 {
+        if attempt + 1 == attempts {
             return Err(Fail::Busy(busy));
         }
         thread::sleep(delay);
@@ -298,7 +307,7 @@ fn described(store: &Store, ids: &[String], options: &Options) -> Result<Vec<Jso
         return Ok(Vec::new());
     }
     let filter = format!("openalex:{}", ids.iter().take(50).cloned().collect::<Vec<_>>().join("|"));
-    let page = get("works", &[("filter", &filter), ("per-page", "50"), ("select", CITED_FIELDS)], options).map_err(|f| f.message())?;
+    let page = get_now("works", &[("filter", &filter), ("per-page", "50"), ("select", CITED_FIELDS)], options).map_err(|f| f.message())?;
     let mut out = Vec::new();
     for work in page["results"].as_array().into_iter().flatten() {
         let id = work["id"].as_str().map(|i| i.rsplit('/').next().unwrap_or("").to_string()).unwrap_or_default();
@@ -360,40 +369,46 @@ pub fn dispatch(library: &Library, command: &str, args: &Json) -> Option<Result<
         })(),
         // Cached counts (tier b), fetched again when stale and viewed. Without automatic
         // lookups only `force` (the user's Refresh) goes to the network.
+        // Cached counts (tier b): answered at once with what is stored; when they are old (or
+        // on the user's Refresh) they are fetched in the background and the page reads them
+        // again. Without automatic lookups only `force` goes to the network.
         "store_refresh" => (|| {
             let kind: String = arg(args, "kind")?;
             let id: String = arg(args, "id")?;
             let force = arg::<Option<bool>>(args, "force")?.unwrap_or(false);
             let options = openalex.options();
             let allowed = force || options.auto;
-            match kind.as_str() {
+            let (path, query): (Option<String>, &[(&str, &str)]) = match kind.as_str() {
                 "person" => {
                     let person = store.person(&id)?.ok_or("Person not found")?;
                     let key = person.openalex_id.clone().or_else(|| person.orcid.as_ref().map(|o| format!("orcid:{o}")));
-                    if let (true, true, Some(key)) = (allowed, force || stale(person.metrics_at), key) {
-                        let author = get(&format!("authors/{key}"), &[], &options).map_err(|f| f.message())?;
-                        store.apply_openalex_author(&id, &author)?;
-                    }
-                    json_output(store.person_page(&id)?)
+                    ((force || stale(person.metrics_at)).then_some(key).flatten().map(|k| format!("authors/{k}")), &[])
                 }
                 "venue" => {
                     let venue = store.venue(&id)?.ok_or("Journal not found")?;
-                    if let (true, true, Some(key)) = (allowed, force || stale(venue.metrics_at), venue.openalex_id.clone()) {
-                        let record = get(&format!("sources/{key}"), &[], &options).map_err(|f| f.message())?;
-                        store.apply_openalex_venue(&id, &record)?;
-                    }
-                    json_output(store.venue_page(&id)?)
+                    ((force || stale(venue.metrics_at)).then_some(venue.openalex_id).flatten().map(|k| format!("sources/{k}")), &[])
                 }
                 _ => {
                     let source = store.source(&id)?.ok_or("Source not found")?;
                     let fetched = source.fields.get("metricsAt").and_then(Json::as_i64);
-                    if let (true, true, Some(work)) = (allowed, force || stale(fetched), source.field("openalexId").map(String::from)) {
-                        let record = get(&format!("works/{work}"), &[("select", "id,cited_by_count,fwci,is_retracted")], &options).map_err(|f| f.message())?;
-                        store.apply_openalex_metrics(&id, &record)?;
-                    }
-                    json_output(store.source(&id)?)
+                    let work = source.field("openalexId").map(String::from);
+                    ((force || stale(fetched)).then_some(work).flatten().map(|w| format!("works/{w}")), &[("select", "id,cited_by_count,fwci,is_retracted")])
                 }
+            };
+            let refreshing = match path.filter(|_| allowed) {
+                Some(path) => refresh_later(store.clone(), kind.clone(), id.clone(), path, query.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), options),
+                None => false,
+            };
+            let mut value = match kind.as_str() {
+                "person" => serde_json::to_value(store.person_page(&id)?),
+                "venue" => serde_json::to_value(store.venue_page(&id)?),
+                _ => serde_json::to_value(store.source(&id)?),
             }
+            .map_err(|e| e.to_string())?;
+            if let Some(object) = value.as_object_mut() {
+                object.insert("refreshing".into(), json!(refreshing));
+            }
+            json_output(value)
         })(),
         // Not stored (tier c): citations by year and related works, when the user asks.
         "store_openalex_extra" => (|| {
@@ -409,7 +424,7 @@ pub fn dispatch(library: &Library, command: &str, args: &Json) -> Option<Result<
                 _ => format!("works/{}", store.source(&id)?.ok_or("Source not found")?.field("openalexId").ok_or("Not in OpenAlex yet")?),
             };
             let select = if kind == "source" { "id,counts_by_year,related_works" } else { "id,counts_by_year" };
-            let record = get(&path, &[("select", select)], &options).map_err(|f| f.message())?;
+            let record = get_now(&path, &[("select", select)], &options).map_err(|f| f.message())?;
             let related: Vec<String> = record["related_works"].as_array().into_iter().flatten().filter_map(Json::as_str).map(|w| w.rsplit('/').next().unwrap_or("").to_string()).collect();
             json_output(json!({ "countsByYear": record["counts_by_year"], "related": described(store, &related, &options)? }))
         })(),
@@ -437,4 +452,30 @@ pub fn dispatch(library: &Library, command: &str, args: &Json) -> Option<Result<
         _ => return None,
     };
     Some(result)
+}
+
+/// Fetches cached counts on a thread of their own, once per item at a time. Answers whether
+/// a fetch is running for it.
+fn refresh_later(store: Store, kind: String, id: String, path: String, query: Vec<(String, String)>, options: Options) -> bool {
+    static RUNNING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    let key = format!("{kind}:{id}");
+    {
+        let mut running = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        if running.contains(&key) {
+            return true;
+        }
+        running.push(key.clone());
+    }
+    let spawned = thread::Builder::new().name("key-openalex-refresh".into()).spawn(move || {
+        let query: Vec<(&str, &str)> = query.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        if let Ok(record) = get(&path, &query, &options) {
+            let _ = match kind.as_str() {
+                "person" => store.apply_openalex_author(&id, &record),
+                "venue" => store.apply_openalex_venue(&id, &record),
+                _ => store.apply_openalex_metrics(&id, &record),
+            };
+        }
+        RUNNING.lock().unwrap_or_else(|e| e.into_inner()).retain(|k| *k != key);
+    });
+    spawned.is_ok()
 }

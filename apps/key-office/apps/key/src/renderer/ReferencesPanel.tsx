@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
+import { REFERENCE_PX, ROW_PX, rowsThatFit } from "./sidebar-budget";
 import { CITATION_STYLES, inTextCitationFor, narrativeCitation, referenceEntry, type CitationStyle } from "./citation-styles";
 import { bibtex } from "./citation";
 import { ContextMenu } from "./DatabaseView";
@@ -50,6 +51,8 @@ export default function ReferencesPanel({
   context,
   refreshKey,
   onOpenLibrary,
+  budget,
+  onNeed,
 }: {
   invoke: Invoke;
   workspaceId?: string;
@@ -57,7 +60,12 @@ export default function ReferencesPanel({
   refreshKey?: number;
   context: ReferenceContext;
   onOpenLibrary: () => void;
+  /** Height (px) the list may take before "Show more" (see sidebar-budget.ts). */
+  budget?: number;
+  /** The height the whole list would take. */
+  onNeed?: (px: number) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const [open, setOpen] = useState(() => localStorage.getItem("key.sidebar.references") !== "closed");
   const [prefs, setPrefs] = useState(() => read("key.references", { sort: { field: "creator", descending: false } as Sort, scope: "all", style: "apa" as CitationStyle }));
   const [query, setQuery] = useState("");
@@ -74,8 +82,12 @@ export default function ReferencesPanel({
   }, [open, prefs]);
 
   const list = useCallback(
-    (limit: number) =>
-      invoke<SourcePage>("store_sources", { text: query.trim() || null, scope: prefs.scope, sort: prefs.sort.field, descending: prefs.sort.descending, limit }, workspaceId),
+    (limit: number, background = false) =>
+      invoke<SourcePage>(
+        "store_sources",
+        { text: query.trim() || null, scope: prefs.scope, sort: prefs.sort.field, descending: prefs.sort.descending, limit, ...(background ? { $background: true } : {}) },
+        workspaceId,
+      ),
     [invoke, workspaceId, query, prefs.scope, prefs.sort.field, prefs.sort.descending],
   );
   useEffect(() => {
@@ -95,7 +107,7 @@ export default function ReferencesPanel({
     // Sources added elsewhere (another window, an import, the agent) appear without a reload.
     const poll = window.setInterval(() => {
       if (document.hidden) return;
-      void list(1)
+      void list(1, true)
         .then((p) => current && known !== undefined && p.counts.all !== known && load())
         .catch(() => {});
     }, 4000);
@@ -166,7 +178,12 @@ export default function ReferencesPanel({
   };
 
   const total = page?.counts.all ?? 0;
-  const items = page?.items ?? [];
+  const loaded = page?.items ?? [];
+  const searchPx = loaded.length || query ? 32 : 0;
+  const morePx = page && page.total > loaded.length ? ROW_PX : 0;
+  useEffect(() => onNeed?.(open ? searchPx + loaded.length * REFERENCE_PX + morePx : 0), [onNeed, open, searchPx, loaded.length, morePx]);
+  const shown = showAll ? undefined : rowsThatFit(budget, loaded.length, REFERENCE_PX, searchPx + morePx);
+  const items = shown === undefined ? loaded : loaded.slice(0, shown);
   return (
     <section className="kx-references" aria-label="References">
       <div className="kx-sidebar-group">
@@ -221,7 +238,12 @@ export default function ReferencesPanel({
               );
             })}
             {page && !items.length && <p className="key-sidebar-hint">{query ? "No matching references." : "No references yet. Add PDFs, links or a Zotero library."}</p>}
-            {page && page.total > items.length && (
+            {(shown !== undefined || (showAll && rowsThatFit(budget, loaded.length, REFERENCE_PX, searchPx + morePx) !== undefined)) && (
+              <button className="kx-ref-more kx-sidebar-more" onClick={() => setShowAll(!showAll)}>
+                {showAll ? "Show fewer" : `Show ${loaded.length - items.length} more`}
+              </button>
+            )}
+            {page && page.total > loaded.length && (showAll || shown === undefined) && (
               <button className="kx-ref-more" onClick={onOpenLibrary}>
                 Show all {page.total} in the library
               </button>

@@ -10,6 +10,7 @@ import { GlobalDrawerHost, GlobalDialog } from "./GlobalDrawer";
 import type { SearchPreviewState } from "./search-preview";
 import { TabBar, type TabSummary, type TabsApi } from "./TabBar";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ROW_PX, share } from "./sidebar-budget";
 import { type LibrarySource, type LibraryHit } from "./LibraryHome";
 import "./shell.css";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
@@ -695,6 +696,15 @@ export default function App() {
         ? `record:${record.id}`
         : undefined;
   const [libraryOpen, setLibraryOpen] = useState(() => localStorage.getItem("key.sidebar.library") !== "closed");
+  // Collections and References share at most half the sidebar's height (sidebar-budget.ts).
+  const [sidebarHeight, setSidebarHeight] = useState(0);
+  const sidebarScroll = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    new ResizeObserver(([entry]) => setSidebarHeight(entry.contentRect.height)).observe(el);
+  }, []);
+  const [collectionsNeed, setCollectionsNeed] = useState(0);
+  const [referencesNeed, setReferencesNeed] = useState(0);
+  const [collectionsBudget, referencesBudget] = share(Math.max(0, sidebarHeight / 2 - 2 * ROW_PX), collectionsNeed, referencesNeed);
   useEffect(() => {
     localStorage.setItem("key.sidebar.library", libraryOpen ? "open" : "closed");
   }, [libraryOpen]);
@@ -849,7 +859,7 @@ export default function App() {
             />
             {sidebarToggle}
           </div>
-          <div className="kx-sidebar-scroll">
+          <div className="kx-sidebar-scroll" ref={sidebarScroll}>
             <nav className="kx-nav" aria-label="Main">
               <button className="kx-nav-item kx-search-row" disabled={!workspaceId} onClick={() => window.dispatchEvent(new Event("key:search"))}>
                 <Icon name="search" />
@@ -888,6 +898,8 @@ export default function App() {
                   invoke={invoke}
                   workspaceId={workspaceId}
                   sourcesCurrent={section === "sources"}
+                  budget={sidebarHeight ? collectionsBudget : undefined}
+                  onNeed={setCollectionsNeed}
                   onShowSources={() =>
                     action("open-content", { section: "sources", workspaceId, projectId })
                   }
@@ -901,6 +913,8 @@ export default function App() {
                     canvas: activeView?.content?.section === "canvas" && activeView.content.canvasId ? { id: activeView.content.canvasId, title: activeView.title.replace(/ •$/, "") } : undefined,
                   }}
                   refreshKey={refreshKey}
+                  budget={sidebarHeight ? referencesBudget : undefined}
+                  onNeed={setReferencesNeed}
                   onOpenLibrary={() => action("open-content", { section: "sources", workspaceId })}
                 />
               </div>

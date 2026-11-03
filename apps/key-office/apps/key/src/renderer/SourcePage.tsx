@@ -135,8 +135,13 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side
     void loadSource();
     void loadGraph();
     // Cached counts (citations, FWCI) are fetched again when old; the host decides.
-    void invoke<Source | null>("store_refresh", { kind: "source", id: sourceId }, workspaceId)
-      .then((s) => s && setSource(s))
+    void invoke<(Source & { refreshing?: boolean }) | null>("store_refresh", { kind: "source", id: sourceId }, workspaceId)
+      .then((s) => {
+        if (!s) return;
+        setSource(s);
+        // Fetched in the background: read the new counts once they are in.
+        if (s.refreshing) setTimeout(() => void loadSource(), 2500);
+      })
       .catch(() => {});
     void loadHighlights();
     void invoke<Collection[]>("store_collections", {}, workspaceId).then(setCollections).catch(() => {});
