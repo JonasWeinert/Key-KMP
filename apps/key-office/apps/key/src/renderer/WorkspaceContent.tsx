@@ -7,6 +7,8 @@ import HighlightsPage from "./HighlightsPage";
 import type { SearchPreviewState } from "./search-preview";
 import { EntryDetails } from "./EntryTools";
 import { RecordProperties } from "./RecordProperties";
+import { ItemPage } from "./ItemPage";
+import { readAppearance } from "./page-appearance";
 import { useCallback, useEffect, useRef, useState } from "react";
 import LibraryHome, {
   type LibrarySource,
@@ -489,7 +491,24 @@ export default function WorkspaceContent({
         />
       )}
       {section === "record" && record && !record.properties.sourceType && (
-        <section className="key-record-editor">
+        // A workspace page is an item page too: its header is saved with its properties.
+        <ItemPage
+          kind="record"
+          className="key-record-editor key-record-page"
+          innerClassName="key-record-page-inner"
+          appearance={readAppearance(JSON.parse(propertiesText).appearance)}
+          onAppearance={(patch) => {
+            const properties = JSON.parse(propertiesText);
+            const appearance: Record<string, unknown> = { ...readAppearance(properties.appearance) };
+            for (const [key, value] of Object.entries(patch)) {
+              if (value === null) delete appearance[key];
+              else appearance[key] = value;
+            }
+            setPropertiesText(JSON.stringify({ ...properties, appearance }));
+            setDirty(true);
+          }}
+          defaultIcon={record.kind === "database" ? "database" : "doc"}
+          bar={
           <div className="key-record-top">
             <span>
               {selectedWorkspace?.name} / {selectedProject?.name || "Pages"} /{" "}
@@ -504,6 +523,8 @@ export default function WorkspaceContent({
               {busy ? "Saving…" : dirty ? "Save changes" : "Save"}
             </Button>
           </div>
+          }
+          title={
           <Input
             className="key-record-title"
             aria-label="Page title"
@@ -511,6 +532,19 @@ export default function WorkspaceContent({
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
+              setDirty(true);
+            }}
+          />
+          }
+        >
+          <RecordProperties
+            value={JSON.parse(propertiesText)}
+            workspaceId={workspaceId}
+            invoke={invoke}
+            disabled={busy}
+            onRename={renameProperty}
+            onChange={(next) => {
+              setPropertiesText(JSON.stringify(next));
               setDirty(true);
             }}
           />
@@ -610,17 +644,6 @@ export default function WorkspaceContent({
               }}
             />
           )}
-          <RecordProperties
-            value={JSON.parse(propertiesText)}
-            workspaceId={workspaceId}
-            invoke={invoke}
-            disabled={busy}
-            onRename={renameProperty}
-            onChange={(next) => {
-              setPropertiesText(JSON.stringify(next));
-              setDirty(true);
-            }}
-          />
           <div className="key-record-status" role="status">
             {dirty
               ? "Unsaved changes"
@@ -675,7 +698,7 @@ export default function WorkspaceContent({
               ))}
             </details>
           )}
-        </section>
+        </ItemPage>
       )}
       {section === "records" && workspaceId && (
         <section className="key-record-editor">

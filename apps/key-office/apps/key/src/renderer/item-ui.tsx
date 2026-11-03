@@ -2,6 +2,7 @@
 // right-click, a larger preview on Space, and toasts that can undo. Any element marked
 // with `itemAttrs()` (or a key:// link in a note) takes part; App mounts `ItemLayer` once.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { coverBackground, readAppearance } from "./page-appearance";
 import { GlobalDialog } from "./GlobalDrawer";
 import { Icon, type IconName } from "./icons";
 import {
@@ -169,10 +170,14 @@ function noteSourcesFor(invoke: Invoke, workspaceId: string) {
 }
 
 export function ItemHeader({ info, children }: { info: ItemInfo; children?: ReactNode }) {
+  // A page's own icon and cover colour, when it has them.
+  const look = readAppearance(info.note?.appearance ?? info.source?.appearance);
+  const cover = look.cover?.kind === "image" ? undefined : coverBackground(look.cover);
   return (
     <header className="kx-item-head">
+      {cover && <span className="kx-item-cover" style={{ background: cover }} aria-hidden />}
       <span className="kx-item-kind" data-kind={info.item.kind}>
-        <Icon name={info.icon} size={13} />
+        {look.icon ? <span className="kx-item-emoji">{look.icon}</span> : <Icon name={info.icon} size={13} />}
         {info.kindLabel}
       </span>
       <strong className="kx-item-title">{info.title}</strong>

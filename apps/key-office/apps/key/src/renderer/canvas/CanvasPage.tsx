@@ -6,6 +6,7 @@
 // Anything dragged in (library rows, sidebar items, files, web links) lands as cards where
 // it is dropped, and notes and pages show their whole text, rendered.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { coverBackground, readAppearance } from "../page-appearance";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { Icon, type IconName } from "../icons";
 import { hasExternalDrop, hasItemDrag, importDrop, itemLinks, readItemDrag, setItemDrag, type DraggedItem, type LinkEnd } from "../item-links";
@@ -1273,6 +1274,9 @@ function ItemCard({
     void run.then(() => window.dispatchEvent(new CustomEvent("key:note-saved", { detail: note.id })));
   };
   const missing = live ? !live.exists : false;
+  // A page's own icon and cover colour (images stay on the page; a card is too small).
+  const look = readAppearance(note?.appearance ?? source?.appearance);
+  const cover = look.cover?.kind === "image" ? undefined : coverBackground(look.cover);
   const title = highlight ? (live?.anchorLabel ?? node.title) : (live?.title ?? node.title);
   const icon: IconName = highlight ? "quote" : kind === "source" ? (SOURCE_ICON[live?.detail ?? node.detail ?? ""] ?? "doc") : ITEM_ICON[kind];
   const kindLabel = highlight ? `Highlight · ${live?.title ?? node.detail ?? ""}` : page !== undefined ? `Page ${page + 1}` : kind === "source" ? "Source" : kind === "note" ? "Note" : kind === "canvas" ? "Canvas" : "Page";
@@ -1305,8 +1309,9 @@ function ItemCard({
   return (
     <div ref={card} className="kx-canvas-card" data-kind={highlight ? "highlight" : kind} data-missing={missing || undefined} data-editing={editing || undefined}>
       {highlight && <span className="kx-canvas-card-bar" style={{ background: highlightColor(node.color, theme) }} />}
+      {cover && <span className="kx-canvas-card-bar kx-canvas-card-cover" style={{ background: cover }} />}
       <div className="kx-canvas-card-kind">
-        <Icon name={icon} size={12} />
+        {look.icon ? <span className="kx-canvas-card-emoji">{look.icon}</span> : <Icon name={icon} size={12} />}
         <span>{missing ? "Missing — deleted" : kindLabel}</span>
         <span className="kx-canvas-card-grip kx-canvas-chrome" draggable title="Drag into a note, onto a collection or another tab" aria-label="Drag card out" onDragStart={onDragOut}>
           <Icon name="grip" size={12} />

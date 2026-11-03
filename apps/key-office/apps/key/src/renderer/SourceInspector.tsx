@@ -1,25 +1,12 @@
+// The editors a source's details are made of (fields, creators, tags, typed properties),
+// shared by the source page, which is also the library's details panel, and other pages.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apa, apaInText, bibtex } from "./citation";
-import NoteEditor from "./note-editor";
-import { noteSources } from "./note-sources";
 import type { Creator } from "./citation";
 import { Icon } from "./icons";
-import { ProgressRing } from "./index-activity";
-import { formulaValue, type PropertyDefinition, type PropertySheetState } from "./PropertySheets";
-import {
-  ITEM_TYPES,
-  KIND_ICON,
-  bridge,
-  formatBytes,
-  itemTypeLabel,
-  type Collection,
-  type Facet,
-  type Invoke,
-  type Note,
-  type Source,
-} from "./library-api";
+import { formulaValue, type PropertyDefinition } from "./PropertySheets";
+import type { Facet, Source } from "./library-api";
 
-type FieldSpec = [key: keyof Source & string, label: string, kind?: "url" | "doi" | "number" | "long"];
+export type FieldSpec = [key: keyof Source & string, label: string, kind?: "url" | "doi" | "number" | "long"];
 const COMMON_TAIL: FieldSpec[] = [
   ["doi", "DOI", "doi"],
   ["url", "URL", "url"],
@@ -52,298 +39,6 @@ export const MORE_FIELDS: FieldSpec[] = [
   ["extra", "Extra", "long"],
 ];
 const ROLES = ["author", "editor", "translator", "container-author", "contributor"];
-
-export default function SourceInspector({
-  source,
-  invoke,
-  workspaceId,
-  collections,
-  tagSuggestions,
-  onChanged,
-  onOpen,
-  onOpenPage,
-  onClose,
-  definitions,
-  progress,
-  onPropertySheet,
-  onAgentFill,
-  onDownload,
-}: {
-  definitions: PropertyDefinition[];
-  /** Live stage while this source is being read or indexed. */
-  progress?: { fraction: number; label: string };
-  onPropertySheet: (state: PropertySheetState) => void;
-  onAgentFill: (propertyName?: string) => void;
-  onDownload: () => Promise<void>;
-  source: Source;
-  invoke: Invoke;
-  workspaceId: string;
-  collections: Collection[];
-  tagSuggestions: Facet[];
-  onChanged: (source: Source) => void;
-  onOpen: (source: Source) => void;
-  /** The source as a full page with its note (beside the PDF when reading). */
-  onOpenPage: (source: Source) => void;
-  onClose: () => void;
-}) {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [copied, setCopied] = useState("");
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let current = true;
-    setNotes([]);
-    setError("");
-    invoke<Note[]>("store_notes", { sourceId: source.id }, workspaceId)
-      .then((n) => current && setNotes(n))
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, [source.id, workspaceId, invoke]);
-
-  const save = async (patch: Record<string, unknown>) => {
-    setError("");
-    try {
-      onChanged(await invoke<Source>("store_update", { id: source.id, patch }, workspaceId));
-    } catch (e) {
-      setError(String(e));
-    }
-  };
-  const copy = async (label: string, text: string, html?: string) => {
-    try {
-      if (html && "ClipboardItem" in window) {
-        await navigator.clipboard.write([
-          new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) }),
-        ]);
-      } else await navigator.clipboard.writeText(text);
-      setCopied(label);
-      setTimeout(() => setCopied(""), 1400);
-    } catch (e) {
-      setError(String(e));
-    }
-  };
-  const fields = FIELDS[source.itemType || ""] ?? DEFAULT_FIELDS;
-  const collectionNames = useMemo(() => new Map(collections.map((c) => [c.id, c.name])), [collections]);
-  const canOpen = !!source.filePath || !!source.url;
-  const status = indexLabel(source);
-
-  return (
-    <aside className="kx-inspector" aria-label="Source details">
-      <header className="kx-inspector-bar">
-        <span className="kx-kind-badge" data-kind={source.kind}>
-          <Icon name={KIND_ICON[source.kind] ?? "doc"} size={13} />
-          <select aria-label="Item type" value={source.itemType || "document"} onChange={(e) => void save({ itemType: e.target.value })}>
-            {!ITEM_TYPES.some(([id]) => id === source.itemType) && <option value={source.itemType}>{itemTypeLabel(source.itemType)}</option>}
-            {ITEM_TYPES.map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </span>
-        <span className="kx-spacer" />
-        <button className="kx-icon-button" title="Open as page" aria-label="Open as page" onClick={() => onOpenPage(source)}>
-          <Icon name="doc" size={14} />
-        </button>
-        <button className="kx-icon-button" data-active={source.starred} aria-pressed={source.starred} title={source.starred ? "Unstar" : "Star"} onClick={() => void save({ starred: !source.starred })}>
-          <Icon name="star" size={15} fill={source.starred ? "currentColor" : "none"} />
-        </button>
-        <button className="kx-icon-button" title="Close details" aria-label="Close details" onClick={onClose}>
-          <Icon name="close" size={13} />
-        </button>
-      </header>
-      <div className="kx-inspector-scroll">
-        <AutoText className="kx-inspector-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />
-        <Creators creators={source.creators} onCommit={(creators) => void save({ creators })} />
-        <div className="kx-inspector-actions">
-          <button className="kx-button-primary" disabled={!canOpen} onClick={() => onOpen(source)}>
-            <Icon name={source.filePath ? (source.kind === "pdf" ? "book" : "external") : "globe"} size={14} />
-            {source.filePath ? (source.kind === "pdf" ? "Read" : "Open") : "Open link"}
-          </button>
-          <div className="kx-split-button">
-            <button onClick={() => void copy("APA", apa(source), apa(source, true))}>
-              <Icon name="quote" size={13} />
-              {copied ? `Copied ${copied}` : "Cite"}
-            </button>
-            <details className="kx-menu">
-              <summary aria-label="More citation formats">
-                <Icon name="chevronDown" size={12} />
-              </summary>
-              <div className="kx-menu-popover" onClick={(e) => (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute("open")}>
-                <button onClick={() => void copy("APA", apa(source), apa(source, true))}>Copy APA reference</button>
-                <button onClick={() => void copy("in-text", apaInText(source))}>Copy in-text citation</button>
-                <button onClick={() => void copy("BibTeX", bibtex(source))}>Copy BibTeX</button>
-              </div>
-            </details>
-          </div>
-        </div>
-        {error && <p className="kx-inline-error">{error}</p>}
-
-        {/* Bibliographic fields (fixed columns) and your own properties (attributes) are one list. */}
-        <section className="kx-inspector-section">
-          <h3>Details</h3>
-          <div className="kx-inspector-group kx-details">
-            {fields.map(([key, label, kind]) => (
-              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | number | undefined} onCommit={(value) => void save({ [key]: kind === "number" ? (value === "" ? null : Number(value)) : value })} />
-            ))}
-            {MORE_FIELDS.filter(([key]) => moreOpen || !!source[key]).map(([key, label, kind]) => (
-              <FieldRow key={key} label={label} kind={kind} value={source[key] as string | undefined} onCommit={(value) => void save({ [key]: value })} />
-            ))}
-            <TypedProperties
-              source={source}
-              definitions={definitions}
-              onCommit={(properties) => void save({ properties })}
-              onEdit={(definition) => onPropertySheet({ mode: "edit", definition, targets: [source] })}
-              onFill={onAgentFill}
-            />
-            <div className="kx-details-foot">
-              <button className="kx-row-toggle" onClick={() => setMoreOpen(!moreOpen)}>
-                {moreOpen ? "Fewer fields" : "More fields"}
-              </button>
-              <button className="kx-row-toggle" onClick={() => onPropertySheet({ mode: "new", targets: [source] })}>
-                <Icon name="plus" size={11} /> New property…
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="kx-inspector-section">
-          <h3>Abstract</h3>
-          <AutoText className="kx-abstract" label="Abstract" value={source.abstract || ""} placeholder="Add an abstract" onCommit={(abstract) => void save({ abstract })} />
-        </section>
-
-        <section className="kx-inspector-section">
-          <h3>Tags</h3>
-          <TagEditor tags={source.tags} suggestions={tagSuggestions} onCommit={(tags) => void save({ tags })} />
-        </section>
-
-        <section className="kx-inspector-section">
-          <h3>Collections</h3>
-          <div className="kx-chips">
-            {source.collections.map((id) => (
-              <span className="kx-chip" key={id}>
-                <Icon name="folder" size={11} />
-                <span>{collectionNames.get(id) ?? "Collection"}</span>
-                <button
-                  aria-label={`Remove from ${collectionNames.get(id) ?? "collection"}`}
-                  onClick={() =>
-                    void invoke("store_membership", { collectionId: id, ids: [source.id], present: false }, workspaceId).then(() =>
-                      onChanged({ ...source, collections: source.collections.filter((c) => c !== id) }),
-                    )
-                  }
-                >
-                  <Icon name="close" size={9} />
-                </button>
-              </span>
-            ))}
-            <select
-              className="kx-chip-add"
-              aria-label="Add to collection"
-              value=""
-              onChange={(e) => {
-                const id = e.target.value;
-                if (id)
-                  void invoke("store_membership", { collectionId: id, ids: [source.id], present: true }, workspaceId).then(() =>
-                    onChanged({ ...source, collections: [...source.collections, id] }),
-                  );
-              }}
-            >
-              <option value="">+ Add to…</option>
-              {collections
-                .filter((c) => !source.collections.includes(c.id))
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-        </section>
-
-        <section className="kx-inspector-section">
-          <h3>
-            Notes <span className="kx-count">{notes.length}</span>
-          </h3>
-          <Notes
-            notes={notes}
-            invoke={invoke}
-            workspaceId={workspaceId}
-            onCreate={async () => {
-              const saved = await invoke<Note>("store_note_save", { id: null, sourceId: source.id, title: "", body: "" }, workspaceId);
-              setNotes((list) => [...list, saved]);
-              return saved.id;
-            }}
-            onSave={async (note) => {
-              await invoke<Note>("store_note_save", { id: note.id, sourceId: source.id, title: note.title, body: note.body }, workspaceId);
-            }}
-            onDelete={async (id) => {
-              await invoke("store_note_delete", { id }, workspaceId);
-              setNotes((list) => list.filter((n) => n.id !== id));
-            }}
-          />
-        </section>
-
-        {(source.filePath || source.indexStatus !== "skipped") && (
-          <section className="kx-inspector-section">
-            <h3>File & search</h3>
-            <div className="kx-file-card">
-              {source.filePath ? (
-                <>
-                  <div className="kx-file-name" title={source.filePath}>
-                    <Icon name={KIND_ICON[source.kind] ?? "doc"} size={14} />
-                    <span>{/\/\.key\/files\/[0-9a-f]{64}\./.test(source.filePath) ? "Saved in this workspace" : source.filePath.split("/").pop()}</span>
-                  </div>
-                  <small>
-                    {[source.pageCount ? `${source.pageCount} pages` : "", formatBytes(source.fileSize), source.mime].filter(Boolean).join(" · ")}
-                  </small>
-                </>
-              ) : (
-                <small>No file. Title and abstract are searchable.</small>
-              )}
-              <div className="kx-index-line" data-tone={progress ? "busy" : status.tone}>
-                {progress ? <ProgressRing fraction={progress.fraction} size={14} /> : <span className="kx-status-dot" data-tone={status.tone} />}
-                <span>{progress ? progress.label : status.label}</span>
-              </div>
-              {progress && (
-                <div className="kx-meter">
-                  <span style={{ width: `${progress.fraction * 100}%` }} />
-                </div>
-              )}
-              <div className="kx-file-actions">
-                {!source.filePath && (source.doi || source.url) && (
-                  <button
-                    onClick={() => {
-                      setError("");
-                      void onDownload().catch((e) => setError(String(e).replace(/^Error: /, "")));
-                    }}
-                  >
-                    <Icon name="upload" size={12} style={{ transform: "rotate(180deg)" }} />
-                    Find PDF
-                  </button>
-                )}
-                {source.filePath && (
-                  <button onClick={() => void bridge().revealPath(source.filePath!)}>
-                    <Icon name="folder" size={12} />
-                    Show in Finder
-                  </button>
-                )}
-                <button onClick={() => void invoke("store_index_control", { action: "reindex", ids: [source.id] }, workspaceId).then(() => onChanged({ ...source, indexStatus: "pending" }))}>
-                  <Icon name="retry" size={12} />
-                  Re-index
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-        <footer className="kx-inspector-foot">
-          Added {new Date(source.addedAt).toLocaleDateString()} · Modified {new Date(source.updatedAt).toLocaleDateString()}
-          {source.origin === "zotero" ? " · from Zotero" : ""}
-        </footer>
-      </div>
-    </aside>
-  );
-}
 
 export function indexLabel(source: Source): { tone: string; label: string } {
   switch (source.indexStatus) {
@@ -436,7 +131,15 @@ export function Creators({ creators, onCommit }: { creators: Creator[]; onCommit
   useEffect(() => setDraft(creators), [creators]);
   if (!editing)
     return (
-      <button className="kx-creators" onClick={() => setEditing(true)} title="Edit creators">
+      <button
+        className="kx-creators"
+        onClick={() => {
+          // With nobody yet, start with one empty row to type into.
+          if (!creators.length) setDraft([{ family: "", given: "", role: "author" }]);
+          setEditing(true);
+        }}
+        title="Edit creators"
+      >
         <Icon name="user" size={12} />
         <span>
           {creators.length
@@ -526,19 +229,23 @@ export function TagEditor({ tags, suggestions, onCommit }: { tags: string[]; sug
   );
 }
 
-/** Defined properties with typed editors, then any free-form keys on this source. */
+/** Defined properties with typed editors, then any free-form keys on this item. */
 export function TypedProperties({
   source,
   definitions,
   onCommit,
   onEdit,
   onFill,
+  formula = (definition) => formulaValue(definition, source as Source),
 }: {
-  source: Source;
+  /** A source, or any page item with its own properties (a note). */
+  source: { id: string; properties: Record<string, unknown> };
   definitions: PropertyDefinition[];
   onCommit: (p: Record<string, unknown>) => void;
   onEdit: (d: PropertyDefinition) => void;
-  onFill: (name?: string) => void;
+  /** Agent fill; without it a row offers to remove the value instead. */
+  onFill?: (name?: string) => void;
+  formula?: (d: PropertyDefinition) => string;
 }) {
   const defined = new Set(definitions.map((d) => d.name));
   const extra = Object.fromEntries(Object.entries(source.properties).filter(([key]) => !defined.has(key)));
@@ -556,11 +263,11 @@ export function TypedProperties({
               <span>{definition.name}</span>
             </button>
             {definition.type === "formula" ? (
-              <output>{formulaValue(definition, source) || "—"}</output>
+              <output>{formula(definition) || "—"}</output>
             ) : definition.type === "boolean" ? (
-              <input type="checkbox" className="kx-switch" checked={value === true} onChange={(e) => onCommit({ [definition.name]: e.target.checked })} />
+              <input type="checkbox" className="kx-switch" aria-label={definition.name} checked={value === true} onChange={(e) => onCommit({ [definition.name]: e.target.checked })} />
             ) : definition.type === "select" ? (
-              <select value={text} onChange={(e) => onCommit({ [definition.name]: e.target.value || null })}>
+              <select aria-label={definition.name} value={text} onChange={(e) => onCommit({ [definition.name]: e.target.value || (onFill ? null : "") })}>
                 <option value="">—</option>
                 {(definition.options ?? []).map((option) => (
                   <option key={option}>{option}</option>
@@ -569,6 +276,7 @@ export function TypedProperties({
             ) : (
               <input
                 key={`${source.id}:${definition.name}:${text}`}
+                aria-label={definition.name}
                 defaultValue={text}
                 placeholder="—"
                 inputMode={definition.type === "number" ? "decimal" : undefined}
@@ -579,14 +287,21 @@ export function TypedProperties({
                     e.target.value = text;
                     return;
                   }
-                  onCommit({ [definition.name]: next === "" ? null : definition.type === "number" ? Number(next) : next });
+                  // A page keeps an emptied row (""), so the property stays on it until removed.
+                  onCommit({ [definition.name]: next === "" ? (onFill ? null : "") : definition.type === "number" ? Number(next) : next });
                 }}
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               />
             )}
-            {definition.type !== "formula" && (
-              <button className="kx-row-remove" title={`Fill “${definition.name}” with AI`} aria-label={`Fill ${definition.name} with AI`} onClick={() => onFill(definition.name)}>
-                <Icon name="sparkle" size={11} />
+            {onFill ? (
+              definition.type !== "formula" && (
+                <button className="kx-row-remove" title={`Fill “${definition.name}” with AI`} aria-label={`Fill ${definition.name} with AI`} onClick={() => onFill(definition.name)}>
+                  <Icon name="sparkle" size={11} />
+                </button>
+              )
+            ) : (
+              <button className="kx-row-remove" title={`Remove “${definition.name}”`} aria-label={`Remove ${definition.name}`} onClick={() => onCommit({ [definition.name]: null })}>
+                <Icon name="close" size={10} />
               </button>
             )}
           </div>
@@ -668,69 +383,4 @@ function coerce(value: string): unknown {
   if (/^-?\d+(\.\d+)?$/.test(value.trim())) return Number(value);
   if (value === "true" || value === "false") return value === "true";
   return value;
-}
-
-/** Source notes, each an always-editable block editor; a note can also open in its own tab. */
-function Notes({
-  notes,
-  invoke,
-  workspaceId,
-  onCreate,
-  onSave,
-  onDelete,
-}: {
-  notes: Note[];
-  invoke: Invoke;
-  workspaceId: string;
-  onCreate: () => Promise<string>;
-  onSave: (n: Pick<Note, "id" | "title" | "body">) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-}) {
-  const sources = useMemo(() => noteSources(invoke, workspaceId), [invoke, workspaceId]);
-  const [fresh, setFresh] = useState<string>();
-  const openInTab = (note: Note) =>
-    void (window as unknown as { key: { tabAction: (a: string, p: unknown) => Promise<unknown> } }).key.tabAction("open-content", {
-      section: "note",
-      workspaceId,
-      noteId: note.id,
-      title: note.title,
-    });
-  return (
-    <div className="kx-notes">
-      {notes.map((note) => (
-        <div className="kx-note-card" key={note.id}>
-          <div className="kx-note-card-bar">
-            <span>{new Date(note.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>
-            <span className="kx-spacer" />
-            <button title="Open in a tab" aria-label="Open note in a tab" onClick={() => openInTab(note)}>
-              <Icon name="external" size={11} />
-            </button>
-            <button
-              title="Delete note"
-              aria-label="Delete note"
-              onClick={() => {
-                if (note.body.trim() && !window.confirm("Delete this note?")) return;
-                void onDelete(note.id);
-              }}
-            >
-              <Icon name="trash" size={11} />
-            </button>
-          </div>
-          <NoteEditor
-            compact
-            autoFocus={fresh === note.id}
-            value={note.body}
-            onChange={(body) => void onSave({ id: note.id, title: note.title, body })}
-            searchSources={sources.searchSources}
-            resolveSource={sources.resolveSource}
-            onOpenSource={sources.onOpenSource}
-            media={sources.media}
-          />
-        </div>
-      ))}
-      <button className="kx-row-toggle" onClick={() => void onCreate().then(setFresh)}>
-        <Icon name="plus" size={11} /> New note
-      </button>
-    </div>
-  );
 }

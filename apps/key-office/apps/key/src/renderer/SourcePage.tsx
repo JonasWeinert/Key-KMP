@@ -1,19 +1,23 @@
 // A source as one document, like a Notion page: its title and authors, a compact grid of
 // bibliographic fields and the user's own properties, the abstract, then the note itself,
 // followed by the PDF's highlights (each quotable into the note) and any further notes.
-// Opened beside the PDF reader for sources that have one.
+// Opened beside the PDF reader for sources that have one, and as the library's details
+// panel (`variant="side"`), so a source looks the same wherever it is shown.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apa, apaInText, bibtex } from "./citation";
 import { Icon } from "./icons";
-import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, itemTypeLabel, shortCreators, type Collection, type Facet, type Invoke, type Note, type Source } from "./library-api";
+import { ProgressRing } from "./index-activity";
+import { ItemPage } from "./ItemPage";
+import { ITEM_TYPES, KIND_ICON, bridge as libraryBridge, formatBytes, itemTypeLabel, shortCreators, type Collection, type Facet, type Invoke, type Note, type Source } from "./library-api";
 import { libraryChanged } from "./library-nav";
 import NoteEditor from "./note-editor";
 import { noteSources } from "./note-sources";
 import LinkedFrom from "./LinkedFrom";
 import { setItemDrag } from "./item-links";
 import { itemAttrs } from "./item-ui";
+import { readAppearance } from "./page-appearance";
 import { PropertySheet, usePropertyDefinitions, type PropertySheetState } from "./PropertySheets";
-import { AutoText, Creators, DEFAULT_FIELDS, FIELDS, FieldRow, MORE_FIELDS, TagEditor, TypedProperties } from "./SourceInspector";
+import { AutoText, Creators, DEFAULT_FIELDS, FIELDS, FieldRow, MORE_FIELDS, TagEditor, TypedProperties, indexLabel } from "./SourceInspector";
 
 interface Highlight {
   id: string;
@@ -36,7 +40,17 @@ const quoteBlock = (text: string, sourceId: string, page?: number, color?: strin
   return `${fence}quote ${attrs}\n${body}\n${fence}`;
 };
 
-export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { invoke: Invoke; workspaceId: string; sourceId: string; viewId: string }) {
+/** What the library's details panel adds around the page. */
+export interface SourceSide {
+  onClose: () => void;
+  onOpenPage: (source: Source) => void;
+  onChanged: (source: Source) => void;
+  onAgentFill: (propertyName?: string) => void;
+  /** Live stage while this source is being read or indexed. */
+  progress?: { fraction: number; label: string };
+}
+
+export default function SourcePage({ invoke, workspaceId, sourceId, viewId, side }: { invoke: Invoke; workspaceId: string; sourceId: string; viewId?: string; side?: SourceSide }) {
   const [source, setSource] = useState<Source>();
   const [notes, setNotes] = useState<Note[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
@@ -140,13 +154,15 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
   }, [sourceId, loadSource, loadNotes, loadHighlights]);
   // The tab follows the title.
   useEffect(() => {
-    if (source) void bridge().tabAction("content-title", { viewId, title: source.title || "Untitled" });
+    if (source && viewId) void bridge().tabAction("content-title", { viewId, title: source.title || "Untitled" });
   }, [source?.title, viewId]);
 
   const save = async (patch: Record<string, unknown>) => {
     setError("");
     try {
-      setSource(await invoke<Source>("store_update", { id: sourceId, patch }, workspaceId));
+      const next = await invoke<Source>("store_update", { id: sourceId, patch }, workspaceId);
+      setSource(next);
+      side?.onChanged(next);
       libraryChanged();
     } catch (e) {
       setError(String(e));
@@ -216,6 +232,29 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
       }),
     [sourceId, takeAppends],
   );
+  const openNote = (note: Note) =>
+    void bridge().tabAction("open-content", { section: "note", workspaceId, noteId: note.id, title: note.title });
+  const newNote = async () => {
+    const saved = await invoke<Note>("store_note_save", { id: null, sourceId, title: "", body: "" }, workspaceId);
+    setNotes((list) => [...list, saved]);
+  };
+  const deleteNote = async (note: Note) => {
+    if (note.body.trim() && !window.confirm("Delete this note?")) return;
+    await invoke("store_note_delete", { id: note.id }, workspaceId);
+    setNotes((list) => list.filter((n) => n.id !== note.id));
+  };
+  const findPdf = async () => {
+    setError("");
+    try {
+      const lookup = await invoke<{ fullTextUrl?: string | null }>("scholarly_lookup_resource", { resource: source!.doi || source!.url }, workspaceId);
+      if (!lookup.fullTextUrl) throw Error("No open-access PDF was found for this reference.");
+      const next = await invoke<Source>("library_download_pdf", { url: lookup.fullTextUrl, sourceId }, workspaceId);
+      setSource(next);
+      side?.onChanged(next);
+    } catch (e) {
+      setError(String(e).replace(/^Error: /, ""));
+    }
+  };
   const copy = async (label: string, text: string, html?: string) => {
     try {
       if (html && "ClipboardItem" in window)
@@ -259,9 +298,24 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
       pdf: { documentHash: source.fileHash, documentId: source.fileHash, title: source.title || "Untitled", workspaceId, pageCount: source.pageCount ?? 0 },
     });
 
+  const status = indexLabel(source);
+  const progress = side?.progress;
+
   return (
-    <article className="kx-source-page" ref={pageRef} data-narrow={width !== "wide"} data-tight={width === "tight"}>
-      <div className="kx-source-page-inner" data-part={part}>
+    <ItemPage
+      kind="source"
+      className="kx-source-page"
+      innerClassName="kx-source-page-inner"
+      innerProps={{ "data-part": part }}
+      pageRef={pageRef}
+      data-narrow={width !== "wide"}
+      data-tight={width === "tight"}
+      data-side={!!side}
+      appearance={readAppearance(source.appearance)}
+      onAppearance={(appearance) => void save({ appearance })}
+      media={sources.media}
+      defaultIcon={KIND_ICON[source.kind] ?? "doc"}
+      bar={
         <header className="kx-source-page-bar">
           <span className="kx-kind-badge" data-kind={source.kind}>
             <Icon name={KIND_ICON[source.kind] ?? "doc"} size={13} />
@@ -338,9 +392,20 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
               </button>
             )
           )}
+          {side && (
+            <>
+              <button className="kx-icon-button" title="Open as page" aria-label="Open as page" onClick={() => side.onOpenPage(source)}>
+                <Icon name="doc" size={14} />
+              </button>
+              <button className="kx-icon-button" title="Close details" aria-label="Close details" onClick={side.onClose}>
+                <Icon name="close" size={13} />
+              </button>
+            </>
+          )}
         </header>
-
-        <AutoText className="kx-inspector-title kx-source-page-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />
+      }
+      title={<AutoText className="kx-inspector-title kx-source-page-title" label="Title" value={source.title || ""} placeholder="Untitled" onCommit={(title) => void save({ title })} />}
+    >
         {source.kind === "image" && source.filePath && (
           // served by the shell from the linked file, so the page shows what the source is
           <figure className="kx-source-image">
@@ -425,7 +490,7 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             definitions={definitions}
             onCommit={(properties) => void save({ properties })}
             onEdit={(definition) => setSheet({ mode: "edit", definition, targets: [source] })}
-            onFill={() => {}}
+            onFill={side?.onAgentFill ?? (() => {})}
           />
           <div className="kx-page-properties-foot">
             {(hidden > 0 || moreFields) && (
@@ -452,6 +517,54 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             )
           )}
         </section>
+        {(source.filePath || source.indexStatus !== "skipped") && (
+          <section className="kx-page-file" aria-label="File and search">
+            <div className="kx-file-card">
+              {source.filePath ? (
+                <>
+                  <div className="kx-file-name" title={source.filePath}>
+                    <Icon name={KIND_ICON[source.kind] ?? "doc"} size={14} />
+                    <span>{/\/\.key\/files\/[0-9a-f]{64}\./.test(source.filePath) ? "Saved in this workspace" : source.filePath.split("/").pop()}</span>
+                  </div>
+                  <small>{[source.pageCount ? `${source.pageCount} pages` : "", formatBytes(source.fileSize), source.mime].filter(Boolean).join(" · ")}</small>
+                </>
+              ) : (
+                <small>No file. Title and abstract are searchable.</small>
+              )}
+              <div className="kx-index-line" data-tone={progress ? "busy" : status.tone}>
+                {progress ? <ProgressRing fraction={progress.fraction} size={14} /> : <span className="kx-status-dot" data-tone={status.tone} />}
+                <span>{progress ? progress.label : status.label}</span>
+              </div>
+              {progress && (
+                <div className="kx-meter">
+                  <span style={{ width: `${progress.fraction * 100}%` }} />
+                </div>
+              )}
+              <div className="kx-file-actions">
+                {!source.filePath && (source.doi || source.url) && (
+                  <button onClick={() => void findPdf()}>
+                    <Icon name="upload" size={12} style={{ transform: "rotate(180deg)" }} />
+                    Find PDF
+                  </button>
+                )}
+                {source.filePath && (
+                  <button onClick={() => void libraryBridge().revealPath(source.filePath!)}>
+                    <Icon name="folder" size={12} />
+                    Show in Finder
+                  </button>
+                )}
+                <button onClick={() => void invoke("store_index_control", { action: "reindex", ids: [sourceId] }, workspaceId).then(() => void loadSource())}>
+                  <Icon name="retry" size={12} />
+                  Re-index
+                </button>
+              </div>
+            </div>
+            <footer className="kx-inspector-foot">
+              Added {new Date(source.addedAt).toLocaleDateString()} · Modified {new Date(source.updatedAt).toLocaleDateString()}
+              {source.origin === "zotero" ? " · from Zotero" : ""}
+            </footer>
+          </section>
+        )}
           </div>
         )}
 
@@ -500,6 +613,16 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
         )}
 
         <div className="kx-page-note" data-part-of="notes">
+          {page?.id && (
+            <div className="kx-page-note-bar">
+              <button title="Open in a tab" aria-label="Open note in a tab" onClick={() => openNote(page)}>
+                <Icon name="external" size={11} />
+              </button>
+              <button title="Add another note" aria-label="New note" onClick={() => void newNote()}>
+                <Icon name="plus" size={11} />
+              </button>
+            </div>
+          )}
           {/* One editor for the page's life: creating the note on the first keystroke must not remount it. */}
           <NoteEditor
             value={pageNote}
@@ -528,8 +651,19 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             </h3>
             {notes.slice(1).map((note) => (
               <div className="kx-note-card" key={note.id}>
+                <div className="kx-note-card-bar">
+                  <span>{note.title || new Date(note.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>
+                  <span className="kx-spacer" />
+                  <button title="Open in a tab" aria-label="Open note in a tab" onClick={() => openNote(note)}>
+                    <Icon name="external" size={11} />
+                  </button>
+                  <button title="Delete note" aria-label="Delete note" onClick={() => void deleteNote(note)}>
+                    <Icon name="trash" size={11} />
+                  </button>
+                </div>
                 <NoteEditor
                   compact
+                  autoFocus={!note.body && note === notes[notes.length - 1]}
                   value={note.body}
                   onChange={(body) => void invoke("store_note_save", { id: note.id, sourceId, title: note.title, body }, workspaceId)}
                   searchSources={sources.searchSources}
@@ -545,7 +679,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
             ))}
           </section>
         )}
-      </div>
       {sheet && (
         <PropertySheet
           state={sheet}
@@ -559,6 +692,6 @@ export default function SourcePage({ invoke, workspaceId, sourceId, viewId }: { 
           }}
         />
       )}
-    </article>
+    </ItemPage>
   );
 }

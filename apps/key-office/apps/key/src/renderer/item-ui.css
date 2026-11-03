@@ -321,3 +321,15 @@
 .kx-embed .kx-item-quote {
   margin-top: 10px;
 }
+
+/* A page's cover colour and icon, when it has them. */
+.kx-item-cover {
+  display: block;
+  height: 28px;
+  margin: 0 0 8px;
+  border-radius: 7px;
+}
+.kx-item-emoji {
+  font-size: 14px;
+  line-height: 1;
+}

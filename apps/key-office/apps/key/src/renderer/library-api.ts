@@ -20,6 +20,8 @@ export interface Source extends CitableSource {
   trashedAt?: number | null;
   noteCount: number;
   annotationCount: number;
+  /** The page header: icon and cover. */
+  appearance?: Record<string, unknown>;
   shortTitle?: string;
   containerShort?: string;
   series?: string;
@@ -79,6 +81,12 @@ export interface Note {
   body: string;
   createdAt: number;
   updatedAt: number;
+  /** Standard fields under a source's keys (`creators`, `year` ...). */
+  fields?: Record<string, unknown>;
+  /** The user's own properties. */
+  properties?: Record<string, unknown>;
+  /** The page header: icon and cover. */
+  appearance?: Record<string, unknown>;
 }
 export interface Passage {
   id: string;

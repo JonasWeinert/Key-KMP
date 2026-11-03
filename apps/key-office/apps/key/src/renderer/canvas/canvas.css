@@ -581,3 +581,14 @@ textarea.kx-canvas-text[data-centered] {
   stroke: var(--kx-accent);
   stroke-width: 1.5px;
 }
+/* A note or source with a page cover shows its colour as a band along the top. */
+.kx-canvas-card-cover {
+  right: 0;
+  bottom: auto;
+  width: auto;
+  height: 6px;
+}
+.kx-canvas-card-emoji {
+  font-size: 13px;
+  line-height: 1;
+}

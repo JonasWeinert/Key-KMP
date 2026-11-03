@@ -169,6 +169,13 @@ impl Library {
                 }
                 json_output(note)
             })(),
+            // A note's page metadata: `patch` holds `fields`, `properties` and `appearance`
+            // objects, each merged (null removes a key). Never touches the text.
+            "store_note_meta" => (|| {
+                let id: String = arg(args, "id")?;
+                let patch: Map<String, Json> = arg(args, "patch")?;
+                json_output(self.store.update_note_meta(&id, &patch)?)
+            })(),
             "store_note_delete" => arg::<String>(args, "id").and_then(|id| json_output(self.store.delete_note(&id)?)),
             // Cross-references: what an item links to and what links to it, and the items a
             // link can point at (notes, sources, highlights, canvases).

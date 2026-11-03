@@ -568,3 +568,32 @@ fn the_link_picker_finds_every_kind() {
     assert_eq!(found[3].page, Some(1));
     assert_eq!(store.link_targets("growth", &["canvas".into()], 10).unwrap().len(), 1);
 }
+
+#[test]
+fn notes_and_sources_keep_page_fields_properties_and_appearance() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path()).unwrap();
+    let note = store.save_note(None, None, "Plan", "Body", None).unwrap();
+    assert!(note.fields.is_empty() && note.properties.is_empty() && note.appearance.is_empty());
+    let patch = |value: Json| value.as_object().unwrap().clone();
+    store
+        .update_note_meta(&note.id, &patch(json!({
+            "fields": {"creators": [{"family": "Ada"}], "year": 2024},
+            "properties": {"Status": "Draft"},
+            "appearance": {"icon": "🌿", "cover": {"kind": "gradient", "value": "sunset"}}
+        })))
+        .unwrap();
+    // A text save leaves the page metadata alone, and a later patch merges into it.
+    store.save_note(Some(&note.id), None, "Plan 2", "Body 2", None).unwrap();
+    let updated = store.update_note_meta(&note.id, &patch(json!({"fields": {"year": null}, "properties": {"Score": 3}}))).unwrap();
+    assert_eq!(updated.title, "Plan 2");
+    assert_eq!(updated.fields, patch(json!({"creators": [{"family": "Ada"}]})));
+    assert_eq!(updated.properties, patch(json!({"Status": "Draft", "Score": 3})));
+    assert_eq!(store.note(&note.id).unwrap().unwrap().appearance["icon"], json!("🌿"));
+
+    let source = store.insert_source(input(json!({"kind": "reference", "title": "Nets"}))).unwrap();
+    let source = store.update_source(&source.id, &patch(json!({"appearance": {"icon": "📘"}}))).unwrap();
+    assert_eq!(source.appearance["icon"], json!("📘"));
+    let source = store.update_source(&source.id, &patch(json!({"appearance": {"cover": {"kind": "color", "value": "#f4d9b0"}}}))).unwrap();
+    assert_eq!(source.appearance.len(), 2);
+}

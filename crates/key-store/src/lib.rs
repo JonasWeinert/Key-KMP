@@ -41,6 +41,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/005_citations.sql"),
     include_str!("migrations/006_note_passages.sql"),
     include_str!("migrations/007_links_canvases.sql"),
+    include_str!("migrations/008_pages.sql"),
 ];
 
 /// Bibliographic columns accepted by `SourceInput` and returned on `Source`, in the
@@ -136,6 +137,9 @@ pub struct Source {
     pub trashed_at: Option<i64>,
     pub note_count: i64,
     pub annotation_count: i64,
+    /// The page header: `icon`, `cover`.
+    #[serde(default)]
+    pub appearance: Map<String, Json>,
     #[serde(flatten)]
     pub fields: Map<String, Json>,
 }
@@ -288,6 +292,15 @@ pub struct Note {
     pub origin_key: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Standard fields under a source's camelCase keys (`creators`, `year`, `url` ...).
+    #[serde(default)]
+    pub fields: Map<String, Json>,
+    /// The user's own properties, as on a source.
+    #[serde(default)]
+    pub properties: Map<String, Json>,
+    /// The page header: `icon`, `cover` (`{ kind: color|gradient|image, value }`).
+    #[serde(default)]
+    pub appearance: Map<String, Json>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -812,7 +825,7 @@ impl Store {
     pub fn notes(&self, source_id: &str) -> Result<Vec<Note>> {
         let db = self.db()?;
         let mut statement = db
-            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE source_id = ? ORDER BY created_at")
+            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE source_id = ? ORDER BY created_at")
             .map_err(e)?;
         statement
             .query_map([source_id], read_note)
@@ -825,7 +838,7 @@ impl Store {
     pub fn standalone_notes(&self) -> Result<Vec<Note>> {
         let db = self.read()?;
         let mut statement = db
-            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE source_id IS NULL ORDER BY updated_at DESC")
+            .prepare("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE source_id IS NULL ORDER BY updated_at DESC")
             .map_err(e)?;
         statement
             .query_map([], read_note)
@@ -844,7 +857,7 @@ impl Store {
 
     pub fn note(&self, id: &str) -> Result<Option<Note>> {
         self.read()?
-            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE id = ?", [id], read_note)
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE id = ?", [id], read_note)
             .optional()
             .map_err(e)
     }
@@ -869,7 +882,7 @@ impl Store {
         .map_err(e)?;
         let note = db
             .query_row(
-                "SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE id = ?",
+                "SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE id = ?",
                 [&id],
                 read_note,
             )
@@ -925,7 +938,7 @@ impl Store {
         let db = self.read()?;
         let mut statement = db
             .prepare(
-                "SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes
+                "SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes
                  WHERE indexed_at IS NULL OR indexed_at < updated_at ORDER BY updated_at DESC LIMIT ?",
             )
             .map_err(e)?;
@@ -951,10 +964,40 @@ impl Store {
         Ok(())
     }
 
+    /// Merges a note's page metadata: `fields`, `properties` and `appearance`, each a
+    /// patch where null removes a key. The body and title are left alone, so this never
+    /// races a save of the text.
+    pub fn update_note_meta(&self, id: &str, patch: &Map<String, Json>) -> Result<Note> {
+        let db = self.db()?;
+        let tx = db.unchecked_transaction().map_err(e)?;
+        let (fields, properties, appearance): (String, String, String) = tx
+            .query_row("SELECT fields, properties, appearance FROM notes WHERE id = ?", [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .optional()
+            .map_err(e)?
+            .ok_or("Note not found")?;
+        let merged = |current: &str, key: &str| -> String {
+            let base: Map<String, Json> = serde_json::from_str(current).unwrap_or_default();
+            match patch.get(key) {
+                Some(Json::Object(p)) => Json::Object(merge_json(base, p)).to_string(),
+                _ => Json::Object(base).to_string(),
+            }
+        };
+        tx.execute(
+            "UPDATE notes SET fields = ?2, properties = ?3, appearance = ?4, updated_at = ?5 WHERE id = ?1",
+            params![id, merged(&fields, "fields"), merged(&properties, "properties"), merged(&appearance, "appearance"), now_ms()],
+        )
+        .map_err(e)?;
+        let note = tx
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE id = ?", [id], read_note)
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(note)
+    }
+
     /// The note an importer created under `origin_key`.
     pub fn note_by_origin(&self, origin_key: &str) -> Result<Option<Note>> {
         self.read()?
-            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at FROM notes WHERE origin_key = ?", [origin_key], read_note)
+            .query_row("SELECT id, source_id, title, body, origin_key, created_at, updated_at, fields, properties, appearance FROM notes WHERE origin_key = ?", [origin_key], read_note)
             .optional()
             .map_err(e)
     }
@@ -1181,6 +1224,7 @@ fn select_sources() -> String {
             "(SELECT group_concat(collection_id, char(31)) FROM source_collections WHERE source_id = s.id)",
             "(SELECT count(*) FROM notes WHERE source_id = s.id)",
             "(SELECT count(*) FROM annotations WHERE source_id = s.id)",
+            "s.appearance",
         ]
         .map(String::from),
     );
@@ -1226,6 +1270,7 @@ fn read_source(row: &Row) -> rusqlite::Result<Source> {
             .unwrap_or_default(),
         note_count: row.get(index + 16)?,
         annotation_count: row.get(index + 17)?,
+        appearance: serde_json::from_str(&text(index + 18)?).unwrap_or_default(),
         fields,
     })
 }
@@ -1239,7 +1284,22 @@ fn read_note(r: &Row) -> rusqlite::Result<Note> {
         origin_key: r.get(4)?,
         created_at: r.get(5)?,
         updated_at: r.get(6)?,
+        fields: serde_json::from_str(&r.get::<_, String>(7)?).unwrap_or_default(),
+        properties: serde_json::from_str(&r.get::<_, String>(8)?).unwrap_or_default(),
+        appearance: serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default(),
     })
+}
+
+/// Shallow merge: each key of `patch` replaces the one in `base`; null removes it.
+fn merge_json(mut base: Map<String, Json>, patch: &Map<String, Json>) -> Map<String, Json> {
+    for (key, value) in patch {
+        if value.is_null() {
+            base.remove(key);
+        } else {
+            base.insert(key.clone(), value.clone());
+        }
+    }
+    base
 }
 
 fn json_to_sql(value: &Json) -> Value {
@@ -1333,6 +1393,15 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
         sets.push("starred = ?".into());
         values.push(Value::Integer(starred as i64));
     }
+    if let Some(Json::Object(appearance)) = patch.get("appearance") {
+        let current: String = db
+            .query_row("SELECT appearance FROM sources WHERE id = ?", [id], |r| r.get(0))
+            .optional()
+            .map_err(e)?
+            .ok_or("Source not found")?;
+        sets.push("appearance = ?".into());
+        values.push(Value::Text(Json::Object(merge_json(serde_json::from_str(&current).unwrap_or_default(), appearance)).to_string()));
+    }
     if let Some(Json::Object(replace)) = patch.get("replaceProperties") {
         sets.push("properties = ?".into());
         values.push(Value::Text(Json::Object(replace.clone()).to_string()));
@@ -1342,14 +1411,7 @@ fn patch_source_row(db: &Connection, id: &str, patch: &Map<String, Json>, now: i
             .optional()
             .map_err(e)?
             .ok_or("Source not found")?;
-        let mut merged: Map<String, Json> = serde_json::from_str(&current).unwrap_or_default();
-        for (key, value) in properties {
-            if value.is_null() {
-                merged.remove(key);
-            } else {
-                merged.insert(key.clone(), value.clone());
-            }
-        }
+        let merged = merge_json(serde_json::from_str(&current).unwrap_or_default(), properties);
         sets.push("properties = ?".into());
         values.push(Value::Text(Json::Object(merged).to_string()));
     }
