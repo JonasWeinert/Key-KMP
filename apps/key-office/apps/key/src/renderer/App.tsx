@@ -79,6 +79,8 @@ interface TabState {
       /** Titles of what this pane showed before (oldest first), and the next one forward. */
       back?: string[];
       forward?: string;
+      /** Bumped each time a link is followed in this pane (or Back/Forward). */
+      nav?: number;
     }[];
   }[];
   activeTabId: string;
@@ -139,7 +141,7 @@ function paneItem(content?: ContentSpec, title?: string): DraggedItem | undefine
   if (content.section === "file" && content.fileId) return { kind: "file", id: content.fileId, title: name };
   return undefined;
 }
-/** Remounts a pane's content when a followed link changes what it shows. */
+/** What a pane shows, so the selection follows it when that changes. */
 const contentIdentity = (content?: ContentSpec) =>
   content ? [content.section, content.noteId ?? content.canvasId ?? content.sourceId ?? content.record?.id ?? content.workspaceId ?? ""].join(":") : "";
 
@@ -1135,7 +1137,7 @@ export default function App() {
                     </nav>
                   )}
                   <WorkspaceContent
-                    key={contentIdentity(v.content)}
+                    key={v.nav ?? 0}
                     viewId={v.id}
                     spec={v.content || { section: "sources" }}
                     visible={!!placed}

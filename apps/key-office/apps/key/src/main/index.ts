@@ -78,6 +78,8 @@ type OwnedView = {
   /** What this pane showed before a link was followed in place, and after going back. */
   back?: PaneEntry[];
   forward?: PaneEntry[];
+  /** Counts links followed in place, so the renderer knows to show the pane afresh. */
+  nav?: number;
   returnViewId?: string;
   searchPreviewOwner?: string;
   sharedSearchNavigation?: boolean;
@@ -374,6 +376,7 @@ function snapshot(w: ShellWindow) {
         content: views.get(id)?.content,
         back: views.get(id)?.back?.map((e) => e.title).slice(-3),
         forward: views.get(id)?.forward?.at(-1)?.title,
+        nav: views.get(id)?.nav,
       })),
     })),
     activeTabId: state.activeTabId,
@@ -617,7 +620,7 @@ function navigateInPlace(w: ShellWindow, pane: OwnedView, record: OwnedView) {
   views.delete(record.id);
   pane.back = [...(pane.back ?? []), paneEntry(pane)].slice(-50);
   pane.forward = [];
-  Object.assign(pane, { title: record.title, contentKey: record.contentKey, content: record.content, workspaceId: record.workspaceId, dirty: false });
+  Object.assign(pane, { title: record.title, contentKey: record.contentKey, content: record.content, workspaceId: record.workspaceId, dirty: false, nav: (pane.nav ?? 0) + 1 });
   focus(pane.id);
   tabsChanged(w);
 }
@@ -631,7 +634,7 @@ function stepHistory(w: ShellWindow, viewId: string, step: number) {
   const elsewhere = [...views.values()].find((v) => v !== pane && v.contentKey === entry.contentKey);
   if (elsewhere && shellOfView(elsewhere.id)) return focus(elsewhere.id);
   (step < 0 ? (pane.forward ??= []) : (pane.back ??= [])).push(paneEntry(pane));
-  Object.assign(pane, entry, { dirty: false });
+  Object.assign(pane, entry, { dirty: false, nav: (pane.nav ?? 0) + 1 });
   tabsChanged(w);
 }
 function add(record: OwnedView, w: ShellWindow = focusedShell()) {
